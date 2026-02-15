@@ -66,6 +66,7 @@ class AppState:
         self.shutdown_trigger_timestamp: Optional[float] = None
         self.shutdown_pending: bool = False
         self.can_listen_only: bool = False
+        self.zmq_pub = None # ZMQ Publisher socket
 
     def check_shutdown_condition(self) -> bool:
         """Check if shutdown delay has been reached and execute shutdown."""
@@ -442,6 +443,15 @@ def reload_config_handler(sig):
 async def main_async():
     global RELOAD_CONFIG
     state = AppState()
+    
+    # Init ZMQ Publisher
+    context = zmq.Context()
+    state.zmq_pub = context.socket(zmq.PUB)
+    try:
+        state.zmq_pub.bind(CONFIG['zmq']['publish_address'])
+        logger.info(f"ZMQ Publisher bound to {CONFIG['zmq']['publish_address']}")
+    except Exception as e:
+        logger.error(f"Failed to bind ZMQ publisher: {e}")
     
     tasks = [
         asyncio.create_task(listen_for_can_messages_task(state)),
