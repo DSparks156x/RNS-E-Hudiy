@@ -66,11 +66,11 @@ class DisplayEngine:
         self.poller.register(self.sub_hudiy, zmq.POLLIN)
 
         # --- Startup Logic ---
-        start_app = 'app_nav'
+        start_app = 'app_media_player'
         if self.settings.get('remember_last', False):
-            start_app = self.settings.get('last_app', 'app_nav')
+            start_app = self.settings.get('last_app', 'app_media_player')
         else:
-            start_app = self.settings.get('startup_app', 'app_nav')
+            start_app = self.settings.get('startup_app', 'app_media_player')
             
         if start_app in self.pages:
             self.current_page_idx = self.pages.index(start_app)
@@ -88,7 +88,7 @@ class DisplayEngine:
         self.btn = {'up': {'p':False, 's':0, 'l':0}, 'down': {'p':False, 's':0, 'l':0}}
 
     def load_settings(self):
-        default = {'startup_app': 'app_nav', 'remember_last': False, 'last_app': 'app_nav'}
+        default = {'startup_app': 'app_media_player', 'remember_last': False, 'last_app': 'app_media_player'}
         try:
             if os.path.exists(SETTINGS_FILE):
                 with open(SETTINGS_FILE, 'r') as f:
