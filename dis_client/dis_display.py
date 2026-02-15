@@ -24,35 +24,34 @@ class DisplayEngine:
         with open(config_path) as f: self.cfg = json.load(f)
         self.settings = self.load_settings()
         
+        # --- Apps Definition (No Menu) ---
         self.apps = {}
-        self.apps['main'] = MenuApp("Main Menu", [
-            {'label': 'Media',      'target': 'menu_media'},
-            {'label': 'Car Info',   'target': 'app_car'},
-            {'label': 'Navigation', 'target': 'app_nav'},
-            {'label': 'Phone',      'target': 'app_phone'},
-            {'label': 'Settings',   'target': 'app_settings'}
-        ])
-        self.apps['menu_media'] = MenuApp("Media", [
-            {'label': 'Now Playing', 'target': 'app_media_player'},
-            {'label': 'Radio',       'target': 'app_radio'},
-            {'label': 'Back',        'target': 'BACK'}
-        ])
-        self.apps['app_radio']        = RadioApp()
-        self.apps['app_media_player'] = MediaApp()
         self.apps['app_nav']          = NavApp()
+        self.apps['app_media_player'] = MediaApp()
         self.apps['app_phone']        = PhoneApp()
-        self.apps['app_settings']     = SettingsApp(self) 
         self.apps['app_car']          = CarInfoApp()
+        # Settings still exists if needed, but not in cycle
+        self.apps['app_settings']     = SettingsApp(self) 
+
+        # --- Page Cycle Definition ---
+        self.pages = ['app_nav', 'app_media_player', 'app_phone', 'app_car']
+        self.current_page_idx = 0
 
         self.zmq_ctx = zmq.Context()
         self.sub = self.zmq_ctx.socket(zmq.SUB)
         self.sub.connect(self.cfg['zmq']['publish_address'])
         self.t_btn = self._topics('steering_module', '0x2C1')
-        self.apps['app_radio'].set_topics(self._topics('fis_line1', '0x363'), self._topics('fis_line2', '0x365'))
+        
+        # We need to subscribe to radio topics for the header/footer even without RadioApp active
+        self.sub.subscribe(b"CAN_0x363") # fis_line1
+        self.sub.subscribe(b"CAN_0x365") # fis_line2
+        
         self.t_car = set()
         for key in ['oil_temp', 'battery', 'fuel_level']:
              self.t_car.update(self._topics(key, '0x000'))
-        for t in self.t_btn | self.t_car | self.apps['app_radio'].topics: 
+        
+        # Subscriptions
+        for t in self.t_btn | self.t_car:
             self.sub.subscribe(t.encode())
         
         self.sub_hudiy = self.zmq_ctx.socket(zmq.SUB)
@@ -66,28 +65,30 @@ class DisplayEngine:
         self.poller.register(self.sub, zmq.POLLIN)
         self.poller.register(self.sub_hudiy, zmq.POLLIN)
 
-        self.stack = ['main']
-        start_app = 'main'
+        # --- Startup Logic ---
+        start_app = 'app_nav'
         if self.settings.get('remember_last', False):
-            start_app = self.settings.get('last_app', 'main')
+            start_app = self.settings.get('last_app', 'app_nav')
         else:
-            start_app = self.settings.get('startup_app', 'main')
-        if start_app not in self.apps: start_app = 'main'
-        if start_app != 'main':
-            self.stack.append(start_app)
-            self.current_app = self.apps[start_app]
+            start_app = self.settings.get('startup_app', 'app_nav')
+            
+        if start_app in self.pages:
+            self.current_page_idx = self.pages.index(start_app)
         else:
-            self.current_app = self.apps['main']
-
-        logger.info(f"Starting in App: {start_app}")
+            self.current_page_idx = 0
+            
+        self.current_app = self.apps[self.pages[self.current_page_idx]]
+            
+        logger.info(f"Starting in App: {self.pages[self.current_page_idx]}")
         self.current_app.on_enter()
+        
         self.last_sent = {k: None for k in self.Y}
         self.last_sent['custom_sig'] = None 
         self.last_sent_flags = {k: 0 for k in self.Y} 
         self.btn = {'up': {'p':False, 's':0, 'l':0}, 'down': {'p':False, 's':0, 'l':0}}
 
     def load_settings(self):
-        default = {'startup_app': 'main', 'remember_last': False, 'last_app': 'main'}
+        default = {'startup_app': 'app_nav', 'remember_last': False, 'last_app': 'app_nav'}
         try:
             if os.path.exists(SETTINGS_FILE):
                 with open(SETTINGS_FILE, 'r') as f:
@@ -110,27 +111,35 @@ class DisplayEngine:
         except: pass
         return v
 
-    def switch_app(self, target):
-        if target == 'BACK':
-            if len(self.stack) > 1: 
-                self.stack.pop()
-                target = self.stack[-1]
-            else: return 
-        else:
-            self.stack.append(target)
+    def switch_page(self, delta):
+        """Cycles to the next/prev page in the list."""
+        count = len(self.pages)
+        self.current_page_idx = (self.current_page_idx + delta) % count
+        target_name = self.pages[self.current_page_idx]
         
         self.current_app.on_leave()
-        self.current_app = self.apps.get(target, self.apps['main'])
+        self.current_app = self.apps[target_name]
         self.current_app.on_enter()
+        
+        logger.info(f"Switched to App: {target_name}")
+        
         if self.settings.get('remember_last', False):
-            if target in ['main', 'app_media_player', 'app_radio', 'app_nav', 'app_phone', 'app_car']:
-                self.settings['last_app'] = target
-                self.save_settings()
+            self.settings['last_app'] = target_name
+            self.save_settings()
+            
         self.force_redraw(send_clear=True)
 
     def process_input(self, action):
-        result = self.current_app.handle_input(action)
-        if result: self.switch_app(result)
+        # Override standard logic: Up/Down Tap cycles pages
+        # Holds are passed to app (but currently User requested ignores)
+        
+        if action == 'tap_up':
+            self.switch_page(-1) # Previous
+        elif action == 'tap_down':
+            self.switch_page(1)  # Next
+        else:
+            # Pass holds or other events to app if needed
+            self.current_app.handle_input(action)
 
     def force_redraw(self, send_clear=False):
         self.last_sent = {k: None for k in self.Y}
