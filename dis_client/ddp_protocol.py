@@ -526,6 +526,7 @@ class DDPProtocol:
                 "PL_LOG_3": PL_LOG_3,
                 "PL_LOG_5": PL_LOG_5,
                 "PL_LOG_11": [0x09, 0x20, 0x0B, 0x50, 0x0A, 0x24, 0x50],
+                "PL_LOG_11_ALT": [0x09, 0x20, 0x0B, 0x50, 0x09, 0x24, 0x4A], # Alternate White Cluster
                 "PL_LOG_14": [0x30, 0x39, 0x00, 0x30, 0x00],
                 "PL_LOG_18": [0x09, 0x20, 0x0B, 0x50, 0x0A, 0x24, 0x50],
                 "PL_LOG_21": [0x30, 0x39, 0x00, 0x30, 0x00],
@@ -675,7 +676,7 @@ class DDPProtocol:
                 self._init_path_b_white()
             
             # --- Path C (White Long) or Path Red ---
-            elif self.payload_is(data, self.PL["PL_LOG_11"]):
+            elif self.payload_is(data, self.PL["PL_LOG_11"]) or self.payload_is(data, self.PL.get("PL_LOG_11_ALT")):
                 if self.dis_mode == DisMode.RED:
                     self._init_path_red()
                 else:
