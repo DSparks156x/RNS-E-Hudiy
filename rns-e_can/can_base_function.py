@@ -20,6 +20,10 @@ from typing import Optional, List, Dict, Any
 import asyncio
 import aiozmq
 import subprocess
+try:
+    import RPi.GPIO as GPIO
+except ImportError:
+    GPIO = None
 
 # --- Global State ---
 RUNNING = True
@@ -59,6 +63,7 @@ class AppState:
         self.last_kls_status: int = 1   # Key in lock sensor status (1=IN, 0=PULLED)
         self.shutdown_trigger_timestamp: Optional[float] = None
         self.shutdown_pending: bool = False
+        self.can_listen_only: bool = False
 
     def check_shutdown_condition(self) -> bool:
         """Check if shutdown delay has been reached and execute shutdown."""
@@ -89,6 +94,8 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
         FEATURES.setdefault('tv_simulation', {'enabled': False})
         FEATURES.setdefault('time_sync', {'enabled': False, 'data_format': 'new_logic'})
         FEATURES.setdefault('auto_shutdown', {'enabled': False, 'trigger': 'ignition_off'})
+        FEATURES.setdefault('listen_only_mode', {'enabled': False})
+        FEATURES.setdefault('gpio_shutdown', {'enabled': False, 'pin': 26, 'active_low': True})
 
         zmq_config = cfg.get('zmq', {})
         can_ids = cfg.get('can_ids', {})
@@ -138,6 +145,32 @@ def send_can_message(can_id: int, payload_hex: str) -> bool:
         return True
     except zmq.ZMQError as e:
         logger.error(f"Failed to queue CAN message via ZMQ: {e}"); return False
+
+# --- CAN Interface Management ---
+class CanInterfaceManager:
+    @staticmethod
+    def set_listen_only(enable: bool):
+        mode = "listen-only on" if enable else "listen-only off"
+        logger.info(f"Setting CAN interface to {mode}...")
+        
+        # We need to bring the interface down, change mode, and bring it up
+        commands = [
+            ["sudo", "ip", "link", "set", "can0", "down"],
+            ["sudo", "ip", "link", "set", "can0", "type", "can"] + (["listen-only", "on"] if enable else ["listen-only", "off"]),
+            ["sudo", "ip", "link", "set", "can0", "up"]
+        ]
+        
+        success = True
+        for cmd in commands:
+            if not execute_system_command(cmd):
+                success = False
+                break
+        
+        if success:
+            logger.info(f"CAN interface switched to {mode} successfully.")
+        else:
+            logger.error(f"Failed to switch CAN interface to {mode}.")
+        return success
 
 def execute_system_command(command_list: List[str]) -> bool:
     if not command_list: return False
@@ -222,9 +255,47 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
                 logger.info("Ignition ON or Key INSERTED detected. Cancelling pending shutdown.")
                 state.shutdown_pending = False
                 state.shutdown_trigger_timestamp = None
+
+        # Listen-Only Mode Logic
+        if FEATURES.get('listen_only_mode', {}).get('enabled', False):
+            if kl15_changed:
+                if kl15_status == 0: # Ignition OFF
+                     logger.info("Ignition OFF detected. Switching to listen-only mode.")
+                     if CanInterfaceManager.set_listen_only(True):
+                         state.can_listen_only = True
+                elif kl15_status == 1: # Ignition ON
+                     logger.info("Ignition ON detected. Switching to normal mode.")
+                     if CanInterfaceManager.set_listen_only(False):
+                         state.can_listen_only = False
                 
     except (IndexError, ValueError) as e:
         logger.warning(f"Could not parse power status message (data_hex: {msg.get('data_hex', 'N/A')}): {e}")
+
+# --- GPIO Shutdown Monitor ---
+class GpioShutdownMonitor:
+    def __init__(self, pin, active_low=True):
+        self.pin = pin
+        self.active_low = active_low
+        self.shutdown_triggered = False
+        
+        if GPIO:
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP if active_low else GPIO.PUD_DOWN)
+            logger.info(f"GPIO Shutdown Monitor initialized on pin {pin} (Active Low: {active_low})")
+        else:
+            logger.warning("RPi.GPIO not available. GPIO Shutdown Monitor disabled.")
+
+    def check(self):
+        if not GPIO or self.shutdown_triggered: return False
+        
+        state = GPIO.input(self.pin)
+        is_active = (state == GPIO.LOW) if self.active_low else (state == GPIO.HIGH)
+        
+        if is_active:
+            logger.info("GPIO Shutdown Monitor triggered!")
+            self.shutdown_triggered = True
+            return True
+        return False
 
 # --- Async Tasks ---
 async def send_periodic_messages_task():
@@ -294,14 +365,30 @@ async def listen_for_can_messages_task(state: AppState):
 
 async def shutdown_monitor_task(state: AppState):
     """Monitor shutdown conditions periodically."""
-    global RUNNING  # FIXED: Declare global at function start, before use
+    global RUNNING
+    
+    gpio_monitor = None
+    if FEATURES.get('gpio_shutdown', {}).get('enabled', False):
+         gpio_monitor = GpioShutdownMonitor(
+             FEATURES['gpio_shutdown'].get('pin', 26),
+             FEATURES['gpio_shutdown'].get('active_low', True)
+         )
+
     while RUNNING:
         try:
+            # Check existing auto_shutdown logic
             if state.check_shutdown_condition():
-                # Shutdown initiated, stop the service
                 RUNNING = False
                 break
-            await asyncio.sleep(1.0)  # Check every second
+            
+            # Check GPIO shutdown
+            if gpio_monitor and gpio_monitor.check():
+                logger.info("GPIO Shutdown triggered. Shutting down system NOW.")
+                if execute_system_command(["sudo", "shutdown", "-h", "now"]):
+                    RUNNING = False
+                    break
+
+            await asyncio.sleep(1.0)
         except Exception as e:
             logger.error(f"Error in shutdown monitor task: {e}")
             await asyncio.sleep(5)

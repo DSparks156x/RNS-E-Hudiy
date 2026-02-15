@@ -10,7 +10,7 @@
   "can_ids": {
     "light_status": "0x635",
     "time_data": "0x623",
-    "ignition_status": "0x271",
+    "ignition_status": "0x2C3",
     "tv_presence": "0x602",
     "fis_line1": "0x265",
     "fis_line2": "0x267",
@@ -29,9 +29,17 @@
       "data_format": "old_logic"
     },
     "auto_shutdown": {
-      "enabled": true,
+      "enabled": false,
       "trigger": "ignition_off",
       "kl15_kls_timer_enabled": true
+    },
+    "listen_only_mode": {
+      "enabled": true
+    },
+    "gpio_shutdown": {
+      "enabled": true,
+      "pin": 25,
+      "active_low": true
     },
     "tv_simulation": {
       "enabled": true
@@ -39,13 +47,13 @@
     "fis_display": {
       "enabled": true
     },
-    "dis_mode": "nav",    
+    "dis_mode": "nav",
     "source_controls": true,
     "mmi_controls": true,
     "mfsw_controls": true,
     "system_actions": true,
     "light_sensor_installed": true,
-    "car_time_zone": "Europe/Berlin",
+    "car_time_zone": "America/Denver",
     "debug_mode": false
   },
   "thresholds": {
@@ -112,12 +120,8 @@
     }
   },
   "source_data": {
-     "tv_mode_identifier": "0x37",
-     "play_key": "KEY_X",
-     "pause_key": "KEY_C"
+    "tv_mode_identifier": "0x37",
+    "play_key": "KEY_X",
+    "pause_key": "KEY_C"
   }
 }
-
-
-
-
