@@ -282,7 +282,7 @@ class GpioShutdownMonitor:
             GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP if active_low else GPIO.PUD_DOWN)
             logger.info(f"GPIO Shutdown Monitor initialized on pin {pin} (Active Low: {active_low})")
         else:
-            logger.warning("RPi.GPIO not available. GPIO Shutdown Monitor disabled.")
+            logger.error("CRITICAL: RPi.GPIO library not found but gpio_shutdown is ENABLED. Feature will NOT work.")
 
     def check(self):
         if not GPIO or self.shutdown_triggered: return False

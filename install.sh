@@ -51,7 +51,7 @@ echo "? Step 1: Installing System Dependencies..."
 apt-get update
 apt-get install -y git python3-pip can-utils python3-can python3-serial \
     python3-tz python3-unidecode python3-zmq python3-aiozmq python3-uinput \
-    python3-protobuf python3-full python3-venv protobuf-compiler
+    python3-protobuf python3-full python3-venv protobuf-compiler python3-rpi.gpio
 
 echo "   Checking websocket-client..."
 if dpkg -s python3-websocket-client &> /dev/null || dpkg -s python3-websocket &> /dev/null; then
@@ -282,8 +282,8 @@ BindsTo=can_handler.service
 [Service]
 ExecStart=/usr/bin/python3 ${REAL_HOME}/rns-e_can/can_base_function.py
 WorkingDirectory=${REAL_HOME}/rns-e_can
-User=root
-Group=root
+User=${REAL_USER}
+Group=${REAL_USER}
 Environment=PYTHONUNBUFFERED=1
 Restart=always
 RestartSec=5
