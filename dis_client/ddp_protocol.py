@@ -528,6 +528,7 @@ class DDPProtocol:
                 "PL_LOG_11": [0x09, 0x20, 0x0B, 0x50, 0x0A, 0x24, 0x50],
                 "PL_LOG_11_ALT": [0x09, 0x20, 0x0B, 0x50, 0x09, 0x24, 0x4A], # Alternate White Cluster
                 "PL_LOG_14": [0x30, 0x39, 0x00, 0x30, 0x00],
+                "PL_LOG_14_ALT": [0x30, 0x39, 0x00, 0x32, 0x00], # Alternate White Cluster
                 "PL_LOG_18": [0x09, 0x20, 0x0B, 0x50, 0x0A, 0x24, 0x50],
                 "PL_LOG_21": [0x30, 0x39, 0x00, 0x30, 0x00],
                 "PL_LOG_23": PL_LOG_23_COMMON,
@@ -576,7 +577,7 @@ class DDPProtocol:
         logger.info("Init 5/x passed!")
         
         data = self._recv_and_ack_data(1000) # Step 6
-        if not self.payload_is(data, self.PL["PL_LOG_14"]):
+        if not (self.payload_is(data, self.PL["PL_LOG_14"]) or self.payload_is(data, self.PL.get("PL_LOG_14_ALT"))):
             raise DDPHandshakeError(f"Step 6 failed: wait PL {self.PL['PL_LOG_14']}, got {data}")
         logger.info("Init 6/x passed!")
         
