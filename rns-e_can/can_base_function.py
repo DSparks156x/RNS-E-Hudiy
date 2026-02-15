@@ -367,11 +367,15 @@ async def shutdown_monitor_task(state: AppState):
     global RUNNING
     
     gpio_monitor = None
-    if FEATURES.get('gpio_shutdown', {}).get('enabled', False):
-         gpio_monitor = GpioShutdownMonitor(
-             FEATURES['gpio_shutdown'].get('pin', 26),
-             FEATURES['gpio_shutdown'].get('active_low', True)
-         )
+    gpio_monitor = None
+    try:
+        if FEATURES.get('gpio_shutdown', {}).get('enabled', False):
+             gpio_monitor = GpioShutdownMonitor(
+                 FEATURES['gpio_shutdown'].get('pin', 26),
+                 FEATURES['gpio_shutdown'].get('active_low', True)
+             )
+    except Exception as e:
+        logger.error(f"Failed to initialize GPIO Shutdown Monitor: {e}", exc_info=True)
 
     while RUNNING:
         try:
