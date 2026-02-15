@@ -38,7 +38,7 @@
     },
     "gpio_shutdown": {
       "enabled": true,
-      "pin": 25,
+      "pin": 12,
       "active_low": true
     },
     "tv_simulation": {
