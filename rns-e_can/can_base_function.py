@@ -21,9 +21,11 @@ import asyncio
 import aiozmq
 import subprocess
 try:
-    import RPi.GPIO as GPIO
+    from gpiozero import Button
+    GPIO_AVAILABLE = True
 except ImportError:
-    GPIO = None
+    Button = None
+    GPIO_AVAILABLE = False
 
 # --- Global State ---
 RUNNING = True
@@ -276,21 +278,32 @@ class GpioShutdownMonitor:
         self.pin = pin
         self.active_low = active_low
         self.shutdown_triggered = False
+        self.button = None
         
-        if GPIO:
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP if active_low else GPIO.PUD_DOWN)
-            logger.info(f"GPIO Shutdown Monitor initialized on pin {pin} (Active Low: {active_low})")
+        if GPIO_AVAILABLE:
+            # gpiozero.Button handles pull-up/down logic based on active_state/pull_up.
+            # If active_low is True: pull_up=True, active_state=False (default behavior of Button).
+            # If active_low is False: pull_up=False, active_state=True.
+            
+            try:
+                # Button(pin, pull_up=True, active_state=None, bounce_time=None, ...)
+                # Default Button is pull_up=True.
+                self.button = Button(pin, pull_up=active_low, active_state=None if active_low else True, bounce_time=0.1)
+                logger.info(f"GPIO Shutdown Monitor initialized on pin {pin} (Active Low: {active_low}) using gpiozero.")
+                
+                # Verify initial state
+                initial_state = "PRESSED" if self.button.is_pressed else "RELEASED"
+                logger.info(f"DEBUG: Initial GPIO {self.pin} State: {initial_state}")
+                
+            except Exception as e:
+                logger.error(f"Failed to initialize gpiozero Button on pin {pin}: {e}")
         else:
-            logger.error("CRITICAL: RPi.GPIO library not found but gpio_shutdown is ENABLED. Feature will NOT work.")
+            logger.error("CRITICAL: gpiozero library not found but gpio_shutdown is ENABLED. Feature will NOT work.")
 
     def check(self):
-        if not GPIO or self.shutdown_triggered: return False
+        if not self.button or self.shutdown_triggered: return False
         
-        state = GPIO.input(self.pin)
-        is_active = (state == GPIO.LOW) if self.active_low else (state == GPIO.HIGH)
-        
-        if is_active:
+        if self.button.is_pressed:
             logger.info("GPIO Shutdown Monitor triggered!")
             self.shutdown_triggered = True
             return True
