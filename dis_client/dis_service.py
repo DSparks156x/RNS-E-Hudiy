@@ -254,15 +254,50 @@ class DisService:
         self.commit_frame()
 
     def run(self):
-        logger.info("DIS Service Started. Entering main loop.")
+        # --- LISTEN FOR IGNITION STATUS ---
+        self.ignition_sub = self.context.socket(zmq.SUB)
+        self.ignition_sub.connect(self.config['zmq']['publish_address'])
+        self.ignition_sub.subscribe(b"POWER_STATUS")
+        self.poller.register(self.ignition_sub, zmq.POLLIN)
+        self.ignition_on = False # Start assuming OFF
+        
+        logger.info("DIS Service Started. Entering ignition-aware loop.")
+        
         while True:
             try:
+                # --- CHECK IGNITION STATUS ---
+                socks = dict(self.poller.poll(10)) # Short poll (10ms)
+                if self.ignition_sub in socks:
+                    try:
+                        while True: # Drain queue
+                            parts = self.ignition_sub.recv_multipart(flags=zmq.NOBLOCK)
+                            if len(parts) == 2 and parts[0] == b'POWER_STATUS':
+                                pwr = json.loads(parts[1])
+                                new_ign = pwr.get('kl15', False)
+                                
+                                if new_ign != self.ignition_on:
+                                    self.ignition_on = new_ign
+                                    logger.info(f"Ignition Changed: {'ON' if new_ign else 'OFF'}")
+                                    if not self.ignition_on:
+                                        logger.info("Ignition OFF -> Stopping DIS Session")
+                                        if hasattr(self, 'ddp'):
+                                            self.ddp._set_state(DDPState.DISCONNECTED)
+                                        self.screen_is_active = False
+                    except zmq.Again: pass
+                    except Exception as e: logger.error(f"Ignition check error: {e}")
+
+                if not self.ignition_on:
+                    # IGNITION OFF - STANDBY MODE
+                    time.sleep(0.5)
+                    continue
+
+                # --- NORMAL OPERATION (IGNITION ON) ---
                 if self.ddp.state == DDPState.DISCONNECTED:
                     self.screen_is_active = False
                     if self.ddp.detect_and_open_session():
                         logger.info(f"Session established (Mode: {self.ddp.dis_mode.name}).")
                     else:
-                        time.sleep(3)
+                        time.sleep(1.0) # Faster retry when ON
                 elif self.ddp.state == DDPState.SESSION_ACTIVE:
                     if not self.ddp.perform_initialization():
                         logger.error("DDP Initialization failed. Retrying.")

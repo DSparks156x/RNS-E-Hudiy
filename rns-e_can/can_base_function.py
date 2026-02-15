@@ -249,6 +249,7 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
                 logger.info(f"Starting {CONFIG['shutdown_delay']}s shutdown timer due to '{trigger_config}' trigger.")
                 state.shutdown_pending = True
                 state.shutdown_trigger_timestamp = time.time()
+                
             # Cancel shutdown if ignition/key comes back ON/IN
             elif state.shutdown_pending:
                 if (trigger_config == 'ignition_off' and kl15_changed and kl15_status == 1) or \
@@ -256,6 +257,18 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
                     logger.info("Ignition ON or Key INSERTED detected. Cancelling pending shutdown.")
                     state.shutdown_pending = False
                     state.shutdown_trigger_timestamp = None
+
+        # --- Publish Power Status (Ignition / Key) ---
+        if state.zmq_pub:
+            try:
+                payload = {
+                    'kl15': bool(kl15_status), 
+                    'kls': bool(kls_status), 
+                    'timestamp': time.time()
+                }
+                state.zmq_pub.send_multipart([b'POWER_STATUS', json.dumps(payload).encode()])
+            except Exception as e:
+                logger.error(f"Failed to publish POWER_STATUS: {e}")
 
         # Listen-Only Mode Logic
         if FEATURES.get('listen_only_mode', {}).get('enabled', False):
