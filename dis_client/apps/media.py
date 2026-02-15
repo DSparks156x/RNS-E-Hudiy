@@ -33,9 +33,9 @@ class MediaApp(BaseApp):
         # Speed: 200ms per character update
         # Key: Unique identifier for the scroll state (e.g. 'media_title')
         
-        title_scroll = self._scroll_text(self.title, 'media_title', 16, 200)
-        artist_scroll = self._scroll_text(self.artist, 'media_artist', 16, 200)
-        album_scroll = self._scroll_text(self.album, 'media_album', 16, 200)
+        title_scroll = self._scroll_text(self.title, 'media_title', 16, 400)
+        artist_scroll = self._scroll_text(self.artist, 'media_artist', 16, 400)
+        album_scroll = self._scroll_text(self.album, 'media_album', 16, 400)
 
         lines['line1'] = (title_scroll, self.FLAG_ITEM)
         lines['line2'] = (artist_scroll, self.FLAG_ITEM)
