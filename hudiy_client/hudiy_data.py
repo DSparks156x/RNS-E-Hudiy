@@ -188,6 +188,8 @@ class HudiyEventHandler(ClientEventHandler):
         self.current_nav_data.update({
             'description': desc,
             'maneuver_text': full_maneuver_text,
+            'maneuver_type': type_num,
+            'maneuver_side': side_num,
             'timestamp': time.time()
         })
         self.publish_and_write_nav(self.current_nav_data)

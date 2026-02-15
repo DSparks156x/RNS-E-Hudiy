@@ -1,4 +1,6 @@
 from .base import BaseApp
+import json
+import os
 
 class MediaApp(BaseApp):
     def __init__(self):
@@ -7,6 +9,16 @@ class MediaApp(BaseApp):
         self.artist = ""
         self.album = ""
         self.time_str = ""
+
+    def on_enter(self):
+        super().on_enter()
+        try:
+            if os.path.exists('/tmp/now_playing.json'):
+                with open('/tmp/now_playing.json', 'r') as f:
+                    data = json.load(f)
+                    # Re-use update logic by mocking a ZMQ call
+                    self.update_hudiy(b'HUDIY_MEDIA', data)
+        except Exception: pass
 
     def update_hudiy(self, topic, data):
         if topic == b'HUDIY_MEDIA':

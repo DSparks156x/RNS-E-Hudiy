@@ -1,6 +1,8 @@
 from .base import BaseApp
 from typing import List, Dict, Any
 import logging
+import json
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -16,13 +18,25 @@ class NavApp(BaseApp):
         # Cache previous state to prevent flickering logic if needed
         self.last_maneuver = -1
 
+    def on_enter(self):
+        super().on_enter()
+        try:
+            if os.path.exists('/tmp/current_nav.json'):
+                with open('/tmp/current_nav.json', 'r') as f:
+                    data = json.load(f)
+                    self.update_hudiy(b'HUDIY_NAV', data)
+        except Exception: pass
+
     def update_hudiy(self, topic: bytes, data: Dict[str, Any]):
         if topic == b'HUDIY_NAV':
             # Full maneuver update
             self.description = data.get('description', '')
             self.maneuver_type = data.get('maneuver_type', 0)
             self.maneuver_side = data.get('maneuver_side', 3)
+            self.maneuver_side = data.get('maneuver_side', 3)
             # self.icon_data = data.get('icon', b"") 
+            if 'distance' in data:
+                self.distance_label = data['distance'] 
 
         elif topic == b'HUDIY_NAV_DISTANCE':
             self.distance_label = data.get('label', '')
