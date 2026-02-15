@@ -286,10 +286,13 @@ class GpioShutdownMonitor:
             # If active_low is False: pull_up=False, active_state=True.
             
             try:
-                # Button(pin, pull_up=True, active_state=None, bounce_time=None, ...)
-                # Default Button is pull_up=True.
-                self.button = Button(pin, pull_up=active_low, active_state=None if active_low else True, bounce_time=0.1)
-                logger.info(f"GPIO Shutdown Monitor initialized on pin {pin} (Active Low: {active_low}) using gpiozero.")
+                # Button(pin, pull_up=None, active_state=..., bounce_time=None)
+                # pull_up=None disables internal resistors (floating).
+                # active_state=False means active Low. active_state=True means active High.
+                target_active_state = False if active_low else True
+                
+                self.button = Button(pin, pull_up=None, active_state=target_active_state, bounce_time=0.1)
+                logger.info(f"GPIO Shutdown Monitor initialized on pin {pin} (Active Low: {active_low}) with NO internal resistors.")
                 
                 # Verify initial state
                 initial_state = "PRESSED" if self.button.is_pressed else "RELEASED"
