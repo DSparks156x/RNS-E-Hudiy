@@ -61,8 +61,8 @@ class AppState:
     def __init__(self):
         self.last_time_sync_attempt_time: float = 0.0
         # Auto-shutdown state
-        self.last_kl15_status: int = 1  # Ignition status (1=ON, 0=OFF)
-        self.last_kls_status: int = 1   # Key in lock sensor status (1=IN, 0=PULLED)
+        self.last_kl15_status: Optional[int] = None  # Ignition status (1=ON, 0=OFF, None=Unknown)
+        self.last_kls_status: Optional[int] = None   # Key in lock sensor status (1=IN, 0=PULLED, None=Unknown)
         self.shutdown_trigger_timestamp: Optional[float] = None
         self.shutdown_pending: bool = False
         self.can_listen_only: bool = False
@@ -107,6 +107,7 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
         CONFIG = {
             'zmq_publish_address': zmq_config.get('publish_address'),
             'zmq_send_address': zmq_config.get('send_address'),
+            'zmq_base_publish_address': zmq_config.get('base_publish_address'),
             'can_ids': {
                 'tv_presence': int(can_ids.get('tv_presence', '0x602'), 16),
                 'time_data': int(can_ids.get('time_data', '0x623'), 16),
@@ -118,8 +119,8 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
             'shutdown_delay': thresholds.get('shutdown_delay_ignition_off_seconds', 300),
         }
         
-        if not CONFIG['zmq_send_address'] or not CONFIG['zmq_publish_address']:
-            raise KeyError("'send_address' or 'publish_address' not found in 'zmq' section")
+        if not CONFIG['zmq_send_address'] or not CONFIG['zmq_publish_address'] or not CONFIG['zmq_base_publish_address']:
+            raise KeyError("'send_address' or 'publish_address' or 'base_publish_address' not found in 'zmq' section")
 
         log_level = logging.DEBUG if FEATURES.get('debug_mode', False) else logging.INFO
         logger.setLevel(log_level)
@@ -228,8 +229,11 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
         kls_status = data_byte0 & 0x01       # Bit 0: Key in Lock Sensor (1=IN, 0=PULLED)
         kl15_status = (data_byte0 >> 1) & 0x01 # Bit 1: Ignition KL15 (1=ON, 0=OFF)
 
-        kls_changed = kls_status != state.last_kls_status
-        kl15_changed = kl15_status != state.last_kl15_status
+        # Detect changes (Treat None as a change for initialization)
+        kls_changed = (state.last_kls_status != kls_status)
+        kl15_changed = (state.last_kl15_status != kl15_status)
+        
+        # Update State
         state.last_kls_status = kls_status
         state.last_kl15_status = kl15_status
 
@@ -241,10 +245,10 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
             # Check for trigger conditions
             if trigger_config == 'ignition_off' and kl15_changed and kl15_status == 0:
                 trigger_event = True
-                logger.info("Ignition OFF detected. Starting shutdown timer.")
+                logger.info("Ignition OFF detected (or initial state). Starting shutdown timer.")
             elif trigger_config == 'key_pulled' and kls_changed and kls_status == 0:
                 trigger_event = True
-                logger.info("Key PULLED detected. Starting shutdown timer.")
+                logger.info("Key PULLED detected (or initial state). Starting shutdown timer.")
 
             if trigger_event and not state.shutdown_pending:
                 logger.info(f"Starting {CONFIG['shutdown_delay']}s shutdown timer due to '{trigger_config}' trigger.")
@@ -275,11 +279,11 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
         if FEATURES.get('listen_only_mode', {}).get('enabled', False):
             if kl15_changed:
                 if kl15_status == 0: # Ignition OFF
-                     logger.info("Ignition OFF detected. Switching to listen-only mode.")
+                     logger.info("Ignition OFF detected (or initial state). Switching to listen-only mode.")
                      if CanInterfaceManager.set_listen_only(True):
                          state.can_listen_only = True
                 elif kl15_status == 1: # Ignition ON
-                     logger.info("Ignition ON detected. Switching to normal mode.")
+                     logger.info("Ignition ON detected (or initial state). Switching to normal mode.")
                      if CanInterfaceManager.set_listen_only(False):
                          state.can_listen_only = False
                 
@@ -448,8 +452,8 @@ async def main_async():
     context = zmq.Context()
     state.zmq_pub = context.socket(zmq.PUB)
     try:
-        state.zmq_pub.bind(CONFIG['zmq']['publish_address'])
-        logger.info(f"ZMQ Publisher bound to {CONFIG['zmq']['publish_address']}")
+        state.zmq_pub.bind(CONFIG['zmq_base_publish_address'])
+        logger.info(f"ZMQ Publisher bound to {CONFIG['zmq_base_publish_address']}")
     except Exception as e:
         logger.error(f"Failed to bind ZMQ publisher: {e}")
     

@@ -256,7 +256,9 @@ class DisService:
     def run(self):
         # --- LISTEN FOR IGNITION STATUS ---
         self.ignition_sub = self.context.socket(zmq.SUB)
-        self.ignition_sub.connect(self.config['zmq']['publish_address'])
+        # Connect to Base Function publisher for Ignition status
+        ignition_addr = self.config['zmq'].get('base_publish_address', self.config['zmq']['publish_address'])
+        self.ignition_sub.connect(ignition_addr)
         self.ignition_sub.subscribe(b"POWER_STATUS")
         self.poller.register(self.ignition_sub, zmq.POLLIN)
         self.ignition_on = False # Start assuming OFF

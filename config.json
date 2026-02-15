@@ -4,6 +4,7 @@
   "zmq": {
     "publish_address": "ipc:///run/rnse_control/can_stream.ipc",
     "send_address": "ipc:///run/rnse_control/can_send.ipc",
+    "base_publish_address": "ipc:///run/rnse_control/base_events.ipc",
     "hudiy_publish_address": "ipc:///run/rnse_control/hudiy_stream.ipc",
     "dis_draw": "ipc:///run/rnse_control/dis_draw.ipc"
   },
