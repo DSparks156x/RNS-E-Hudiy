@@ -353,7 +353,7 @@ After=can_handler.service
 BindsTo=can_handler.service
 
 [Service]
-ExecStartPre=/bin/sleep 30
+ExecStartPre=/bin/sleep 10
 ExecStart=/usr/bin/python3 ${REAL_HOME}/dis_client/dis_service.py
 WorkingDirectory=${REAL_HOME}/dis_client
 Environment=PYTHONUNBUFFERED=1
@@ -373,7 +373,7 @@ After=dis_service.service
 BindsTo=dis_service.service
 
 [Service]
-ExecStartPre=/bin/sleep 15
+ExecStartPre=/bin/sleep 10
 ExecStart=/usr/bin/python3 ${REAL_HOME}/dis_client/dis_display.py
 WorkingDirectory=${REAL_HOME}/dis_client
 Environment=PYTHONUNBUFFERED=1
