@@ -530,7 +530,9 @@ class DDPProtocol:
                 "PL_LOG_14": [0x30, 0x39, 0x00, 0x30, 0x00],
                 "PL_LOG_14_ALT": [0x30, 0x39, 0x00, 0x32, 0x00], # Alternate White Cluster
                 "PL_LOG_18": [0x09, 0x20, 0x0B, 0x50, 0x0A, 0x24, 0x50],
+                "PL_LOG_18_ALT": [0x09, 0x20, 0x0B, 0x50, 0x09, 0x24, 0x4A], # Alternate White Cluster
                 "PL_LOG_21": [0x30, 0x39, 0x00, 0x30, 0x00],
+                "PL_LOG_21_ALT": [0x30, 0x39, 0x00, 0x32, 0x00], # Alternate White Cluster
                 "PL_LOG_23": PL_LOG_23_COMMON,
                 "PL_LOG_27": [0x21, 0x3B, 0xA0, 0x00]
             }
@@ -585,7 +587,7 @@ class DDPProtocol:
         logger.info("Init 7/x passed!")
 
         data = self._recv_and_ack_data(1000) # Step 8
-        if not self.payload_is(data, self.PL["PL_LOG_18"]):
+        if not (self.payload_is(data, self.PL["PL_LOG_18"]) or self.payload_is(data, self.PL.get("PL_LOG_18_ALT"))):
             raise DDPHandshakeError(f"Step 8 failed: wait PL {self.PL['PL_LOG_18']}, got {data}")
         logger.info("Init 8/x passed!")
 
@@ -593,7 +595,7 @@ class DDPProtocol:
         logger.info("Init 9/x passed!")
 
         data = self._recv_and_ack_data(1000) # Step 10
-        if not self.payload_is(data, self.PL["PL_LOG_21"]):
+        if not (self.payload_is(data, self.PL["PL_LOG_21"]) or self.payload_is(data, self.PL.get("PL_LOG_21_ALT"))):
             raise DDPHandshakeError(f"Step 10 failed: wait PL {self.PL['PL_LOG_21']}, got {data}")
         logger.info("Init 10/x passed!")
 
