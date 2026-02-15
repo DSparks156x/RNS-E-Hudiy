@@ -27,7 +27,7 @@ else
     REAL_HOME="/home/$REAL_USER"
 fi
 
-REPO_URL="https://github.com/korni92/RNS-E-Hudiy.git"
+REPO_URL="https://github.com/DSparks156x/RNS-E-Hudiy.git"
 BRANCH="main"
 
 # Define Config Paths
@@ -282,8 +282,8 @@ BindsTo=can_handler.service
 [Service]
 ExecStart=/usr/bin/python3 ${REAL_HOME}/rns-e_can/can_base_function.py
 WorkingDirectory=${REAL_HOME}/rns-e_can
-User=${REAL_USER}
-Group=${REAL_USER}
+User=root
+Group=root
 Environment=PYTHONUNBUFFERED=1
 Restart=always
 RestartSec=5

@@ -214,10 +214,7 @@ def handle_time_data_message(msg: Dict[str, Any], state: AppState):
         logger.warning(f"Could not parse time message (data_hex: {data_hex}): {e}")
 
 def handle_power_status_message(msg: Dict[str, Any], state: AppState):
-    """Handle ignition/key status messages for auto-shutdown."""
-    if not FEATURES.get('auto_shutdown', {}).get('enabled', False):
-        return
-        
+    """Handle ignition/key status messages for auto-shutdown and listen-only."""
     if msg.get('dlc', 0) < 1:
         logger.debug(f"Power status message too short (DLC: {msg.get('dlc', 'N/A')}). Skipping.")
         return
@@ -233,28 +230,30 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
         state.last_kls_status = kls_status
         state.last_kl15_status = kl15_status
 
-        trigger_config = FEATURES['auto_shutdown'].get('trigger', 'ignition_off')
-        trigger_event = False
-        
-        # Check for trigger conditions
-        if trigger_config == 'ignition_off' and kl15_changed and kl15_status == 0:
-            trigger_event = True
-            logger.info("Ignition OFF detected. Starting shutdown timer.")
-        elif trigger_config == 'key_pulled' and kls_changed and kls_status == 0:
-            trigger_event = True
-            logger.info("Key PULLED detected. Starting shutdown timer.")
+        # Auto-Shutdown Logic
+        if FEATURES.get('auto_shutdown', {}).get('enabled', False):
+            trigger_config = FEATURES['auto_shutdown'].get('trigger', 'ignition_off')
+            trigger_event = False
+            
+            # Check for trigger conditions
+            if trigger_config == 'ignition_off' and kl15_changed and kl15_status == 0:
+                trigger_event = True
+                logger.info("Ignition OFF detected. Starting shutdown timer.")
+            elif trigger_config == 'key_pulled' and kls_changed and kls_status == 0:
+                trigger_event = True
+                logger.info("Key PULLED detected. Starting shutdown timer.")
 
-        if trigger_event and not state.shutdown_pending:
-            logger.info(f"Starting {CONFIG['shutdown_delay']}s shutdown timer due to '{trigger_config}' trigger.")
-            state.shutdown_pending = True
-            state.shutdown_trigger_timestamp = time.time()
-        # Cancel shutdown if ignition/key comes back ON/IN
-        elif state.shutdown_pending:
-            if (trigger_config == 'ignition_off' and kl15_changed and kl15_status == 1) or \
-               (trigger_config == 'key_pulled' and kls_changed and kls_status == 1):
-                logger.info("Ignition ON or Key INSERTED detected. Cancelling pending shutdown.")
-                state.shutdown_pending = False
-                state.shutdown_trigger_timestamp = None
+            if trigger_event and not state.shutdown_pending:
+                logger.info(f"Starting {CONFIG['shutdown_delay']}s shutdown timer due to '{trigger_config}' trigger.")
+                state.shutdown_pending = True
+                state.shutdown_trigger_timestamp = time.time()
+            # Cancel shutdown if ignition/key comes back ON/IN
+            elif state.shutdown_pending:
+                if (trigger_config == 'ignition_off' and kl15_changed and kl15_status == 1) or \
+                   (trigger_config == 'key_pulled' and kls_changed and kls_status == 1):
+                    logger.info("Ignition ON or Key INSERTED detected. Cancelling pending shutdown.")
+                    state.shutdown_pending = False
+                    state.shutdown_trigger_timestamp = None
 
         # Listen-Only Mode Logic
         if FEATURES.get('listen_only_mode', {}).get('enabled', False):
