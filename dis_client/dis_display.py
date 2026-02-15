@@ -168,7 +168,7 @@ class DisplayEngine:
                                     self.current_app.update_hudiy(topic, data)
                                     if topic == b'HUDIY_MEDIA':
                                         label = data.get('source_label', 'Now Playing')
-                                        self.apps['menu_media'].set_item_label('app_media_player', label)
+                                        # self.apps['menu_media'].set_item_label('app_media_player', label) # REMOVED
                                 except json.JSONDecodeError: pass
                     except zmq.Again: pass
 
