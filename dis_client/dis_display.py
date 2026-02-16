@@ -222,7 +222,15 @@ class DisplayEngine:
         if isinstance(view, list):
             current_sig = str(view)
             if self.last_sent.get('custom_sig') != current_sig:
-                self.draw.send_json({'command': 'clear'})
+                # smart clear: check if type is stable
+                current_type = view[0].get('type') if view else None
+                prev_type = self.last_sent.get('last_type')
+                
+                if current_type and current_type == prev_type:
+                    self.draw.send_json({'command': 'clear_payload'}) # Only clear cache, keep pixels
+                else:
+                    self.draw.send_json({'command': 'clear'}) # Full wipe
+                
                 for item in view:
                     if 'type' in item: continue
                     cmd = item.get('cmd')
@@ -233,7 +241,9 @@ class DisplayEngine:
                     elif cmd == 'draw_line':
                         self.draw.send_json({'command': 'draw_line', 'x': item.get('x', 0), 'y': item.get('y', 0), 'length': item.get('len', 0), 'vertical': item.get('vert', True)})
                 self.draw.send_json({'command': 'commit'})
+                
                 self.last_sent['custom_sig'] = current_sig
+                self.last_sent['last_type'] = current_type
                 for k in self.Y: self.last_sent[k] = None
             return
 
