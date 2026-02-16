@@ -178,18 +178,20 @@ class HudiyEventHandler(ClientEventHandler):
         desc = getattr(message, 'description', '')
         type_num = getattr(message, 'maneuver_type', 0)
         side_num = getattr(message, 'maneuver_side', 3)
+        angle_num = getattr(message, 'maneuver_angle', 0)
         
         maneuver_text = MANEUVER_TYPE_MAP.get(type_num, 'N/A')
         side_text = MANEUVER_SIDE_MAP.get(side_num, 'N/A')
         full_maneuver_text = f"{maneuver_text} {side_text}".strip()
         
-        logger.info(f"NAV: {full_maneuver_text} - {desc}")
+        logger.info(f"NAV: {full_maneuver_text} (Angle: {angle_num}) - {desc}")
 
         self.current_nav_data.update({
             'description': desc,
             'maneuver_text': full_maneuver_text,
             'maneuver_type': type_num,
             'maneuver_side': side_num,
+            'maneuver_angle': angle_num,
             'timestamp': time.time()
         })
         self.publish_and_write_nav(self.current_nav_data)
@@ -201,12 +203,29 @@ class HudiyEventHandler(ClientEventHandler):
         self.publish_and_write_nav(self.current_nav_data)
 
     def on_navigation_status(self, client, message):
-        # Handle active/inactive state
-        # 1=Active, 2=Inactive
-        state = getattr(message, 'state', 2) 
-        logger.info(f"NAV STATE: {'Active' if state == 1 else 'Inactive'}")
-        self.current_nav_data['active'] = (state == 1)
-        self.publish_and_write_nav(self.current_nav_data)
+        source = getattr(message, 'source', 0)
+        state = getattr(message, 'state', 2)
+        
+        status_text = "Active" if state == 1 else "Inactive"
+        src_text = "AA" if source == 1 else "None"
+        
+        logger.info(f"NAV STATUS: {status_text} ({src_text})")
+        
+        nav_status = {
+            'active': (state == 1),
+            'source': source,
+            'state': state,
+            'timestamp': time.time()
+        }
+        self.publish_nav_status(nav_status)
+
+    def publish_nav_status(self, data: dict):
+        try:
+            self.zmq_pub.send_multipart([
+                b'HUDIY_NAV_STATUS',
+                json.dumps(data).encode('utf-8')
+            ])
+        except Exception: pass
 
     def publish_and_write_nav(self, data: dict):
         try:

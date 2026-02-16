@@ -56,7 +56,7 @@ class DisplayEngine:
         
         self.sub_hudiy = self.zmq_ctx.socket(zmq.SUB)
         self.sub_hudiy.connect(self.cfg['zmq']['hudiy_publish_address'])
-        for t in [b'HUDIY_MEDIA', b'HUDIY_NAV', b'HUDIY_PHONE']: 
+        for t in [b'HUDIY_MEDIA', b'HUDIY_NAV', b'HUDIY_PHONE', b'HUDIY_NAV_STATUS']: 
             self.sub_hudiy.subscribe(t)
 
         self.draw = self.zmq_ctx.socket(zmq.PUSH)
@@ -64,6 +64,8 @@ class DisplayEngine:
         self.poller = zmq.Poller()
         self.poller.register(self.sub, zmq.POLLIN)
         self.poller.register(self.sub_hudiy, zmq.POLLIN)
+
+        self.nav_active = False # Default inactive
 
         # --- Startup Logic ---
         start_app = 'app_media_player'
@@ -112,9 +114,21 @@ class DisplayEngine:
         return v
 
     def switch_page(self, delta):
-        """Cycles to the next/prev page in the list."""
+        """Cycles to the next/prev page in the list, skipping inactive apps."""
         count = len(self.pages)
-        self.current_page_idx = (self.current_page_idx + delta) % count
+        start_idx = self.current_page_idx
+        
+        for _ in range(count):
+            self.current_page_idx = (self.current_page_idx + delta) % count
+            target_name = self.pages[self.current_page_idx]
+            
+            # Sub-Check: Skip Nav if inactive
+            if target_name == 'app_nav' and not self.nav_active:
+                continue
+                
+            # If we found a valid app, break loop
+            break
+            
         target_name = self.pages[self.current_page_idx]
         
         self.current_app.on_leave()
@@ -127,6 +141,20 @@ class DisplayEngine:
             self.settings['last_app'] = target_name
             self.save_settings()
             
+        self.force_redraw(send_clear=True)
+
+    def switch_to_app(self, app_name):
+        """Direct jump to an app by name."""
+        if app_name not in self.pages: return
+        
+        idx = self.pages.index(app_name)
+        if idx == self.current_page_idx: return
+        
+        self.current_page_idx = idx
+        self.current_app.on_leave()
+        self.current_app = self.apps[app_name]
+        self.current_app.on_enter()
+        logger.info(f"Auto-Switched to App: {app_name}")
         self.force_redraw(send_clear=True)
 
     def process_input(self, action):
@@ -165,6 +193,22 @@ class DisplayEngine:
                                 topic, msg = parts
                                 try:
                                     data = json.loads(msg)
+                                    
+                                    if topic == b'HUDIY_NAV_STATUS':
+                                        active = data.get('active', False)
+                                        if active != self.nav_active:
+                                            self.nav_active = active
+                                            logger.info(f"Nav Active State Changed: {active}")
+                                            
+                                            if active:
+                                                # Auto-switch TO nav
+                                                self.switch_to_app('app_nav')
+                                            else:
+                                                # Auto-switch AWAY from nav if currently on it
+                                                current_name = self.pages[self.current_page_idx]
+                                                if current_name == 'app_nav':
+                                                    self.switch_to_app('app_media_player')
+
                                     self.current_app.update_hudiy(topic, data)
                                     if topic == b'HUDIY_MEDIA':
                                         label = data.get('source_label', 'Now Playing')
