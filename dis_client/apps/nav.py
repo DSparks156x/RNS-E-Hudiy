@@ -89,7 +89,11 @@ class NavApp(BaseApp):
             
             val = 0.0
             if 'km' in s:
-                val = float(s.split('km')[0].strip()) * 1000
+                val = float(s.split('km')[0].strip()) * 1000.0
+            elif 'mi' in s: # Matches 'mi' and 'miles'
+                val = float(s.split('mi')[0].strip()) * 1609.34
+            elif 'ft' in s: # Matches 'ft' and 'feet'
+                val = float(s.split('ft')[0].strip()) * 0.3048
             elif 'm' in s:
                 val = float(s.split('m')[0].strip())
             else:
@@ -121,7 +125,7 @@ class NavApp(BaseApp):
         # Clean distance: "500 m" -> "500m", but ONLY if we actually have a label
         dist_clean = ""
         if self.distance_label:
-            dist_clean = self.distance_label.replace(" ", "").replace("km", "km").replace("m", "m")
+            dist_clean = self.distance_label.lower().replace(" ", "").replace("miles", "mi").replace("feet", "ft")
 
         # Build graphical command list
         # The 'type' key is used by the engine for caching signatures
