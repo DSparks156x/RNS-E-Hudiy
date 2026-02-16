@@ -125,7 +125,7 @@ class NavApp(BaseApp):
         # Clean distance: "500 m" -> "500m", but ONLY if we actually have a label
         dist_clean = ""
         if self.distance_label:
-            dist_clean = self.distance_label.lower().replace(" ", "").replace("miles", "mi").replace("feet", "ft")
+            dist_clean = self.distance_label.replace(" ", "").replace("km", "km").replace("m", "m")
 
         # Build graphical command list
         # The 'type' key is used by the engine for caching signatures
