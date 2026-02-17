@@ -23,7 +23,7 @@ class TP2Protocol:
     
     # Timing (ms)
     T1_TIMEOUT = 1000   # Wait for response
-    T3_INTERVAL = 10    # Inter-frame gap
+    T3_INTERVAL = 50    # Inter-frame gap
 
     def __init__(self, channel='can0'):
         self.channel = channel
