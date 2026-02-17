@@ -16,9 +16,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def read_engine_group(group_id):
+def read_engine_groups(groups):
     protocol = TP2Protocol(channel='can0')
-    logger.info(f"Connecting to Engine (0x01) to read Group {group_id}...")
+    logger.info(f"Connecting to Engine (0x01) to read Groups {groups}...")
     
     try:
         protocol.open()
@@ -26,7 +26,7 @@ def read_engine_group(group_id):
             logger.error("Failed to connect.")
             return
 
-        # 1. Start Session 0x89 (Verified Working)
+        # 1. Start Session 0x89
         logger.info("Step 1: Starting Session 0x89...")
         resp = protocol.send_kvp_request([0x10, 0x89])
         if not resp or resp[0] == 0x7F:
@@ -34,25 +34,33 @@ def read_engine_group(group_id):
             return
         
         # 2. Skip '1A 9B' & '31 B8' (Verified to cause disconnects)
-        # We rely on the driver's wait-frame handling and extended timeouts.
         
-        # 3. Send Keep Alive (Ensure link is active)
+        # 3. Initial Keep Alive
         logger.info("Sending Keep-Alive...")
         protocol.send_keep_alive()
         
-        # 4. Read Data
-        logger.info(f"Reading Group {group_id}...")
-        resp = protocol.send_kvp_request([0x21, group_id])
-        
-        if resp and resp[0] == 0x61:
-            decoded = TP2Coding.decode_block(resp[2:])
-            logger.info(f"!!! SUCCESS !!! Group {group_id} Data:")
-            for item in decoded:
-                logger.info(f"  - {item}")
-        elif resp:
-            logger.warning(f"Read Failed. Response: {resp}")
-        else:
-            logger.warning("Read Failed: No Acceptable Response")
+        # 4. Read Groups Loop
+        for group_id in groups:
+            logger.info(f"--- Reading Group {group_id} ---")
+            
+            # Send Request
+            resp = protocol.send_kvp_request([0x21, group_id])
+            
+            # Handle Response
+            if resp and resp[0] == 0x61:
+                decoded = TP2Coding.decode_block(resp[2:])
+                logger.info(f"SUCCESS Group {group_id}:")
+                for item in decoded:
+                    logger.info(f"  {item['type']}: {item['value']} {item['unit']}")
+            elif resp:
+                logger.warning(f"Group {group_id} Failed. Response: {resp}")
+            else:
+                logger.warning(f"Group {group_id} Failed: No Acceptable Response")
+
+            # Keep Alive between groups (and slight delay)
+            # ECU_Read.cpp interleaves Keep-Alives
+            time.sleep(0.2)
+            protocol.send_keep_alive()
 
         protocol.disconnect()
 
@@ -63,7 +71,18 @@ def read_engine_group(group_id):
 
 if __name__ == "__main__":
     import sys
-    group = 1
+    
+    # Default groups if none provided
+    groups = [1, 2, 3]
+    
     if len(sys.argv) > 1:
-        group = int(sys.argv[1])
-    read_engine_group(group)
+        # Parse args as comma-separated or space-separated integers
+        input_args = sys.argv[1:]
+        groups = []
+        for arg in input_args:
+            if ',' in arg:
+                groups.extend([int(x) for x in arg.split(',')])
+            else:
+                groups.append(int(arg))
+    
+    read_engine_groups(groups)
