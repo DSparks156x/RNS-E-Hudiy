@@ -81,17 +81,18 @@ def test_group_10():
         # except Exception as e:
         #     logger.warning(f"Failed to read ECU ID: {e}")
 
-        # protocol.send_keep_alive()
+        protocol.send_keep_alive()
 
-        # 3. Start Routine (Skipping - assuming causes disconnect)
-        # logger.info("Step 3: Starting Routine (0x31, 0xB8)...")
-        # try:
-        #     resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
-        #     logger.info(f"Routine Start Response: {resp}")
-        # except Exception as e:
-        #     logger.warning(f"Failed to start routine: {e}")
+        # 3. Start Routine (0x31, 0xB8, 0x00, 0x00)
+        # This might be required to enable data reading
+        logger.info("Step 3: Starting Routine (0x31, 0xB8)...")
+        try:
+            resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
+            logger.info(f"Routine Start Response: {resp}")
+        except Exception as e:
+            logger.warning(f"Failed to start routine: {e}")
 
-        # protocol.send_keep_alive()
+        protocol.send_keep_alive()
         
         if not session_established:
              # Try 0x89 if 0x81 failed
