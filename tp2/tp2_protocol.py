@@ -290,9 +290,8 @@ class TP2Protocol:
         # self.seq_tx starts at 0.
         full_len = len(payload)
         
-        # EXPERIMENTAL: Reset Sequence Number to 0 for every new KWP Request
-        # This matches ECU_Read.cpp which uses hardcoded `10 ...` (Seq 0) for all commands.
-        self.seq_tx = 0
+        # Standard TP2.0 Rolling Sequence Number
+        # We start at 0 (set in connect) and increment.
         
         frame = [0x10 + self.seq_tx, 0x00, full_len] + payload
         

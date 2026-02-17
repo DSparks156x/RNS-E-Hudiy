@@ -6,13 +6,16 @@ from tp2_protocol import TP2Protocol, TP2Error
 from tp2_coding import TP2Coding
 
 # Configure Logging
-logging.basicConfig(
-    level=logging.INFO, 
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.FileHandler("group_10_log.txt"),
-        logging.StreamHandler()
-    ]
+# Configure Logging
+# Only configure if not already configured
+if not logging.getLogger().hasHandlers():
+    logging.basicConfig(
+        level=logging.INFO, 
+        format='%(asctime)s [%(levelname)s] %(message)s',
+        handlers=[
+            logging.FileHandler("group_10_log.txt"),
+            logging.StreamHandler()
+        ]
 )
 logger = logging.getLogger(__name__)
 
