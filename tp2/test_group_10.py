@@ -38,22 +38,22 @@ def test_group_10():
             return
         logger.info(f"Session Started: {resp}")
         
-        # Give ECU time to settle
-        time.sleep(0.1)
-
-        # 2. Read ECU ID (1A 9B) - Re-enabling to check if timing fixed it
+        if not resp or resp[0] == 0x7F:
+            logger.error(f"Session Failed: {resp}")
+            return
+        logger.info(f"Session Started: {resp}")
+        
+        # 2. Read ECU ID (1A 9B)
+        # Note: Removing sleep to match ECU_Read.cpp back-to-back execution
         logger.info("Step 2: Reading ECU ID (1A 9B)...")
         try:
              resp = protocol.send_kvp_request([0x1A, 0x9B])
              logger.info(f"ECU ID: {resp}")
         except Exception as e:
              logger.warning(f"Step 2 Failed: {e}")
-             # If this disconnects, we know framing/timing didn't help.
              if "Disconnected" in str(e): return
 
-        time.sleep(0.1)
-
-        # 3. Start Routine (31 B8 00 00) - Still skipped for now to isolate Step 2
+        # 3. Start Routine (31 B8 00 00)
         # logger.info("Step 3: Starting Routine (31 B8 00 00)...")
         # try:
         #      resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
@@ -61,11 +61,8 @@ def test_group_10():
         # except Exception as e:
         #      logger.warning(f"Step 3 Failed: {e}")
 
-        # time.sleep(0.1)
-
         # 4. NOW Send Keep Alive (A3)
-        # Note: ECU_Read.cpp sends A3 after the full init. 
-        # But if we stop here, we should send it.
+        # ECU_Read.cpp sends A3 after the init steps.
         logger.info("Step 4: Sending KeepAlive (A3)...")
         protocol.send_keep_alive()
         

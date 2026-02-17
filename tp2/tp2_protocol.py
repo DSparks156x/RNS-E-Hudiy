@@ -23,7 +23,7 @@ class TP2Protocol:
     
     # Timing (ms)
     T1_TIMEOUT = 2500   # Wait for response (Increased from 1000ms)
-    T3_INTERVAL = 5     # Inter-frame gap (Decreased to speed up TX)
+    T3_INTERVAL = 12    # Inter-frame gap (Matched to ECU_Read.cpp)
 
     def __init__(self, channel='can0'):
         self.channel = channel
