@@ -1,4 +1,19 @@
+This project is a fork of Korni92s RNS-E-Hudiy, with additional features and differing implementations of some things to match my setup and preferences, including:
 
+GPIO based shutdown (I am using the amp wake signal from the radio, it wakes when the car unlocks or door opens, getting the Pi and services running faster)
+
+Silence CANbus when ignition is on (The head unit does not sleep when messages are being sent, preventing the amp signal from ever turning off and the Pi shutting down and buck powering off)
+
+Cluster handshake fixes to play nicely with the cluster in my 2010 White DIS.
+
+Removal of the menu system in favor of cycling between nav, now playing, phone, and car info with the rocker.
+Nav is automatically switched to when navigation is active, and not part of the cycling when it is not. I may implement the same for phone. Car info needs proper can IDs. hell, i may even add full TP2.0 and pull measuring blocks FIS control style eventually.
+
+Full implementation of navigation. like, everything HUDIYs nav api provides is utilized. Full Icon set for every maneuver (44), stolen from google and resized and adapted for 31x37 icons on a 2 color display. they even look half decent. 
+
+DIS service waits for ignition, rather than waiting 30 seconds from boot hopefully will allow for taking over the cluster display far faster.
+
+I am using a CarPiHat2, with ignition signal from amp wake, and the cheap hdmi-vga adapter with the sync circuit built on perf board. and booting from NVME. gotta go fast. 
 
 ````markdown
 # Hudiy / RNS-E CAN Bus Integration

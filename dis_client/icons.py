@@ -33,8 +33,8 @@ ICONS = {
 }
 
 # =============================================================================
-# 31×37 FULL NAVIGATION ICON PACK — ALL 18 MANEUVERS (HQ Edition)
+# 31×37 FULL NAVIGATION ICON PACK — ALL 44 MANEUVERS stolen from google edition
 # =============================================================================
 
 # Import all new icons and the BITMAPS dictionary
-from .new_icons_data import *
+from new_icons_data import *
