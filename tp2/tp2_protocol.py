@@ -96,7 +96,7 @@ class TP2Protocol:
             logger.error("TP2: No response to connection request.")
             return False
         
-        if resp[0] != target_module_id or resp[1] != 0xD0:
+        if resp[0] != 0x00 or resp[1] != 0xD0:
             logger.error(f"TP2: Invalid connection response: {resp}")
             return False
 
