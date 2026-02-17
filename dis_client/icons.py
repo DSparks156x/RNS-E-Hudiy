@@ -37,4 +37,4 @@ ICONS = {
 # =============================================================================
 
 # Import all new icons and the BITMAPS dictionary
-from .new_icons_data import *
+from new_icons_data import *
