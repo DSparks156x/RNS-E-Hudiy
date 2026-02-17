@@ -59,22 +59,36 @@ def read_continuous(groups):
                         logger.warning(f"Group {group_id} Failed. Resp: {resp}")
                 except Exception as e:
                     logger.error(f"Read Error: {e}")
-                    # Try to recover session?
+                    # Try to recover session on error
                     protocol.send_keep_alive()
 
-                # Keep-Alive Logic
-                # We can send it less frequently if we are reading fast?
-                # But safer to just toggle it for now or rely on the read acting as activity?
-                # ECU_Read.cpp sends A3 periodically. 
-                # Let's send A3 if > 200ms elapsed since last activity?
-                # For simplicity, sending every loop for now to be safe.
-                # protocol.send_keep_alive() 
-                
-            # Report Rate every 1 second
+            # Keep-Alive Optimization
+            # Only send if > 2.0s elapsed (Standard Timeout is ~5s usually)
+            # Active reading keeps session alive.
             now = time.time()
-            if now - last_report_time >= 1.0:
-                rate = frame_count / (now - last_report_time)
-                print(f"--- Rate: {rate:.2f} reads/sec ---")
+            if now - last_report_time > 2.0:
+                 # Just to be safe, though report logic handles the timer mostly
+                 # actually let's just use a separate timer for keepalive
+                 pass
+
+            # Report Rate every 1 second
+            elapsed = now - last_report_time
+            if elapsed >= 1.0:
+                rate = frame_count / elapsed
+                per_group_rate = rate / len(groups) if groups else 0
+                print(f"--- Total: {rate:.1f} reads/sec | Refresh: {per_group_rate:.1f} Hz/group ---")
+                
+                frame_count = 0
+                last_report_time = now
+                
+                # Send Keep-Alive periodically (e.g. every 1s with report) just in case
+                # protocol.send_keep_alive() 
+
+            if elapsed >= 1.0:
+                rate = frame_count / elapsed
+                per_group_rate = rate / len(groups) if groups else 0
+                print(f"--- Total: {rate:.1f} reads/sec | Refresh: {per_group_rate:.1f} Hz/group ---")
+                
                 frame_count = 0
                 last_report_time = now
 
