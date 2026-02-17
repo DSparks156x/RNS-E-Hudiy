@@ -6,8 +6,6 @@ from tp2_protocol import TP2Protocol, TP2Error
 from tp2_coding import TP2Coding
 
 # Configure Logging
-# Configure Logging
-# Only configure if not already configured
 if not logging.getLogger().hasHandlers():
     logging.basicConfig(
         level=logging.INFO, 
@@ -16,12 +14,12 @@ if not logging.getLogger().hasHandlers():
             logging.FileHandler("group_10_log.txt"),
             logging.StreamHandler()
         ]
-)
+    )
 logger = logging.getLogger(__name__)
 
 def test_group_10():
     protocol = TP2Protocol(channel='can0')
-    logger.info("Starting Group 10 Logger using 0x89...")
+    logger.info("Starting Critical Test: Session 0x89 -> Skip Fatal -> ReadGroup...")
     
     try:
         protocol.open()
@@ -36,36 +34,14 @@ def test_group_10():
             return
         logger.info(f"Session Started: {resp}")
         
-        if not resp or resp[0] == 0x7F:
-            logger.error(f"Session Failed: {resp}")
-            return
-        logger.info(f"Session Started: {resp}")
-        
-        if not resp or resp[0] == 0x7F:
-            logger.error(f"Session Failed: {resp}")
-            return
-        logger.info(f"Session Started: {resp}")
-        
-        # 2. Read ECU ID (1A 9B)
-        # Note: Removing sleep to match ECU_Read.cpp back-to-back execution
-        logger.info("Step 2: Reading ECU ID (1A 9B)...")
-        try:
-             resp = protocol.send_kvp_request([0x1A, 0x9B])
-             logger.info(f"ECU ID: {resp}")
-        except Exception as e:
-             logger.warning(f"Step 2 Failed: {e}")
-             if "Disconnected" in str(e): return
+        # 2. SKIP Fatal Commands (1A 9B, 31 B8)
+        # We suspect these cause disconnects. 
+        # We rely on new Driver Fixes (T1=2.5s, T3=12ms, BufferClear, WaitFrame) to handle the direct read.
+        logger.info("Step 2: Skipped 1A 9B (Read ID) to avoid disconnects.")
+        logger.info("Step 3: Skipped 31 B8 (Routine) to avoid disconnects.")
 
-        # 3. Start Routine (31 B8 00 00)
-        # logger.info("Step 3: Starting Routine (31 B8 00 00)...")
-        # try:
-        #      resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
-        #      logger.info(f"Routine Response: {resp}")
-        # except Exception as e:
-        #      logger.warning(f"Step 3 Failed: {e}")
-
-        # 4. NOW Send Keep Alive (A3)
-        # ECU_Read.cpp sends A3 after the init steps.
+        # 4. Send Keep Alive (A3)
+        # Just to ensure link is alive before reading.
         logger.info("Step 4: Sending KeepAlive (A3)...")
         protocol.send_keep_alive()
         
@@ -76,11 +52,15 @@ def test_group_10():
                  resp = protocol.send_kvp_request([0x21, 0x01])
                  if resp and resp[0] == 0x61:
                       logger.info(f"!!! SUCCESS !!! Group 1: {TP2Coding.decode_block(resp[2:])}")
+                 elif resp and resp[0] == 0x7F:
+                      logger.warning(f"Read Rejected (7F): {resp}")
                  else:
                       logger.warning(f"Read Fail: {resp}")
              except Exception as e:
                  logger.error(f"Read Error: {e}")
                  break
+             
+             # Small delay between reads
              time.sleep(0.5)
              protocol.send_keep_alive()
 
