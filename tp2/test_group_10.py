@@ -32,34 +32,32 @@ def test_group_10():
             return
         logger.info(f"Session Started: {resp}")
         
-        # Hold briefly
-        protocol.send_keep_alive()
-        
-        # 2. Start Routine 31 B8 (Might be needed?)
-        # Let's try it since we fixed the timeout handling
-        logger.info("Step 2: Starting Routine 0x31 0xB8...")
-        try:
-             resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
-             logger.info(f"Routine Response: {resp}")
-        except Exception as e:
-             logger.warning(f"Routine Error: {e}")
-        
+        # Give ECU time to settle
+        time.sleep(0.2)
         protocol.send_keep_alive()
 
-        # 3. Read Group 1
-        logger.info("Step 3: Reading Group 1...")
-        for i in range(5):
-             try:
-                 resp = protocol.send_kvp_request([0x21, 0x01])
-                 if resp and resp[0] == 0x61:
-                      logger.info(f"Group 1: {TP2Coding.decode_block(resp[2:])}")
-                 else:
-                      logger.warning(f"Read Fail: {resp}")
-             except Exception as e:
-                 logger.error(f"Read Error: {e}")
-                 break
-             time.sleep(0.5)
-             protocol.send_keep_alive()
+        # 2. Test KWP Framing with TesterPresent (3E 00)
+        # This is the simplest command. If framing is wrong, this will fail.
+        logger.info("Step 2: Testing KWP Framing with TesterPresent(3E 00)...")
+        try:
+             # We expect 7E 00 as response
+             resp = protocol.send_kvp_request([0x3E, 0x00])
+             if resp and resp[0] == 0x7E:
+                  logger.info(f"!!! SUCCESS !!! Framing Verified. Response: {resp}")
+             else:
+                  logger.warning(f"TesterPresent Failed: {resp}")
+        except Exception as e:
+             logger.error(f"TesterPresent Transmission Error: {e}")
+
+        protocol.send_keep_alive()
+        
+        # If that worked, TRY Group 1 again
+        if resp and resp[0] == 0x7E:
+            logger.info("Step 3: Reading Group 1 (Since Framing is confirmed)...")
+            try:
+                resp = protocol.send_kvp_request([0x21, 0x01])
+                logger.info(f"Group 1: {resp}")
+            except: pass
 
         protocol.disconnect()
 
