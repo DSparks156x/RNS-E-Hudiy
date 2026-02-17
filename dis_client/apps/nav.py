@@ -188,7 +188,8 @@ class NavApp(BaseApp):
 
         # Build graphical command list
         # The 'type' key is used by the engine for caching signatures
-        commands = [{'type': 'nav_graphic_v2'}]
+        # 'clear_on_update': False prevents the engine from sending 'clear_payload', avoid flicker
+        commands = [{'type': 'nav_graphic_v2', 'clear_on_update': False}]
 
         # 1. Big arrow — moved UP to Y=1
         commands.append({
@@ -199,6 +200,11 @@ class NavApp(BaseApp):
         })
 
         # 2. Distance (top-right) — only draw if we have real data
+        # Clear the distance area first (approx width of 5-6 chars)
+        commands.append({
+            'cmd': 'clear_area',
+            'x': 34, 'y': 10, 'w': 30, 'h': 10 
+        })
         if dist_clean:
             commands.append({
                 'cmd': 'draw_text',
@@ -224,17 +230,34 @@ class NavApp(BaseApp):
         street = street.strip(" .,;").strip()
         if len(street) > 18:
             street = street[:15] + "..."
-            
+        
+        # Scroll the street name if it's too long (limit to 14 chars as requested)
+        # Use a unique key for the scroll state
+        street_display = self._scroll_text(street, 'nav_street', 14, 200)
+
+        # Clear street area (although center(18) might cover it, explicit clear is safer for variable fonts)
+        # Using clear_area for the text line
+        commands.append({
+            'cmd': 'clear_area',
+            'x': 0, 'y': 39, 'w': 64, 'h': 9
+        })
         commands.append({
             'cmd': 'draw_text',
-            'text': street.center(18), # Center align manually for 0x06 font
-            'x': 2,
-            'y': 39, # Moved down to 39 to hug the bottom edge
+            # Center the 14-char window in the 18-char capable slot (approx)
+            # 14 chars * ~4px = 56px. 64px width. (64-56)/2 = 4px offset.
+            'text': street_display, 
+            'x': 4,
+            'y': 39, 
             'flags': 0x06
         })
 
         # 4. Red: Progress bar (Right Edge)
-        # Draws an "Approach Bar" that fills up from bottom-to-top
+        # Clear the entire bar track to avoid artifacts when bar shrinks
+        commands.append({
+            'cmd': 'clear_area',
+            'x': 61, 'y': 12, 'w': 3, 'h': 36
+        })
+
         if bar_h > 0:
             start_y = 48 - bar_h # Anchor to bottom (Y=48)
             

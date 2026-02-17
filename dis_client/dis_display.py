@@ -271,7 +271,8 @@ class DisplayEngine:
                 prev_type = self.last_sent.get('last_type')
                 
                 if current_type and current_type == prev_type:
-                    self.draw.send_json({'command': 'clear_payload'}) # Only clear cache, keep pixels
+                    if view[0].get('clear_on_update', True):
+                        self.draw.send_json({'command': 'clear_payload'}) # Only clear cache, keep pixels
                 else:
                     self.draw.send_json({'command': 'clear'}) # Full wipe
                 

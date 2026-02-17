@@ -579,25 +579,34 @@ class DDPProtocol:
         logger.info("Init 5/x passed!")
         
         data = self._recv_and_ack_data(1000) # Step 6
-        if not (self.payload_is(data, self.PL["PL_LOG_14"]) or self.payload_is(data, self.PL.get("PL_LOG_14_ALT"))):
+        if self.payload_is(data, self.PL["PL_LOG_14"]):
+            logger.info("Init 6/x passed (Regular)!")
+        elif self.payload_is(data, self.PL.get("PL_LOG_14_ALT")):
+            logger.info("Init 6/x passed (ALT)!")
+        else:
             raise DDPHandshakeError(f"Step 6 failed: wait PL {self.PL['PL_LOG_14']}, got {data}")
-        logger.info("Init 6/x passed!")
         
         self.send_data_packet([0x08]) # Step 7
         logger.info("Init 7/x passed!")
 
         data = self._recv_and_ack_data(1000) # Step 8
-        if not (self.payload_is(data, self.PL["PL_LOG_18"]) or self.payload_is(data, self.PL.get("PL_LOG_18_ALT"))):
+        if self.payload_is(data, self.PL["PL_LOG_18"]):
+            logger.info("Init 8/x passed (Regular)!")
+        elif self.payload_is(data, self.PL.get("PL_LOG_18_ALT")):
+            logger.info("Init 8/x passed (ALT)!")
+        else:
             raise DDPHandshakeError(f"Step 8 failed: wait PL {self.PL['PL_LOG_18']}, got {data}")
-        logger.info("Init 8/x passed!")
 
         self.send_data_packet([0x20, 0x3B, 0xA0, 0x00]) # Step 9
         logger.info("Init 9/x passed!")
 
         data = self._recv_and_ack_data(1000) # Step 10
-        if not (self.payload_is(data, self.PL["PL_LOG_21"]) or self.payload_is(data, self.PL.get("PL_LOG_21_ALT"))):
+        if self.payload_is(data, self.PL["PL_LOG_21"]):
+            logger.info("Init 10/x passed (Regular)!")
+        elif self.payload_is(data, self.PL.get("PL_LOG_21_ALT")):
+            logger.info("Init 10/x passed (ALT)!")
+        else:
             raise DDPHandshakeError(f"Step 10 failed: wait PL {self.PL['PL_LOG_21']}, got {data}")
-        logger.info("Init 10/x passed!")
 
         data = self._recv_and_ack_data(1000) # Step 11
         if not self.payload_is(data, self.PL["PL_LOG_23"]):
@@ -680,6 +689,10 @@ class DDPProtocol:
             
             # --- Path C (White Long) or Path Red ---
             elif self.payload_is(data, self.PL["PL_LOG_11"]) or self.payload_is(data, self.PL.get("PL_LOG_11_ALT")):
+                if self.payload_is(data, self.PL.get("PL_LOG_11_ALT")):
+                    logger.info("Handshake Fork: Got PL_LOG_11 (ALT)")
+                else:
+                    logger.info("Handshake Fork: Got PL_LOG_11 (Regular)")
                 if self.dis_mode == DisMode.RED:
                     self._init_path_red()
                 else:
