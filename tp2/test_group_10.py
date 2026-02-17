@@ -16,29 +16,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def send_tester_present(protocol):
-    """Sends Tester Present (0x3E 0x00) to keep Diagnostic Session active."""
-    try:
-        # We don't really care about the response, just sending it.
-        # But we must consume the response to not desync.
-        resp = protocol.send_kvp_request([0x3E, 0x00])
-        return True
-    except TP2Error:
-        return False
-
-def send_tester_present(protocol):
-    """Sends Tester Present (0x3E 0x00) to keep Diagnostic Session active."""
-    try:
-        # We don't really care about the response, just sending it.
-        # But we must consume the response to not desync.
-        resp = protocol.send_kvp_request([0x3E, 0x00])
-        return True
-    except TP2Error:
-        return False
-
-def test_group_10():
+def test_protocol_scan():
     protocol = TP2Protocol(channel='can0')
-    logger.info("Starting Group 10 Logger...")
+    logger.info("Starting TP2.0 Protocol Scanner...")
     
     try:
         protocol.open()
@@ -48,92 +28,97 @@ def test_group_10():
             logger.error("Failed to connect to Engine ECU.")
             return
 
-        # 1. Start Session
-        # Try 0x89 (Adjustment) first, then 0x81 (Standard)
-        logger.info("Step 1: Starting Diagnostic Session...")
-        session_established = False
+        # List of Sessions to Probe
+        # 0x81: KWP Standard
+        # 0x89: KWP Adjustment
+        # 0x86: KWP
+        # 0xC0: VW Specific
+        # 0x01: UDS Default
+        # 0x03: UDS Extended
+        sessions = [0x81, 0x89, 0x86, 0xC0, 0x03, 0x01]
         
-        for session_type in [0x89, 0x81]:
+        for session in sessions:
+            logger.info(f"--- Testing Session 0x{session:02X} ---")
+            
+            # 1. Start Session
             try:
-                logger.info(f"Trying Session Type 0x{session_type:02X}...")
-                resp = protocol.send_kvp_request([0x10, session_type])
-                logger.info(f"Session Start Response: {resp}")
-                
-                # Check for Positive Response (0x50)
-                if resp and resp[0] == 0x50:
-                    session_established = True
-                    break
-                elif resp and resp[0] == 0x7F:
-                    logger.warning(f"Session 0x{session_type:02X} rejected: {resp}")
-            except Exception as e:
-                 logger.warning(f"Session 0x{session_type:02X} failed: {e}")
-        
-        if not session_established:
-            logger.error("Failed to establish any Diagnostic Session. Proceeding anyway (risk of failure).")
-        
-        protocol.send_keep_alive()
-
-        # 2. Read ECU ID (Skipping - causes instant disconnect)
-        # logger.info("Step 2: Reading ECU ID (0x1A, 0x9B)...")
-        # try:
-        #     resp = protocol.send_kvp_request([0x1A, 0x9B])
-        #     logger.info(f"ECU ID Response: {resp}")
-        # except Exception as e:
-        #     logger.warning(f"Failed to read ECU ID: {e}")
-
-        protocol.send_keep_alive()
-
-        # 3. Start Routine (0x31, 0xB8, 0x00, 0x00)
-        # This might be required to enable data reading
-        logger.info("Step 3: Starting Routine (0x31, 0xB8)...")
-        try:
-            resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
-            logger.info(f"Routine Start Response: {resp}")
-        except Exception as e:
-            logger.warning(f"Failed to start routine: {e}")
-
-        protocol.send_keep_alive()
-        
-        if not session_established:
-             # Try 0x89 if 0x81 failed
-             pass
-
-        # TEST: Session Hold Loop
-        # We will just send Link Keep Alive (0xA3) for 10 seconds to prove we can hold the session.
-        logger.info("TEST: Holding Session for 10 seconds with 0xA3...")
-        for i in range(20):
-             time.sleep(0.5)
-             if not protocol.send_keep_alive():
-                 logger.error("Keep-Alive Failed! Session Lost?")
-                 break
-        logger.info("TEST: Session Held. Now trying to read.")
-
-        # Query Loop
-        logger.info("Starting Data Query Loop (Groups 1 and 10)...")
-        groups_to_check = [1, 10]
-        
-        for i in range(5):
-            for group in groups_to_check:
-                try:
-                    # Send Keep Alive BEFORE reading
+                resp = protocol.send_kvp_request([0x10, session])
+                if not resp or resp[0] == 0x7F:
+                    logger.warning(f"Session 0x{session:02X} rejected: {resp}")
+                    # If session rejected, we probably don't need to reconnect, 
+                    # but simple keep-alive might be needed?
                     protocol.send_keep_alive()
-                    
-                    resp = protocol.send_kvp_request([0x21, group])
-                    if resp and resp[0] == 0x61:
-                        decoded = TP2Coding.decode_block(resp[2:])
-                        logger.info(f"Group {group}: {decoded}")
-                    elif resp and resp[0] == 0x7F:
-                        logger.warning(f"Group {group} rejected: {resp}")
-                    else:
-                        logger.warning(f"Group {group} unexpected: {resp}")
-                except Exception as e:
-                    logger.warning(f"Group {group} error: {e}")
-                    if "Disconnected" in str(e): return
-                
-                time.sleep(0.2)
-        
-        # Close
-        protocol.disconnect()
+                    continue
+                logger.info(f"Session 0x{session:02X} Accepted: {resp}")
+            except Exception as e:
+                logger.warning(f"Session 0x{session:02X} start error: {e}")
+                # Reconnect if died
+                protocol.disconnect()
+                time.sleep(1)
+                if not protocol.connect(0x01):
+                    logger.error("FATAL: Could not reconnect during scan.")
+                    break
+                continue
+
+            # Hold session briefly to stabilize
+            for _ in range(3):
+                protocol.send_keep_alive()
+                time.sleep(0.1)
+
+            # 2. Try Reading (Hybrid Approach)
+            
+            # Test A: KWP Read Group 001 (21 01)
+            logger.info(f"[Session 0x{session:02X}] Probing KWP ReadGroup (0x21 0x01)...")
+            try:
+                resp = protocol.send_kvp_request([0x21, 0x01])
+                if resp and resp[0] == 0x61:
+                    logger.info(f"!!! SUCCESS !!! KWP Data Read: {resp}")
+                    decoded = TP2Coding.decode_block(resp[2:])
+                    logger.info(f"Decoded: {decoded}")
+                else:
+                    logger.info(f"KWP Read Rejected: {resp}")
+            except Exception as e:
+                logger.warning(f"KWP Read Error: {e}")
+
+            protocol.send_keep_alive()
+
+            # Test B: UDS Read VIN (22 F1 90)
+            logger.info(f"[Session 0x{session:02X}] Probing UDS ReadDID (0x22 0xF1 0x90)...")
+            try:
+                resp = protocol.send_kvp_request([0x22, 0xF1, 0x90])
+                if resp and resp[0] == 0x62:
+                    logger.info(f"!!! SUCCESS !!! UDS Data Read: {resp}")
+                    # Try interpreting as ASCII
+                    try:
+                        ascii_val = "".join([chr(x) for x in resp[3:] if 32 <= x <= 126])
+                        logger.info(f"UDS ASCII: {ascii_val}")
+                    except: pass
+                else:
+                    logger.info(f"UDS Read Rejected: {resp}")
+            except Exception as e:
+                 logger.warning(f"UDS Read Error: {e}")
+
+            protocol.send_keep_alive()
+            
+            # Test C: KWP Read ID (1A 9B) - Just to check
+            logger.info(f"[Session 0x{session:02X}] Probing KWP ReadID (1A 9B)...")
+            try:
+                resp = protocol.send_kvp_request([0x1A, 0x9B])
+                if resp and resp[0] != 0x7F:
+                     logger.info(f"KWP ReadID OK: {resp}")
+                else:
+                     logger.info(f"KWP ReadID Rejected: {resp}")
+            except Exception as e:
+                 logger.warning(f"KWP ReadID Error: {e}")
+
+            # End Session / Prepare for next
+            # We disconnect to reset state so next session start is clean
+            logger.info("Disconnecting to reset state...")
+            protocol.disconnect()
+            time.sleep(1)
+            if not protocol.connect(0x01):
+                 logger.error("Failed to reconnect for next loop.")
+                 break
         
     except Exception as e:
         logger.error(f"Script Error: {e}")
@@ -141,4 +126,4 @@ def test_group_10():
         protocol.close()
 
 if __name__ == "__main__":
-    test_group_10()
+    test_protocol_scan()
