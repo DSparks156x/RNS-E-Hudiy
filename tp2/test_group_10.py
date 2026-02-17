@@ -73,33 +73,46 @@ def test_group_10():
         
         protocol.send_keep_alive()
 
-        # 2. Read ECU ID
-        logger.info("Step 2: Reading ECU ID (0x1A, 0x9B)...")
-        try:
-            resp = protocol.send_kvp_request([0x1A, 0x9B])
-            logger.info(f"ECU ID Response: {resp}")
-        except Exception as e:
-            logger.warning(f"Failed to read ECU ID: {e}")
+        # 2. Read ECU ID (Skipping - causes instant disconnect)
+        # logger.info("Step 2: Reading ECU ID (0x1A, 0x9B)...")
+        # try:
+        #     resp = protocol.send_kvp_request([0x1A, 0x9B])
+        #     logger.info(f"ECU ID Response: {resp}")
+        # except Exception as e:
+        #     logger.warning(f"Failed to read ECU ID: {e}")
 
-        protocol.send_keep_alive()
+        # protocol.send_keep_alive()
 
-        # 3. Start Routine (0x31, 0xB8, 0x00, 0x00) - From DIS-Display-master
-        logger.info("Step 3: Starting Routine (0x31, 0xB8)...")
-        try:
-            resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
-            logger.info(f"Routine Start Response: {resp}")
-        except Exception as e:
-            logger.warning(f"Failed to start routine: {e}")
+        # 3. Start Routine (Skipping - assuming causes disconnect)
+        # logger.info("Step 3: Starting Routine (0x31, 0xB8)...")
+        # try:
+        #     resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
+        #     logger.info(f"Routine Start Response: {resp}")
+        # except Exception as e:
+        #     logger.warning(f"Failed to start routine: {e}")
 
-        protocol.send_keep_alive()
+        # protocol.send_keep_alive()
         
+        # TEST: Session Hold Loop
+        # We will just send Tester Present for 10 seconds to prove we can hold the session.
+        logger.info("TEST: Holding Session for 10 seconds...")
+        for i in range(20):
+             time.sleep(0.5)
+             if not send_tester_present(protocol):
+                 logger.error("Tester Present Failed! Session Lost?")
+                 break
+        logger.info("TEST: Session Held. Now trying to read.")
+
         # Query Loop
         logger.info("Starting Data Query Loop (Groups 1 and 10)...")
         groups_to_check = [1, 10]
         
-        for i in range(20):
+        for i in range(5):
             for group in groups_to_check:
                 try:
+                    # Send Tester Present BEFORE reading to ensure session acts alive
+                    send_tester_present(protocol)
+                    
                     resp = protocol.send_kvp_request([0x21, group])
                     if resp and resp[0] == 0x61:
                         decoded = TP2Coding.decode_block(resp[2:])
@@ -112,9 +125,7 @@ def test_group_10():
                     logger.warning(f"Group {group} error: {e}")
                     if "Disconnected" in str(e): return
                 
-                # Send Tester Present every loop to keep session alive
-                time.sleep(0.5)
-                send_tester_present(protocol)
+                time.sleep(0.2)
         
         # Close
         protocol.disconnect()
