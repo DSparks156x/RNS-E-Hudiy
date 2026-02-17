@@ -284,6 +284,17 @@ class TP2Protocol:
             else:
                  logger.warning(f"TP2: Unknown frame type {msg[0]:02X}")
 
-    def keep_alive_tick(self):
-        """Sends Keep-Alive Ping (A3) if idle? vwtp.c sends A3 for Connection Test."""
-        pass
+    def send_keep_alive(self):
+        """Sends Keep-Alive Ping (A3) and waits for response (A1)."""
+        if self.tx_id:
+            try:
+                self._send(self.tx_id, [0xA3])
+                resp = self._recv(self.rx_id, self.T1_TIMEOUT)
+                if not resp or resp[0] != 0xA1:
+                    logger.warning(f"TP2: Keep-Alive failed or no response: {resp}")
+                    return False
+                return True
+            except Exception as e:
+                logger.error(f"TP2: Keep-Alive Error: {e}")
+                return False
+        return False

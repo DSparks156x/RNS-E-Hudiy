@@ -28,30 +28,57 @@ def test_group_10():
             logger.error("Failed to connect to Engine ECU.")
             return
 
-        # Start Session
-        logger.info("Starting Diagnostic Session...")
+        # 1. Start Session (0x10, 0x89)
+        logger.info("Step 1: Starting Diagnostic Session (0x10, 0x89)...")
         resp = protocol.send_kvp_request([0x10, 0x89])
         logger.info(f"Session Start Response: {resp}")
         
-        # Query Group 10 Loop
-        logger.info("Reading Group 10...")
-        for i in range(20): # Read 20 samples then exit
-            try:
-                # KWP ReadGroup 10 (0x0A)
-                resp = protocol.send_kvp_request([0x21, 0x0A])
-                
-                if resp and resp[0] == 0x61 and resp[1] == 0x0A:
-                    decoded = TP2Coding.decode_block(resp[2:])
-                    logger.info(f"Sample {i+1}: {decoded}")
-                else:
-                    logger.warning(f"Sample {i+1}: Unexpected response {resp}")
+        protocol.send_keep_alive()
+
+        # 2. Read ECU ID (0x1A, 0x9B) - From tp20logger/diag.c
+        logger.info("Step 2: Reading ECU ID (0x1A, 0x9B)...")
+        try:
+            resp = protocol.send_kvp_request([0x1A, 0x9B])
+            logger.info(f"ECU ID Response: {resp}")
+        except Exception as e:
+            logger.warning(f"Failed to read ECU ID: {e}")
+
+        protocol.send_keep_alive()
+
+        # 3. Start Routine (0x31, 0xB8, 0x00, 0x00) - From DIS-Display-master
+        logger.info("Step 3: Starting Routine (0x31, 0xB8)...")
+        try:
+            resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
+            logger.info(f"Routine Start Response: {resp}")
+        except Exception as e:
+            logger.warning(f"Failed to start routine: {e}")
+
+        protocol.send_keep_alive()
+        
+        # Query Loop
+        groups_to_check = [1, 10]
+        
+        for group in groups_to_check:
+            logger.info(f"Attempting to read Group {group}...")
+            
+            for i in range(5): # Read 5 samples
+                try:
+                    # KWP ReadGroup (0x21, Group)
+                    resp = protocol.send_kvp_request([0x21, group])
                     
-                time.sleep(0.5)
-                
-            except TP2Error as e:
-                logger.error(f"Error reading sample {i+1}: {e}")
-                break
-                
+                    if resp and resp[0] == 0x61 and resp[1] == group:
+                        decoded = TP2Coding.decode_block(resp[2:])
+                        logger.info(f"Group {group} Sample {i+1}: {decoded}")
+                    else:
+                        logger.warning(f"Group {group} Sample {i+1}: Unexpected response {resp}")
+                        
+                    protocol.send_keep_alive()
+                    time.sleep(0.5)
+                    
+                except TP2Error as e:
+                    logger.error(f"Error reading Group {group} sample {i+1}: {e}")
+                    break
+        
         # Close
         protocol.disconnect()
         
