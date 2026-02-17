@@ -342,60 +342,48 @@ class TP2Protocol:
                 logger.info("TP2: Received Disconnect from ECU.")
                 self.disconnect()
                 raise TP2Error("Disconnected by ECU")
+            
+            # Wait Frame (0x9x) - Extend Timeout
+            if (msg[0] & 0xF0) == 0x90:
+                 logger.warning(f"TP2: Received 0x{msg[0]:02X} (Wait?). Extending timeout.")
+                 continue
 
             seq = msg[0] & 0x0F
             type_ = msg[0] & 0xF0
             
-            # Start/Last Frame (0x10) or Intermediate (0x20)
-            if type_ == 0x10:
-                # First packet contains length
-                # Bytes: [Type+Seq, Len_MSB, Len_LSB, Data...]
+            data_part = []
+            
+            # If this is the FIRST frame we've accepted, it MUST contain the length.
+            # It can be Type 1x (Single/Last) or Type 2x (First of many).
+            if expected_len == 0:
                 if len(msg) < 4:
-                     # Packet too short?
+                     # Packet too short to contain Length + SID?
+                     # Standard Header: [Type, LenHi, LenLo, SID...]
                      continue
                 
-                cur_len = (msg[1] << 8) + msg[2]
-                if expected_len == 0: expected_len = cur_len
-                
-                data_part = msg[3:]
-                
-                # Append data (only up to expected_len)
-                needed = expected_len - len(buffer)
-                if len(data_part) > needed:
-                    data_part = data_part[:needed]
-                
-                buffer.extend(data_part)
-                
-                # Check if we are done
-                if len(buffer) >= expected_len:
-                    # Send ACK before returning
-                    self._send(self.tx_id, [0xB0 + ((seq + 1) % 16)])
-                    return buffer
-                else:
-                    # Still need more data? 
-                    # For 0x1x, this implies it's the LAST frame of a block. 
-                    # If we don't have enough data yet, something is wrong or it's a multi-block transfer.
-                    # But 0x1x usually means "End of Block".
-                    # Let's just ACK and wait for more blocks?
-                    # vwtp.c logic: "Wait for ACK".
-                    # If we are RECEIVING, we send ACK.
-                    self._send(self.tx_id, [0xB0 + ((seq + 1) % 16)])
-                
-            elif type_ == 0x20:
-                # Intermediate Frame
-                # Bytes: [Type+Seq, Data...]
-                data_part = msg[1:]
-                buffer.extend(data_part)
-                
-            elif (type_ & 0xF0) == 0x90:
-                # 0x9x might be a variant?
-                logger.warning(f"TP2: Received 0x{msg[0]:02X} (Wait?). Extending timeout.")
-                # Reset timeout since the ECU is alive but busy
-                end_time = time.time() + (self.T1_TIMEOUT / 1000.0)
-                pass
-            
+                expected_len = (msg[1] << 8) + msg[2]
+                logger.info(f"TP2: Incoming Block Length: {expected_len}")
+                data_part = msg[3:] # Data starts after Length (2 bytes)
             else:
-                 logger.warning(f"TP2: Unknown frame type {msg[0]:02X}")
+                # Continuation Frame (Type 2x or 1x)
+                data_part = msg[1:] # Data starts immediately after header
+            
+            buffer.extend(data_part)
+            
+            # If Type is 1x (End of Block), we must segments ACK.
+            # In Multi-frame, 2x is "Don't ACK", 1x is "ACK me".
+            if type_ == 0x10:
+                if len(buffer) < expected_len:
+                     # Odd, we got an "End of Block" marker but not enough data?
+                     # This might happen if 'expected_len' covers multiple blocks?
+                     # But TP2 usually does 1 Block = 1 KWP Message.
+                     # Let's just ACK and continue.
+                     pass
+                self._send(self.tx_id, [0xB0 + ((seq + 1) % 16)])
+            
+            # Check if we are done
+            if expected_len > 0 and len(buffer) >= expected_len:
+                return buffer[:expected_len] # Trim any padding if present
 
     def send_keep_alive(self):
         """Sends Keep-Alive Ping (A3) and waits for response (A1)."""
