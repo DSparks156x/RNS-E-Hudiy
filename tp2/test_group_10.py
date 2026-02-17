@@ -28,10 +28,28 @@ def test_group_10():
             logger.error("Failed to connect to Engine ECU.")
             return
 
-        # 1. Start Session (0x10, 0x89)
-        logger.info("Step 1: Starting Diagnostic Session (0x10, 0x89)...")
-        resp = protocol.send_kvp_request([0x10, 0x89])
-        logger.info(f"Session Start Response: {resp}")
+        # 1. Start Session
+        # Try 0x89 (Adjustment) first, then 0x81 (Standard)
+        logger.info("Step 1: Starting Diagnostic Session...")
+        session_established = False
+        
+        for session_type in [0x89, 0x81]:
+            try:
+                logger.info(f"Trying Session Type 0x{session_type:02X}...")
+                resp = protocol.send_kvp_request([0x10, session_type])
+                logger.info(f"Session Start Response: {resp}")
+                
+                # Check for Positive Response (0x50)
+                if resp and resp[0] == 0x50:
+                    session_established = True
+                    break
+                elif resp and resp[0] == 0x7F:
+                    logger.warning(f"Session 0x{session_type:02X} rejected: {resp}")
+            except Exception as e:
+                 logger.warning(f"Session 0x{session_type:02X} failed: {e}")
+        
+        if not session_established:
+            logger.error("Failed to establish any Diagnostic Session. Proceeding anyway (risk of failure).")
         
         protocol.send_keep_alive()
 
@@ -77,7 +95,10 @@ def test_group_10():
                     
                 except TP2Error as e:
                     logger.error(f"Error reading Group {group} sample {i+1}: {e}")
-                    break
+                    protocol.send_keep_alive()
+                    # If disconnected, break inner loop
+                    if "Disconnected" in str(e):
+                        break
         
         # Close
         protocol.disconnect()

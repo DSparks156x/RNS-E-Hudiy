@@ -240,6 +240,12 @@ class TP2Protocol:
                 self._send(self.tx_id, [0xA1])
                 continue
 
+            # Disconnect (A8) - Reply A8 and close
+            if msg[0] == 0xA8:
+                logger.info("TP2: Received Disconnect from ECU.")
+                self.disconnect()
+                raise TP2Error("Disconnected by ECU")
+
             seq = msg[0] & 0x0F
             type_ = msg[0] & 0xF0
             
@@ -290,8 +296,18 @@ class TP2Protocol:
             try:
                 self._send(self.tx_id, [0xA3])
                 resp = self._recv(self.rx_id, self.T1_TIMEOUT)
-                if not resp or resp[0] != 0xA1:
-                    logger.warning(f"TP2: Keep-Alive failed or no response: {resp}")
+                
+                if not resp:
+                    logger.warning("TP2: Keep-Alive timeout.")
+                    return False
+                    
+                if resp[0] == 0xA8:
+                     logger.info("TP2: Received Disconnect from ECU during Keep-Alive.")
+                     self.disconnect()
+                     return False
+                     
+                if resp[0] != 0xA1:
+                    logger.warning(f"TP2: Keep-Alive failed. Resp: {resp}")
                     return False
                 return True
             except Exception as e:
