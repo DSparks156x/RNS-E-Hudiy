@@ -16,6 +16,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def send_tester_present(protocol):
+    """Sends Tester Present (0x3E 0x00) to keep Diagnostic Session active."""
+    try:
+        # We don't really care about the response, just sending it.
+        # But we must consume the response to not desync.
+        resp = protocol.send_kvp_request([0x3E, 0x00])
+        return True
+    except TP2Error:
+        return False
+
+def send_tester_present(protocol):
+    """Sends Tester Present (0x3E 0x00) to keep Diagnostic Session active."""
+    try:
+        # We don't really care about the response, just sending it.
+        # But we must consume the response to not desync.
+        resp = protocol.send_kvp_request([0x3E, 0x00])
+        return True
+    except TP2Error:
+        return False
+
 def test_group_10():
     protocol = TP2Protocol(channel='can0')
     logger.info("Starting Group 10 Logger...")
@@ -53,52 +73,48 @@ def test_group_10():
         
         protocol.send_keep_alive()
 
-        # 2. Read ECU ID (0x1A, 0x9B) - From tp20logger/diag.c
-        logger.info("Step 2: Reading ECU ID (0x1A, 0x9B)...")
-        try:
-            resp = protocol.send_kvp_request([0x1A, 0x9B])
-            logger.info(f"ECU ID Response: {resp}")
-        except Exception as e:
-            logger.warning(f"Failed to read ECU ID: {e}")
+        # 2. Read ECU ID (Skipping due to disconnects)
+        # logger.info("Step 2: Reading ECU ID (0x1A, 0x9B)...")
+        # try:
+        #     resp = protocol.send_kvp_request([0x1A, 0x9B])
+        #     logger.info(f"ECU ID Response: {resp}")
+        # except Exception as e:
+        #     logger.warning(f"Failed to read ECU ID: {e}")
 
-        protocol.send_keep_alive()
+        # protocol.send_keep_alive()
 
-        # 3. Start Routine (0x31, 0xB8, 0x00, 0x00) - From DIS-Display-master
-        logger.info("Step 3: Starting Routine (0x31, 0xB8)...")
-        try:
-            resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
-            logger.info(f"Routine Start Response: {resp}")
-        except Exception as e:
-            logger.warning(f"Failed to start routine: {e}")
+        # 3. Start Routine (Skipping due to disconnects)
+        # logger.info("Step 3: Starting Routine (0x31, 0xB8)...")
+        # try:
+        #     resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
+        #     logger.info(f"Routine Start Response: {resp}")
+        # except Exception as e:
+        #     logger.warning(f"Failed to start routine: {e}")
 
-        protocol.send_keep_alive()
+        # protocol.send_keep_alive()
         
         # Query Loop
+        logger.info("Starting Data Query Loop (Groups 1 and 10)...")
         groups_to_check = [1, 10]
         
-        for group in groups_to_check:
-            logger.info(f"Attempting to read Group {group}...")
-            
-            for i in range(5): # Read 5 samples
+        for i in range(20):
+            for group in groups_to_check:
                 try:
-                    # KWP ReadGroup (0x21, Group)
                     resp = protocol.send_kvp_request([0x21, group])
-                    
-                    if resp and resp[0] == 0x61 and resp[1] == group:
+                    if resp and resp[0] == 0x61:
                         decoded = TP2Coding.decode_block(resp[2:])
-                        logger.info(f"Group {group} Sample {i+1}: {decoded}")
+                        logger.info(f"Group {group}: {decoded}")
+                    elif resp and resp[0] == 0x7F:
+                        logger.warning(f"Group {group} rejected: {resp}")
                     else:
-                        logger.warning(f"Group {group} Sample {i+1}: Unexpected response {resp}")
-                        
-                    protocol.send_keep_alive()
-                    time.sleep(0.5)
-                    
-                except TP2Error as e:
-                    logger.error(f"Error reading Group {group} sample {i+1}: {e}")
-                    protocol.send_keep_alive()
-                    # If disconnected, break inner loop
-                    if "Disconnected" in str(e):
-                        break
+                        logger.warning(f"Group {group} unexpected: {resp}")
+                except Exception as e:
+                    logger.warning(f"Group {group} error: {e}")
+                    if "Disconnected" in str(e): return
+                
+                # Send Tester Present every loop to keep session alive
+                time.sleep(0.5)
+                send_tester_present(protocol)
         
         # Close
         protocol.disconnect()
