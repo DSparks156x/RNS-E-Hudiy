@@ -194,14 +194,92 @@ class TP2Protocol:
         # We need to prepend Length?
         # vwtp.c prepends 2 bytes of length? No, it puts length in byte 1/2 of CAN frame.
         
-        # Simplified Logic (Short Request):
+        # Simplified Logic (Short Request - all we need for now):
         # Frame: [0x10 + Seq, 0x00, Length, SID, Args, ...]
-        # Length = 1 (SID) + len(Args)
+        
+        # vwtp.c Logic:
+        # msg.payload[0] = 0x10 | nextSN;
+        # msg.payload[1] = 0x00;
+        # msg.payload[2] = 0x02 + kwpMessage[0]; // KWP Len + 2 (SID+Param count?? or just fixed offset?)
+        # Wait, if kwpMessage[0] is length of params? 
+        # vwtp.c: msg.payload[3] = SID; msg.payload[4] = parameter; 
+        # then loops i=0 to kwpMessage[0].
+        # It seems vwtp.c treats kwpMessage[0] as "Extra Data Length".
+        # Total Length = 1 (SID) + 1 (Param) + Extra Data? 
+        # No, let's look at `VWTP_KWP2000Message(SID, parameter, kwpMessage)`
+        # It takes SID and Parameter explicitly.
+        
+        # In our case, `payload` is `[SID, Param, ...]`.
+        # So `len(payload)` IS the total KWP length.
+        
+        # If vwtp.c sets `msg.payload[2] = 0x02 + data_len`, effectively:
+        # It includes the SID and Parameter byte in the length if they are separate?
+        # Actually vwtp.c code shows:
+        # msg.payload[3] = SID;
+        # msg.payload[4] = parameter;
+        # ... copy rest ...
+        # This implies standard KWP frame is:
+        # Byte 0: 10+Seq
+        # Byte 1: 00
+        # Byte 2: LENGTH
+        # Byte 3: SID
+        # Byte 4: Data...
+        
+        # IF vwtp.c adds 2, maybe the length byte *should* capture the length of KWP data?
+        # IF `kwpMessage` is just the extra data...
+        # Standard TP2.0 says Byte 2 is "Length of data field".
+        # If payload is [SID, Arg], length is 2.
+        
+        # Let's try sending EXACTLY what vwtp.c does if we assume our payload is the whole KWP msg.
+        # But wait, vwtp.c logic `0x02 + kwpMessage[0]` where kwpMessage[0] is length of *extra* data?
+        # If we send `21 01` (SID=21, Param=01), `kwpMessage` would be empty/zero?
+        # Then `0x02 + 0` = 2.
+        # So Length Byte = 2.
+        # This matches `len([0x21, 0x01])`.
+        
+        # So `full_len = len(payload)` SHOULD be correct if payload is `[21, 01]`.
+        # UNLESS... we need to account for valid data length in `vwtp.c`?
+        # "msg.len = 5 + kwpMessage[0]" -> 5 + 0 = 5 CAN bytes.
+        # [10, 00, 02, 21, 01].
+        
+        # Let's verify what we are sending. 
+        # `frame = [0x10 + self.seq_tx, 0x00, full_len] + payload`
+        # `full_len = 2`.
+        # `frame` = `[10, 00, 02, 21, 01]`.
+        # `_send` adds no padding.
+        # `can.Message(DLC=5, data=[...])`.
+        
+        # This looks correct.
+        # Why did it fail?
+        # 1. Sequence number? (Reset to 0 on connect).
+        # 2. Maybe `0x00` byte (Byte 1) should be something else? `vwtp.c` sets it to `0x00`.
+        # 3. Maybe the ECU needs PADDING for the KWP packet itself even if TP2 doesn't?
+        # vwtp.c: `msg.len = 5 + kw...`. It sends short CAN frame.
+        
+        # Wait, look at `send_kvp_request` logic again.
+        # We perform `_send` then `_wait_ack`.
+        # The ACK comes.
+        # Then we `_read_multiframe_response`.
+        
+        # In `_read_multiframe_response`:
+        # `msg = self._recv(...)`
+        # If the ECU is "Busy", does it send a "Wait" frame?
+        # 0x90? We saw warnings of `Tp2: Received 0x93 (Type 9?)`.
+        # In the log: `TP2: Keep-Alive failed. Resp: [147]`. 147 = 0x93.
+        # We handled that in KeepAlive.
+        # BUT, did we handle it in `_read_multiframe_response`?
+        # Yes, we added: `elif (type_ & 0xF0) == 0x90:` -> `pass`.
+        # If we `pass`, we loop again.
+        # If the ECU sends `0x93` repeatedly, we loop forever until timeout.
+        # Maybe `0x93` means "Wait"?
         
         full_len = len(payload)
         
+        # EXPERIMENTAL: For `21 01` specifically, some ECUs might expect standard length?
+        # Or maybe the sequence number is wrong?
+        # self.seq_tx starts at 0.
+        
         frame = [0x10 + self.seq_tx, 0x00, full_len] + payload
-        # Do not pad. Send exact DLC.
         
         self.seq_tx = (self.seq_tx + 1) % 16
         self._send(self.tx_id, frame)
@@ -291,10 +369,9 @@ class TP2Protocol:
                 
             elif (type_ & 0xF0) == 0x90:
                 # 0x9x might be a variant?
-                logger.warning(f"TP2: Received 0x{msg[0]:02X} (Type 9?). Interpreting as ACK request?")
-                # Some docs say 0x9x is not standard.
-                # If 0x93 matches KeepAlive response?
-                # Let's store it or ignore it.
+                logger.warning(f"TP2: Received 0x{msg[0]:02X} (Wait?). Extending timeout.")
+                # Reset timeout since the ECU is alive but busy
+                end_time = time.time() + (self.T1_TIMEOUT / 1000.0)
                 pass
             
             else:

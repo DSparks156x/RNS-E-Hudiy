@@ -16,114 +16,57 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def test_protocol_scan():
+def test_group_10():
     protocol = TP2Protocol(channel='can0')
-    logger.info("Starting TP2.0 Protocol Scanner...")
+    logger.info("Starting Group 10 Logger using 0x89...")
     
     try:
         protocol.open()
-        
-        # Connect to Engine (0x01)
-        if not protocol.connect(0x01):
-            logger.error("Failed to connect to Engine ECU.")
+        if not protocol.connect(0x01): return
+
+        # 1. Start Session 0x89
+        logger.info("Step 1: Starting Session 0x89...")
+        resp = protocol.send_kvp_request([0x10, 0x89])
+        if not resp or resp[0] == 0x7F:
+            logger.error(f"Session Failed: {resp}")
             return
-
-        # List of Sessions to Probe
-        # 0x81: KWP Standard
-        # 0x89: KWP Adjustment
-        # 0x86: KWP
-        # 0xC0: VW Specific
-        # 0x01: UDS Default
-        # 0x03: UDS Extended
-        sessions = [0x81, 0x89, 0x86, 0xC0, 0x03, 0x01]
+        logger.info(f"Session Started: {resp}")
         
-        for session in sessions:
-            logger.info(f"--- Testing Session 0x{session:02X} ---")
-            
-            # 1. Start Session
-            try:
-                resp = protocol.send_kvp_request([0x10, session])
-                if not resp or resp[0] == 0x7F:
-                    logger.warning(f"Session 0x{session:02X} rejected: {resp}")
-                    # If session rejected, we probably don't need to reconnect, 
-                    # but simple keep-alive might be needed?
-                    protocol.send_keep_alive()
-                    continue
-                logger.info(f"Session 0x{session:02X} Accepted: {resp}")
-            except Exception as e:
-                logger.warning(f"Session 0x{session:02X} start error: {e}")
-                # Reconnect if died
-                protocol.disconnect()
-                time.sleep(1)
-                if not protocol.connect(0x01):
-                    logger.error("FATAL: Could not reconnect during scan.")
-                    break
-                continue
+        # Hold briefly
+        protocol.send_keep_alive()
+        
+        # 2. Start Routine 31 B8 (Might be needed?)
+        # Let's try it since we fixed the timeout handling
+        logger.info("Step 2: Starting Routine 0x31 0xB8...")
+        try:
+             resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
+             logger.info(f"Routine Response: {resp}")
+        except Exception as e:
+             logger.warning(f"Routine Error: {e}")
+        
+        protocol.send_keep_alive()
 
-            # Hold session briefly to stabilize
-            for _ in range(3):
-                protocol.send_keep_alive()
-                time.sleep(0.1)
-
-            # 2. Try Reading (Hybrid Approach)
-            
-            # Test A: KWP Read Group 001 (21 01)
-            logger.info(f"[Session 0x{session:02X}] Probing KWP ReadGroup (0x21 0x01)...")
-            try:
-                resp = protocol.send_kvp_request([0x21, 0x01])
-                if resp and resp[0] == 0x61:
-                    logger.info(f"!!! SUCCESS !!! KWP Data Read: {resp}")
-                    decoded = TP2Coding.decode_block(resp[2:])
-                    logger.info(f"Decoded: {decoded}")
-                else:
-                    logger.info(f"KWP Read Rejected: {resp}")
-            except Exception as e:
-                logger.warning(f"KWP Read Error: {e}")
-
-            protocol.send_keep_alive()
-
-            # Test B: UDS Read VIN (22 F1 90)
-            logger.info(f"[Session 0x{session:02X}] Probing UDS ReadDID (0x22 0xF1 0x90)...")
-            try:
-                resp = protocol.send_kvp_request([0x22, 0xF1, 0x90])
-                if resp and resp[0] == 0x62:
-                    logger.info(f"!!! SUCCESS !!! UDS Data Read: {resp}")
-                    # Try interpreting as ASCII
-                    try:
-                        ascii_val = "".join([chr(x) for x in resp[3:] if 32 <= x <= 126])
-                        logger.info(f"UDS ASCII: {ascii_val}")
-                    except: pass
-                else:
-                    logger.info(f"UDS Read Rejected: {resp}")
-            except Exception as e:
-                 logger.warning(f"UDS Read Error: {e}")
-
-            protocol.send_keep_alive()
-            
-            # Test C: KWP Read ID (1A 9B) - Just to check
-            logger.info(f"[Session 0x{session:02X}] Probing KWP ReadID (1A 9B)...")
-            try:
-                resp = protocol.send_kvp_request([0x1A, 0x9B])
-                if resp and resp[0] != 0x7F:
-                     logger.info(f"KWP ReadID OK: {resp}")
-                else:
-                     logger.info(f"KWP ReadID Rejected: {resp}")
-            except Exception as e:
-                 logger.warning(f"KWP ReadID Error: {e}")
-
-            # End Session / Prepare for next
-            # We disconnect to reset state so next session start is clean
-            logger.info("Disconnecting to reset state...")
-            protocol.disconnect()
-            time.sleep(1)
-            if not protocol.connect(0x01):
-                 logger.error("Failed to reconnect for next loop.")
+        # 3. Read Group 1
+        logger.info("Step 3: Reading Group 1...")
+        for i in range(5):
+             try:
+                 resp = protocol.send_kvp_request([0x21, 0x01])
+                 if resp and resp[0] == 0x61:
+                      logger.info(f"Group 1: {TP2Coding.decode_block(resp[2:])}")
+                 else:
+                      logger.warning(f"Read Fail: {resp}")
+             except Exception as e:
+                 logger.error(f"Read Error: {e}")
                  break
-        
+             time.sleep(0.5)
+             protocol.send_keep_alive()
+
+        protocol.disconnect()
+
     except Exception as e:
         logger.error(f"Script Error: {e}")
     finally:
         protocol.close()
 
 if __name__ == "__main__":
-    test_protocol_scan()
+    test_group_10()
