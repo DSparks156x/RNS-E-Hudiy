@@ -73,25 +73,25 @@ def test_group_10():
         
         protocol.send_keep_alive()
 
-        # 2. Read ECU ID (Skipping due to disconnects)
-        # logger.info("Step 2: Reading ECU ID (0x1A, 0x9B)...")
-        # try:
-        #     resp = protocol.send_kvp_request([0x1A, 0x9B])
-        #     logger.info(f"ECU ID Response: {resp}")
-        # except Exception as e:
-        #     logger.warning(f"Failed to read ECU ID: {e}")
+        # 2. Read ECU ID
+        logger.info("Step 2: Reading ECU ID (0x1A, 0x9B)...")
+        try:
+            resp = protocol.send_kvp_request([0x1A, 0x9B])
+            logger.info(f"ECU ID Response: {resp}")
+        except Exception as e:
+            logger.warning(f"Failed to read ECU ID: {e}")
 
-        # protocol.send_keep_alive()
+        protocol.send_keep_alive()
 
-        # 3. Start Routine (Skipping due to disconnects)
-        # logger.info("Step 3: Starting Routine (0x31, 0xB8)...")
-        # try:
-        #     resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
-        #     logger.info(f"Routine Start Response: {resp}")
-        # except Exception as e:
-        #     logger.warning(f"Failed to start routine: {e}")
+        # 3. Start Routine (0x31, 0xB8, 0x00, 0x00) - From DIS-Display-master
+        logger.info("Step 3: Starting Routine (0x31, 0xB8)...")
+        try:
+            resp = protocol.send_kvp_request([0x31, 0xB8, 0x00, 0x00])
+            logger.info(f"Routine Start Response: {resp}")
+        except Exception as e:
+            logger.warning(f"Failed to start routine: {e}")
 
-        # protocol.send_keep_alive()
+        protocol.send_keep_alive()
         
         # Query Loop
         logger.info("Starting Data Query Loop (Groups 1 and 10)...")
