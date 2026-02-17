@@ -47,24 +47,35 @@ def test_group_10():
         
         # 5. Read Group 1
         logger.info("Step 5: Reading Group 1...")
-        for i in range(5):
-             try:
-                 resp = protocol.send_kvp_request([0x21, 0x01])
-                 if resp and resp[0] == 0x61:
-                      logger.info(f"!!! SUCCESS !!! Group 1: {TP2Coding.decode_block(resp[2:])}")
-                 elif resp and resp[0] == 0x7F:
-                      logger.warning(f"Read Rejected (7F): {resp}")
-                 else:
-                      logger.warning(f"Read Fail: {resp}")
-             except Exception as e:
-                 logger.error(f"Read Error: {e}")
-                 break
-             
-             # Small delay between reads
-             time.sleep(0.5)
-             protocol.send_keep_alive()
+        
+        # TEST 1: Try Standard 0x21 0x01
+        logger.info("Trying Command 0x21 0x01 (ECU_Read.cpp)...")
+        try:
+             resp = protocol.send_kvp_request([0x21, 0x01])
+             if resp and resp[0] == 0x61:
+                  logger.info(f"!!! SUCCESS !!! (0x21) Group 1: {TP2Coding.decode_block(resp[2:])}")
+             else:
+                  logger.warning(f"0x21 Failed: {resp}")
+        except Exception as e:
+             logger.error(f"0x21 Error: {e}")
 
-        protocol.disconnect()
+        protocol.send_keep_alive()
+        time.sleep(0.5)
+
+        # TEST 2: Try FISBlocks 0x29 0x01
+        logger.info("Trying Command 0x29 0x01 (FISBlocks)...")
+        try:
+             resp = protocol.send_kvp_request([0x29, 0x01])
+             if resp and resp[0] == 0x69: # Positive response to 29?
+                  logger.info(f"!!! SUCCESS !!! (0x29) Group 1: {TP2Coding.decode_block(resp[2:])}")
+             elif resp and resp[0] != 0x7F:
+                  logger.info(f"!!! POSSIBLE SUCCESS !!! (0x29) Response: {resp}")
+             else:
+                  logger.warning(f"0x29 Failed: {resp}")
+        except Exception as e:
+             logger.error(f"0x29 Error: {e}")
+
+        # protocol.disconnect()
 
     except Exception as e:
         logger.error(f"Script Error: {e}")

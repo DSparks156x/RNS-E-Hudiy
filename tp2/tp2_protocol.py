@@ -60,6 +60,7 @@ class TP2Protocol:
     def _send(self, arbitration_id, data):
         msg = can.Message(arbitration_id=arbitration_id, data=data, is_extended_id=False)
         try:
+            logger.info(f"TX: ID={arbitration_id:03X} Data=[{' '.join(f'{b:02X}' for b in data)}]")
             self.bus.send(msg)
             time.sleep(self.t3 / 1000.0) # T3 Delay
         except can.CanError as e:
@@ -73,8 +74,13 @@ class TP2Protocol:
         end_time = time.time() + (timeout_ms / 1000.0)
         while time.time() < end_time:
             msg = self.bus.recv(0.05) # Poll
-            if msg and msg.arbitration_id == arbitration_id:
-                return list(msg.data)
+            if msg:
+                # Log everything for debugging
+                if msg.arbitration_id == arbitration_id:
+                     logger.info(f"RX: ID={msg.arbitration_id:03X} Data=[{' '.join(f'{b:02X}' for b in msg.data)}]")
+                     return list(msg.data)
+                elif msg.arbitration_id == self.rx_id: # Also log expected RX ID if we filter
+                     logger.info(f"RX (Ignored): ID={msg.arbitration_id:03X} Data=[{' '.join(f'{b:02X}' for b in msg.data)}]")
         return None
 
     def _clear_rx_buffer(self):
