@@ -201,8 +201,7 @@ class TP2Protocol:
         full_len = len(payload)
         
         frame = [0x10 + self.seq_tx, 0x00, full_len] + payload
-        # Pad with 0x55 or 0x00? vwtp.c doesn't pad explicitly, but Python-CAN might need 8 bytes
-        while len(frame) < 8: frame.append(0xAA) # Padding
+        # Do not pad. Send exact DLC.
         
         self.seq_tx = (self.seq_tx + 1) % 16
         self._send(self.tx_id, frame)
