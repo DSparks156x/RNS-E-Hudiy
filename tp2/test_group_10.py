@@ -49,11 +49,11 @@ def test_group_10():
             return
 
         # 1. Start Session
-        # Try 0x81 (Standard) first, then 0x89 (Adjustment)
+        # Try 0x89 (Adjustment) first, then 0x81 (Standard)
         logger.info("Step 1: Starting Diagnostic Session...")
         session_established = False
         
-        for session_type in [0x81, 0x89]:
+        for session_type in [0x89, 0x81]:
             try:
                 logger.info(f"Trying Session Type 0x{session_type:02X}...")
                 resp = protocol.send_kvp_request([0x10, session_type])
