@@ -49,11 +49,11 @@ def test_group_10():
             return
 
         # 1. Start Session
-        # Try 0x89 (Adjustment) first, then 0x81 (Standard)
+        # Try 0x81 (Standard) first, then 0x89 (Adjustment)
         logger.info("Step 1: Starting Diagnostic Session...")
         session_established = False
         
-        for session_type in [0x89, 0x81]:
+        for session_type in [0x81, 0x89]:
             try:
                 logger.info(f"Trying Session Type 0x{session_type:02X}...")
                 resp = protocol.send_kvp_request([0x10, session_type])
@@ -93,13 +93,17 @@ def test_group_10():
 
         # protocol.send_keep_alive()
         
+        if not session_established:
+             # Try 0x89 if 0x81 failed
+             pass
+
         # TEST: Session Hold Loop
-        # We will just send Tester Present for 10 seconds to prove we can hold the session.
-        logger.info("TEST: Holding Session for 10 seconds...")
+        # We will just send Link Keep Alive (0xA3) for 10 seconds to prove we can hold the session.
+        logger.info("TEST: Holding Session for 10 seconds with 0xA3...")
         for i in range(20):
              time.sleep(0.5)
-             if not send_tester_present(protocol):
-                 logger.error("Tester Present Failed! Session Lost?")
+             if not protocol.send_keep_alive():
+                 logger.error("Keep-Alive Failed! Session Lost?")
                  break
         logger.info("TEST: Session Held. Now trying to read.")
 
@@ -110,8 +114,8 @@ def test_group_10():
         for i in range(5):
             for group in groups_to_check:
                 try:
-                    # Send Tester Present BEFORE reading to ensure session acts alive
-                    send_tester_present(protocol)
+                    # Send Keep Alive BEFORE reading
+                    protocol.send_keep_alive()
                     
                     resp = protocol.send_kvp_request([0x21, group])
                     if resp and resp[0] == 0x61:
