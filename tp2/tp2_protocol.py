@@ -22,8 +22,8 @@ class TP2Protocol:
     CAN_BROADCAST_RESP = 0x201
     
     # Timing (ms)
-    T1_TIMEOUT = 1000   # Wait for response
-    T3_INTERVAL = 50    # Inter-frame gap
+    T1_TIMEOUT = 2500   # Wait for response (Increased from 1000ms)
+    T3_INTERVAL = 5     # Inter-frame gap (Decreased to speed up TX)
 
     def __init__(self, channel='can0'):
         self.channel = channel
@@ -76,6 +76,13 @@ class TP2Protocol:
             if msg and msg.arbitration_id == arbitration_id:
                 return list(msg.data)
         return None
+
+    def _clear_rx_buffer(self):
+        """Drains the CAN buffer of any pending messages."""
+        while True:
+            msg = self.bus.recv(0.01) # Non-blocking check
+            if not msg: break
+            # logger.debug(f"TP2: Drained stale msg ID {msg.arbitration_id:X}")
 
     def connect(self, target_module_id: int) -> bool:
         """
@@ -170,6 +177,9 @@ class TP2Protocol:
         Handles segmentation (TX) and reassembly (RX).
         """
         if not self.connected: raise TP2Error("Not connected")
+        
+        # Drain any late/stale packets from previous interactions
+        self._clear_rx_buffer()
         
         # --- TX PATH ---
         # Payload Format: [Len, SID, Data...] (If < packet)
