@@ -252,39 +252,50 @@ class TP2Protocol:
             if type_ == 0x10:
                 # First packet contains length
                 # Bytes: [Type+Seq, Len_MSB, Len_LSB, Data...]
+                if len(msg) < 4:
+                     # Packet too short?
+                     continue
+                
                 cur_len = (msg[1] << 8) + msg[2]
                 if expected_len == 0: expected_len = cur_len
                 
                 data_part = msg[3:]
-                # Trim to expected length
+                
+                # Append data (only up to expected_len)
                 needed = expected_len - len(buffer)
+                if len(data_part) > needed:
+                    data_part = data_part[:needed]
                 
-                # Careful: The frame might have padding.
-                # If this is the FIRST frame, we just take it.
-                # If this is a subsequent "Last Frame", it's same logic.
-                
-                # vwtp.c logic: 0x1x is "Block End" (wait for ACK).
-                # 0x2x is "Block Body" (no ACK).
-                # The logic is inverted from ISO-TP.
-                
-                # We need to ACK this frame.
-                self._send(self.tx_id, [0xB0 + ((seq + 1) % 16)])
-                
-                # Append data
                 buffer.extend(data_part)
                 
                 # Check if we are done
                 if len(buffer) >= expected_len:
-                    return buffer[:expected_len]
+                    # Send ACK before returning
+                    self._send(self.tx_id, [0xB0 + ((seq + 1) % 16)])
+                    return buffer
+                else:
+                    # Still need more data? 
+                    # For 0x1x, this implies it's the LAST frame of a block. 
+                    # If we don't have enough data yet, something is wrong or it's a multi-block transfer.
+                    # But 0x1x usually means "End of Block".
+                    # Let's just ACK and wait for more blocks?
+                    # vwtp.c logic: "Wait for ACK".
+                    # If we are RECEIVING, we send ACK.
+                    self._send(self.tx_id, [0xB0 + ((seq + 1) % 16)])
                 
             elif type_ == 0x20:
                 # Intermediate Frame
                 # Bytes: [Type+Seq, Data...]
                 data_part = msg[1:]
                 buffer.extend(data_part)
-                # No ACK defined, but logic usually requires one for flow control?
-                # TP2.0: 0x2x frames are NOT ACKed. Only 0x1x frames are ACKed.
-                # So we just collect data.
+                
+            elif (type_ & 0xF0) == 0x90:
+                # 0x9x might be a variant?
+                logger.warning(f"TP2: Received 0x{msg[0]:02X} (Type 9?). Interpreting as ACK request?")
+                # Some docs say 0x9x is not standard.
+                # If 0x93 matches KeepAlive response?
+                # Let's store it or ignore it.
+                pass
             
             else:
                  logger.warning(f"TP2: Unknown frame type {msg[0]:02X}")
@@ -305,7 +316,7 @@ class TP2Protocol:
                      self.disconnect()
                      return False
                      
-                if resp[0] != 0xA1:
+                if resp[0] != 0xA1 and resp[0] != 0x93: # 0x93 seen in logs
                     logger.warning(f"TP2: Keep-Alive failed. Resp: {resp}")
                     return False
                 return True
