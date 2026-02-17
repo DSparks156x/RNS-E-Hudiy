@@ -83,7 +83,7 @@ def probe_engine():
         try:
             logger.info("Trying Tester Present (3E 00)...")
             resp = protocol.send_kvp_request([0x3E, 0x00])
-             if resp and resp[0] == 0x7E:
+            if resp and resp[0] == 0x7E:
                  logger.info(f"SUCCESS: Tester Present Ack: {resp}")
             elif resp and resp[0] == 0x7F:
                  logger.info(f"Tester Present Rejected (NRC 0x{resp[2]:02X})")
