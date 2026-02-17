@@ -59,31 +59,22 @@ def read_continuous(groups):
                         logger.warning(f"Group {group_id} Failed. Resp: {resp}")
                 except Exception as e:
                     logger.error(f"Read Error: {e}")
-                    # Try to recover session on error
+                    # Try to recover session?
+                    try:
+                        protocol.send_keep_alive()
+                    except: pass
+
+                # Keep-Alive Logic
+                # RESTORED: Sending A3 every loop proved to be the most stable.
+                # The ECU seems to need this 'heartbeat' or 'breather' between requests.
+                try:
                     protocol.send_keep_alive()
-
-            # Keep-Alive Optimization
-            # Only send if > 2.0s elapsed (Standard Timeout is ~5s usually)
-            # Active reading keeps session alive.
-            now = time.time()
-            if now - last_report_time > 2.0:
-                 # Just to be safe, though report logic handles the timer mostly
-                 # actually let's just use a separate timer for keepalive
-                 pass
-
+                except Exception as e:
+                    logger.error(f"Keep-Alive Error: {e}")
+                
             # Report Rate every 1 second
+            now = time.time()
             elapsed = now - last_report_time
-            if elapsed >= 1.0:
-                rate = frame_count / elapsed
-                per_group_rate = rate / len(groups) if groups else 0
-                print(f"--- Total: {rate:.1f} reads/sec | Refresh: {per_group_rate:.1f} Hz/group ---")
-                
-                frame_count = 0
-                last_report_time = now
-                
-                # Send Keep-Alive periodically (e.g. every 1s with report) just in case
-                # protocol.send_keep_alive() 
-
             if elapsed >= 1.0:
                 rate = frame_count / elapsed
                 per_group_rate = rate / len(groups) if groups else 0
