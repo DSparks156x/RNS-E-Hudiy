@@ -288,6 +288,11 @@ class TP2Protocol:
         # EXPERIMENTAL: For `21 01` specifically, some ECUs might expect standard length?
         # Or maybe the sequence number is wrong?
         # self.seq_tx starts at 0.
+        full_len = len(payload)
+        
+        # EXPERIMENTAL: Reset Sequence Number to 0 for every new KWP Request
+        # This matches ECU_Read.cpp which uses hardcoded `10 ...` (Seq 0) for all commands.
+        self.seq_tx = 0
         
         frame = [0x10 + self.seq_tx, 0x00, full_len] + payload
         
