@@ -30,7 +30,8 @@ def test_group_10():
 
         # Start Session
         logger.info("Starting Diagnostic Session...")
-        protocol.send_kvp_request([0x10, 0x89])
+        resp = protocol.send_kvp_request([0x10, 0x89])
+        logger.info(f"Session Start Response: {resp}")
         
         # Query Group 10 Loop
         logger.info("Reading Group 10...")
