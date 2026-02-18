@@ -557,9 +557,9 @@ class HudiyData:
                     topic, msg = sock.recv_multipart()
                     if topic == b'HUDIY_DIAG':
                         data = json.loads(msg)
-                        # We only care about Group 11 for the widget for now
+                        # We only care about Group 1 for the widget for now
                         # But we can store whatever comes in
-                        if data.get('group') == 11:
+                        if data.get('group') == 1:
                             TP2_DATA_STORE['data'] = data.get('data', [])
                             TP2_DATA_STORE['timestamp'] = time.time()
             except Exception as e:

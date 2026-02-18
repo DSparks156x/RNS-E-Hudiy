@@ -151,18 +151,29 @@
 
         function updateValue(id, rawValue) {
             const el = document.getElementById(id);
-            // rawValue likely contains unit already from TP2Coding
-            // But if it's just a number:
             let display = rawValue;
-            let unit = "";
-
-            // Simple parsing if TP2Coding returns formatted strings like "800 /min" or "90 °C"
-            // For now, assume TP2Coding returns clean strings or numbers. 
-            // We'll trust the python backend to sanitize or format.
-
-            // Hacky Unit Removal to reuse HTML units if needed, 
-            // or just replace innerHTML completely
-            el.innerHTML = `${display}`;
+            
+            // Handle Object from TP2Coding
+            if (typeof rawValue === 'object' && rawValue !== null) {
+                if (rawValue.value !== undefined) {
+                    display = rawValue.value;
+                    // We could also use rawValue.unit but the template has hardcoded units with style
+                }
+            }
+            
+            // Update only the text content, preserving the unit span if possible
+            // But wait, the standard way is usually:
+            // el.childNodes[0].nodeValue = display; 
+            // assuming the text is the first child.
+            
+            // Let's check structure: <div class="value" id="val1">--<span class="unit">rpm</span></div>
+            // childNodes[0] is text "--". childNodes[1] is span.
+            
+            if (el.childNodes && el.childNodes.length > 0) {
+                el.childNodes[0].nodeValue = display;
+            } else {
+                el.innerText = display;
+            }
         }
 
         setInterval(fetchData, UPDATE_INTERVAL);

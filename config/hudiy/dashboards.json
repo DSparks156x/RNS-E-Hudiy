@@ -19,6 +19,11 @@
                 {
                     "type": "phone",
                     "size": "small_narrow"
+                },
+                {
+                    "type": "web",
+                    "size": "large_wide",
+                    "url": "http://127.0.0.1:44412/"
                 }
             ]
         }
