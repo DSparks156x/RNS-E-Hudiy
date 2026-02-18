@@ -542,8 +542,8 @@ class HudiyData:
         try:
             temp_req = ctx.socket(zmq.REQ)
             temp_req.connect(self.tp2_zmq_addr)
-            # Add Module 01 (Engine), Group 1 (RPM, Temps, Timing) - Verified Working
-            temp_req.send_json({"cmd": "ADD", "module": 1, "group": 1})
+            # Add Module 01 (Engine), Group 11 (Standard ?)
+            temp_req.send_json({"cmd": "ADD", "module": 1, "group": 11})
             # Also ensure service is enabled? The bridge handler does this via toggle if needed, 
             # but let's assume valid state or user toggles it.
             logger.info("Requested TP2 Group 011 (Engine Data)")
@@ -557,9 +557,9 @@ class HudiyData:
                     topic, msg = sock.recv_multipart()
                     if topic == b'HUDIY_DIAG':
                         data = json.loads(msg)
-                        # We only care about Group 1 for the widget for now
+                        # We only care about Group 11 for the widget for now
                         # But we can store whatever comes in
-                        if data.get('group') == 1:
+                        if data.get('group') == 11:
                             TP2_DATA_STORE['data'] = data.get('data', [])
                             TP2_DATA_STORE['timestamp'] = time.time()
             except Exception as e:
