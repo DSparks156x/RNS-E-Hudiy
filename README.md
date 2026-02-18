@@ -1,3 +1,9 @@
+Test at your own risk. 
+
+
+This branch was made 2/17/25. It was mostly functional as far as i briefly tested. DIS scripts seemed to be responding very slow to wiper rocker, otherwise working. 
+the install script will work and install this branch. some changes may or may not play nicely with your setup. I would not recommend trying to install this over an existing script installation.... many things are not directly compatible and the installer is not smart enough to fix them. perhaps try it out on a spare SD card. 
+
 This project is a fork of Korni92s RNS-E-Hudiy, with additional features and differing implementations of some things to match my setup and preferences, including:
 
 GPIO based shutdown (I am using the amp wake signal from the radio, it wakes when the car unlocks or door opens, getting the Pi and services running faster)
