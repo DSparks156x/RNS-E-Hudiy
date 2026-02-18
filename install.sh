@@ -427,6 +427,24 @@ $SYSTEMCTL enable --now --no-block dis_service.service dis_display.service
 
 echo "? Services installed, network configured, and started."
 
+
+# ------------------------------------------------------------------------------
+# 7.5 Deploy Hudiy Configuration
+# ------------------------------------------------------------------------------
+echo "? Step 7.5: Deploying Hudiy Configuration..."
+HUDIY_CONFIG_DIR="/home/${REAL_USER}/.hudiy/share/config"
+mkdir -p "$HUDIY_CONFIG_DIR"
+
+# Copy verified config files if they exist in the repo
+if [ -d "${REAL_HOME}/config/hudiy" ]; then
+    echo "   Copying configuration from ${REAL_HOME}/config/hudiy/..."
+    cp -v "${REAL_HOME}/config/hudiy/"*.json "$HUDIY_CONFIG_DIR/"
+    chown -R ${REAL_USER}:${REAL_USER} "/home/${REAL_USER}/.hudiy"
+    echo "   ? Hudiy config updated."
+else
+    echo "   ⚠ No local config/hudiy directory found. Skipping config deployment."
+fi
+
 # ------------------------------------------------------------------------------
 # 8. Configure Composite Video (Optional)
 # ------------------------------------------------------------------------------

@@ -542,8 +542,8 @@ class HudiyData:
         try:
             temp_req = ctx.socket(zmq.REQ)
             temp_req.connect(self.tp2_zmq_addr)
-            # Add Module 01 (Engine), Group 11 (RPM, Temps, Timing)
-            temp_req.send_json({"cmd": "ADD", "module": 1, "group": 11})
+            # Add Module 01 (Engine), Group 1 (RPM, Temps, Timing) - Verified Working
+            temp_req.send_json({"cmd": "ADD", "module": 1, "group": 1})
             # Also ensure service is enabled? The bridge handler does this via toggle if needed, 
             # but let's assume valid state or user toggles it.
             logger.info("Requested TP2 Group 011 (Engine Data)")
