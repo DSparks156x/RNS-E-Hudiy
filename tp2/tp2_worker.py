@@ -4,17 +4,17 @@ import time
 import json
 import zmq
 import logging
+import sys
 from tp2_protocol import TP2Protocol, TP2Error
 from tp2_coding import TP2Coding
 
+# Configure Logging
+# Use StreamHandler for systemd/console logging, and optionally a file.
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
 # Configuration
-CONFIG_PATH = '/home/pi/config.json' # Or relative
-ZMQ_PUB_ADDR = 'tcp://*:5557' # New topic for diagnostics? Or share existing?
-# Let's use a new port or same publisher if possible. 
-# dis_service uses 5556. Let's use 5557 for HUDIY_DIAG.
+ZMQ_PUB_ADDR = 'tcp://*:5557' # Validated Port
 
 class TP2Worker:
     def __init__(self):
@@ -25,7 +25,6 @@ class TP2Worker:
         
         # Modules to Query
         # 0x01: Engine
-        # 0x17: Instruments
         self.target_module = 0x01 
         
         # Groups to Query
@@ -34,38 +33,62 @@ class TP2Worker:
         # Group 115: Turbo (Petrol)
         self.groups = [3, 11] 
         self.current_group_idx = 0
+        self.connected = False
 
     def run(self):
-        logger.info("TP2 Worker Starting...")
-        self.protocol.open()
+        logger.info("TP2 Worker Service Starting (Validated Logic)...")
         
+        try:
+            self.protocol.open()
+        except:
+            logger.error("Failed to open CAN bus. Retrying in 5s...")
+            time.sleep(5)
+            return
+
         while True:
             try:
                 # 1. Ensure Connection
-                if not self.protocol.connected:
+                if not self.connected:
                     if self.protocol.connect(self.target_module):
-                        # 2. Start Diagnostic Session (KWP 0x10 0x89)
-                        # Payload: [SID=0x10, Mode=0x89]
+                        logger.info(f"Connected to Module 0x{self.target_module:02X}")
+                        
+                        # VALIDATED LOGIC: Start Session 0x89
                         try:
                             resp = self.protocol.send_kvp_request([0x10, 0x89])
-                            logger.info(f"Session Started: {resp}")
+                            if resp and resp[0] != 0x7F:
+                                logger.info(f"Session 0x89 Started: {resp}")
+                                self.connected = True
+                            else:
+                                logger.error(f"Session Start Failed: {resp}")
+                                self.protocol.disconnect()
+                                time.sleep(2)
+                                continue
+                                
+                            # VALIDATED LOGIC: SKIP 1A 9B (Read ID) and 31 B8 (Routine)
+                            # These caused disconnects in testing.
+                            
+                            # Initial Keep-Alive
+                            self.protocol.send_keep_alive()
+
                         except TP2Error as e:
-                            logger.error(f"Failed session start: {e}")
+                            logger.error(f"Setup Error: {e}")
+                            self.protocol.disconnect()
+                            self.connected = False
+                            time.sleep(2)
+                            continue
                     else:
                         time.sleep(2)
                         continue
 
-                # 3. Query Groups
+                # 2. Query Loop
                 grp = self.groups[self.current_group_idx]
                 
-                # KWP ReadGroup: [SID=0x21, Group]
                 try:
+                    # KWP ReadGroup
                     resp = self.protocol.send_kvp_request([0x21, grp])
                     
-                    # Resp: [0x61, Group, (Type,A,B), (Type,A,B)...]
                     if resp and resp[0] == 0x61 and resp[1] == grp:
-                        data_triplets = resp[2:]
-                        decoded = TP2Coding.decode_block(data_triplets)
+                        decoded = TP2Coding.decode_block(resp[2:])
                         
                         # Publish
                         payload = {
@@ -75,25 +98,40 @@ class TP2Worker:
                         }
                         self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
                         
-                        logger.info(f"Group {grp}: {decoded}")
+                        # Log periodically (every 10th sample to avoid spam)
+                        # logger.debug(f"Group {grp}: {decoded}") 
                         
-                        # Cycle group
+                        # Move to next group
                         self.current_group_idx = (self.current_group_idx + 1) % len(self.groups)
                         
+                    elif resp and resp[0] == 0x7F:
+                        logger.warning(f"Group {grp} Rejected: {resp}")
                     else:
-                        logger.warning(f"Unexpected response for Group {grp}: {resp}")
+                        logger.warning(f"Group {grp} Unexpected: {resp}")
+                        
+                    # VALIDATED LOGIC: Aggressive Keep-Alive
+                    # Sending Keep-Alive after EVERY request stabilizes the link on some ECUs.
+                    self.protocol.send_keep_alive()
                         
                 except TP2Error as e:
-                    logger.error(f"Query Error: {e}")
-                    self.protocol.connected = False # Force reconnect
+                    logger.error(f"Query Error (Group {grp}): {e}")
+                    # Try to recover without full reconnect first
+                    try:
+                        if not self.protocol.send_keep_alive():
+                            raise TP2Error("Keep-Alive Failed")
+                    except:
+                        logger.warning("Link Lost. Reconnecting...")
+                        self.protocol.disconnect()
+                        self.connected = False
                 
-                # Rate Limiting
-                time.sleep(0.2) 
+                # Rate Limiting (Validated ~5Hz refresh overall)
+                time.sleep(0.1) 
 
             except KeyboardInterrupt:
+                logger.info("Stopping...")
                 break
             except Exception as e:
-                logger.error(f"Worker Loop Error: {e}")
+                logger.error(f"Worker Loop Fatal Error: {e}")
                 time.sleep(1)
 
         self.protocol.close()

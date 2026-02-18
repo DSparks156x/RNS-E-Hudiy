@@ -1,0 +1,180 @@
+
+CAN CHANNELS
+NAV->Kombi: CANID 0x6C0
+Kombi->NAV: CANID 0x6C1
+
+FRAME STRUCTURE
+The first byte of each packet has a special meaning:
+The high nibble is a packet type designator: 0x2 is a frame body packet, 0x1 is a end-of-frame data packet.
+There are some other types for acquisition and relinquishing of the DIS and status. I won't document them here.
+The low nibble is a sequence number: The sequence number increments with every packet.
+
+If you have 7 or less bytes to send, you can just send a type 0x1 packet and your data. To send more than seven bytes of data, you send type 0x2 packet with 7 byte payloads, then finish with a type 0x1 packet with the remainder. Each packet has an incrementing sequence number and you wrap around from 0xF to 0x0.
+
+Once you have sent the last packet (type 0x1) the other end is expected to respond with an acknowledgement packet of type 0xB. It is also expected that the sequence number in the low nibble of the response is the next expected one (i.e. one more than what was received on the last 0x1 packet). Type 0x2 packets do not have an acknowledgement.
+
+These multi-packet frames go both ways, although obviously most are in the direction NAV->Kombi
+
+Then within a frame you can send some commands...
+
+REGION COMMAND
+Allows you to define an area of the screen to work with, clear it, and various other things
+0x52: 'R' = region
+0x05: Length of rest of packet (always 5 it seems)
+0x??: Flags byte (controls what happens to the region)
+xx: X co-ordinate of left
+yy: Y co-ordinate of top
+ww: width
+hh: height
+
+Flag bits:
+0x80: claim (1=claim, 0=clip)
+0x40: unknown/unused
+0x20: unknown/unused
+0x10: unknown/unused
+0x08: unknown/unused
+0x04: unknown/unused
+0x02: clear (1=clear)
+0x01: colour (0=black, 1=red)
+
+You must claim an area of the DIS before using it by setting flag 0x80 (claim). Allowed claim areas (in decimal) are:
+Central area: 0,27,64,48
+Centre+Lower area: 0,27,64,61
+Entire screen:0,0,64,88
+Thereafter region commands with the claim flag clear declare a clip region for use by subsequent W and R commands.
+Either claim or clip region commands can optionally clear their specified area with the chosen colour by setting the clear flag.
+
+WRITE COMMAND
+Allows you to write text to the display in one of the character sets above
+0x57: 'W' = write
+nn: Variable length of rest of packet
+0x??: Flags byte (selects text/graphics font, justification, overwrite, inverting, etc)
+xx: X co-ordinate to write at
+yy: Y co-ordinate to write at
+cc cc cc: character data (nn - 0x03 bytes)
+Note the peculiar non-standard ASCII codes for the lower case letters a-p as 0x01-0x10!
+
+Flag bits:
+0x80: unknown/unused
+0x40: unknown/unused
+0x20: alignment (0=left, 1=centre)
+0x10: unknown
+0x0C: font (00=fixed font, 01=proportional font, 10=graphics font, 11=unknown)
+0x03: colour fg/bg (00=black/transparent, 01=xor/transparent, 10=red/black, 11=red/transparent)
+
+GRAPHICS COMMAND
+Allows you to draw bitmap graphics on a specified line.
+Note that not all cluster variants/versions support graphics mode.
+0x55: 'U'
+0x0B: Length of rest of packet
+0x??: Flags byte (selects required drawing mode)
+0x00: X co-ordinate to write at (must be 0x00)
+yy: Y co-ordinate to write at
+bb bb ... bb: bitmap data to draw on line (must send 0x08 bytes)
+
+Flags byte:
+0x00: erase mode (1 bit = clear pixel)
+0x01: invert mode (1 bit = invert pixel)
+0x02: draw mode (0 bit = clear pixel, 1 bit = set pixel)
+0x03: set mode (1 bit = set pixel)
+
+You can only draw from column zero of the current clip rectangle and must always send 8 bytes per line. To draw to a sub area of the total screen width define a clip rectangle first, then send 8 bytes of graphics to column 0 of the required row.
+
+COMMIT COMMAND
+Indicates drawing with the 'R' and 'W' commands is complete and copies the back buffer to the LCD display.
+0x39: '9' = commit
+
+SOME EXAMPLES
+Kombi -> NAV
+6C1: 22-09-20-43-50-01-17-44 "i CPawD
+0x2 = frame body packet, 0x2 = sequence number + 7 payload bytes
+6C1: 13-31-36-00-30-30-34-00 s16`004`
+0x1 = end-of-frame packet, 0x3 = sequence number + 7 more payload bytes
+Presumably these are version details and parameters of the cluster. This is from my 8N. I'd like to know what the 8J sends, but I expect it is very similar.
+
+NAV -> Kombi
+6C0: B4
+0xB = acknowledgement, 0x4 = next expected sequence number (after 0x3 that was received above)
+
+:
+:
+:
+:
+
+NAV -> Kombi
+6C0: 16-52-05-82-00-1B-40-30 vRe.`{@0
+0x1 = end-of-frame packet, 0x6 = sequence number + 7 payload bytes
+It's a rectangle command with flags 0x82 for the area (0,27,64,48) which is the central "navigation" area of the DIS
+
+Kombi -> NAV
+6C1: B7
+0xB = acknowledgement, 0x7 = next expected sequence number (after 0x6 that was received above)
+
+NAV -> Kombi
+6C0: 27-57-0E-02-00-15-65-65 'Wnb`uee
+6C0: 28-65-65-65-65-65-65-65 (eeeeeee
+6C0: 29-65-65-57-0E-02-00-1F )eeWnb`
+6C0: 2A-65-65-65-65-65-65-65 *eeeeeee
+6C0: 2B-65-65-65-65-57-0E-02 +eeeeWnb
+6C0: 2C-00-29-65-65-65-65-65 ,`)eeeee
+6C0: 1D-65-65-65-65-65-65 }eeeeee
+6 x 0x2 frame body packets with sequence numbers 7-C, and a final 0x1 end-of-frame packet with sequence 0xD.
+This decodes as:
+WRITE FLAG=02 (0,21): 65-65-65-65-65-65-65-65-65-65-65 eeeeeeeeeee
+WRITE FLAG=02 (0,31): 65-65-65-65-65-65-65-65-65-65-65 eeeeeeeeeee
+WRITE FLAG=02 (0,41): 65-65-65-65-65-65-65-65-65-65-65 eeeeeeeeeee
+The NAV is clearing 3 lines of the DIS by writing the character "e", which is 6 pixels wide, 11 times on each row = 66 pixels.
+
+Kombi -> NAV
+6C1: BE
+0xB = acknowledgement, 0xE = next expected sequence number (after 0xD that was received above)
+
+:
+:
+:
+
+NAV -> Kombi
+6C0: 2E-57-0D-26-00-05-65-65 .Wm&` ee
+6C0: 2F-65-65-65-65-65-65-65 /eeeeeee
+6C0: 20-65-57-07-26-00-05-3E eWg&`e>
+6C0: 11-4E-57-3C qNW<
+2 more body packets and 1 end-of-frame packet. Decodes as:
+WRITE FLAG=26 (0,5): 65-65-65-65-65-65-65-65-65-65 eeeeeeeeee
+WRITE FLAG=26 (0,5): 3E-4E-57-3C >NW<
+Clearing the NAV "Compass" line with the "e" character, and then displays the compass direction ">NW<"
+
+Kombi -. NAV
+6C1: B2
+Acknowledgement of the above
+
+NOTES
+* Apparently there's a pixel graphics command set as well as the tile characters shown above. I imagine much more useful. FIS-Control uses it. The RNS-E doesn't however (all the graphics are printed using the graphics tile characters and the 'W' command). My MK1 cluster doesn't support it either. So I've no way of reverse engineering it. I'd love to know about it!
+
+* There's a limit to the total number of bytes you can send the cluster in a single communication, or it will suffer a buffer overrun error and everything will be corrupted. For the 8N cluster it's 6 CAN packets x 7 bytes for 42 bytes of total payload. For the 8J the stock RNS-E firmware limits the payload at 7 CAN packets x 7 bytes for 49 bytes total. But I don't know if that is the upper limit for the 8J, or just an artificial maximum imposed by the RNS-E.
+
+* Character code 0xD7 is special. It will clear to the end of the line, at least on my 8N cluster. But the RNS-E doesn't use it, and instead sticks to the more verbose method of sending 11 x 0x65 'e' bytes. Perhaps some clusters don't support 0xD7?
+
+* The fonts use a completly non-standard character mapping. The Commodore PET had PETSCII, so I'm naming this mapping AUDSCII. In order to translate from CP 1252/ISO 8859-1 to AUDSCII the RNS-E uses a lookup table:
+Code:
+     _0 _1 _2 _3 _4 _5 _6 _7 _8 _9 _A _B _C _D _E _F
+   +------------------------------------------------
+0_ | 00 20 20 20 20 20 20 20 20 2f 20 20 20 20 20 20
+1_ | 20 20 20 20 20 20 20 20 20 20 20 20 1c 20 20 20
+2_ | 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f
+3_ | 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f
+4_ | 40 41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f
+5_ | 50 51 52 53 54 55 56 57 58 59 5a 5b 5c 5d 5e 66
+6_ | 20 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f
+7_ | 10 71 72 73 74 75 76 77 78 79 7a 7b 7c 7d 7e 20
+8_ | 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+9_ | 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+A_ | 20 20 20 20 20 20 20 20 20 a2 a0 20 20 2d 20 7e
+B_ | 6b b4 b2 b3 20 b8 20 20 20 b1 b0 20 20 20 20 b9
+C_ | c1 c0 d0 e0 5f e1 e2 8b c3 c2 d2 d3 c5 c4 d4 d5
+D_ | ce 8a c7 c6 d6 e6 60 20 e7 c9 c8 d8 61 e5 e8 8d
+E_ | 81 80 90 f0 91 f1 f2 9b 83 82 92 93 85 84 94 95
+F_ | ef 9a 87 86 96 f6 97 ba f7 89 88 98 99 f5 f8 20
+Note that for some reason this translation is missing some character mappings even though the required characters exist in the AUDSCII set. For example the characters ¼, ½ and ¾ at codepoints 0xBC, 0xBD and 0xBE aren't mapped (despite unusually being in the same locations in both codepages).
+
+Ask if you have questions and I'll try to answer. If you have more details to add, I'd love to hear them.
+This should all be documented somewhere, but to be frank I didn't think anyone else was interested....
