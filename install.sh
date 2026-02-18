@@ -31,7 +31,7 @@ else
 fi
 
 REPO_URL="https://github.com/DSparks156x/RNS-E-Hudiy.git"
-BRANCH="main"
+BRANCH="2-17-25-workingish"
 
 # Define Config Paths
 CONFIG_TXT="/boot/firmware/config.txt"
