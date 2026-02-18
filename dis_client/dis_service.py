@@ -257,7 +257,7 @@ class DisService:
         # --- LISTEN FOR IGNITION STATUS ---
         self.ignition_sub = self.context.socket(zmq.SUB)
         # Connect to Base Function publisher for Ignition status
-        ignition_addr = self.config['zmq'].get('base_publish_address', self.config['zmq']['publish_address'])
+        ignition_addr = self.config['zmq'].get('system_events', self.config['zmq']['can_raw_stream'])
         self.ignition_sub.connect(ignition_addr)
         self.ignition_sub.subscribe(b"POWER_STATUS")
         self.poller.register(self.ignition_sub, zmq.POLLIN)

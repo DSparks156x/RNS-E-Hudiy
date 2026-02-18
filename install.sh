@@ -90,6 +90,7 @@ install_folder() {
 install_folder "rns-e_can"
 install_folder "hudiy_client"
 install_folder "dis_client"
+install_folder "tp2"
 
 # Install Config (Only if missing)
 if [ ! -f "$REAL_HOME/config.json" ]; then
@@ -114,6 +115,7 @@ echo "   Setting ownership to $REAL_USER..."
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/rns-e_can"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/hudiy_client"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/dis_client"
+chown -R $REAL_USER:$REAL_USER "$REAL_HOME/tp2"
 chown $REAL_USER:$REAL_USER "$REAL_HOME/config.json"
 
 echo "? Project files installed and cleaned."
@@ -272,6 +274,24 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target"
 
+# 1.5 tp2_worker (Robust - handles CAN down/up without restart)
+write_service "tp2_worker.service" "[Unit]
+Description=TP2.0 Diagnostics Worker
+Wants=sys-subsystem-net-devices-can0.device
+After=sys-subsystem-net-devices-can0.device
+
+[Service]
+User=${REAL_USER}
+Group=${REAL_USER}
+WorkingDirectory=${REAL_HOME}/tp2
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 ${REAL_HOME}/tp2/tp2_worker.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target"
+
 # 2. can_base_function
 write_service "can_base_function.service" "[Unit]
 Description=RNS-E CAN-Bus Base Functionality
@@ -398,7 +418,7 @@ echo "   Enabling systemd-networkd..."
 $SYSTEMCTL enable --now systemd-networkd
 
 echo "   Enabling and Starting Application Services..."
-$SYSTEMCTL enable --now can_handler.service can_base_function.service \
+$SYSTEMCTL enable --now can_handler.service can_base_function.service tp2_worker.service \\
                         can_keyboard_control.service dark_mode_api.service hudiy_data_api.service
 
 # Start delayed services non-blocking

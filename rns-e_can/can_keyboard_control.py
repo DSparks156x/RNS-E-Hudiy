@@ -90,7 +90,7 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
         source_data = cfg['source_data']
         
         CONFIG = {
-            'zmq_address': cfg['zmq']['publish_address'],
+            'zmq_address': cfg['zmq']['can_raw_stream'],
             'can_ids': {k: int(v, 16) for k, v in cfg['can_ids'].items()},
             'mmi_scroll_cmds': {tuple(map(int, k.split(','))) for k in cfg['mmi_scroll_commands']},
             'mmi_short_map': {tuple(map(int, k.split(','))): parse_key(v) for k, v in key_maps['mmi_short'].items()},

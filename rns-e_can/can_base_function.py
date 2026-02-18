@@ -105,9 +105,9 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
         thresholds = cfg.get('thresholds', {})
         
         CONFIG = {
-            'zmq_publish_address': zmq_config.get('publish_address'),
+            'zmq_publish_address': zmq_config.get('can_raw_stream'),
             'zmq_send_address': zmq_config.get('send_address'),
-            'zmq_base_publish_address': zmq_config.get('base_publish_address'),
+            'zmq_base_publish_address': zmq_config.get('system_events'),
             'can_ids': {
                 'tv_presence': int(can_ids.get('tv_presence', '0x602'), 16),
                 'time_data': int(can_ids.get('time_data', '0x623'), 16),
@@ -120,7 +120,7 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
         }
         
         if not CONFIG['zmq_send_address'] or not CONFIG['zmq_publish_address'] or not CONFIG['zmq_base_publish_address']:
-            raise KeyError("'send_address' or 'publish_address' or 'base_publish_address' not found in 'zmq' section")
+            raise KeyError("'send_address' or 'can_raw_stream' or 'system_events' not found in 'zmq' section")
 
         log_level = logging.DEBUG if FEATURES.get('debug_mode', False) else logging.INFO
         logger.setLevel(log_level)

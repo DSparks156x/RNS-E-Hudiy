@@ -57,7 +57,7 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
         # MODIFIED: Added ZMQ send address to config
         CONFIG = {
             'can_interface': config_data['can_interface'],
-            'zmq_publish_address': config_data['zmq']['publish_address'],
+            'zmq_publish_address': config_data['zmq']['can_raw_stream'],
             'zmq_send_address': config_data['zmq']['send_address']
         }
         logger.info("Configuration loaded successfully.")

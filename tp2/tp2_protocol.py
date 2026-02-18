@@ -25,10 +25,10 @@ class TP2Protocol:
     T1_TIMEOUT = 2500   # Wait for response (Increased from 1000ms)
     T3_INTERVAL = 12    # Inter-frame gap (Matched to ECU_Read.cpp)
 
-    def __init__(self, channel='can0'):
+    def __init__(self, channel='can0', tester_id=0x300):
         self.channel = channel
         self.bus = None
-        self.tester_id = 0x300 # Standard Tester ID
+        self.tester_id = tester_id # Standard is 0x300, but can be 0x301, etc.
         self.tx_id = 0x000     # Will be dynamic
         self.rx_id = 0x000     # Will be dynamic
         

@@ -14,6 +14,36 @@ import sys
 import os
 import threading
 import zmq
+from flask import Flask, jsonify, render_template
+from flask_cors import CORS
+
+# --- Flask App for Widget ---
+app = Flask(__name__, template_folder='templates')
+CORS(app)
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
+
+# Global Data Store for Widget
+TP2_DATA_STORE = {
+    'module': 0,
+    'group': 0,
+    'data': ["--", "--", "--", "--"],
+    'timestamp': 0
+}
+
+@app.route('/')
+def widget_page():
+    return render_template('tp2_widget.html')
+
+@app.route('/data')
+def get_data():
+    return jsonify(TP2_DATA_STORE)
+
+def run_flask_app():
+    try:
+        app.run(host='0.0.0.0', port=44412, debug=False, use_reloader=False)
+    except Exception as e:
+        logger.error(f"Flask Server Error: {e}")
 
 # --- Add hudiy_client to Python path ---
 try:
@@ -290,13 +320,122 @@ class HudiyEventHandler(ClientEventHandler):
                 json.dump(data, f, indent=2)
         except Exception: pass
 
+class TP2BridgeHandler(ClientEventHandler):
+    """
+    Bridges Hudiy UI Actions/Icons with the TP2 ZMQ Service.
+    - Registers 'Toggle Diagnostics' Action.
+    - Registers 'Diagnostics Active' Status Icon.
+    - Polls TP2 Service for status to update Icon.
+    """
+    def __init__(self, zmq_req_addr):
+        super().__init__()
+        self.zmq_addr = zmq_req_addr
+        # Socket created in thread to be safe, or here if Context is thread-safe (it is)
+        self.socket = None
+        
+        self.icon_id = None
+        self.icon_visible = False
+        self.running = True
+        self.timer = None
+
+    def init_socket(self):
+        self.socket = ZMQ_CONTEXT.socket(zmq.REQ)
+        self.socket.connect(self.zmq_addr)
+        self.socket.setsockopt(zmq.RCVTIMEO, 1000) # 1s timeout
+        self.socket.setsockopt(zmq.LINGER, 0)
+        logger.info(f"TP2 Bridge: Connected to ZMQ REQ {self.zmq_addr}")
+
+    def stop(self):
+        self.running = False
+        if self.timer: self.timer.cancel()
+        if self.socket: self.socket.close()
+
+    def on_hello_response(self, client, message):
+        logger.info(f"TP2 Bridge Connected to Hudiy: v{message.api_version.major}.{message.api_version.minor}")
+        
+        # 1. Register Action
+        req_act = hudiy_api.RegisterActionRequest()
+        req_act.action = "toggle_diagnostics"
+        client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act.SerializeToString())
+        
+        # 2. Register Icon
+        req_icon = hudiy_api.RegisterStatusIconRequest()
+        req_icon.description = "Diagnostics Active"
+        req_icon.icon_font_family = "Material Symbols Rounded"
+        req_icon.icon_name = "car_repair" 
+        client.send(hudiy_api.MESSAGE_REGISTER_STATUS_ICON_REQUEST, 0, req_icon.SerializeToString())
+
+    def on_register_action_response(self, client, message):
+        logger.info(f"Action '{message.action}' Registered: {message.result}")
+
+    def on_register_status_icon_response(self, client, message):
+        if message.result == 1: # OK
+            self.icon_id = message.id
+            logger.info(f"Status Icon Registered. ID: {self.icon_id}")
+            # Start Polling
+            self.poll_status(client)
+        else:
+            logger.error("Failed to register Status Icon")
+
+    def on_dispatch_action(self, client, message):
+        if message.action == "toggle_diagnostics":
+            logger.info("Hudiy Action: Toggle Diagnostics")
+            self.send_command("TOGGLE")
+            # Force immediate status check
+            self.check_status_now(client)
+
+    def send_command(self, cmd):
+        if not self.socket: self.init_socket()
+        try:
+            self.socket.send_json({"cmd": cmd})
+            # Wait for reply
+            msg = self.socket.recv_json()
+            return msg
+        except zmq.Again:
+            logger.warning("TP2 ZMQ Request Timeout or Busy")
+            # Reconnect socket on timeout to clear state
+            self.socket.close()
+            self.init_socket()
+            return None
+        except Exception as e:
+            logger.error(f"TP2 ZMQ Error: {e}")
+            return None
+
+    def check_status_now(self, client):
+        resp = self.send_command("STATUS")
+        if resp and "enabled" in resp:
+            enabled = resp["enabled"]
+            
+            # Icon Visibility Logic: Show if Enabled
+            target_visible = enabled
+            
+            if self.icon_id is not None:
+                if target_visible != self.icon_visible:
+                    # Update State
+                    self.icon_visible = target_visible
+                    
+                    msg = hudiy_api.ChangeStatusIconState()
+                    msg.id = self.icon_id
+                    msg.visible = self.icon_visible
+                    client.send(hudiy_api.MESSAGE_CHANGE_STATUS_ICON_STATE, 0, msg.SerializeToString())
+                    logger.info(f"Updated Icon Visibility: {self.icon_visible}")
+
+    def poll_status(self, client):
+        if not self.running: return
+        
+        self.check_status_now(client)
+        
+        # Schedule next poll
+        self.timer = threading.Timer(2.0, self.poll_status, [client])
+        self.timer.start()
+
 class HudiyData:
     def __init__(self, config_path='/home/pi/config.json'):
         # --- Load ZMQ Config ---
         try:
             with open(config_path, 'r') as f:
                 config = json.load(f)
-            zmq_addr = config['zmq']['hudiy_publish_address']
+            zmq_addr = config['zmq']['metric_stream']
         except Exception as e:
             logger.warning(f"Config Error: {e}. Using default ZMQ address.")
             zmq_addr = "ipc:///run/rnse_control/hudiy_stream.ipc"
@@ -313,6 +452,19 @@ class HudiyData:
         self.handler = HudiyEventHandler(self.zmq_publisher)
         self.media_client = None
         self.nav_client = None
+        
+        # TP2 Bridge
+        try:
+            self.tp2_zmq_addr = config['zmq'].get('tp2_command', 'tcp://localhost:5558')
+            self.tp2_sub_addr = config['zmq'].get('tp2_stream', 'tcp://localhost:5557')
+        except:
+            self.tp2_zmq_addr = 'tcp://localhost:5558'
+            self.tp2_sub_addr = 'tcp://localhost:5557'
+            
+        self.tp2_handler = TP2BridgeHandler(self.tp2_zmq_addr)
+        self.tp2_client = None
+        self.tp2_sub_socket = None
+        
         self.running = True
         
     def connect_media(self):
@@ -352,13 +504,82 @@ class HudiyData:
             if self.running:
                 logger.info("NAV Reconnecting in 5s...")
                 time.sleep(5)
+
+    def connect_tp2(self):
+        """Thread: TP2 Bridge TCP"""
+        while self.running:
+            try:
+                self.tp2_client = Client("TP2_BRIDGE")
+                self.tp2_client.set_event_handler(self.tp2_handler)
+                self.tp2_client.connect('127.0.0.1', 44405)
+                logger.info("TP2_BRIDGE Thread ACTIVE")
+                
+                # Init ZMQ socket in this thread
+                self.tp2_handler.init_socket()
+                
+                while self.tp2_client._connected and self.running:
+                    if not self.tp2_client.wait_for_message():
+                        break
+            except Exception as e:
+                logger.error(f"TP2 Bridge Thread: {e}")
+            
+            if self.tp2_client: self.tp2_client.disconnect()
+            self.tp2_handler.stop()
+            
+            if self.running:
+                logger.info("TP2 Bridge Reconnecting in 5s...")
+                time.sleep(5)
+
+    def subscribe_tp2_data(self):
+        """Thread: ZMQ SUB for Data"""
+        ctx = zmq.Context()
+        sock = ctx.socket(zmq.SUB)
+        sock.connect(self.tp2_sub_addr)
+        sock.subscribe(b"HUDIY_DIAG")
+        logger.info(f"Subscribed to TP2 Data at {self.tp2_sub_addr}")
+        
+        # Auto-Start Group 011 for Engine Data
+        try:
+            temp_req = ctx.socket(zmq.REQ)
+            temp_req.connect(self.tp2_zmq_addr)
+            # Add Module 01 (Engine), Group 11 (RPM, Temps, Timing)
+            temp_req.send_json({"cmd": "ADD", "module": 1, "group": 11})
+            # Also ensure service is enabled? The bridge handler does this via toggle if needed, 
+            # but let's assume valid state or user toggles it.
+            logger.info("Requested TP2 Group 011 (Engine Data)")
+            temp_req.close()
+        except:
+            logger.warning("Could not auto-request TP2 Group")
+
+        while self.running:
+            try:
+                if sock.poll(1000): # 1s timeout
+                    topic, msg = sock.recv_multipart()
+                    if topic == b'HUDIY_DIAG':
+                        data = json.loads(msg)
+                        # We only care about Group 11 for the widget for now
+                        # But we can store whatever comes in
+                        if data.get('group') == 11:
+                            TP2_DATA_STORE['data'] = data.get('data', [])
+                            TP2_DATA_STORE['timestamp'] = time.time()
+            except Exception as e:
+                pass
+        sock.close()
+        ctx.term()
     
     def run(self):
         logger.info("THREADING Hudiy Data ACTIVE!")
         media_thread = threading.Thread(target=self.connect_media, daemon=True)
         nav_thread = threading.Thread(target=self.connect_nav, daemon=True)
+        tp2_thread = threading.Thread(target=self.connect_tp2, daemon=True)
+        flask_thread = threading.Thread(target=run_flask_app, daemon=True)
+        sub_thread = threading.Thread(target=self.subscribe_tp2_data, daemon=True)
+        
         media_thread.start()
         nav_thread.start()
+        tp2_thread.start()
+        flask_thread.start()
+        sub_thread.start()
         
         try:
             while self.running:
@@ -369,8 +590,12 @@ class HudiyData:
             
         if self.media_client: self.media_client.disconnect()
         if self.nav_client: self.nav_client.disconnect()
+        if self.tp2_client: self.tp2_client.disconnect()
+        self.tp2_handler.stop()
+        
         media_thread.join(timeout=2.0)
         nav_thread.join(timeout=2.0)
+        tp2_thread.join(timeout=2.0)
         
         self.zmq_publisher.close()
         logger.info("ZMQ publisher closed.")

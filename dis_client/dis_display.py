@@ -39,7 +39,7 @@ class DisplayEngine:
 
         self.zmq_ctx = zmq.Context()
         self.sub = self.zmq_ctx.socket(zmq.SUB)
-        self.sub.connect(self.cfg['zmq']['publish_address'])
+        self.sub.connect(self.cfg['zmq']['can_raw_stream'])
         self.t_btn = self._topics('steering_module', '0x2C1')
         
         # We need to subscribe to radio topics for the header/footer even without RadioApp active
@@ -55,7 +55,7 @@ class DisplayEngine:
             self.sub.subscribe(t.encode())
         
         self.sub_hudiy = self.zmq_ctx.socket(zmq.SUB)
-        self.sub_hudiy.connect(self.cfg['zmq']['hudiy_publish_address'])
+        self.sub_hudiy.connect(self.cfg['zmq']['metric_stream'])
         for t in [b'HUDIY_MEDIA', b'HUDIY_NAV', b'HUDIY_PHONE', b'HUDIY_NAV_STATUS']: 
             self.sub_hudiy.subscribe(t)
 

@@ -125,7 +125,7 @@ def load_config(config_path='/home/pi/config.json'):
             config_data = json.load(f)
         
         config = {
-            'zmq_publish_address': config_data.get('zmq', {}).get('publish_address'),
+            'zmq_publish_address': config_data.get('zmq', {}).get('can_raw_stream'),
             'light_status_can_id': config_data.get('can_ids', {}).get('light_status'),
             'day_night_mode': config_data.get('features', {}).get('day_night_mode', False),
             'initial_mode': config_data.get('features', {}).get('initial_mode', 'night'),

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>TP2 Diagnostics</title>
+    <link rel="preload" href="Roboto-Regular.ttf" as="font" type="font/ttf" crossorigin>
+    <style>
+        @font-face {
+            font-family: 'Roboto';
+            src: url('Roboto-Regular.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: transparent;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 15px;
+            width: 90%;
+            height: 90%;
+        }
+
+        .item {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 10px;
+        }
+
+        .label {
+            font-size: 1.2em;
+            color: var(--label-color, #aaaaaa);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .value {
+            font-size: 2.5em;
+            color: var(--value-color, #ffffff);
+            font-weight: 300;
+        }
+
+        .unit {
+            font-size: 0.5em;
+            margin-left: 2px;
+            color: var(--label-color, #aaaaaa);
+        }
+
+        .error {
+            color: #ff5555;
+            font-size: 0.8em;
+            position: absolute;
+            bottom: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="item">
+            <div class="label">Engine Speed</div>
+            <div class="value" id="val1">--<span class="unit">rpm</span></div>
+        </div>
+        <div class="item">
+            <div class="label">Coolant Temp</div>
+            <div class="value" id="val2">--<span class="unit">°C</span></div>
+        </div>
+        <div class="item">
+            <div class="label">Intake Temp</div>
+            <div class="value" id="val3">--<span class="unit">°C</span></div>
+        </div>
+        <div class="item">
+            <div class="label">Ignition Angle</div>
+            <div class="value" id="val4">--<span class="unit">°</span></div>
+        </div>
+    </div>
+    <div id="status" class="error"></div>
+
+    <script>
+        // Hudiy Integration
+        if (window.hudiy) {
+            hudiy.onAttached = function () {
+                updateColors();
+            }
+            hudiy.onColorSchemeChanged = function () {
+                updateColors();
+            }
+            // Initial color set
+            updateColors();
+        }
+
+        function updateColors() {
+            if (window.hudiy && hudiy.colorScheme) {
+                document.documentElement.style.setProperty('--label-color', hudiy.colorScheme.onSurface);
+                document.documentElement.style.setProperty('--value-color', hudiy.colorScheme.primary);
+            }
+        }
+
+        // Data Polling
+        const UPDATE_INTERVAL = 200; // ms
+
+        async function fetchData() {
+            try {
+                const response = await fetch('/data');
+                if (!response.ok) throw new Error("Network response was not ok");
+
+                const json = await response.json();
+
+                if (json.data && json.data.length >= 4) {
+                    // Update DOM
+                    updateValue('val1', json.data[0]);
+                    updateValue('val2', json.data[1]);
+                    updateValue('val3', json.data[2]);
+                    updateValue('val4', json.data[3]);
+                    document.getElementById('status').innerText = "";
+                } else {
+                    document.getElementById('status').innerText = "Waiting for data...";
+                }
+            } catch (error) {
+                console.error("Fetch error:", error);
+                document.getElementById('status').innerText = "Disconnected";
+            }
+        }
+
+        function updateValue(id, rawValue) {
+            const el = document.getElementById(id);
+            // rawValue likely contains unit already from TP2Coding
+            // But if it's just a number:
+            let display = rawValue;
+            let unit = "";
+
+            // Simple parsing if TP2Coding returns formatted strings like "800 /min" or "90 °C"
+            // For now, assume TP2Coding returns clean strings or numbers. 
+            // We'll trust the python backend to sanitize or format.
+
+            // Hacky Unit Removal to reuse HTML units if needed, 
+            // or just replace innerHTML completely
+            el.innerHTML = `${display}`;
+        }
+
+        setInterval(fetchData, UPDATE_INTERVAL);
+    </script>
+</body>
+
+</html>
