@@ -22,7 +22,7 @@ class TP2Protocol:
     CAN_BROADCAST_RESP = 0x201
     
     # Timing (ms)
-    T1_TIMEOUT = 2500   # Wait for response (Increased from 1000ms)
+    T1_TIMEOUT = 2000   # Wait for response (Increased to 2000ms to allow for slow ECU responses)
     T3_INTERVAL = 12    # Inter-frame gap (Matched to ECU_Read.cpp)
 
     def __init__(self, channel='can0', tester_id=0x300):

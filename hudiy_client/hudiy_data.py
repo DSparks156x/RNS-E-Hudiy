@@ -341,7 +341,7 @@ class TP2BridgeHandler(ClientEventHandler):
     def init_socket(self):
         self.socket = ZMQ_CONTEXT.socket(zmq.REQ)
         self.socket.connect(self.zmq_addr)
-        self.socket.setsockopt(zmq.RCVTIMEO, 1000) # 1s timeout
+        self.socket.setsockopt(zmq.RCVTIMEO, 3000) # 3s timeout to allow for TP2 operations
         self.socket.setsockopt(zmq.LINGER, 0)
         logger.info(f"TP2 Bridge: Connected to ZMQ REQ {self.zmq_addr}")
 

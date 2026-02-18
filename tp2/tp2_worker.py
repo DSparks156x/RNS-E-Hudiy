@@ -5,6 +5,7 @@ import json
 import zmq
 import logging
 import sys
+import threading
 from tp2_protocol import TP2Protocol, TP2Error
 from tp2_coding import TP2Coding
 
@@ -17,8 +18,6 @@ ZMQ_PUB_ADDR = 'tcp://*:5557' # Data Publish
 ZMQ_REP_ADDR = 'tcp://*:5558' # Command Request/Reply
 
 import os
-
-# ... imports ...
 
 class TP2Service:
     def __init__(self, config_file='config.json'):
@@ -52,7 +51,7 @@ class TP2Service:
         self.pub = self.context.socket(zmq.PUB)
         self.pub.bind(self.addr_pub)
         
-        # Replier (Commands)
+        # Replier (Commands) - Moved to Command Thread
         self.rep = self.context.socket(zmq.REP)
         self.rep.bind(self.addr_rep)
         
@@ -60,9 +59,16 @@ class TP2Service:
         self.sessions = {} 
         self.next_tester_id = 0x300
         self.running = True # Default to ON, will update if Ignition says OFF
+        
+        # Threading
+        self.lock = threading.Lock()
+        self.shutdown_event = threading.Event()
+        
+        # State Tracking
+        self.last_ignition_state = None 
 
-    # ... existing methods (get_or_create, ensure_connected) ...
     def _get_or_create_session(self, module_id):
+        # NOTE: Must be called within Lock
         if module_id in self.sessions:
             return self.sessions[module_id]
         
@@ -72,12 +78,8 @@ class TP2Service:
         
         logger.info(f"Creating new session for Module 0x{module_id:02X} (TesterID: 0x{tester_id:X})")
         
+        # Protocol creation (Lightweight, actual open happens in Main Thread)
         proto = TP2Protocol(channel='can0', tester_id=tester_id)
-        try:
-            proto.open()
-        except Exception as e:
-            logger.error(f"Failed to open CAN for Module 0x{module_id:02X}: {e}")
-            return None
             
         session = {
             'protocol': proto,
@@ -86,21 +88,28 @@ class TP2Service:
             'idx': 0,
             'tester_id': tester_id,
             'connected': False,
-            'last_activity': time.time()
+            'active': True,         # Controls lifecycle
+            'last_activity': time.time(),
+            'last_connect_attempt': 0,
+            'error_count': 0
         }
         self.sessions[module_id] = session
         return session
 
-    def _ensure_connected(self, module_id):
-        session = self.sessions.get(module_id)
-        if not session: return False
-        
+    def _ensure_connected(self, module_id, session):
+        # Main Thread Only
+        # Cooldown Check
+        if not session['connected']:
+            if time.time() - session.get('last_connect_attempt', 0) < 5.0:
+                return False
+
         proto = session['protocol']
         
         if session['connected']:
             return True
             
         # Connect Logic
+        session['last_connect_attempt'] = time.time()
         try:
             # Ensure Bus is Open (Robustness)
             if not proto.bus:
@@ -119,11 +128,13 @@ class TP2Service:
                     logger.error(f"Module 0x{module_id:02X} Session Refused: {resp}")
         except TP2Error as e:
              logger.error(f"Module 0x{module_id:02X} Connect Error: {e}")
-             proto.disconnect()
+             try: proto.disconnect()
+             except: pass
         
         return False
 
     def process_ignition(self):
+        # Main Thread
         if not self.ignition_sub: return
         
         try:
@@ -133,172 +144,210 @@ class TP2Service:
                     pwr = json.loads(parts[1])
                     kl15 = pwr.get('kl15', False)
                     
-                    if kl15 != self.running:
-                        self.running = kl15
-                        status = "Enabled" if self.running else "Disabled"
-                        logger.info(f"Ignition Change: TP2 Service {status}")
+                    with self.lock:
+                        # Logic:
+                        # 1. First Run: Always Sync
+                        # 2. Change Detected: Sync
+                        # 3. Steady State: Do Nothing (Preserve Manual Toggles)
+                        
+                        if self.last_ignition_state is None:
+                            # First startup sync
+                            self.running = kl15
+                            self.last_ignition_state = kl15
+                            status = "Enabled" if self.running else "Disabled"
+                            logger.info(f"Ignition Startup Sync: TP2 Service {status}")
+                            
+                        elif kl15 != self.last_ignition_state:
+                            # Edge detected
+                            self.running = kl15
+                            self.last_ignition_state = kl15
+                            status = "Enabled" if self.running else "Disabled"
+                            logger.info(f"Ignition Change: TP2 Service {status}")
+                            
+                        # If steady, we respect the current self.running state (which might be manually toggled)
                         
                         if not self.running:
-                             # Disconnect all
-                             for mod, sess in self.sessions.items():
-                                 if sess['connected']:
-                                     try: sess['protocol'].disconnect()
-                                     except: pass
-                                     sess['connected'] = False
+                            # We will handle disconnection in main loop logic
+                            pass
         except zmq.Again:
             pass
         except Exception as e:
             logger.error(f"Ignition Monitor Error: {e}")
 
-    def process_commands(self):
-        # Non-blocking check for commands
-        try:
-            msg = self.rep.recv_json(flags=zmq.NOBLOCK)
-        except zmq.Again:
-            return 
+    def command_thread_func(self):
+        logger.info("Command Thread Started (ZMQ REP)")
+        while not self.shutdown_event.is_set():
+            try:
+                # Blocking receive is fine here!
+                msg = self.rep.recv_json()
+                
+                cmd = msg.get("cmd")
+                response = {"status": "error", "message": "Unknown command"}
+                
+                if cmd == "STATUS":
+                    with self.lock:
+                        sess_info = []
+                        for mod, s in self.sessions.items():
+                            sess_info.append({
+                                "module": mod,
+                                "connected": s['connected'],
+                                "active": s['active'],
+                                "groups": list(s['subs'].keys())
+                            })
+                        response = {
+                            "status": "ok", 
+                            "enabled": self.running, 
+                            "session_count": len(sess_info),
+                            "sessions": sess_info
+                        }
 
-        response = {"status": "error", "message": "Unknown command"}
-        
-        try:
-            cmd = msg.get("cmd")
-            
-            if cmd == "STATUS":
-                 # Prepare Status
-                 sess_info = []
-                 for mod, s in self.sessions.items():
-                     sess_info.append({
-                         "module": mod,
-                         "connected": s['connected'],
-                         "groups": list(s['subs'].keys())
-                     })
-                     
-                 response = {
-                     "status": "ok",
-                     "enabled": self.running,
-                     "session_count": len(sess_info),
-                     "sessions": sess_info
-                 }
-
-            elif cmd == "ADD":
-                mod = msg.get("module")
-                grp = msg.get("group")
-                if mod is not None and grp is not None:
-                    param_mod = int(mod)
-                    param_grp = int(grp)
-                    
-                    session = self._get_or_create_session(param_mod)
-                    if session:
-                        # Ref Counting Logic
-                        if param_grp in session['subs']:
-                            session['subs'][param_grp] += 1
-                            logger.info(f"Incremented Group {param_grp} count to {session['subs'][param_grp]}")
-                        else:
-                            session['subs'][param_grp] = 1
-                            session['groups_list'].append(param_grp)
-                            logger.info(f"Added Group {param_grp} to Module 0x{param_mod:02X}")
+                elif cmd == "ADD":
+                    mod = msg.get("module")
+                    grp = msg.get("group")
+                    if mod is not None and grp is not None:
+                        param_mod = int(mod)
+                        param_grp = int(grp)
+                        with self.lock:
+                            session = self._get_or_create_session(param_mod)
+                            session['active'] = True # Revive if pending delete
                             
-                        response = {"status": "ok", "message": "Group added", "count": session['subs'][param_grp]}
-                    else:
-                        response = {"status": "error", "message": "Failed to create session"}
+                            # Ref Counting
+                            if param_grp in session['subs']:
+                                session['subs'][param_grp] += 1
+                                logger.info(f"(Cmd) Incremented Group {param_grp} count to {session['subs'][param_grp]}")
+                            else:
+                                session['subs'][param_grp] = 1
+                                session['groups_list'].append(param_grp)
+                                logger.info(f"(Cmd) Added Group {param_grp} to Module 0x{param_mod:02X}")
+                                
+                            response = {"status": "ok", "message": "Group added", "count": session['subs'][param_grp]}
                 
-            elif cmd == "REMOVE":
-                mod = msg.get("module")
-                grp = msg.get("group")
-                if mod is not None and grp is not None:
-                     param_mod = int(mod)
-                     param_grp = int(grp)
-                     if param_mod in self.sessions:
-                         session = self.sessions[param_mod]
-                         if param_grp in session['subs']:
-                             session['subs'][param_grp] -= 1
-                             count = session['subs'][param_grp]
-                             logger.info(f"Decremented Group {param_grp} count to {count}")
-                             
-                             if count <= 0:
-                                 del session['subs'][param_grp]
-                                 if param_grp in session['groups_list']:
-                                     session['groups_list'].remove(param_grp)
-                                     # Reset idx if needed to avoid out of bounds
-                                     if session['idx'] >= len(session['groups_list']):
-                                         session['idx'] = 0
-                                 logger.info(f"Removed Group {param_grp} from cycle")
-                                 
-                             response = {"status": "ok", "message": "Group removed", "count": count}
-                         else:
-                             response = {"status": "warning", "message": "Group not found"}
-                     else:
-                         response = {"status": "error", "message": "Module not active"}
+                elif cmd == "REMOVE":
+                    mod = msg.get("module")
+                    grp = msg.get("group")
+                    if mod is not None and grp is not None:
+                         param_mod = int(mod)
+                         param_grp = int(grp)
+                         with self.lock:
+                             if param_mod in self.sessions:
+                                 session = self.sessions[param_mod]
+                                 if param_grp in session['subs']:
+                                     session['subs'][param_grp] -= 1
+                                     count = session['subs'][param_grp]
+                                     logger.info(f"(Cmd) Decremented Group {param_grp} count to {count}")
+                                     
+                                     if count <= 0:
+                                         del session['subs'][param_grp]
+                                         if param_grp in session['groups_list']:
+                                             session['groups_list'].remove(param_grp)
+                                             if session['idx'] >= len(session['groups_list']):
+                                                 session['idx'] = 0
+                                         logger.info(f"(Cmd) Removed Group {param_grp}")
+                                         
+                                         # Check if session is empty
+                                         if not session['subs']:
+                                             logger.info(f"(Cmd) Module 0x{param_mod:02X} has no subs. Marking inactive.")
+                                             session['active'] = False
+                                     
+                                     response = {"status": "ok", "message": "Group removed", "count": count}
+                                 else:
+                                     response = {"status": "warning", "message": "Group not found"}
+                             else:
+                                 response = {"status": "error", "message": "Module not active"}
 
-            elif cmd == "CLEAR":
-                # Close all sessions
-                for mod, sess in self.sessions.items():
-                    sess['protocol'].close()
-                self.sessions = {}
-                self.next_tester_id = 0x300
-                logger.info("Cleared all sessions.")
-                response = {"status": "ok", "message": "Cleared all"}
-            
-            elif cmd == "TOGGLE":
-                self.running = not self.running
-                msg = "Enabled" if self.running else "Disabled"
-                logger.info(f"Service {msg} by API.")
+                elif cmd == "CLEAR":
+                    with self.lock:
+                        for mod, sess in self.sessions.items():
+                            sess['active'] = False
+                        logger.info("(Cmd) Cleared all sessions (marked inactive).")
+                    response = {"status": "ok", "message": "Cleared all"}
                 
-                if not self.running:
-                    # Disconnect all active sessions immediately
-                    for mod, sess in self.sessions.items():
-                        if sess['connected']:
-                            sess['protocol'].disconnect()
-                            sess['connected'] = False
-                            
-                response = {"status": "ok", "message": f"Service {msg}", "enabled": self.running}
-                
-        except Exception as e:
-            logger.error(f"Command Error: {e}")
-            response = {"status": "error", "message": str(e)}
+                elif cmd == "TOGGLE":
+                    with self.lock:
+                        self.running = not self.running
+                        status = "Enabled" if self.running else "Disabled"
+                    logger.info(f"(Cmd) Service {status}")
+                    response = {"status": "ok", "message": f"Service {status}", "enabled": self.running}
 
-        self.rep.send_json(response)
+                self.rep.send_json(response)
+                
+            except zmq.ContextTerminated:
+                break
+            except Exception as e:
+                logger.error(f"Command Error: {e}")
+                # Try to send error if possible
+                try: self.rep.send_json({"status": "error", "message": str(e)})
+                except: pass
 
     def run(self):
-        logger.info("TP2 Multi-Module Service Starting (Ignition Aware)...")
+        logger.info("TP2 Multi-Module Service Starting (Threaded + Error Counting)...")
         
-        while True:
+        # Start Command Thread
+        t_cmd = threading.Thread(target=self.command_thread_func, daemon=True)
+        t_cmd.start()
+        
+        while not self.shutdown_event.is_set():
             try:
-                # 0. Check Ignition
+                # 0. Check Ignition (Updates running state)
                 self.process_ignition()
 
-                # 1. Process API Commands
-                self.process_commands()
+                # Get Snapshot of State to work on
+                # We do NOT stay locked during CAN I/O
+                with self.lock:
+                    is_running = self.running
+                    # Copy dict keys/values to avoid modification issues
+                    current_sessions = list(self.sessions.items())
                 
-                # 2. Check Global Enable
-                if not self.running:
-                    time.sleep(0.1)
+                # 1. Global Enable Check
+                if not is_running:
+                    # Maintenance: Disconnect any connected sessions
+                    for mod_id, session in current_sessions:
+                        if session['connected']:
+                            try: 
+                                session['protocol'].disconnect()
+                                session['connected'] = False
+                                logger.info(f"Module 0x{mod_id:02X} Disconnected (Disabled).")
+                            except: pass
+                    
+                    time.sleep(0.5)
                     continue
-                
-                # 3. Cycle through active sessions
-                active_modules = list(self.sessions.keys())
-                
-                if not active_modules:
+
+                # 2. Process Sessions
+                if not current_sessions:
                     time.sleep(0.1)
                     continue
                     
-                for mod_id in active_modules:
-                    session = self.sessions[mod_id]
+                for mod_id, session in current_sessions:
+                    # Lifecycle Management
+                    if not session['active']:
+                        # Cleanup
+                        if session['connected']:
+                             try: 
+                                 session['protocol'].disconnect()
+                                 logger.info(f"Module 0x{mod_id:02X} Disconnected (Cleanup).")
+                             except: pass
+                        
+                        # Remove from main dict safely
+                        with self.lock:
+                            if mod_id in self.sessions and not self.sessions[mod_id]['active']:
+                                del self.sessions[mod_id]
+                                logger.info(f"Module 0x{mod_id:02X} Session Deleted.")
+                        continue
                     
-                    # Check if we have groups to read
+                    # Connection Management
                     if not session['groups_list']:
-                        # Just send Keep-Alive if idle to maintain connection
+                        # Keep Alive Only
                         if session['connected']:
                              try:
                                  session['protocol'].send_keep_alive()
                              except:
                                  session['connected'] = False
                         continue
-
-                    # Ensure Connection
-                    if not self._ensure_connected(mod_id):
+                        
+                    if not self._ensure_connected(mod_id, session):
                         continue
                     
-                    # Read Next Group
+                    # Logic
                     # Safety check on index
                     if session['idx'] >= len(session['groups_list']):
                         session['idx'] = 0
@@ -320,6 +369,8 @@ class TP2Service:
                             }
                             self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
                             
+                            session['error_count'] = 0 
+                            
                             # Cycle
                             if session['groups_list']:
                                  session['idx'] = (session['idx'] + 1) % len(session['groups_list'])
@@ -331,29 +382,35 @@ class TP2Service:
                         proto.send_keep_alive()
 
                     except TP2Error as e:
-                        logger.error(f"Mod 0x{mod_id:02X} Error: {e}")
-                        # Try soft recovery
-                        try:
-                            proto.send_keep_alive()
-                        except:
+                        session['error_count'] += 1
+                        logger.error(f"Mod 0x{mod_id:02X} Error: {e} (Count: {session['error_count']})")
+                        
+                        if session['error_count'] >= 3:
+                            logger.error("Too many errors. Forcing Reconnect.")
                             session['connected'] = False
                             proto.disconnect()
+                            session['error_count'] = 0
+                        else:
+                            try: proto.send_keep_alive()
+                            except: 
+                                session['connected'] = False
+                                proto.disconnect()
                 
                 # Rate Limiting
-                time.sleep(0.1)
+                time.sleep(0.05) # Faster for responsiveness, thread handles command blocking
 
             except KeyboardInterrupt:
                 logger.info("Stopping TP2 Service...")
+                self.shutdown_event.set()
                 break
             except Exception as e:
                 logger.error(f"CRITICAL MAIN LOOP ERROR: {e}")
-                # Robust Recovery: Close all sessions so they rebuild next cycle
-                for mod, sess in self.sessions.items():
-                    try: 
-                        sess['protocol'].close() # Sets bus = None
-                        sess['connected'] = False
-                    except: pass
-                time.sleep(5)  # Wait for system to stabilize
+                time.sleep(1)
+
+        # Shutdown Cleanup
+        for mod, sess in self.sessions.items():
+            try: sess['protocol'].close()
+            except: pass
 
 if __name__ == "__main__":
     TP2Service().run()
