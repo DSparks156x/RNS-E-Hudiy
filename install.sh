@@ -418,7 +418,7 @@ echo "   Enabling systemd-networkd..."
 $SYSTEMCTL enable --now systemd-networkd
 
 echo "   Enabling and Starting Application Services..."
-$SYSTEMCTL enable --now can_handler.service can_base_function.service tp2_worker.service \\
+$SYSTEMCTL enable --now can_handler.service can_base_function.service tp2_worker.service \
                         can_keyboard_control.service dark_mode_api.service hudiy_data_api.service
 
 # Start delayed services non-blocking
