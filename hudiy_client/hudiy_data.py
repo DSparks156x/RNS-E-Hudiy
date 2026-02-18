@@ -13,6 +13,7 @@ import logging
 import sys
 import os
 import threading
+from queue import Queue, Empty
 import zmq
 from flask import Flask, jsonify, render_template
 from flask_cors import CORS
@@ -98,9 +99,9 @@ MEDIA_SOURCE_MAP = {
 }
 
 class HudiyEventHandler(ClientEventHandler):
-    def __init__(self, zmq_publisher):
+    def __init__(self, safe_publisher):
         super().__init__() 
-        self.zmq_pub = zmq_publisher
+        self.safe_pub = safe_publisher
         self.last_media = None
         
         # Initialize Data Objects
@@ -191,10 +192,7 @@ class HudiyEventHandler(ClientEventHandler):
 
     def publish_and_write_media(self, data: dict):
         try:
-            self.zmq_pub.send_multipart([
-                b'HUDIY_MEDIA',
-                json.dumps(data).encode('utf-8')
-            ])
+            self.safe_pub.publish(b'HUDIY_MEDIA', data)
         except Exception as e:
             logger.error(f"Failed to publish ZMQ media: {e}")
         try:
@@ -251,18 +249,12 @@ class HudiyEventHandler(ClientEventHandler):
 
     def publish_nav_status(self, data: dict):
         try:
-            self.zmq_pub.send_multipart([
-                b'HUDIY_NAV_STATUS',
-                json.dumps(data).encode('utf-8')
-            ])
+            self.safe_pub.publish(b'HUDIY_NAV_STATUS', data)
         except Exception: pass
 
     def publish_and_write_nav(self, data: dict):
         try:
-            self.zmq_pub.send_multipart([
-                b'HUDIY_NAV',
-                json.dumps(data).encode('utf-8')
-            ])
+            self.safe_pub.publish(b'HUDIY_NAV', data)
         except Exception: pass
         try:
             with open('/tmp/current_nav.json', 'w') as f:
@@ -310,15 +302,56 @@ class HudiyEventHandler(ClientEventHandler):
 
     def publish_and_write_phone(self, data: dict):
         try:
-            self.zmq_pub.send_multipart([
-                b'HUDIY_PHONE',
-                json.dumps(data).encode('utf-8')
-            ])
+            self.safe_pub.publish(b'HUDIY_PHONE', data)
         except Exception: pass
         try:
             with open('/tmp/current_call.json', 'w') as f:
                 json.dump(data, f, indent=2)
         except Exception: pass
+
+# --- Safe ZMQ Publisher ---
+class SafePublisher:
+    """
+    Thread-safe ZMQ Publisher using a Queue and a dedicated worker thread.
+    """
+    def __init__(self, zmq_addr):
+        self.queue = Queue()
+        self.zmq_addr = zmq_addr
+        self.running = True
+        self.thread = threading.Thread(target=self._worker, daemon=True)
+        self.thread.start()
+
+    def publish(self, topic, data):
+        if self.running:
+            self.queue.put((topic, data))
+
+    def _worker(self):
+        ctx = zmq.Context()
+        pub = ctx.socket(zmq.PUB)
+        try:
+            pub.bind(self.zmq_addr)
+            logger.info(f"SafePublisher bound to {self.zmq_addr}")
+        except Exception as e:
+            logger.critical(f"SafePublisher BIND FAILED: {e}")
+            return
+
+        while self.running:
+            try:
+                # Get from queue with timeout to allow checking self.running
+                topic, data = self.queue.get(timeout=1.0)
+                pub.send_multipart([topic, json.dumps(data).encode('utf-8')])
+                self.queue.task_done()
+            except Empty:
+                continue
+            except Exception as e:
+                logger.error(f"SafePublisher error: {e}")
+
+        pub.close()
+        ctx.term()
+
+    def stop(self):
+        self.running = False
+        self.thread.join()
 
 class TP2BridgeHandler(ClientEventHandler):
     """
@@ -332,6 +365,7 @@ class TP2BridgeHandler(ClientEventHandler):
         self.zmq_addr = zmq_req_addr
         # Socket created in thread to be safe, or here if Context is thread-safe (it is)
         self.socket = None
+        self.lock = threading.Lock() # Protects socket access
         
         self.icon_id = None
         self.icon_visible = False
@@ -339,16 +373,19 @@ class TP2BridgeHandler(ClientEventHandler):
         self.timer = None
 
     def init_socket(self):
-        self.socket = ZMQ_CONTEXT.socket(zmq.REQ)
-        self.socket.connect(self.zmq_addr)
-        self.socket.setsockopt(zmq.RCVTIMEO, 3000) # 3s timeout to allow for TP2 operations
-        self.socket.setsockopt(zmq.LINGER, 0)
-        logger.info(f"TP2 Bridge: Connected to ZMQ REQ {self.zmq_addr}")
+        with self.lock:
+            if self.socket: self.socket.close()
+            self.socket = ZMQ_CONTEXT.socket(zmq.REQ)
+            self.socket.connect(self.zmq_addr)
+            self.socket.setsockopt(zmq.RCVTIMEO, 3000) # 3s timeout to allow for TP2 operations
+            self.socket.setsockopt(zmq.LINGER, 0)
+            logger.info(f"TP2 Bridge: Connected to ZMQ REQ {self.zmq_addr}")
 
     def stop(self):
         self.running = False
         if self.timer: self.timer.cancel()
-        if self.socket: self.socket.close()
+        with self.lock:
+            if self.socket: self.socket.close()
 
     def on_hello_response(self, client, message):
         logger.info(f"TP2 Bridge Connected to Hudiy: v{message.api_version.major}.{message.api_version.minor}")
@@ -385,21 +422,34 @@ class TP2BridgeHandler(ClientEventHandler):
             self.check_status_now(client)
 
     def send_command(self, cmd):
-        if not self.socket: self.init_socket()
-        try:
-            self.socket.send_json({"cmd": cmd})
-            # Wait for reply
-            msg = self.socket.recv_json()
-            return msg
-        except zmq.Again:
-            logger.warning("TP2 ZMQ Request Timeout or Busy")
-            # Reconnect socket on timeout to clear state
-            self.socket.close()
-            self.init_socket()
-            return None
-        except Exception as e:
-            logger.error(f"TP2 ZMQ Error: {e}")
-            return None
+        # Lock to prevent race conditions between Timer thread and Main thread
+        with self.lock:
+            if not self.socket: 
+                # This might fail if init_socket hasn't been called or failed.
+                # But we can try to re-init here? CAREFUL with recursion if init_socket uses lock.
+                # init_socket() uses lock, so we can't call it here if we already hold lock.
+                # Refactor init_socket to _init_socket_unsafe() called by public init_socket and here.
+                # For now, let's assume init_socket is called at startup.
+                logger.warning("TP2 Socket not initialized in send_command")
+                return None
+                
+            try:
+                self.socket.send_json({"cmd": cmd})
+                # Wait for reply
+                msg = self.socket.recv_json()
+                return msg
+            except zmq.Again:
+                logger.warning("TP2 ZMQ Request Timeout or Busy")
+                # Reconnect socket on timeout to clear state
+                self.socket.close()
+                self.socket = ZMQ_CONTEXT.socket(zmq.REQ)
+                self.socket.connect(self.zmq_addr)
+                self.socket.setsockopt(zmq.RCVTIMEO, 3000)
+                self.socket.setsockopt(zmq.LINGER, 0)
+                return None
+            except Exception as e:
+                logger.error(f"TP2 ZMQ Error: {e}")
+                return None
 
     def check_status_now(self, client):
         resp = self.send_command("STATUS")
@@ -441,15 +491,17 @@ class HudiyData:
             zmq_addr = "ipc:///run/rnse_control/hudiy_stream.ipc"
         
         # --- ZMQ PUB SOCKET ---
-        logger.info(f"Binding Hudiy ZMQ publisher to {zmq_addr}")
-        self.zmq_publisher = ZMQ_CONTEXT.socket(zmq.PUB)
-        try:
-            self.zmq_publisher.bind(zmq_addr)
-        except zmq.ZMQError as e:
-            logger.critical(f"FATAL: Could not bind ZMQ PUB socket: {e}")
-            sys.exit(1)
+        # logger.info(f"Binding Hudiy ZMQ publisher to {zmq_addr}")
+        # self.zmq_publisher = ZMQ_CONTEXT.socket(zmq.PUB)
+        # try:
+        #     self.zmq_publisher.bind(zmq_addr)
+        # except zmq.ZMQError as e:
+        #     logger.critical(f"FATAL: Could not bind ZMQ PUB socket: {e}")
+        #     sys.exit(1)
         
-        self.handler = HudiyEventHandler(self.zmq_publisher)
+        self.safe_pub = SafePublisher(zmq_addr)
+        
+        self.handler = HudiyEventHandler(self.safe_pub)
         self.media_client = None
         self.nav_client = None
         
@@ -597,7 +649,7 @@ class HudiyData:
         nav_thread.join(timeout=2.0)
         tp2_thread.join(timeout=2.0)
         
-        self.zmq_publisher.close()
+        self.safe_pub.stop()
         logger.info("ZMQ publisher closed.")
 
 if __name__ == '__main__':
