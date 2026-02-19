@@ -2,7 +2,7 @@
     "applications": [
         {
             "action": "hudiy_diagnostics",
-            "url": "http://localhost:5000",
+            "url": "http://localhost:5003",
             "allowBackground": true,
             "controlAudioFocus": false,
             "audioStreamCategory": "NONE"

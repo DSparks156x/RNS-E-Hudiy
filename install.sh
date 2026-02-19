@@ -55,7 +55,7 @@ apt-get update
 apt-get install -y git python3-pip can-utils python3-can python3-serial \
     python3-tz python3-unidecode python3-zmq python3-aiozmq python3-uinput \
     python3-protobuf python3-full python3-venv protobuf-compiler python3-gpiozero \
-    python3-flask python3-flask-cors python3-flask-socketio
+    python3-flask python3-flask-cors python3-flask-socketio libxcb-cursor0 libxcb-xinerama0
 
 echo "   Checking websocket-client..."
 if dpkg -s python3-websocket-client &> /dev/null || dpkg -s python3-websocket &> /dev/null; then
