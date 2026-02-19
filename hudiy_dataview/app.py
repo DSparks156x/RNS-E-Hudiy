@@ -79,12 +79,19 @@ class ZMQWorker:
                 self.req_sock.send_json(msg)
                 resp = self.req_sock.recv_json()
                 return resp
-            except zmq.Again:
-                logger.warning("ZMQ Request Timeout")
-                # Reconnect Logic could go here
-                return {"status": "error", "message": "Timeout"}
             except Exception as e:
-                logger.error(f"ZMQ Request Error: {e}")
+                logger.warning(f"ZMQ Request Error: {e}. Reconnecting socket...")
+                # REQ sockets have a strict send/recv state machine.
+                # Any error leaves the socket in a broken state, so we must
+                # close and recreate it before the next call will work.
+                try:
+                    self.req_sock.close()
+                except Exception:
+                    pass
+                self.req_sock = self.context.socket(zmq.REQ)
+                self.req_sock.connect(ZMQ_REQ_ADDR)
+                self.req_sock.setsockopt(zmq.RCVTIMEO, 2000)
+                self.req_sock.setsockopt(zmq.LINGER, 0)
                 return {"status": "error", "message": str(e)}
 
     def run(self):
