@@ -551,7 +551,10 @@ body {
 .engine-layout {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    grid-template-rows: 2fr 0.6fr;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 35px;
+    /* Main content + small temp footer */
     /* Reduced temp row height */
     grid-template-areas:
         "boost perf fuel"
@@ -568,9 +571,12 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    /* Center vertically */
-    padding-top: 5px;
+    justify-content: flex-start;
+    /* Ensure top is never clipped */
+    padding-top: 40px;
+    /* Manually centered (approx 300px content in 370px panel) */
+    gap: 10px;
+    padding-bottom: 5px;
 }
 
 .perf-panel {
@@ -595,31 +601,47 @@ body {
     align-items: center;
     justify-content: space-around;
     padding: 0 5px;
-    height: 100%;
+    height: 35px;
+    /* Even smaller height */
+    border-top: 1px solid #333;
 }
 
 /* Stat Rows (Replaces Boxes) */
+.stat-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
 .stat-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    width: 80%;
-    margin: 5px auto;
+    width: 100%;
+    /* Full width */
+    margin: 1px auto;
+    /* Minimal margin */
     border-bottom: 1px solid #333;
-    padding-bottom: 2px;
+    padding-bottom: 1px;
 }
 
 .stat-label {
-    font-size: 14px;
+    font-size: 11px;
+    /* Smaller label */
     color: #888;
     text-transform: uppercase;
+    white-space: nowrap;
+    /* Prevent label wrapping */
 }
 
 .stat-value {
-    font-size: 18px;
+    font-size: 16px;
+    /* Slightly smaller value */
     font-weight: bold;
     color: #ddd;
     font-family: monospace;
+    text-align: right;
 }
 
 .stat-value-md {
@@ -631,14 +653,20 @@ body {
 /* Temps */
 .temp-item {
     display: flex;
-    flex-direction: column;
-    align-items: center;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
 }
 
 .temp-val {
-    font-size: 22px;
+    font-size: 18px;
     color: #fff;
     font-weight: bold;
+    font-family: monospace;
+}
+
+.temp-item .stat-label {
+    font-size: 12px;
 }
 
 /* Performance Panel */
@@ -654,15 +682,21 @@ body {
 
 .rpm-display {
     display: flex;
-    align-items: baseline;
+    flex-direction: column;
+    /* Ensure label is above */
+    align-items: center;
     justify-content: center;
-    gap: 5px;
-    margin-bottom: 15px;
+    gap: 2px;
+    margin-bottom: 10px;
 }
 
 .ign-display {
+    display: flex;
+    /* Flex to control layout if needed */
+    flex-direction: column;
+    align-items: center;
     text-align: center;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 
 .maf-display {
@@ -681,7 +715,29 @@ body {
 .gauge-wrapper-sm {
     width: 140px;
     height: 80px;
-    margin: 5px auto;
+    /* Reduced back to 80px since label is absolute */
+    margin: 0 auto 5px auto;
+    position: relative;
+    /* Ensure absolute children are relative to this */
+}
+
+.gauge-label-sm {
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: #888;
+    text-transform: uppercase;
+    width: 100%;
+    text-align: center;
+}
+
+.gauge-wrapper-md {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    margin: 0 auto;
 }
 
 /* Gauge Labels (Actual) */
@@ -698,14 +754,20 @@ body {
 
 /* Knock Wrapper - Cleaner */
 .knock-wrapper {
-    margin-top: 10px;
+    margin-top: 5px;
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    /* Take remaining space */
 }
 
+/* Use .stat-label style for header to match Ignition/RPM */
 .knock-header {
     text-align: center;
-    font-size: 11px;
-    color: #666;
+    font-size: 14px;
+    color: #888;
+    text-transform: uppercase;
     margin-bottom: 5px;
 }
 
@@ -713,15 +775,40 @@ body {
     display: flex;
     justify-content: space-around;
     align-items: flex-end;
-    height: 60px;
-    border-bottom: 1px solid #444;
+    height: 100%;
+    /* Fill available space */
+    padding-bottom: 5px;
+    gap: 5px;
 }
 
 .k-bar-wrapper {
     width: 15%;
     height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    /* Align bars to bottom */
+    align-items: center;
     position: relative;
     background: transparent;
+}
+
+.k-label {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 2px;
+    text-align: center;
+    width: 100%;
+}
+
+.k-bar-track {
+    width: 100%;
+    flex: 1;
+    /* track takes remaining height */
+    position: relative;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 2px;
 }
 
 .k-bar {
@@ -731,17 +818,13 @@ body {
     /* Red default for retard */
     position: absolute;
     bottom: 0;
-    border-radius: 2px 2px 0 0;
+    left: 0;
     transition: height 0.2s ease-out;
 }
 
 .knock-vals {
-    display: flex;
-    justify-content: space-around;
-    padding-top: 5px;
-    font-family: monospace;
-    font-size: 12px;
-    color: #888;
+    display: none;
+    /* Hide old vals if present */
 }
 
 /* Gauges */
