@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=800, height=480, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hudiy Data View</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style_v3.css') }}?v=10">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=10" defer></script>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Navigation Tabs -->
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="engine">Engine</button>
+            <button class="tab-btn" data-tab="transmission">Transmission</button>
+            <button class="tab-btn" data-tab="awd">AWD</button>
+        </nav>
+
+        <!-- Engine Section -->
+        <section id="engine" class="tab-content active">
+            <div class="engine-layout">
+                <!-- Center: Boost (Grp 115) -->
+                <div class="panel boost-panel">
+                    <!-- MAF Gauge (Top) -->
+                    <div class="gauge-wrapper-sm">
+                        <canvas id="gauge_maf" width="140" height="80"></canvas>
+                        <div class="gauge-label-sm">MAF</div>
+                    </div>
+
+                    <!-- Boost Gauge (Middle) -->
+                    <div class="gauge-wrapper-md">
+                        <canvas id="gauge_boost" width="140" height="140"></canvas>
+                        <div class="gauge-label">Actual</div>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="stat-list">
+                        <div class="stat-row">
+                            <span class="stat-label">Request</span>
+                            <span class="stat-value" id="eng_115_2">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Left: Performance (RPM, Ign, Knock) -->
+                <div class="panel perf-panel">
+                    <div class="perf-top">
+                        <!-- RPM (Smaller) -->
+                        <div class="rpm-display">
+                            <span id="eng_003_0" class="value-md">----</span>
+                        </div>
+
+                        <!-- Ignition (Centered) -->
+                        <div class="ign-display">
+                            <div class="stat-label">Ignition</div>
+                            <span class="stat-value-lg" id="eng_003_3">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Knock Retard Bars -->
+                    <div class="knock-wrapper">
+                        <div class="knock-header">Timing Pull</div>
+                        <div class="knock-bars">
+                            <div class="k-bar-wrapper">
+                                <div class="k-bar" id="k_bar_1"></div>
+                                <div class="k-label">1</div>
+                            </div>
+                            <div class="k-bar-wrapper">
+                                <div class="k-bar" id="k_bar_2"></div>
+                                <div class="k-label">2</div>
+                            </div>
+                            <div class="k-bar-wrapper">
+                                <div class="k-bar" id="k_bar_3"></div>
+                                <div class="k-label">3</div>
+                            </div>
+                            <div class="k-bar-wrapper">
+                                <div class="k-bar" id="k_bar_4"></div>
+                                <div class="k-label">4</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Fuel (Grp 106 + Inj Time) -->
+                <div class="panel fuel-panel">
+                    <div class="gauge-wrapper-md">
+                        <canvas id="gauge_fuel" width="140" height="140"></canvas>
+                        <div class="gauge-label">Actual</div>
+                    </div>
+                    <div class="stat-list">
+                        <div class="stat-row">
+                            <span class="stat-label">Specified</span>
+                            <span class="stat-value" id="eng_106_0">--</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Injection</span>
+                            <span class="stat-value" id="eng_002_2">--</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Duty</span>
+                            <span class="stat-value" id="eng_106_2">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom: Temps (Grp 134) -->
+                <div class="panel eng-temp-panel">
+                    <div class="temp-item">
+                        <span class="stat-label">Oil Temp</span>
+                        <span class="temp-val" id="eng_134_0">--</span>
+                    </div>
+                    <div class="temp-item">
+                        <span class="stat-label">Ambient</span>
+                        <span class="temp-val" id="eng_134_1">--</span>
+                    </div>
+                    <div class="temp-item">
+                        <span class="stat-label">Intake</span>
+                        <span class="temp-val" id="eng_134_2">--</span>
+                    </div>
+                    <div class="temp-item">
+                        <span class="stat-label">Exhaust</span>
+                        <span class="temp-val" id="eng_134_3">--</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Transmission Section -->
+        <section id="transmission" class="tab-content">
+            <div class="trans-layout">
+                <!-- Clutches Group (11 & 12) -->
+                <div class="panel pressure-panel">
+                    <h3>Clutch 1 & 2</h3>
+                    <div class="gauges-row">
+                        <!-- Clutch 1 -->
+                        <div class="gauge-wrapper">
+                            <canvas id="gauge_pres_1" width="150" height="150"></canvas>
+                            <div class="gauge-sub">Clutch 1</div>
+                        </div>
+                        <!-- Clutch 2 -->
+                        <div class="gauge-wrapper">
+                            <canvas id="gauge_pres_2" width="150" height="150"></canvas>
+                            <div class="gauge-sub">Clutch 2</div>
+                        </div>
+                    </div>
+                    <!-- Extra Values for 11 & 12 -->
+                    <div class="extra-vals-grid">
+                        <div class="col">
+                            <div class="val-row-sm"><span class="label">Speed 1:</span> <span id="trans_11_0">--</span>
+                            </div>
+                            <div class="val-row-sm"><span class="label">Torque 1:</span> <span id="trans_11_1">--</span>
+                            </div>
+                            <div class="val-row-sm"><span class="label">Amps 1:</span> <span id="trans_11_2">--</span>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="val-row-sm"><span class="label">Speed 2:</span> <span id="trans_12_0">--</span>
+                            </div>
+                            <div class="val-row-sm"><span class="label">Torque 2:</span> <span id="trans_12_1">--</span>
+                            </div>
+                            <div class="val-row-sm"><span class="label">Amps 2:</span> <span id="trans_12_2">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Selector Group (16) -->
+                <div class="panel selector-panel">
+                    <h3>Selector Travel (Grp 16)</h3>
+                    <div class="bar-container">
+                        <div class="bar-wrapper">
+                            <span class="bar-label-top">1</span>
+                            <div class="bar-track">
+                                <div class="bar-fill" id="bar_sel_1"></div>
+                            </div>
+                            <span class="bar-label-bot">3</span>
+                        </div>
+                        <div class="bar-wrapper">
+                            <span class="bar-label-top">2</span>
+                            <div class="bar-track">
+                                <div class="bar-fill" id="bar_sel_2"></div>
+                            </div>
+                            <span class="bar-label-bot">4</span>
+                        </div>
+                        <div class="bar-wrapper">
+                            <span class="bar-label-top">5</span>
+                            <div class="bar-track">
+                                <div class="bar-fill" id="bar_sel_3"></div>
+                            </div>
+                            <span class="bar-label-bot">N</span>
+                        </div>
+                        <div class="bar-wrapper">
+                            <span class="bar-label-top">6</span>
+                            <div class="bar-track">
+                                <div class="bar-fill" id="bar_sel_4"></div>
+                            </div>
+                            <span class="bar-label-bot">R</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Temperature Group (19) -->
+                <div class="panel temp-panel">
+                    <h3>Temperatures (Grp 19)</h3>
+                    <div class="val-grid">
+                        <div class="val-box">
+                            <div class="val-label">Fluid</div>
+                            <span id="trans_19_0">--</span>
+                        </div>
+                        <div class="val-box">
+                            <div class="val-label">Module</div>
+                            <span id="trans_19_1">--</span>
+                        </div>
+                        <div class="val-box">
+                            <div class="val-label">Clutch Oil</div>
+                            <span id="trans_19_2">--</span>
+                        </div>
+                        <div class="val-box">
+                            <div class="val-label">Status</div>
+                            <span id="trans_19_3">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AWD Section -->
+        <section id="awd" class="tab-content">
+            <div class="awd-layout">
+                <!-- Group 3: Hydraulics (Pressure & Torque) -->
+                <div class="panel awd-main">
+                    <h3>Haldex Performance (Grp 3)</h3>
+                    <div class="gauges-row">
+                        <div class="gauge-wrapper">
+                            <canvas id="gauge_awd_pres" width="150" height="150"></canvas>
+                            <div class="gauge-sub">Oil Pressure</div>
+                        </div>
+                        <div class="gauge-wrapper">
+                            <canvas id="gauge_awd_torque" width="150" height="150"></canvas>
+                            <div class="gauge-sub">Est. Torque</div>
+                        </div>
+                    </div>
+                    <div class="extra-vals-grid">
+                        <div class="col">
+                            <div class="val-row-sm"><span class="label">Valve (N273):</span> <span
+                                    id="awd_3_2">--</span>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="val-row-sm"><span class="label">Current (N273):</span> <span
+                                    id="awd_3_3">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 1: Status & Temps -->
+                <div class="panel awd-status">
+                    <h3>System Status (Grp 1)</h3>
+                    <div class="val-list">
+                        <div class="val-row">
+                            <span class="label">Haldex Oil Temp:</span>
+                            <span class="value" id="awd_1_0">--</span>
+                        </div>
+                        <div class="val-row">
+                            <span class="label">Plate Temp:</span>
+                            <span class="value" id="awd_1_1">--</span>
+                        </div>
+                        <div class="val-row">
+                            <span class="label">Supply Voltage:</span>
+                            <span class="value" id="awd_1_2">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 5: Modes -->
+                <div class="panel awd-modes">
+                    <h3>Modes (Grp 5)</h3>
+                    <div class="val-list">
+                        <div class="val-row">
+                            <span class="label">CAN Output:</span>
+                            <span class="value sm" id="awd_5_0">--</span>
+                        </div>
+                        <div class="val-row">
+                            <span class="label">Vehicle Mode:</span>
+                            <span class="value sm" id="awd_5_1">--</span>
+                        </div>
+                        <div class="val-row">
+                            <span class="label">Slip Control:</span>
+                            <span class="value sm" id="awd_5_2">--</span>
+                        </div>
+                        <div class="val-row">
+                            <span class="label">Op Mode:</span>
+                            <span class="value sm" id="awd_5_3">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+
+</html>

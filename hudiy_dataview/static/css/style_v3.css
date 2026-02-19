@@ -1,0 +1,769 @@
+/* Hudiy Data View Styling (800x480) */
+
+:root {
+    --bg-color: #121212;
+    --panel-bg: #1e1e1e;
+    --text-color: #ffffff;
+    --accent-color: #ff3b3b;
+    /* Hudiy Red/Orange */
+    --accent-dim: #7f1d1d;
+    --grid-gap: 10px;
+    --tab-height: 50px;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    width: 800px;
+    height: 480px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Tabs */
+.tabs {
+    display: flex;
+    height: var(--tab-height);
+    background-color: #000;
+    border-bottom: 2px solid #333;
+}
+
+.tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tab-btn.active {
+    color: var(--accent-color);
+    border-bottom: 4px solid var(--accent-color);
+    background-color: #1a1a1a;
+}
+
+/* Section Content */
+.tab-content {
+    display: none;
+    flex: 1;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Engine Grid */
+.grid-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-gap: 10px;
+    height: 100%;
+}
+
+.group-box {
+    background-color: var(--panel-bg);
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid #333;
+}
+
+.group-box h3 {
+    margin-top: 0;
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
+    color: #bbb;
+    font-size: 16px;
+}
+
+.val-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid #2a2a2a;
+}
+
+.val-row:last-child {
+    border-bottom: none;
+}
+
+.label {
+    color: #888;
+}
+
+.value {
+    font-weight: bold;
+    font-family: monospace;
+    font-size: 18px;
+}
+
+/* Transmission Layout */
+.trans-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    /* Pressure | Selector */
+    grid-template-rows: 1.5fr 0.5fr;
+    /* Main | Bottom */
+    grid-template-areas:
+        "pressure selector"
+        "temp temp";
+    gap: 10px;
+    height: 100%;
+}
+
+.panel {
+    background-color: var(--panel-bg);
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+}
+
+.panel h3 {
+    margin-top: 0;
+    font-size: 14px;
+    /* Smaller header */
+    color: #bbb;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+/* Pressure */
+.pressure-panel {
+    grid-area: pressure;
+}
+
+.gauges-row {
+    display: flex;
+    justify-content: center;
+    /* Center horizontally */
+    align-items: center;
+    /* Center vertically */
+    gap: 20px;
+    /* Space between gauges */
+    flex: 1;
+    /* Fill available vertical space */
+    margin-top: -10px;
+    /* Pull up slightly to reduce top gap */
+}
+
+.gauge-wrapper {
+    position: relative;
+    width: 140px;
+    /* Increased from 120px */
+    height: 140px;
+}
+
+.gauge-val {
+    position: absolute;
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.extra-vals-grid {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 5px;
+    border-top: 1px solid #333;
+    font-size: 12px;
+}
+
+.col {
+    display: flex;
+    flex-direction: column;
+    width: 48%;
+}
+
+.val-row-sm {
+    display: flex;
+    justify-content: space-between;
+    padding: 1px 0;
+}
+
+.gauge-sub {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: #666;
+    width: 100%;
+    text-align: center;
+}
+
+/* Selector */
+.selector-panel {
+    grid-area: selector;
+}
+
+.bar-container {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    height: 100%;
+    padding: 5px 0;
+}
+
+.bar-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 30px;
+    /* Thinner bars */
+    position: relative;
+}
+
+.bar-track {
+    width: 15px;
+    height: 80%;
+    background-color: #111;
+    position: relative;
+    border-radius: 4px;
+    border: 1px solid #444;
+    overflow: hidden;
+}
+
+.bar-fill {
+    width: 100%;
+    background-color: var(--accent-color);
+    position: absolute;
+    top: 50%;
+    left: 0;
+    height: 0%;
+    transition: all 0.1s ease-out;
+}
+
+.bar-label-top {
+    margin-bottom: 2px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #aaa;
+}
+
+.bar-label-bot {
+    margin-top: 2px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #aaa;
+}
+
+/* Temp Panel */
+.temp-panel {
+    grid-area: temp;
+    flex-direction: row;
+    /* Flex row for panel content */
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+}
+
+/* FIXED: Missing val-grid class for horizontal layout */
+.val-grid {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    width: 100%;
+    gap: 10px;
+}
+
+.val-box {
+    background: #000;
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid #333;
+    font-family: monospace;
+    font-size: 16px;
+    color: var(--accent-color);
+    text-align: center;
+    min-width: 80px;
+}
+
+.val-label {
+    display: block;
+    font-size: 10px;
+    color: #666;
+    font-family: sans-serif;
+    margin-bottom: 2px;
+}
+
+/* AWD Section */
+/* AWD Section */
+.awd-layout {
+    display: grid;
+    grid-template-columns: 2fr 1.2fr 1.2fr;
+    grid-template-rows: 1fr;
+    gap: var(--grid-gap);
+    height: 100%;
+}
+
+.awd-main {
+    /* Main Gauge Area uses flex from .panel default */
+    display: flex;
+    /* Ensure it has layout */
+}
+
+.awd-status,
+.awd-modes {
+    display: flex;
+    flex-direction: column;
+}
+
+.val-list {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    height: 100%;
+    padding: 10px 0;
+}
+
+.val-list .val-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #333;
+    padding-bottom: 5px;
+}
+
+.val-list .val-row:last-child {
+    border-bottom: none;
+}
+
+.value.sm {
+    font-size: 16px;
+    /* Smaller font for long mode strings */
+}
+
+/* --- Engine Tab Specific Styles --- */
+.engine-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 2fr 1fr;
+    grid-template-areas:
+        "boost perf fuel"
+        "temp temp temp";
+    gap: 10px;
+    height: 100%;
+}
+
+.boost-panel {
+    grid-area: boost;
+}
+
+.perf-panel {
+    grid-area: perf;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.fuel-panel {
+    grid-area: fuel;
+}
+
+.eng-temp-panel {
+    grid-area: temp;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+}
+
+/* Gauges */
+.gauge-wrapper-lg {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    margin: 0 auto;
+}
+
+.gauge-val-lg {
+    position: absolute;
+    top: 60%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+/* Performance Box */
+.rpm-display {
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.value-xl {
+    font-size: 32px;
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+.timing-display {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.value-lg {
+    font-size: 24px;
+    font-weight: bold;
+    color: #fff;
+}
+
+/* Knock Bars */
+.knock-container {
+    background: #000;
+    padding: 5px;
+    border-radius: 4px;
+    border: 1px solid #333;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.knock-header {
+    text-align: center;
+    font-size: 10px;
+    color: #888;
+    margin-bottom: 2px;
+}
+
+.knock-bars {
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-end;
+    height: 100%;
+    padding-bottom: 5px;
+}
+
+.k-bar-wrapper {
+    width: 20%;
+    height: 100%;
+    background: #111;
+    position: relative;
+    border: 1px solid #333;
+}
+
+.k-bar {
+    width: 100%;
+    height: 0%;
+    background-color: #ffcc00;
+    transition: height 0.2s;
+    position: absolute;
+    bottom: 0;
+}
+
+.k-val {
+    position: absolute;
+    bottom: 2px;
+    width: 100%;
+    text-align: center;
+    font-size: 10px;
+    color: #fff;
+    text-shadow: 0 1px 2px #000;
+    z-index: 2;
+}
+
+/* Val Lists */
+.val-list-sm {
+    margin-top: 10px;
+    border: 1px solid #333;
+    font-family: monospace;
+    font-size: 16px;
+    color: var(--accent-color);
+    text-align: center;
+    min-width: 80px;
+}
+
+.val-label {
+    display: block;
+    font-size: 10px;
+    color: #666;
+    font-family: sans-serif;
+    margin-bottom: 2px;
+}
+
+/* AWD Section */
+/* AWD Section */
+.awd-layout {
+    display: grid;
+    grid-template-columns: 2fr 1.2fr 1.2fr;
+    grid-template-rows: 1fr;
+    gap: var(--grid-gap);
+    height: 100%;
+}
+
+.awd-main {
+    /* Main Gauge Area uses flex from .panel default */
+    display: flex;
+    /* Ensure it has layout */
+}
+
+.awd-status,
+.awd-modes {
+    display: flex;
+    flex-direction: column;
+}
+
+.val-list {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    height: 100%;
+    padding: 10px 0;
+}
+
+.val-list .val-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #333;
+    padding-bottom: 5px;
+}
+
+.val-list .val-row:last-child {
+    border-bottom: none;
+}
+
+.value.sm {
+    font-size: 16px;
+    /* Smaller font for long mode strings */
+}
+
+/* --- Engine Tab Specific Styles --- */
+.engine-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 2fr 0.6fr;
+    /* Reduced temp row height */
+    grid-template-areas:
+        "boost perf fuel"
+        "temp temp temp";
+    gap: 5px;
+    /* Reduced gap */
+    height: 100%;
+    padding: 5px;
+}
+
+.boost-panel {
+    grid-area: boost;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    /* Center vertically */
+    padding-top: 5px;
+}
+
+.perf-panel {
+    grid-area: perf;
+    display: flex;
+    flex-direction: column;
+}
+
+.fuel-panel {
+    grid-area: fuel;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.eng-temp-panel {
+    grid-area: temp;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 5px;
+    height: 100%;
+}
+
+/* Stat Rows (Replaces Boxes) */
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 80%;
+    margin: 5px auto;
+    border-bottom: 1px solid #333;
+    padding-bottom: 2px;
+}
+
+.stat-label {
+    font-size: 14px;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.stat-value {
+    font-size: 18px;
+    font-weight: bold;
+    color: #ddd;
+    font-family: monospace;
+}
+
+.stat-value-md {
+    font-size: 20px;
+    color: var(--accent-color);
+    font-weight: bold;
+}
+
+/* Temps */
+.temp-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.temp-val {
+    font-size: 22px;
+    color: #fff;
+    font-weight: bold;
+}
+
+/* Performance Panel */
+.perf-top {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    /* Start from top */
+    padding-top: 10px;
+}
+
+.rpm-display {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 5px;
+    margin-bottom: 15px;
+}
+
+.ign-display {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.maf-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+.stat-value-xl {
+    font-size: 42px;
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+.gauge-wrapper-sm {
+    width: 140px;
+    height: 80px;
+    margin: 5px auto;
+}
+
+/* Gauge Labels (Actual) */
+.gauge-label {
+    position: absolute;
+    bottom: 25%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+}
+
+
+/* Knock Wrapper - Cleaner */
+.knock-wrapper {
+    margin-top: 10px;
+    width: 100%;
+}
+
+.knock-header {
+    text-align: center;
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.knock-bars {
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-end;
+    height: 60px;
+    border-bottom: 1px solid #444;
+}
+
+.k-bar-wrapper {
+    width: 15%;
+    height: 100%;
+    position: relative;
+    background: transparent;
+}
+
+.k-bar {
+    width: 100%;
+    height: 0%;
+    background-color: #d32f2f;
+    /* Red default for retard */
+    position: absolute;
+    bottom: 0;
+    border-radius: 2px 2px 0 0;
+    transition: height 0.2s ease-out;
+}
+
+.knock-vals {
+    display: flex;
+    justify-content: space-around;
+    padding-top: 5px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #888;
+}
+
+/* Gauges */
+.gauge-wrapper-lg {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    margin: 5px auto;
+}
+
+.gauge-val-lg {
+    position: absolute;
+    top: 60%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 22px;
+    font-weight: bold;
+    color: #fff;
+}
+
+/* Val Lists */
+.val-list-sm {
+    margin-top: 10px;
+    width: 100%;
+}
