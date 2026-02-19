@@ -4,11 +4,11 @@
             "isDefault": true,
             "action": "hudiy_dashboard",
             "widgets": [
-                {
-                    "type": "web",
-                    "size": "large_wide",
-                    "url": "http://127.0.0.1:44412/"
-                },
+                // {
+                //     "type": "web",
+                //     "size": "large_wide",
+                //     "url": "http://127.0.0.1:44412/"
+                // },
                 {
                     "type": "date_time",
                     "size": "small_narrow"

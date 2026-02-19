@@ -591,17 +591,17 @@ class HudiyData:
         logger.info(f"Subscribed to TP2 Data at {self.tp2_sub_addr}")
         
         # Auto-Start Group 011 for Engine Data
-        try:
-            temp_req = ctx.socket(zmq.REQ)
-            temp_req.connect(self.tp2_zmq_addr)
+        #try:
+        #    temp_req = ctx.socket(zmq.REQ)
+        #    temp_req.connect(self.tp2_zmq_addr)
             # Add Module 01 (Engine), Group 11 (Standard ?)
-            temp_req.send_json({"cmd": "ADD", "module": 1, "group": 11})
+         #   temp_req.send_json({"cmd": "ADD", "module": 1, "group": 11})
             # Also ensure service is enabled? The bridge handler does this via toggle if needed, 
             # but let's assume valid state or user toggles it.
-            logger.info("Requested TP2 Group 011 (Engine Data)")
-            temp_req.close()
-        except:
-            logger.warning("Could not auto-request TP2 Group")
+         #   logger.info("Requested TP2 Group 011 (Engine Data)")
+          #  temp_req.close()
+        #except:
+         #   logger.warning("Could not auto-request TP2 Group")
 
         while self.running:
             try:
@@ -614,24 +614,24 @@ class HudiyData:
                         if data.get('group') == 11:
                             TP2_DATA_STORE['data'] = data.get('data', [])
                             TP2_DATA_STORE['timestamp'] = time.time()
-            except Exception as e:
-                pass
-        sock.close()
-        ctx.term()
+      #      except Exception as e:
+     #           pass
+      #  sock.close()
+      #  ctx.term()
     
     def run(self):
         logger.info("THREADING Hudiy Data ACTIVE!")
         media_thread = threading.Thread(target=self.connect_media, daemon=True)
         nav_thread = threading.Thread(target=self.connect_nav, daemon=True)
-        tp2_thread = threading.Thread(target=self.connect_tp2, daemon=True)
-        flask_thread = threading.Thread(target=run_flask_app, daemon=True)
-        sub_thread = threading.Thread(target=self.subscribe_tp2_data, daemon=True)
+        #tp2_thread = threading.Thread(target=self.connect_tp2, daemon=True)
+       # flask_thread = threading.Thread(target=run_flask_app, daemon=True)
+        #sub_thread = threading.Thread(target=self.subscribe_tp2_data, daemon=True)
         
         media_thread.start()
         nav_thread.start()
-        tp2_thread.start()
-        flask_thread.start()
-        sub_thread.start()
+       # tp2_thread.start()
+       # flask_thread.start()
+        #sub_thread.start()
         
         try:
             while self.running:
@@ -643,11 +643,11 @@ class HudiyData:
         if self.media_client: self.media_client.disconnect()
         if self.nav_client: self.nav_client.disconnect()
         if self.tp2_client: self.tp2_client.disconnect()
-        self.tp2_handler.stop()
+        #self.tp2_handler.stop()
         
         media_thread.join(timeout=2.0)
         nav_thread.join(timeout=2.0)
-        tp2_thread.join(timeout=2.0)
+        #tp2_thread.join(timeout=2.0)
         
         self.safe_pub.stop()
         logger.info("ZMQ publisher closed.")
