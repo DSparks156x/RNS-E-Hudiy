@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // I should add the value text back, maybe inside the gauge wrapper or below it.
 
         let mafVal = data[1] && data[1].value !== undefined ? data[1].value : data[1];
-        drawGauge('gauge_maf', mafVal, 0, 400, 'g/s');
+        drawGauge('gauge_maf', mafVal, 0, 400, ['g/s','MAF']);
     }
 
     function updateEngine020(data) {
@@ -171,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Gauge for Actual (data[1])
         let actVal = data[1] && data[1].value !== undefined ? data[1].value : data[1];
-        drawGauge('gauge_fuel', actVal, 0, 150, 'Bar');
+        drawGauge('gauge_fuel', actVal, 0, 150, ['Bar', 'Actual']);
     }
 
     function updateEngine115(data) {
@@ -180,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Gauge for Actual (data[3])
         let actVal = data[3] && data[3].value !== undefined ? data[3].value : data[3];
-        drawGauge('gauge_boost', actVal, 0, 3000, 'mbar');
+        drawGauge('gauge_boost', actVal, 0, 3000, ['mbar', 'Actual']);
     }
 
     function updateEngine134(data) {
@@ -203,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // setText('trans_11_3', data[3]); // Pressure (Gauge Label) - Removed duplicate
 
         // Gauge
-        drawGauge('gauge_pres_1', data[3].value, 0, 20, 'Bar');
+        drawGauge('gauge_pres_1', data[3].value, 0, 20, ['Bar', 'Clutch 1']);
     }
 
     function updateTransClutch2(data) {
@@ -215,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // setText('trans_12_3', data[3]); // Pressure (Gauge Label) - Removed duplicate
 
         // Gauge
-        drawGauge('gauge_pres_2', data[3].value, 0, 20, 'Bar');
+        drawGauge('gauge_pres_2', data[3].value, 0, 20, ['Bar', 'Clutch 2']);
     }
 
     function updateTransSelector(data) {
@@ -243,10 +243,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateAWDPerf(data) {
         // Group 3: Pressure, Torque, Valve, Current
-        drawGauge('gauge_awd_pres', data[0].value, 0, 60, 'Bar'); // High pressure pump
+        drawGauge('gauge_awd_pres', data[0].value, 0, 60, ['Bar', 'Oil Pressure']); // High pressure pump
         // setText('awd_3_0', data[0]);
 
-        drawGauge('gauge_awd_torque', data[1].value, 0, 2000, 'Nm');
+        drawGauge('gauge_awd_torque', data[1].value, 0, 2000, ['Nm', 'Est. Torque']);
         // setText('awd_3_1', data[1]);
 
         setText('awd_3_2', data[2]);
@@ -344,6 +344,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         ctx.font = '14px sans-serif';
         ctx.fillStyle = '#888';
-        ctx.fillText(label, cx, cy + 20);
+        let labelArr = [];
+        if (typeof label === 'string') {
+            labelArr = label.split('\n');
+        } else {
+            labelArr = label;
+        }
+
+        for (let i = 0; i < labelArr.length; i++) {
+            ctx.fillText(labelArr[i], cx, cy + 20 + (i * 15));
+        }
     }
 });

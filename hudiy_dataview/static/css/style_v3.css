@@ -114,8 +114,8 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     /* Pressure | Selector */
-    grid-template-rows: 1.5fr 0.5fr;
-    /* Main | Bottom */
+    grid-template-rows: 1fr 35px;
+    /* Main | Bottom (Compact) */
     grid-template-areas:
         "pressure selector"
         "temp temp";
@@ -148,7 +148,7 @@ body {
 
 .gauges-row {
     display: flex;
-    justify-content: center;
+    justify-content: space-evenly;
     /* Center horizontally */
     align-items: center;
     /* Center vertically */
@@ -266,13 +266,16 @@ body {
 }
 
 /* Temp Panel */
+/* Temp Panel */
 .temp-panel {
     grid-area: temp;
+    display: flex;
     flex-direction: row;
-    /* Flex row for panel content */
     align-items: center;
-    justify-content: center;
-    padding: 5px;
+    justify-content: space-around;
+    padding: 0 5px;
+    height: 35px;
+    border-top: 1px solid #333;
 }
 
 /* FIXED: Missing val-grid class for horizontal layout */
@@ -362,10 +365,6 @@ body {
         "temp temp temp";
     gap: 10px;
     height: 100%;
-}
-
-.boost-panel {
-    grid-area: boost;
 }
 
 .perf-panel {
@@ -505,7 +504,7 @@ body {
 .awd-layout {
     display: grid;
     grid-template-columns: 2fr 1.2fr 1.2fr;
-    grid-template-rows: 1fr;
+    grid-template-rows: 1fr 35px;
     gap: var(--grid-gap);
     height: 100%;
 }
@@ -571,7 +570,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: space-evenly;
     /* Ensure top is never clipped */
     padding-top: 40px;
     /* Manually centered (approx 300px content in 370px panel) */
