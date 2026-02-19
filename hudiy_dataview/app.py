@@ -3,15 +3,26 @@ import sys
 import json
 import time
 import threading
+import queue
 import logging
 import random
 import zmq
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 
-# Configuration
-ZMQ_PUB_ADDR = 'tcp://localhost:5557'
-ZMQ_REQ_ADDR = 'tcp://localhost:5558'
+# Configuration — load ZMQ addresses from config.json (same as tp2_worker)
+_DEFAULT_TP2_STREAM  = 'ipc:///run/rnse_control/tp2_stream.ipc'
+_DEFAULT_TP2_COMMAND = 'ipc:///run/rnse_control/tp2_cmd.ipc'
+try:
+    _base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(_base_dir, 'config.json')) as _f:
+        _cfg = json.load(_f)
+    ZMQ_PUB_ADDR = _cfg['zmq'].get('tp2_stream',  _DEFAULT_TP2_STREAM)
+    ZMQ_REQ_ADDR = _cfg['zmq'].get('tp2_command', _DEFAULT_TP2_COMMAND)
+except Exception as _e:
+    logging.warning(f"Could not load config.json, using default ZMQ addresses: {_e}")
+    ZMQ_PUB_ADDR = _DEFAULT_TP2_STREAM
+    ZMQ_REQ_ADDR = _DEFAULT_TP2_COMMAND
 
 # --- Setup Flask & SocketIO ---
 app = Flask(__name__)
@@ -43,8 +54,41 @@ class ZMQWorker:
         self.context = zmq.Context()
         self.running = True
         self.sub_sock = None
-        self.req_sock = None
-        self.lock = threading.Lock()
+        # Command queue: items are (msg_dict, result_queue)
+        self._cmd_queue = queue.Queue()
+        self._cmd_thread = threading.Thread(target=self._command_loop, daemon=True)
+        self._cmd_thread.start()
+
+    def _new_req_sock(self):
+        """Create a fresh REQ socket connected to tp2_worker."""
+        s = self.context.socket(zmq.REQ)
+        s.connect(ZMQ_REQ_ADDR)
+        s.setsockopt(zmq.RCVTIMEO, 2000)
+        s.setsockopt(zmq.LINGER, 0)
+        return s
+
+    def _command_loop(self):
+        """Single thread that owns the REQ socket. Processes commands serially."""
+        logger.info("ZMQ command thread started")
+        req_sock = self._new_req_sock()
+        while True:
+            try:
+                msg, result_q = self._cmd_queue.get(timeout=1.0)
+            except queue.Empty:
+                continue
+
+            try:
+                req_sock.send_json(msg)
+                resp = req_sock.recv_json()
+                result_q.put(resp)
+            except Exception as e:
+                logger.warning(f"ZMQ REQ error: {e}. Rebuilding socket...")
+                try:
+                    req_sock.close()
+                except Exception:
+                    pass
+                req_sock = self._new_req_sock()
+                result_q.put({"status": "error", "message": str(e)})
 
     def connect(self):
         try:
@@ -53,13 +97,6 @@ class ZMQWorker:
             self.sub_sock.connect(ZMQ_PUB_ADDR)
             self.sub_sock.subscribe(b"HUDIY_DIAG")
             logger.info(f"Connected to ZMQ PUB at {ZMQ_PUB_ADDR}")
-            
-            # Requester (Commands)
-            self.req_sock = self.context.socket(zmq.REQ)
-            self.req_sock.connect(ZMQ_REQ_ADDR)
-            self.req_sock.setsockopt(zmq.RCVTIMEO, 2000)
-            self.req_sock.setsockopt(zmq.LINGER, 0)
-            logger.info(f"Connected to ZMQ REQ at {ZMQ_REQ_ADDR}")
             return True
         except Exception as e:
             logger.error(f"ZMQ Connection Failed: {e}")
@@ -70,29 +107,17 @@ class ZMQWorker:
             logger.info(f"MOCK CMD: {cmd} Mod:{module} Grp:{group}")
             return {"status": "mock_ok"}
 
-        with self.lock:
-            try:
-                msg = {"cmd": cmd}
-                if module is not None: msg['module'] = module
-                if group is not None: msg['group'] = group
-                
-                self.req_sock.send_json(msg)
-                resp = self.req_sock.recv_json()
-                return resp
-            except Exception as e:
-                logger.warning(f"ZMQ Request Error: {e}. Reconnecting socket...")
-                # REQ sockets have a strict send/recv state machine.
-                # Any error leaves the socket in a broken state, so we must
-                # close and recreate it before the next call will work.
-                try:
-                    self.req_sock.close()
-                except Exception:
-                    pass
-                self.req_sock = self.context.socket(zmq.REQ)
-                self.req_sock.connect(ZMQ_REQ_ADDR)
-                self.req_sock.setsockopt(zmq.RCVTIMEO, 2000)
-                self.req_sock.setsockopt(zmq.LINGER, 0)
-                return {"status": "error", "message": str(e)}
+        msg = {"cmd": cmd}
+        if module is not None: msg['module'] = module
+        if group is not None: msg['group'] = group
+
+        # Put the command on the queue and wait for the serial thread to process it
+        result_q = queue.Queue(maxsize=1)
+        self._cmd_queue.put((msg, result_q))
+        try:
+            return result_q.get(timeout=5.0)
+        except queue.Empty:
+            return {"status": "error", "message": "Command queue timeout"}
 
     def run(self):
         global MOCK_MODE
