@@ -1,4 +1,11 @@
 {
     "applications": [
+        {
+            "action": "hudiy_diagnostics",
+            "url": "http://localhost:5000",
+            "allowBackground": true,
+            "controlAudioFocus": false,
+            "audioStreamCategory": "NONE"
+        }
     ]
 }

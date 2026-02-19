@@ -55,14 +55,14 @@ apt-get update
 apt-get install -y git python3-pip can-utils python3-can python3-serial \
     python3-tz python3-unidecode python3-zmq python3-aiozmq python3-uinput \
     python3-protobuf python3-full python3-venv protobuf-compiler python3-gpiozero \
-    python3-flask python3-flask-cors
+    python3-flask python3-flask-cors python3-flask-socketio
 
 echo "   Checking websocket-client..."
 if dpkg -s python3-websocket-client &> /dev/null || dpkg -s python3-websocket &> /dev/null; then
     echo "   - Installed via apt."
 else
     echo "   - Not found in apt, attempting pip install..."
-    pip3 install websocket-client --break-system-packages &> /dev/null
+    pip3 install websocket-client eventlet --break-system-packages &> /dev/null
 fi
 echo "? Dependencies installed."
 
@@ -95,6 +95,7 @@ install_folder "rns-e_can"
 install_folder "hudiy_client"
 install_folder "dis_client"
 install_folder "tp2"
+install_folder "hudiy_dataview"
 
 # Install Config (Only if missing)
 if [ ! -f "$REAL_HOME/config.json" ]; then
@@ -120,6 +121,7 @@ chown -R $REAL_USER:$REAL_USER "$REAL_HOME/rns-e_can"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/hudiy_client"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/dis_client"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/tp2"
+chown -R $REAL_USER:$REAL_USER "$REAL_HOME/hudiy_dataview"
 chown $REAL_USER:$REAL_USER "$REAL_HOME/config.json"
 
 echo "? Project files installed and cleaned."
@@ -296,6 +298,23 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target"
 
+# 1.6 hudiy_dataview (UI for diagnostics)
+write_service "hudiy_dataview.service" "[Unit]
+Description=Hudiy Diagnostics DataView
+After=tp2_worker.service
+
+[Service]
+User=${REAL_USER}
+Group=${REAL_USER}
+WorkingDirectory=${REAL_HOME}/hudiy_dataview
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 ${REAL_HOME}/hudiy_dataview/app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target"
+
 # 2. can_base_function
 write_service "can_base_function.service" "[Unit]
 Description=RNS-E CAN-Bus Base Functionality
@@ -423,7 +442,8 @@ $SYSTEMCTL enable --now systemd-networkd
 
 echo "   Enabling and Starting Application Services..."
 $SYSTEMCTL enable --now can_handler.service can_base_function.service tp2_worker.service \
-                        can_keyboard_control.service dark_mode_api.service hudiy_data_api.service
+                        can_keyboard_control.service dark_mode_api.service hudiy_data_api.service \
+                        hudiy_dataview.service
 
 # Start delayed services non-blocking
 $SYSTEMCTL enable --now --no-block dis_service.service dis_display.service
