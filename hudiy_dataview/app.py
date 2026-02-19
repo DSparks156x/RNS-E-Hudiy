@@ -316,5 +316,5 @@ if __name__ == '__main__':
     worker_thread = threading.Thread(target=worker.run, daemon=True)
     worker_thread.start()
 
-    logger.info("Starting Flask-SocketIO Server on port 5000")
+    logger.info("Starting Flask-SocketIO Server on port 5003")
     socketio.run(app, host='0.0.0.0', port=5003, allow_unsafe_werkzeug=True)
