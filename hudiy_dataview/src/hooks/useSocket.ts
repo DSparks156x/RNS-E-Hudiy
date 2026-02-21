@@ -122,5 +122,5 @@ export function useSocket(currentTab: TabId) {
         }
     }, [currentTab]);
 
-    return { data, intervalMs };
+    return { data, intervalMs, socket: socketRef.current };
 }

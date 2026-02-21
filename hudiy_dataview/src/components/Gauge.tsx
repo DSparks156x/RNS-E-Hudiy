@@ -34,9 +34,7 @@ export function Gauge({ value, min, max, label, size = 140 }: GaugeProps) {
           cornerRadius={4}
           fill="#ff3b3b"
           angleAxisId={0}
-          isAnimationActive={true}
-          animationDuration={500}
-          animationEasing="ease-out"
+          isAnimationActive={false}
         />
       </RadialBarChart>
 

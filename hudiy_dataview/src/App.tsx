@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useSocket } from './hooks/useSocket';
 import { useSwipe } from './hooks/useSwipe';
-import { useSmoothedData } from './hooks/useSmoothedData';
 import { TabId } from './types';
 import { EngineTab } from './tabs/EngineTab';
 import { TransmissionTab } from './tabs/TransmissionTab';
@@ -15,11 +14,17 @@ const TABS: { id: TabId; label: string }[] = [
 
 export function App() {
   const [currentTab, setCurrentTab] = useState<TabId>('engine');
-  const [smoothing, setSmoothing] = useState(false);
-  const { data, intervalMs } = useSocket(currentTab);
+  const [smoothing, setSmoothing] = useState(true);
+  const { data, intervalMs, socket } = useSocket(currentTab);
 
-  // Interpolate data at 60fps between server updates when smoothing is enabled
-  const displayData = useSmoothedData(data, intervalMs, smoothing);
+  // Toggle smoothing on the server — app.py handles the 20Hz interpolation loop
+  const toggleSmoothing = useCallback(() => {
+    setSmoothing((s) => {
+      const next = !s;
+      socket?.emit('set_smoothing', { enabled: next });
+      return next;
+    });
+  }, [socket]);
 
   const currentIndex = TABS.findIndex((t) => t.id === currentTab);
 
@@ -36,35 +41,9 @@ export function App() {
   const translatePct = -(currentIndex * (100 / tabCount));
 
 
+
   return (
-    <div className="container" style={{ position: 'relative' }}>
-
-      {/* Dev Overlays */}
-      <div className="dev-overlay-480" style={{
-        position: 'absolute',
-        top: 0, left: 0,
-        width: '800px', height: '480px',
-        border: '2px dashed cyan',
-        pointerEvents: 'none',
-        zIndex: 9999,
-        boxSizing: 'border-box'
-      }}>
-        <span style={{ color: 'cyan', position: 'absolute', bottom: 2, right: 4, fontSize: '12px', background: 'rgba(0,0,0,0.5)', padding: '0 4px' }}>800x480 (Total Window)</span>
-      </div>
-
-      <div className="dev-overlay-406" style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '800px', height: '406px',
-        border: '2px dashed magenta',
-        pointerEvents: 'none',
-        zIndex: 9998,
-        boxSizing: 'border-box'
-      }}>
-        <span style={{ color: 'magenta', position: 'absolute', bottom: 2, right: 4, fontSize: '12px', background: 'rgba(0,0,0,0.5)', padding: '0 4px' }}>800x406 (Viewport Content)</span>
-      </div>
-
+    <div className="container">
       <nav className="tabs">
         {TABS.map((tab) => (
           <button
@@ -75,17 +54,15 @@ export function App() {
             {tab.label}
           </button>
         ))}
-        {/* Smoothing Toggle — sits flush right in nav bar */}
         <button
           className={`smooth-toggle${smoothing ? ' active' : ''}`}
-          onClick={() => setSmoothing((s) => !s)}
+          onClick={toggleSmoothing}
           title="Toggle data smoothing"
         >
           ~
         </button>
       </nav>
 
-      {/* Swipe capture area — clips the strip */}
       <div
         className="tab-swipe-area"
         style={{ '--rx-interval': `${intervalMs}ms` } as React.CSSProperties}
@@ -95,9 +72,9 @@ export function App() {
           className="tab-strip"
           style={{ transform: `translateX(${translatePct}%)` }}
         >
-          <div className="tab-slide"><EngineTab data={displayData} /></div>
-          <div className="tab-slide"><TransmissionTab data={displayData} /></div>
-          <div className="tab-slide"><AWDTab data={displayData} /></div>
+          <div className="tab-slide"><EngineTab data={data} /></div>
+          <div className="tab-slide"><TransmissionTab data={data} /></div>
+          <div className="tab-slide"><AWDTab data={data} /></div>
         </div>
       </div>
     </div>

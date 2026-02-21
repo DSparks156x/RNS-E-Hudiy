@@ -56,8 +56,8 @@ class TP2Service:
         self.rep.bind(self.addr_rep)
         
         # Connection Management
-        self.sessions = {} 
-        self.next_tester_id = 0x300
+        self.sessions = {}
+        self._tester_id_pool = list(range(0x300, 0x30A))  # 0x300-0x309
         self.running = True # Default to ON, will update if Ignition says OFF
         
         # Threading
@@ -73,8 +73,9 @@ class TP2Service:
             return self.sessions[module_id]
         
         # Create new session
-        tester_id = self.next_tester_id
-        self.next_tester_id += 1 # Increment for next module (0x300, 0x301...)
+        if not self._tester_id_pool:
+            raise RuntimeError("No tester IDs available (max 10 simultaneous modules)")
+        tester_id = self._tester_id_pool.pop(0)
         
         logger.info(f"Creating new session for Module 0x{module_id:02X} (TesterID: 0x{tester_id:X})")
         
@@ -315,11 +316,15 @@ class TP2Service:
                                  logger.info(f"Module 0x{mod_id:02X} Disconnected (Cleanup).")
                              except: pass
                         
-                        # Remove from main dict safely
+                        # Remove from main dict safely, return tester ID to pool
                         with self.lock:
                             if mod_id in self.sessions and not self.sessions[mod_id]['active']:
+                                freed_id = self.sessions[mod_id]['tester_id']
                                 del self.sessions[mod_id]
-                                logger.info(f"Module 0x{mod_id:02X} Session Deleted.")
+                                if freed_id not in self._tester_id_pool:
+                                    self._tester_id_pool.append(freed_id)
+                                    self._tester_id_pool.sort()
+                                logger.info(f"Module 0x{mod_id:02X} Session Deleted (TesterID 0x{freed_id:X} returned to pool).")
                         continue
                     
                     # Connection Management
