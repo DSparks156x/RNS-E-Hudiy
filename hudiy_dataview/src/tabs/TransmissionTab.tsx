@@ -72,7 +72,7 @@ export function TransmissionTab({ data }: TransmissionTabProps) {
         </div>
 
         {/* Temps */}
-        <div className="panel eng-temp-panel">
+        <div className="engine-temp-row">
           {tempLabels.map((label, i) => (
             <div key={label} className="temp-item">
               <span className="stat-label">{label}</span>

@@ -11,19 +11,20 @@ interface GaugeProps {
 
 export function Gauge({ value, min, max, label, size = 140 }: GaugeProps) {
   const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+  const svgHeight = size * 0.85;
 
   return (
-    <div className="gauge-wrapper-md" style={{ position: 'relative', width: size, height: size }}>
+    <div className="gauge-wrapper-md" style={{ position: 'relative', width: size, height: svgHeight, margin: '0 auto' }}>
       <RadialBarChart
         width={size}
-        height={size}
+        height={svgHeight}
         cx={size / 2}
         cy={size / 2}
         innerRadius={size / 2 - 20}
-        outerRadius={size / 2 - 5}
+        outerRadius={size / 2 - 3} // Made slightly thicker (outerRadius increased)
         data={[{ value: pct }]}
-        startAngle={225}
-        endAngle={-45}
+        startAngle={210}
+        endAngle={-30}
       >
         {/* Domain 0-100 so the bar represents percentage fill */}
         <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
@@ -33,6 +34,9 @@ export function Gauge({ value, min, max, label, size = 140 }: GaugeProps) {
           cornerRadius={4}
           fill="#ff3b3b"
           angleAxisId={0}
+          isAnimationActive={true}
+          animationDuration={500}
+          animationEasing="ease-out"
         />
       </RadialBarChart>
 
@@ -54,11 +58,12 @@ export function Gauge({ value, min, max, label, size = 140 }: GaugeProps) {
       {/* Sub-labels pushed below center */}
       <div style={{
         position: 'absolute',
-        top: '68%',
+        top: '75%', /* Adjusted for new compressed vertical bounding box */
         left: '50%',
         transform: 'translateX(-50%)',
         textAlign: 'center',
         pointerEvents: 'none',
+        lineHeight: 1.2
       }}>
         {label.map((line) => (
           <div key={line} style={{ color: '#888', fontSize: 11, lineHeight: 1.3 }}>{line}</div>

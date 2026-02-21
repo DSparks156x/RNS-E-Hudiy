@@ -48,13 +48,14 @@ export function EngineTab({ data }: EngineTabProps) {
 
   return (
     <section id="engine" className="tab-content active">
-      <div className="engine-layout">
-        {/* Center: Boost */}
-        <div className="panel boost-panel">
+      <div className="engine-grid">
+
+        {/* Left Column: Air & Boost (Formerly Center) */}
+        <div className="engine-col">
           <div className="gauge-title">Mass Air Flow</div>
-          <Gauge id="gauge_maf" value={mafVal} min={0} max={400} label={['g/s', '']} />
+          <Gauge id="gauge_maf" value={mafVal} min={0} max={400} label={['g/s', '']} size={125} />
           <div className="gauge-title">Boost</div>
-          <Gauge id="gauge_boost" value={boostActual} min={0} max={3000} label={['mbar', 'Actual']} />
+          <Gauge id="gauge_boost" value={boostActual} min={0} max={3000} label={['mbar', 'Actual']} size={125} />
           <div className="stat-list">
             <div className="stat-row">
               <span className="stat-label">Request</span>
@@ -63,8 +64,8 @@ export function EngineTab({ data }: EngineTabProps) {
           </div>
         </div>
 
-        {/* Left: Performance */}
-        <div className="panel perf-panel">
+        {/* Center Column: Performance (Formerly Left) */}
+        <div className="engine-col perf-col">
           <div className="perf-top">
             <div className="rpm-display">
               <div className="stat-label">Engine Speed</div>
@@ -78,10 +79,10 @@ export function EngineTab({ data }: EngineTabProps) {
           <KnockBars values={knockValues} />
         </div>
 
-        {/* Right: Fuel */}
-        <div className="panel fuel-panel">
+        {/* Right Column: Fuel */}
+        <div className="engine-col">
           <div className="gauge-title">Fuel Pressure</div>
-          <Gauge id="gauge_fuel" value={fuelActual} min={0} max={150} label={['Bar', 'Actual']} />
+          <Gauge id="gauge_fuel" value={fuelActual} min={0} max={150} label={['Bar', 'Actual']} size={130} />
           <div className="stat-list">
             <div className="stat-row">
               <span className="stat-label">Specified</span>
@@ -95,8 +96,8 @@ export function EngineTab({ data }: EngineTabProps) {
           <InjectionBar value={injTimeNum} />
         </div>
 
-        {/* Bottom: Temps */}
-        <div className="panel eng-temp-panel">
+        {/* Bottom Row (Spans all 3 cols): Temps */}
+        <div className="engine-temp-row">
           {tempLabels.map((label, i) => (
             <div key={label} className="temp-item">
               <span className="stat-label">{label}</span>
@@ -104,6 +105,7 @@ export function EngineTab({ data }: EngineTabProps) {
             </div>
           ))}
         </div>
+
       </div>
     </section>
   );
