@@ -116,6 +116,10 @@ class TP2Coding:
         elif t == 56: # WSC
              val = a * 256 + b
              unit = "WSC"
+             
+        elif t == 83: # Pressure bar
+             val = (a * 256 + b) * 0.01
+             unit = "bar"
 
         else:
              # Fallback

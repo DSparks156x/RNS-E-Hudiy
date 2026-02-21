@@ -98,15 +98,18 @@ class TP2Protocol:
         logger.info(f"TP2: Connecting to Module 0x{target_module_id:02X}...")
         
         # 1. Broadcast Request (0x200)
-        # Format: [DestID, OpCode=C0, 00, 10, 00, 03, 01]
-        req = [target_module_id, 0xC0, 0x00, 0x10, 0x00, 0x03, 0x01]
+        # Format: [DestID, OpCode=C0, 00, 10, TX_ID_Low, TX_ID_High, 01]
+        tester_id_low = self.tester_id & 0xFF
+        tester_id_high = (self.tester_id >> 8) & 0x0F
+        req = [target_module_id, 0xC0, 0x00, 0x10, tester_id_low, tester_id_high, 0x01]
         self._send(self.CAN_BROADCAST_REQ, req)
 
-        # 2. Wait for Response (0x201)
+        # 2. Wait for Response (0x200 + target_module_id)
         # Format: [ModID, D0, CommID_Low, CommID_High, RX_ID_Low, RX_ID_High, 00]
-        resp = self._recv(self.CAN_BROADCAST_RESP, 1000)
+        expected_resp_id = self.CAN_BROADCAST_REQ + target_module_id
+        resp = self._recv(expected_resp_id, 1000)
         if not resp:
-            logger.error("TP2: No response to connection request.")
+            logger.error(f"TP2: No response to connection request on ID 0x{expected_resp_id:X}.")
             return False
         
         if resp[0] != 0x00 or resp[1] != 0xD0:

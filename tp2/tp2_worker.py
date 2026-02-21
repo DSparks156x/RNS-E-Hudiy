@@ -347,12 +347,38 @@ class TP2Service:
                     if not self._ensure_connected(mod_id, session):
                         continue
                     
+                    # Find Next Available Group
                     # Logic
                     # Safety check on index
                     if session['idx'] >= len(session['groups_list']):
                         session['idx'] = 0
                         
-                    grp = session['groups_list'][session['idx']]
+                    # Initialize tracking if missing
+                    if 'group_errors' not in session: session['group_errors'] = {}
+                    if 'group_cooldowns' not in session: session['group_cooldowns'] = {}
+                        
+                    start_idx = session['idx']
+                    grp = None
+                    valid_group_found = False
+                    
+                    for _ in range(len(session['groups_list'])):
+                        candidate_grp = session['groups_list'][session['idx']]
+                        if time.time() > session['group_cooldowns'].get(candidate_grp, 0):
+                            grp = candidate_grp
+                            valid_group_found = True
+                            break
+                        # Move to next
+                        session['idx'] = (session['idx'] + 1) % len(session['groups_list'])
+                        
+                    if not valid_group_found:
+                        # All groups in cooldown. Keep session alive but do nothing else.
+                        if session['connected']:
+                             try:
+                                 session['protocol'].send_keep_alive()
+                             except:
+                                 session['connected'] = False
+                        continue
+                        
                     proto = session['protocol']
                     
                     try:
@@ -369,24 +395,25 @@ class TP2Service:
                             }
                             self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
                             
+                            session['group_errors'][grp] = 0 
                             session['error_count'] = 0 
                             
-                            # Cycle
-                            if session['groups_list']:
-                                 session['idx'] = (session['idx'] + 1) % len(session['groups_list'])
-                            
                         elif resp and resp[0] == 0x7F:
+                            # NRC (Negative Response Code)
                             logger.warning(f"Mod 0x{mod_id:02X} Grp {grp} Rejected: {resp}")
-                        
+                            session['group_errors'][grp] = session['group_errors'].get(grp, 0) + 1
+                            
                         # MANDATORY KEEP-ALIVE
                         proto.send_keep_alive()
 
                     except TP2Error as e:
-                        session['error_count'] += 1
-                        logger.error(f"Mod 0x{mod_id:02X} Error: {e} (Count: {session['error_count']})")
+                        session['group_errors'][grp] = session['group_errors'].get(grp, 0) + 1
+                        logger.error(f"Mod 0x{mod_id:02X} Grp {grp} Error: {e} (Count: {session['group_errors'][grp]})")
                         
-                        if session['error_count'] >= 3:
-                            logger.error("Too many errors. Forcing Reconnect.")
+                        # Session level fallback
+                        session['error_count'] += 1
+                        if session['error_count'] >= 5:
+                            logger.error("Too many session errors. Forcing Reconnect.")
                             session['connected'] = False
                             proto.disconnect()
                             session['error_count'] = 0
@@ -395,6 +422,16 @@ class TP2Service:
                             except: 
                                 session['connected'] = False
                                 proto.disconnect()
+                                
+                    # Cooldown logic for this group
+                    if session['group_errors'].get(grp, 0) >= 3:
+                         logger.warning(f"Mod 0x{mod_id:02X} Grp {grp} failed 3 times. Suspending for 30 seconds.")
+                         session['group_cooldowns'][grp] = time.time() + 30.0
+                         session['group_errors'][grp] = 0
+                         
+                    # Cycle to next group unconditionally for next loop
+                    if session['groups_list']:
+                         session['idx'] = (session['idx'] + 1) % len(session['groups_list'])
                 
                 # Rate Limiting
                 time.sleep(0.05) # Faster for responsiveness, thread handles command blocking
