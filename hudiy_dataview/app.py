@@ -318,6 +318,16 @@ class ZMQWorker:
 # Initialize Worker
 worker = ZMQWorker()
 
+current_subscriptions = {}  # {module_id: set([group1, group2])}
+
+def sync_subscriptions():
+    """Background task to continuously enforce the app's desired subscriptions."""
+    while True:
+        socketio.sleep(3.0)
+        # Avoid syncing if no clients connected, or just sync anyway to keep it alive
+        for mod, groups in list(current_subscriptions.items()):
+            worker.send_command("SYNC", module=mod, groups=list(groups), client_id="dataview")
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -334,9 +344,21 @@ def handle_toggle(data):
     grp = data.get('group')
     action = data.get('action')
     
-    cmd = "ADD" if action == 'add' else "REMOVE"
-    resp = worker.send_command(cmd, mod, grp)
-    emit('command_response', resp)
+    if mod is not None and grp is not None:
+        mod = int(mod)
+        grp = int(grp)
+        if mod not in current_subscriptions:
+            current_subscriptions[mod] = set()
+            
+        if action == 'add':
+            current_subscriptions[mod].add(grp)
+        elif action == 'remove':
+            current_subscriptions[mod].discard(grp)
+            
+        # Immediately trigger a sync for responsiveness
+        worker.send_command("SYNC", module=mod, groups=list(current_subscriptions[mod]), client_id="dataview")
+        
+    emit('command_response', {"status": "ok", "action": action, "module": mod, "group": grp})
 
 if __name__ == '__main__':
     # Determine mode based on args or environment
@@ -349,4 +371,5 @@ if __name__ == '__main__':
     worker_thread.start()
 
     logger.info("Starting Flask-SocketIO Server on port 5003")
+    socketio.start_background_task(sync_subscriptions)
     socketio.run(app, host='0.0.0.0', port=5003, allow_unsafe_werkzeug=True)

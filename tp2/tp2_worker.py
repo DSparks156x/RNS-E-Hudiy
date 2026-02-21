@@ -190,9 +190,14 @@ class TP2Service:
                         for mod, s in self.sessions.items():
                             sess_info.append({
                                 "module": mod,
-                                "connected": s['connected'],
-                                "active": s['active'],
-                                "groups": list(s['subs'].keys())
+                                "connected": s.get('connected', False),
+                                "active": s.get('active', False),
+                                "client_subs": s.get('client_subs', {}),
+                                "groups_list": s.get('groups_list', []),
+                                "error_count": s.get('error_count', 0),
+                                "last_activity": s.get('last_activity', 0),
+                                "group_errors": s.get('group_errors', {}),
+                                "group_cooldowns": s.get('group_cooldowns', {})
                             })
                         response = {
                             "status": "ok", 
@@ -201,59 +206,42 @@ class TP2Service:
                             "sessions": sess_info
                         }
 
-                elif cmd == "ADD":
+                elif cmd == "SYNC":
+                    client_id = msg.get("client_id")
                     mod = msg.get("module")
-                    grp = msg.get("group")
-                    if mod is not None and grp is not None:
+                    groups = msg.get("groups", [])
+                    
+                    if client_id and mod is not None:
                         param_mod = int(mod)
-                        param_grp = int(grp)
+                        param_groups = [int(g) for g in groups]
+                        
                         with self.lock:
                             session = self._get_or_create_session(param_mod)
-                            session['active'] = True # Revive if pending delete
                             
-                            # Ref Counting
-                            if param_grp in session['subs']:
-                                session['subs'][param_grp] += 1
-                                logger.info(f"(Cmd) Incremented Group {param_grp} count to {session['subs'][param_grp]}")
-                            else:
-                                session['subs'][param_grp] = 1
-                                session['groups_list'].append(param_grp)
-                                logger.info(f"(Cmd) Added Group {param_grp} to Module 0x{param_mod:02X}")
+                            if 'client_subs' not in session:
+                                session['client_subs'] = {}
                                 
-                            response = {"status": "ok", "message": "Group added", "count": session['subs'][param_grp]}
-                
-                elif cmd == "REMOVE":
-                    mod = msg.get("module")
-                    grp = msg.get("group")
-                    if mod is not None and grp is not None:
-                         param_mod = int(mod)
-                         param_grp = int(grp)
-                         with self.lock:
-                             if param_mod in self.sessions:
-                                 session = self.sessions[param_mod]
-                                 if param_grp in session['subs']:
-                                     session['subs'][param_grp] -= 1
-                                     count = session['subs'][param_grp]
-                                     logger.info(f"(Cmd) Decremented Group {param_grp} count to {count}")
-                                     
-                                     if count <= 0:
-                                         del session['subs'][param_grp]
-                                         if param_grp in session['groups_list']:
-                                             session['groups_list'].remove(param_grp)
-                                             if session['idx'] >= len(session['groups_list']):
-                                                 session['idx'] = 0
-                                         logger.info(f"(Cmd) Removed Group {param_grp}")
-                                         
-                                         # Check if session is empty
-                                         if not session['subs']:
-                                             logger.info(f"(Cmd) Module 0x{param_mod:02X} has no subs. Marking inactive.")
-                                             session['active'] = False
-                                     
-                                     response = {"status": "ok", "message": "Group removed", "count": count}
-                                 else:
-                                     response = {"status": "warning", "message": "Group not found"}
-                             else:
-                                 response = {"status": "error", "message": "Module not active"}
+                            if param_groups:
+                                session['client_subs'][client_id] = param_groups
+                            else:
+                                session['client_subs'].pop(client_id, None)
+                                
+                            # Rebuild the master polling list (union of all client groups)
+                            unique_groups = set()
+                            for subs in session['client_subs'].values():
+                                unique_groups.update(subs)
+                                
+                            session['groups_list'] = list(unique_groups)
+                            session['active'] = len(session['groups_list']) > 0
+                            
+                            # Reset index if it's now out of bounds
+                            if session['idx'] >= len(session['groups_list']):
+                                session['idx'] = 0
+                                
+                            logger.info(f"(Cmd) SYNC for client '{client_id}', Mod 0x{param_mod:02X}, Groups: {session['groups_list']}")
+                            response = {"status": "ok", "message": "Synced", "active_groups": session['groups_list']}
+                    else:
+                        response = {"status": "error", "message": "Missing client_id or module"}
 
                 elif cmd == "CLEAR":
                     with self.lock:
