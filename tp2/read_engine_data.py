@@ -18,13 +18,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def read_continuous(groups):
+def read_continuous(module_id, groups):
     protocol = TP2Protocol(channel='can0')
-    print(f"Connecting to Engine (0x01) to read Groups {groups} continuously...")
+    print(f"Connecting to Module 0x{module_id:02X} to read Groups {groups} continuously...")
     
     try:
         protocol.open()
-        if not protocol.connect(0x01): 
+        if not protocol.connect(module_id): 
             print("Failed to connect.")
             return
 
@@ -92,22 +92,34 @@ def read_continuous(groups):
         protocol.close()
 
 if __name__ == "__main__":
-    # Default groups if none provided
+    parser = argparse.ArgumentParser(description='Read TP2 data groups from a module.')
+    parser.add_argument(
+        '-m', '--module',
+        default='0x01',
+        help='Module ID in hex (e.g. 0x01, 0x02, 0x22) or decimal. Default: 0x01'
+    )
+    parser.add_argument(
+        'groups',
+        nargs='*',
+        help='Group numbers to read (space or comma separated). Default: 1'
+    )
+    args = parser.parse_args()
+
+    # Parse module ID (support hex and decimal)
+    try:
+        module_id = int(args.module, 0)
+    except ValueError:
+        print(f"Invalid module ID: {args.module}")
+        sys.exit(1)
+
+    # Parse groups
     groups = [1]
-    
-    if len(sys.argv) > 1:
-        # Parse args as comma-separated or space-separated integers
-        input_args = sys.argv[1:]
+    if args.groups:
         try:
-            # Check if arg is a number or string
-            first_arg = input_args[0]
-            if ',' in first_arg:
-                 groups = [int(x) for x in first_arg.split(',')]
-            else:
-                 groups = [int(x) for x in input_args]
-        except:
-            print("Usage: python3 read_engine_data.py <group_numbers>")
-            print("Example: python3 read_engine_data.py 1 2 3")
+            raw = ' '.join(args.groups)
+            groups = [int(x, 0) for x in raw.replace(',', ' ').split()]
+        except ValueError:
+            print("Invalid group numbers. Use integers (decimal or hex like 0x0B).")
             sys.exit(1)
-            
-    read_continuous(groups)
+
+    read_continuous(module_id, groups)
