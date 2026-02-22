@@ -1,0 +1,27 @@
+{
+  "name": "hudiy-dataview",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app.py --mock\" \"vite\"",
+    "build": "vite build",
+    "dev": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app.py --mock\" \"vite\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.4",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.4.5",
+    "vite": "^5.4.19"
+  },
+  "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "recharts": "^3.7.0",
+    "socket.io-client": "^4.8.3"
+  }
+}

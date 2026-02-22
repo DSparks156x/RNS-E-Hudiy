@@ -88,6 +88,10 @@ class TP2Coding:
              val = a * b * 0.01
              unit = "l"
             
+        elif t == 24: # Amps
+             val = a * b * 0.01 # Placeholder scaler
+             unit = "A"
+             
         elif t == 25: # Mass Flow g/s
              val = (a / 182.0) + (1.421 * b)
              unit = "g/s"
@@ -109,6 +113,10 @@ class TP2Coding:
             val = f"{a} {b}" # Raw fallback
             unit = "km"
 
+        elif t == 37: # Status Message
+             val = f"0x{a:02X} 0x{b:02X}" # Usually hex values for status bits
+             unit = "Status"
+
         elif t == 52: # Torque Nm
              val = (b * 0.02 * a) - a
              unit = "Nm"
@@ -116,6 +124,14 @@ class TP2Coding:
         elif t == 56: # WSC
              val = a * 256 + b
              unit = "WSC"
+             
+        elif t == 83: # Pressure bar
+             val = (a * 256 + b) * 0.01
+             unit = "bar"
+
+        elif t == 94: # Torque Nm
+             val = a * b * 0.1 # Placeholder scaler
+             unit = "Nm"
 
         else:
              # Fallback

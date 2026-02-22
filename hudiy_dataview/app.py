@@ -41,12 +41,126 @@ def add_header(response):
     return response
 
 # --- Global State ---
-data_cache = {
-    'engine': {},
-    'transmission': {}, 
-    'awd': {}
-}
 MOCK_MODE = False
+SMOOTHING_ENABLED = True  # default on
+
+# --- Server-Side Interpolator ---
+EMIT_INTERVAL = 0.05    # 20Hz broadcast rate
+EMA_ALPHA     = 0.92     # applied to incoming source values before linear interp (0=frozen, 1=raw)
+
+class Interpolator:
+    """
+    Receives raw diagnostic messages at low rate (~0.5 Hz).
+    Re-emits linearly interpolated values to all SocketIO clients at ~20 Hz.
+
+    When smoothing is disabled, it just passes raw values through at the
+    natural data rate without the 20Hz loop.
+    """
+    def __init__(self):
+        self._lock = threading.Lock()
+        # key = (module, group, value_index)
+        # value = {'prev': float, 'target': float, 'ema': float,
+        #          't_update': float, 'source_interval': float}
+        self._state: dict = {}
+        # latest raw message per (module, group)
+        self._latest_msg: dict = {}
+
+    def _make_key(self, module, group, idx):
+        return (module, group, idx)
+
+    def update(self, module, group, data):
+        """Called when a new raw message arrives from the TP2 / mock source."""
+        now = time.monotonic()
+        with self._lock:
+            for i, dv in enumerate(data):
+                raw = dv.get('value')
+                if not isinstance(raw, (int, float)):
+                    continue  # skip strings
+
+                key = self._make_key(module, group, i)
+                prev_state = self._state.get(key)
+
+                if prev_state is None:
+                    # First ever sample — seed everything
+                    self._state[key] = {
+                        'prev': float(raw),
+                        'target': float(raw),
+                        'ema': float(raw),
+                        't_update': now,
+                        'source_interval': 0.6,
+                    }
+                else:
+                    # EMA filter the new target to smooth out noise
+                    ema = prev_state['ema'] + EMA_ALPHA * (float(raw) - prev_state['ema'])
+                    # Source interval — how long between real updates
+                    src_ivl = now - prev_state['t_update']
+
+                    # The 'prev' for the next lerp segment starts at the
+                    # CURRENT displayed position (not the old target) so
+                    # we don't snap on mid-segment updates.
+                    current_t = min(1.0, (now - prev_state['t_update']) / max(prev_state['source_interval'], 0.05))
+                    current_display = prev_state['prev'] + (prev_state['target'] - prev_state['prev']) * current_t
+
+                    self._state[key] = {
+                        'prev': current_display,
+                        'target': ema,
+                        'ema': ema,
+                        't_update': now,
+                        'source_interval': max(0.05, src_ivl),
+                    }
+
+            # Store the full message structure for re-broadcasting
+            self._latest_msg[(module, group)] = {
+                'module': module,
+                'group': group,
+                'data': data,
+            }
+
+    def get_interpolated(self, module, group):
+        """Return a copy of the latest message with linearly interpolated numeric values."""
+        key_base = (module, group)
+        with self._lock:
+            msg = self._latest_msg.get(key_base)
+            if not msg:
+                return None
+            now = time.monotonic()
+            out_data = []
+            for i, dv in enumerate(msg['data']):
+                raw = dv.get('value')
+                if not isinstance(raw, (int, float)):
+                    out_data.append(dv)
+                    continue
+                key = self._make_key(module, group, i)
+                s = self._state.get(key)
+                if s is None:
+                    out_data.append(dv)
+                    continue
+                t = min(1.0, (now - s['t_update']) / max(s['source_interval'], 0.05))
+                interp = s['prev'] + (s['target'] - s['prev']) * t
+                out_data.append({**dv, 'value': round(interp, 3)})
+            return {'module': module, 'group': group, 'data': out_data}
+
+    def get_raw(self, module, group):
+        with self._lock:
+            return self._latest_msg.get((module, group))
+
+
+interpolator = Interpolator()
+
+
+def interpolation_broadcast_loop():
+    """Background task: runs at 20Hz, emits interpolated data to all clients."""
+    while True:
+        socketio.sleep(EMIT_INTERVAL)
+        if not SMOOTHING_ENABLED:
+            continue  # raw mode: data is emitted directly in update()
+        with interpolator._lock:
+            keys = list(interpolator._latest_msg.keys())
+        for (module, group) in keys:
+            msg = interpolator.get_interpolated(module, group)
+            if msg:
+                socketio.emit('diagnostic_update', msg)
+
 
 # --- ZMQ Worker ---
 class ZMQWorker:
@@ -54,13 +168,11 @@ class ZMQWorker:
         self.context = zmq.Context()
         self.running = True
         self.sub_sock = None
-        # Command queue: items are (msg_dict, result_queue)
         self._cmd_queue = queue.Queue()
         self._cmd_thread = threading.Thread(target=self._command_loop, daemon=True)
         self._cmd_thread.start()
 
     def _new_req_sock(self):
-        """Create a fresh REQ socket connected to tp2_worker."""
         s = self.context.socket(zmq.REQ)
         s.connect(ZMQ_REQ_ADDR)
         s.setsockopt(zmq.RCVTIMEO, 2000)
@@ -68,15 +180,18 @@ class ZMQWorker:
         return s
 
     def _command_loop(self):
-        """Single thread that owns the REQ socket. Processes commands serially."""
         logger.info("ZMQ command thread started")
+        if MOCK_MODE:
+            # In mock mode send_command() short-circuits before touching the queue,
+            # so this thread has nothing to do. Skip socket creation entirely —
+            # ZMQ IPC is not supported on Windows and would crash here.
+            return
         req_sock = self._new_req_sock()
         while True:
             try:
                 msg, result_q = self._cmd_queue.get(timeout=1.0)
             except queue.Empty:
                 continue
-
             try:
                 req_sock.send_json(msg)
                 resp = req_sock.recv_json()
@@ -92,7 +207,6 @@ class ZMQWorker:
 
     def connect(self):
         try:
-            # Subscriber (Data Stream)
             self.sub_sock = self.context.socket(zmq.SUB)
             self.sub_sock.connect(ZMQ_PUB_ADDR)
             self.sub_sock.subscribe(b"HUDIY_DIAG")
@@ -102,16 +216,14 @@ class ZMQWorker:
             logger.error(f"ZMQ Connection Failed: {e}")
             return False
 
-    def send_command(self, cmd, module=None, group=None):
+    def send_command(self, cmd, module=None, group=None, **kwargs):
         if MOCK_MODE:
             logger.info(f"MOCK CMD: {cmd} Mod:{module} Grp:{group}")
             return {"status": "mock_ok"}
-
         msg = {"cmd": cmd}
         if module is not None: msg['module'] = module
         if group is not None: msg['group'] = group
-
-        # Put the command on the queue and wait for the serial thread to process it
+        msg.update(kwargs)
         result_q = queue.Queue(maxsize=1)
         self._cmd_queue.put((msg, result_q))
         try:
@@ -121,9 +233,10 @@ class ZMQWorker:
 
     def run(self):
         global MOCK_MODE
-        if not self.connect() and not MOCK_MODE:
-             logger.warning("Starting in MOCK MODE due to ZMQ failure.")
-             MOCK_MODE = True
+        if not MOCK_MODE:
+            if not self.connect():
+                logger.warning("Starting in MOCK MODE due to ZMQ failure.")
+                MOCK_MODE = True
 
         if MOCK_MODE:
             self.run_mock()
@@ -131,164 +244,138 @@ class ZMQWorker:
             self.run_real()
 
     def run_mock(self):
-        logger.info("Starting MOCK Data Generator...")
+        """
+        Simulates ~0.5 Hz real sensor data with dramatic state changes so that
+        the difference between smoothing ON and OFF is clearly visible.
+        Each loop iteration picks a random engine 'state' and jumps to it,
+        producing the kind of raw noise the interpolator is designed to hide.
+        """
+        logger.info("Starting MOCK Data Generator (0.5Hz source rate, dramatic jumps)...")
+
+        # Discrete engine states: (rpm, boost_mbar)
+        ENGINE_STATES = [
+            (820,   200),   # idle
+            (1800,  600),   # light cruise
+            (2800,  950),   # steady cruise
+            (4200, 1600),   # spirited
+            (5800, 2100),   # hard pull
+            (6800, 2400),   # WOT
+        ]
+
+        state_rpm, state_boost = ENGINE_STATES[0]
+        clutch_1_active = True   # alternates to simulate DCT clutch handoff
+        clutch_cycle    = 0      # counts iterations; flips clutch every 10
+
         while self.running:
-            socketio.sleep(0.5)
-            # Generate random data mimicking TP2 structure
-            
-            # --- Engine Mock ---
-            # Group 3: RPM, MAF, Throttle, Ign Angle
-            rpm = random.randint(800, 7000)
-            maf = random.uniform(2.0, 180.0)
-            throttle = random.uniform(0, 100)
-            ign_angle = random.uniform(0, 45)
-            self.emit_data(0x01, 3, [
-                {'value': rpm, 'unit': 'RPM'},
-                {'value': maf, 'unit': 'g/s'},
-                {'value': throttle, 'unit': '%'},
-                {'value': ign_angle, 'unit': '°KW'}
+            # Jump to a new random state each cycle — creates big abrupt deltas
+            state_rpm, state_boost = random.choice(ENGINE_STATES)
+
+            # Add meaningful per-sample noise on top of the state value
+            rpm       = state_rpm   + random.uniform(-250, 250)
+            boost     = state_boost + random.uniform(-200, 200)
+            maf       = rpm * 0.025 + random.uniform(-8, 8)
+            throttle  = min(100.0, max(0.0, (rpm - 800) / 62.0 + random.uniform(-15, 15)))
+            ign_angle = random.uniform(5, 38)
+
+            # --- Engine ---
+            self.ingest(0x01, 3, [
+                {'value': round(rpm, 1),       'unit': 'RPM'},
+                {'value': round(maf, 2),       'unit': 'g/s'},
+                {'value': round(throttle, 1),  'unit': '%'},
+                {'value': round(ign_angle, 1), 'unit': '°KW'}
             ])
 
-            # Group 20: Timing Retardation Cyl 1-4
-            ret_1 = random.uniform(0, 12) if random.random() > 0.7 else 0
-            ret_2 = random.uniform(0, 12) if random.random() > 0.7 else 0
-            ret_3 = random.uniform(0, 12) if random.random() > 0.7 else 0
-            ret_4 = random.uniform(0, 12) if random.random() > 0.7 else 0
-            self.emit_data(0x01, 20, [
-                {'value': ret_1, 'unit': '°KW'},
-                {'value': ret_2, 'unit': '°KW'},
-                {'value': ret_3, 'unit': '°KW'},
-                {'value': ret_4, 'unit': '°KW'}
+            # Retard values — jump between 0 and spiky values
+            ret_vals = [round(random.uniform(0, 12), 2) if random.random() > 0.6 else 0.0 for _ in range(4)]
+            self.ingest(0x01, 20, [{'value': v, 'unit': '°KW'} for v in ret_vals])
+
+            # Fuel rail — pressure swings noticeably under load
+            fr_base = 60.0 + (state_rpm / 7000.0) * 45.0
+            fr_spec = fr_base + random.uniform(-12, 12)
+            self.ingest(0x01, 106, [
+                {'value': round(fr_spec, 2),                         'unit': 'bar'},
+                {'value': round(fr_spec + random.uniform(-5, 5), 2), 'unit': 'bar'},
+                {'value': round(random.uniform(30, 100), 1),         'unit': '%'},
+                {'value': round(random.uniform(25, 90), 1),          'unit': 'C'}
             ])
 
-            # Group 106: Fuel Rail
-            fr_spec = random.uniform(40, 110)
-            fr_act = fr_spec + random.uniform(-2, 2)
-            fp_duty = random.uniform(40, 90)
-            f_temp = random.uniform(30, 80)
-            self.emit_data(0x01, 106, [
-                {'value': fr_spec, 'unit': 'bar'},
-                {'value': fr_act, 'unit': 'bar'},
-                {'value': fp_duty, 'unit': '%'},
-                {'value': f_temp, 'unit': 'C'}
+            self.ingest(0x01, 115, [
+                {'value': round(rpm, 1),                               'unit': 'RPM'},
+                {'value': round(random.uniform(5, 160), 1),            'unit': '%'},
+                {'value': round(boost, 0),                             'unit': 'mbar'},
+                {'value': round(boost + random.uniform(-150, 150), 0), 'unit': 'mbar'}
             ])
 
-            # Group 115: Boost
-            # RPM already generated
-            load = random.uniform(10, 150)
-            boost_spec = random.randint(300, 2500)
-            boost_act = boost_spec + random.randint(-100, 100)
-            self.emit_data(0x01, 115, [
-                {'value': rpm, 'unit': 'RPM'},
-                {'value': load, 'unit': '%'},
-                {'value': boost_spec, 'unit': 'mbar'},
-                {'value': boost_act, 'unit': 'mbar'}
+            self.ingest(0x01, 134, [
+                {'value': random.randint(75, 115), 'unit': 'C'},
+                {'value': random.randint(12, 38),  'unit': 'C'},
+                {'value': random.randint(25, 70),  'unit': 'C'},
+                {'value': random.randint(75, 110), 'unit': 'C'}
             ])
 
-            # Group 134: Temperatures
-            oil_t = random.randint(70, 110)
-            amb_t = random.randint(15, 35)
-            iat = amb_t + random.randint(5, 30)
-            out_t = random.randint(80, 105)
-            self.emit_data(0x01, 134, [
-                {'value': oil_t, 'unit': 'C'},
-                {'value': amb_t, 'unit': 'C'},
-                {'value': iat, 'unit': 'C'},
-                {'value': out_t, 'unit': 'C'}
-            ])
-            
-            # Group 2: General (redundant but requested)
-            self.emit_data(0x01, 2, [
-                {'value': rpm, 'unit': 'RPM'},
-                {'value': load, 'unit': '%'},
-                {'value': random.uniform(0, 5), 'unit': 'ms'},
-                {'value': maf, 'unit': 'g/s'}
-            ])
-            
-            # Transmission Mock
-            # Group 11: Speed(G501), Torque(K1), Current(V1), Pressure(G193)
-            ts1 = random.randint(0, 3000)
-            tq1 = random.randint(0, 400)
-            cur1 = random.uniform(0, 1.5)
-            pre1 = random.uniform(0, 20)
-            self.emit_data(0x02, 11, [
-                 {'value': ts1, 'unit': 'RPM'},
-                 {'value': tq1, 'unit': 'Nm'},
-                 {'value': cur1, 'unit': 'A'},
-                 {'value': pre1, 'unit': 'bar'}
-            ])
-            
-            # Group 12: Speed(G502), Torque(K2), Current(V2), Pressure(G194)
-            ts2 = random.randint(0, 3000)
-            tq2 = random.randint(0, 400)
-            cur2 = random.uniform(0, 1.5)
-            pre2 = random.uniform(0, 20)
-            self.emit_data(0x02, 12, [
-                 {'value': ts2, 'unit': 'RPM'},
-                 {'value': tq2, 'unit': 'Nm'},
-                 {'value': cur2, 'unit': 'A'},
-                 {'value': pre2, 'unit': 'bar'}
-            ])
-            
-            # Group 16: Selector Travel (1-3, 2-4, 5-N, 6-R)
-            s1 = random.uniform(-100, 100)
-            s2 = random.uniform(-100, 100)
-            s3 = random.uniform(-100, 100)
-            s4 = random.uniform(-100, 100)
-            self.emit_data(0x02, 16, [
-                  {'value': s1, 'unit': 'mm'},
-                  {'value': s2, 'unit': 'mm'},
-                  {'value': s3, 'unit': 'mm'},
-                  {'value': s4, 'unit': 'mm'}
-            ])
-            
-            # Group 19: Temps (Fluid, Module, Clutch, Status)
-            temp_f = random.randint(60, 110)
-            temp_m = random.randint(40, 90)
-            temp_c = random.randint(80, 150)
-            status = "IDLE" if random.random() > 0.5 else "ACTIVE"
-            self.emit_data(0x02, 19, [
-                 {'value': temp_f, 'unit': 'C'},
-                 {'value': temp_m, 'unit': 'C'},
-                 {'value': temp_c, 'unit': 'C'},
-                 {'value': status, 'unit': ''}
+            self.ingest(0x01, 2, [
+                {'value': round(rpm, 1),                    'unit': 'RPM'},
+                {'value': round(random.uniform(5, 160), 1), 'unit': '%'},
+                {'value': round(random.uniform(0, 6), 2),   'unit': 'ms'},
+                {'value': round(maf, 2),                    'unit': 'g/s'}
             ])
 
-            # AWD Mock
-            # Group 1: Status (Oil Temp, Plate Temp, Voltage)
-            awd_temp1 = random.randint(20, 90)
-            awd_temp2 = random.randint(20, 150)
-            awd_volt = random.uniform(12.0, 14.5)
-            self.emit_data(0x22, 1, [
-                 {'value': awd_temp1, 'unit': 'C'},
-                 {'value': awd_temp2, 'unit': 'C'},
-                 {'value': awd_volt, 'unit': 'V'},
-                 {'value': 0, 'unit': ''}
+            # --- Transmission ---
+            # Hold each clutch active for 10 cycles (~6 s) before handing off
+            clutch_cycle += 1
+            if clutch_cycle >= 10:
+                clutch_1_active = not clutch_1_active
+                clutch_cycle    = 0
+            ratio    = random.choice([3.5, 2.0, 1.4, 1.0, 0.75])
+            out_rpm  = int(rpm / ratio)
+            out_torq = int(random.uniform(80, 420))
+            idle_rpm = int(rpm / random.choice([3.5, 2.0, 1.4, 1.0, 0.75]))  # next gear pre-selected
+
+            # Active clutch: carrying full load, high current & pressure
+            # Idle clutch:   pre-engaged next gear — low torque, near-zero current
+            self.ingest(0x02, 11, [
+                {'value': out_rpm  if clutch_1_active else idle_rpm,                     'unit': 'RPM'},
+                {'value': out_torq if clutch_1_active else random.randint(0, 20),        'unit': 'Nm'},
+                {'value': round(random.uniform(1.2, 2.0), 2) if clutch_1_active else round(random.uniform(0, 0.15), 2), 'unit': 'A'},
+                {'value': round(random.uniform(12, 25), 1)   if clutch_1_active else round(random.uniform(0, 2), 1),    'unit': 'bar'}
+            ])
+            self.ingest(0x02, 12, [
+                {'value': idle_rpm  if clutch_1_active else out_rpm,                     'unit': 'RPM'},
+                {'value': random.randint(0, 20) if clutch_1_active else out_torq,        'unit': 'Nm'},
+                {'value': round(random.uniform(0, 0.15), 2) if clutch_1_active else round(random.uniform(1.2, 2.0), 2), 'unit': 'A'},
+                {'value': round(random.uniform(0, 2), 1)    if clutch_1_active else round(random.uniform(12, 25), 1),   'unit': 'bar'}
+            ])
+            self.ingest(0x02, 16, [{'value': round(random.uniform(-120, 120), 1), 'unit': 'mm'} for _ in range(4)])
+            self.ingest(0x02, 19, [
+                {'value': random.randint(55, 115),              'unit': 'C'},
+                {'value': random.randint(35, 95),               'unit': 'C'},
+                {'value': random.randint(75, 160),              'unit': 'C'},
+                {'value': "IDLE" if rpm < 1500 else "ACTIVE",   'unit': ''}
             ])
 
-            # Group 3: Hydraulics (Pressure, Torque, Valve, Current)
-            awd_pres = random.uniform(0, 60)
-            awd_tq = random.uniform(0, 2000)
-            awd_valve = random.randint(0, 100)
-            awd_cur = random.uniform(0, 4.0)
-            self.emit_data(0x22, 3, [
-                 {'value': awd_pres, 'unit': 'bar'},
-                 {'value': awd_tq, 'unit': 'Nm'},
-                 {'value': awd_valve, 'unit': '%'},
-                 {'value': awd_cur, 'unit': 'A'}
+            # --- AWD ---
+            awd_torq = round(random.uniform(0, 2200), 0)
+            self.ingest(0x22, 1, [
+                {'value': random.randint(18, 95),               'unit': 'C'},
+                {'value': random.randint(18, 160),              'unit': 'C'},
+                {'value': round(random.uniform(11.8, 14.6), 2), 'unit': 'V'},
+                {'value': 0,                                    'unit': ''}
+            ])
+            self.ingest(0x22, 3, [
+                {'value': round(random.uniform(0, 70), 1),  'unit': 'bar'},
+                {'value': awd_torq,                         'unit': 'Nm'},
+                {'value': random.randint(0, 100),           'unit': '%'},
+                {'value': round(random.uniform(0, 5.0), 2), 'unit': 'A'}
+            ])
+            self.ingest(0x22, 5, [
+                {'value': random.randint(0, 255),                    'unit': ''},
+                {'value': "SPORT" if state_rpm > 3000 else "NORMAL", 'unit': ''},
+                {'value': "ACTIVE" if awd_torq > 500 else "IDLE",    'unit': ''},
+                {'value': "OK",                                       'unit': ''}
             ])
 
-            # Group 5: Modes
-            val_out = random.randint(0, 255)
-            veh_mode = "NORMAL" if random.random() > 0.5 else "SPORT"
-            slip_ctrl = "ACTIVE" if random.random() > 0.8 else "IDLE"
-            op_mode = "OK"
-            self.emit_data(0x22, 5, [
-                 {'value': val_out, 'unit': ''},
-                 {'value': veh_mode, 'unit': ''},
-                 {'value': slip_ctrl, 'unit': ''},
-                 {'value': op_mode, 'unit': ''}
-            ])
+            # Single sleep at the bottom — all groups update at ~1.6 Hz
+            socketio.sleep(0.625)
 
     def run_real(self):
         logger.info("Starting ZMQ Subscriber Loop...")
@@ -301,22 +388,37 @@ class ZMQWorker:
                         mod = payload.get('module')
                         grp = payload.get('group')
                         data = payload.get('data')
-                        self.emit_data(mod, grp, data)
+                        self.ingest(mod, grp, data)
                 socketio.sleep(0.01)
             except Exception as e:
                 logger.error(f"ZMQ Sub Error: {e}")
                 socketio.sleep(1)
 
-    def emit_data(self, module, group, data):
-        # Broadcast to all connected clients
-        socketio.emit('diagnostic_update', {
-            'module': module,
-            'group': group,
-            'data': data
-        })
+    def ingest(self, module, group, data):
+        """Feed new raw data into the interpolator; emit directly if smoothing is off."""
+        interpolator.update(module, group, data)
+        if not SMOOTHING_ENABLED:
+            # Pass-through: emit raw immediately.
+            # Explicit namespace='/' is required when calling from a plain thread
+            # (i.e. not a socketio.start_background_task) to avoid silent failures.
+            socketio.emit('diagnostic_update', {
+                'module': module,
+                'group': group,
+                'data': data
+            }, namespace='/')
+
 
 # Initialize Worker
 worker = ZMQWorker()
+
+current_subscriptions = {}
+
+def sync_subscriptions():
+    """Background task to continuously enforce the app's desired subscriptions."""
+    while True:
+        socketio.sleep(3.0)
+        for mod, groups in list(current_subscriptions.items()):
+            worker.send_command("SYNC", module=mod, groups=list(groups), client_id="dataview")
 
 @app.route('/')
 def index():
@@ -325,28 +427,55 @@ def index():
 @socketio.on('connect')
 def handle_connect():
     logger.info("Client Connected")
-    emit('status', {'mock_mode': MOCK_MODE})
+    emit('status', {'mock_mode': MOCK_MODE, 'smoothing': SMOOTHING_ENABLED})
 
 @socketio.on('toggle_group')
 def handle_toggle(data):
-    # data: {module: int, group: int, action: 'add'|'remove'}
     mod = data.get('module')
     grp = data.get('group')
     action = data.get('action')
-    
-    cmd = "ADD" if action == 'add' else "REMOVE"
-    resp = worker.send_command(cmd, mod, grp)
-    emit('command_response', resp)
+
+    if mod is not None and grp is not None:
+        mod = int(mod)
+        grp = int(grp)
+        if mod not in current_subscriptions:
+            current_subscriptions[mod] = set()
+
+        if action == 'add':
+            current_subscriptions[mod].add(grp)
+        elif action == 'remove':
+            current_subscriptions[mod].discard(grp)
+
+        worker.send_command("SYNC", module=mod, groups=list(current_subscriptions[mod]), client_id="dataview")
+
+    emit('command_response', {"status": "ok", "action": action, "module": mod, "group": grp})
+
+@socketio.on('set_smoothing')
+def handle_set_smoothing(data):
+    global SMOOTHING_ENABLED
+    SMOOTHING_ENABLED = bool(data.get('enabled', True))
+    logger.info(f"Smoothing {'enabled' if SMOOTHING_ENABLED else 'disabled'}")
+    emit('status', {'smoothing': SMOOTHING_ENABLED})
+
+    if not SMOOTHING_ENABLED:
+        # Immediately push the latest known values so the client doesn't go
+        # dark waiting up to 1.5 s for the next mock/real tick.
+        with interpolator._lock:
+            keys = list(interpolator._latest_msg.keys())
+        for (module, group) in keys:
+            msg = interpolator.get_raw(module, group)
+            if msg:
+                emit('diagnostic_update', msg)
 
 if __name__ == '__main__':
-    # Determine mode based on args or environment
     if '--mock' in sys.argv:
         MOCK_MODE = True
         logger.warning("FORCED MOCK MODE")
 
-    # Start Worker in Background
     worker_thread = threading.Thread(target=worker.run, daemon=True)
     worker_thread.start()
 
     logger.info("Starting Flask-SocketIO Server on port 5003")
+    socketio.start_background_task(sync_subscriptions)
+    socketio.start_background_task(interpolation_broadcast_loop)
     socketio.run(app, host='0.0.0.0', port=5003, allow_unsafe_werkzeug=True)

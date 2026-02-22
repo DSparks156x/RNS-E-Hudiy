@@ -56,8 +56,8 @@ class TP2Service:
         self.rep.bind(self.addr_rep)
         
         # Connection Management
-        self.sessions = {} 
-        self.next_tester_id = 0x300
+        self.sessions = {}
+        self._tester_id_pool = list(range(0x300, 0x30A))  # 0x300-0x309
         self.running = True # Default to ON, will update if Ignition says OFF
         
         # Threading
@@ -73,8 +73,9 @@ class TP2Service:
             return self.sessions[module_id]
         
         # Create new session
-        tester_id = self.next_tester_id
-        self.next_tester_id += 1 # Increment for next module (0x300, 0x301...)
+        if not self._tester_id_pool:
+            raise RuntimeError("No tester IDs available (max 10 simultaneous modules)")
+        tester_id = self._tester_id_pool.pop(0)
         
         logger.info(f"Creating new session for Module 0x{module_id:02X} (TesterID: 0x{tester_id:X})")
         
@@ -190,9 +191,14 @@ class TP2Service:
                         for mod, s in self.sessions.items():
                             sess_info.append({
                                 "module": mod,
-                                "connected": s['connected'],
-                                "active": s['active'],
-                                "groups": list(s['subs'].keys())
+                                "connected": s.get('connected', False),
+                                "active": s.get('active', False),
+                                "client_subs": s.get('client_subs', {}),
+                                "groups_list": s.get('groups_list', []),
+                                "error_count": s.get('error_count', 0),
+                                "last_activity": s.get('last_activity', 0),
+                                "group_errors": s.get('group_errors', {}),
+                                "group_cooldowns": s.get('group_cooldowns', {})
                             })
                         response = {
                             "status": "ok", 
@@ -201,59 +207,42 @@ class TP2Service:
                             "sessions": sess_info
                         }
 
-                elif cmd == "ADD":
+                elif cmd == "SYNC":
+                    client_id = msg.get("client_id")
                     mod = msg.get("module")
-                    grp = msg.get("group")
-                    if mod is not None and grp is not None:
+                    groups = msg.get("groups", [])
+                    
+                    if client_id and mod is not None:
                         param_mod = int(mod)
-                        param_grp = int(grp)
+                        param_groups = [int(g) for g in groups]
+                        
                         with self.lock:
                             session = self._get_or_create_session(param_mod)
-                            session['active'] = True # Revive if pending delete
                             
-                            # Ref Counting
-                            if param_grp in session['subs']:
-                                session['subs'][param_grp] += 1
-                                logger.info(f"(Cmd) Incremented Group {param_grp} count to {session['subs'][param_grp]}")
-                            else:
-                                session['subs'][param_grp] = 1
-                                session['groups_list'].append(param_grp)
-                                logger.info(f"(Cmd) Added Group {param_grp} to Module 0x{param_mod:02X}")
+                            if 'client_subs' not in session:
+                                session['client_subs'] = {}
                                 
-                            response = {"status": "ok", "message": "Group added", "count": session['subs'][param_grp]}
-                
-                elif cmd == "REMOVE":
-                    mod = msg.get("module")
-                    grp = msg.get("group")
-                    if mod is not None and grp is not None:
-                         param_mod = int(mod)
-                         param_grp = int(grp)
-                         with self.lock:
-                             if param_mod in self.sessions:
-                                 session = self.sessions[param_mod]
-                                 if param_grp in session['subs']:
-                                     session['subs'][param_grp] -= 1
-                                     count = session['subs'][param_grp]
-                                     logger.info(f"(Cmd) Decremented Group {param_grp} count to {count}")
-                                     
-                                     if count <= 0:
-                                         del session['subs'][param_grp]
-                                         if param_grp in session['groups_list']:
-                                             session['groups_list'].remove(param_grp)
-                                             if session['idx'] >= len(session['groups_list']):
-                                                 session['idx'] = 0
-                                         logger.info(f"(Cmd) Removed Group {param_grp}")
-                                         
-                                         # Check if session is empty
-                                         if not session['subs']:
-                                             logger.info(f"(Cmd) Module 0x{param_mod:02X} has no subs. Marking inactive.")
-                                             session['active'] = False
-                                     
-                                     response = {"status": "ok", "message": "Group removed", "count": count}
-                                 else:
-                                     response = {"status": "warning", "message": "Group not found"}
-                             else:
-                                 response = {"status": "error", "message": "Module not active"}
+                            if param_groups:
+                                session['client_subs'][client_id] = param_groups
+                            else:
+                                session['client_subs'].pop(client_id, None)
+                                
+                            # Rebuild the master polling list (union of all client groups)
+                            unique_groups = set()
+                            for subs in session['client_subs'].values():
+                                unique_groups.update(subs)
+                                
+                            session['groups_list'] = list(unique_groups)
+                            session['active'] = len(session['groups_list']) > 0
+                            
+                            # Reset index if it's now out of bounds
+                            if session['idx'] >= len(session['groups_list']):
+                                session['idx'] = 0
+                                
+                            logger.info(f"(Cmd) SYNC for client '{client_id}', Mod 0x{param_mod:02X}, Groups: {session['groups_list']}")
+                            response = {"status": "ok", "message": "Synced", "active_groups": session['groups_list']}
+                    else:
+                        response = {"status": "error", "message": "Missing client_id or module"}
 
                 elif cmd == "CLEAR":
                     with self.lock:
@@ -327,11 +316,15 @@ class TP2Service:
                                  logger.info(f"Module 0x{mod_id:02X} Disconnected (Cleanup).")
                              except: pass
                         
-                        # Remove from main dict safely
+                        # Remove from main dict safely, return tester ID to pool
                         with self.lock:
                             if mod_id in self.sessions and not self.sessions[mod_id]['active']:
+                                freed_id = self.sessions[mod_id]['tester_id']
                                 del self.sessions[mod_id]
-                                logger.info(f"Module 0x{mod_id:02X} Session Deleted.")
+                                if freed_id not in self._tester_id_pool:
+                                    self._tester_id_pool.append(freed_id)
+                                    self._tester_id_pool.sort()
+                                logger.info(f"Module 0x{mod_id:02X} Session Deleted (TesterID 0x{freed_id:X} returned to pool).")
                         continue
                     
                     # Connection Management
@@ -347,12 +340,38 @@ class TP2Service:
                     if not self._ensure_connected(mod_id, session):
                         continue
                     
+                    # Find Next Available Group
                     # Logic
                     # Safety check on index
                     if session['idx'] >= len(session['groups_list']):
                         session['idx'] = 0
                         
-                    grp = session['groups_list'][session['idx']]
+                    # Initialize tracking if missing
+                    if 'group_errors' not in session: session['group_errors'] = {}
+                    if 'group_cooldowns' not in session: session['group_cooldowns'] = {}
+                        
+                    start_idx = session['idx']
+                    grp = None
+                    valid_group_found = False
+                    
+                    for _ in range(len(session['groups_list'])):
+                        candidate_grp = session['groups_list'][session['idx']]
+                        if time.time() > session['group_cooldowns'].get(candidate_grp, 0):
+                            grp = candidate_grp
+                            valid_group_found = True
+                            break
+                        # Move to next
+                        session['idx'] = (session['idx'] + 1) % len(session['groups_list'])
+                        
+                    if not valid_group_found:
+                        # All groups in cooldown. Keep session alive but do nothing else.
+                        if session['connected']:
+                             try:
+                                 session['protocol'].send_keep_alive()
+                             except:
+                                 session['connected'] = False
+                        continue
+                        
                     proto = session['protocol']
                     
                     try:
@@ -369,24 +388,25 @@ class TP2Service:
                             }
                             self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
                             
+                            session['group_errors'][grp] = 0 
                             session['error_count'] = 0 
                             
-                            # Cycle
-                            if session['groups_list']:
-                                 session['idx'] = (session['idx'] + 1) % len(session['groups_list'])
-                            
                         elif resp and resp[0] == 0x7F:
+                            # NRC (Negative Response Code)
                             logger.warning(f"Mod 0x{mod_id:02X} Grp {grp} Rejected: {resp}")
-                        
+                            session['group_errors'][grp] = session['group_errors'].get(grp, 0) + 1
+                            
                         # MANDATORY KEEP-ALIVE
                         proto.send_keep_alive()
 
                     except TP2Error as e:
-                        session['error_count'] += 1
-                        logger.error(f"Mod 0x{mod_id:02X} Error: {e} (Count: {session['error_count']})")
+                        session['group_errors'][grp] = session['group_errors'].get(grp, 0) + 1
+                        logger.error(f"Mod 0x{mod_id:02X} Grp {grp} Error: {e} (Count: {session['group_errors'][grp]})")
                         
-                        if session['error_count'] >= 3:
-                            logger.error("Too many errors. Forcing Reconnect.")
+                        # Session level fallback
+                        session['error_count'] += 1
+                        if session['error_count'] >= 5:
+                            logger.error("Too many session errors. Forcing Reconnect.")
                             session['connected'] = False
                             proto.disconnect()
                             session['error_count'] = 0
@@ -395,6 +415,16 @@ class TP2Service:
                             except: 
                                 session['connected'] = False
                                 proto.disconnect()
+                                
+                    # Cooldown logic for this group
+                    if session['group_errors'].get(grp, 0) >= 3:
+                         logger.warning(f"Mod 0x{mod_id:02X} Grp {grp} failed 3 times. Suspending for 30 seconds.")
+                         session['group_cooldowns'][grp] = time.time() + 30.0
+                         session['group_errors'][grp] = 0
+                         
+                    # Cycle to next group unconditionally for next loop
+                    if session['groups_list']:
+                         session['idx'] = (session['idx'] + 1) % len(session['groups_list'])
                 
                 # Rate Limiting
                 time.sleep(0.05) # Faster for responsiveness, thread handles command blocking

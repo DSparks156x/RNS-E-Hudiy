@@ -177,6 +177,30 @@ class HudiyEventHandler(ClientEventHandler):
         
         logger.info(f"NAV: {full_maneuver_text} (Angle: {angle_num}) - {desc}")
 
+        icon_bytes = getattr(message, 'icon', None)
+        if icon_bytes:
+            try:
+                # Use a persistent folder relative to this script
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                icon_dir = os.path.join(script_dir, '..', 'nav_icons')
+                os.makedirs(icon_dir, exist_ok=True)
+                
+                safe_maneuver = maneuver_text.replace(' ', '_').replace('-', '_').lower()
+                safe_side = side_text.replace(' ', '_').lower()
+                
+                if safe_side and safe_side != 'n/a':
+                    icon_filename = f"{icon_dir}/nav_icon_{type_num}_{safe_maneuver}_{side_num}_{safe_side}.png"
+                else:
+                    icon_filename = f"{icon_dir}/nav_icon_{type_num}_{safe_maneuver}.png"
+                
+                # Only save if we don't already have it
+                if not os.path.exists(icon_filename):
+                    with open(icon_filename, 'wb') as f:
+                        f.write(icon_bytes)
+                    logger.info(f"Saved new NAV icon ({len(icon_bytes)} bytes) to {icon_filename}")
+            except Exception as e:
+                logger.error(f"Failed to save NAV icon: {e}")
+
         self.current_nav_data.update({
             'description': desc,
             'maneuver_text': full_maneuver_text,
