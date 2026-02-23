@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { DiagnosticMessage, TabId, TabGroup, TabConfig, diagKey } from '../types';
+import { DiagnosticMessage, TabId, TabGroup, TabConfig } from '../types';
+import { DataStore } from '../store/DataStore';
 
 const TAB_CONFIG: TabConfig = {
     engine: [
@@ -23,8 +24,6 @@ const TAB_CONFIG: TabConfig = {
     ],
 };
 
-type DataMap = Record<string, DiagnosticMessage>;
-
 function subscribe(socket: Socket, groups: TabGroup[], action: 'add' | 'remove') {
     groups.forEach((item) => {
         console.log(`${action.toUpperCase()} Group: Mod ${item.module} Grp ${item.group} Pri ${item.priority || 'normal'}`);
@@ -32,31 +31,19 @@ function subscribe(socket: Socket, groups: TabGroup[], action: 'add' | 'remove')
     });
 }
 
+/**
+ * useSocket now manages the connection and group toggling, but NO LONGER handles data state.
+ * All incoming data is piped directly into the singleton DataStore, which is
+ * read via useMotionValue subscriptions in the component tree.
+ */
 export function useSocket(currentTab: TabId) {
-    const [data, setData] = useState<DataMap>({});
     const socketRef = useRef<Socket | null>(null);
     const currentTabRef = useRef<TabId>(currentTab);
-    // Accumulate messages between animation frames, then flush once per frame
-    const pendingRef = useRef<DataMap>({});
-    const rafRef = useRef<number | null>(null);
 
     // Connect once on mount
     useEffect(() => {
         const socket = io();
         socketRef.current = socket;
-
-        // Single RAF flush function — shared by both event handlers.
-        // Schedules exactly one setData call per animation frame regardless of
-        // how many socket messages arrive between frames.
-        const scheduleFlush = () => {
-            if (!rafRef.current) {
-                rafRef.current = requestAnimationFrame(() => {
-                    setData((prev) => ({ ...prev, ...pendingRef.current }));
-                    pendingRef.current = {};
-                    rafRef.current = null;
-                });
-            }
-        };
 
         socket.on('connect', () => {
             console.log('Connected to Backend');
@@ -65,25 +52,16 @@ export function useSocket(currentTab: TabId) {
         });
 
         socket.on('diagnostic_update', (msg: unknown) => {
-            const m = msg as DiagnosticMessage;
-            // Accumulate into pending — last value per key wins within the frame
-            pendingRef.current[diagKey(m.module, m.group)] = m;
-            scheduleFlush();
+            DataStore.update([msg as DiagnosticMessage]);
         });
 
-        // Smoothing-mode batch: server sends all fresh groups in one emit instead of N.
-        // Feed each group into the same pending accumulator so the RAF flush handles them.
         socket.on('diagnostic_batch', (batch: unknown) => {
             const msgs = batch as DiagnosticMessage[];
             if (!Array.isArray(msgs) || msgs.length === 0) return;
-            for (const m of msgs) {
-                pendingRef.current[diagKey(m.module, m.group)] = m;
-            }
-            scheduleFlush();
+            DataStore.update(msgs);
         });
 
         return () => {
-            if (rafRef.current) cancelAnimationFrame(rafRef.current);
             socket.disconnect();
         };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -94,7 +72,6 @@ export function useSocket(currentTab: TabId) {
         if (!socket?.connected) return;
 
         // Only unsubscribe and subscribe if the tab actually changed
-        // (or if this is the initial connection run managed by the connect handler)
         if (currentTabRef.current !== currentTab) {
             // Unsubscribe from the previously active tab's groups
             const prevGroups = TAB_CONFIG[currentTabRef.current];
@@ -114,5 +91,5 @@ export function useSocket(currentTab: TabId) {
         }
     }, [currentTab]);
 
-    return { data, socket: socketRef.current };
+    return { socket: socketRef.current };
 }

@@ -213,7 +213,8 @@ body {
     /* Prevent flex blowout */
 }
 
-.panel h3 {
+.panel h3,
+.gauge-title {
     margin-top: 0;
     /* Smaller header */
     color: var(--text-color);
@@ -221,6 +222,13 @@ body {
     text-align: center;
     margin-bottom: 5px;
     white-space: nowrap;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* Give subsequent gauge-titles in a column a small top margin so they don't hit the gauge above them */
+.gauge-title:not(:first-child) {
+    margin-top: 10px;
 }
 
 /* Pressure */

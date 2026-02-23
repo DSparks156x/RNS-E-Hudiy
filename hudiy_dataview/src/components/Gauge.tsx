@@ -1,62 +1,103 @@
-import { RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
+import { motion, useTransform, useSpring } from 'framer-motion';
+import { useLiveValue } from './LiveText';
 
 interface GaugeProps {
   id?: string;
-  value: number;
+  groupKey: string;
+  index: number;
   min: number;
   max: number;
   label: string[];
   size?: number;
 }
 
-export function Gauge({ value, min, max, label, size = 140 }: GaugeProps) {
-  const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
-  const svgHeight = size * 0.85;
+export function Gauge({ groupKey, index, min, max, label, size = 140 }: GaugeProps) {
+  const mv = useLiveValue(groupKey, index, min);
+
+  // SVG parameters
+  const strokeWidth = 14;
+  const radius = (size - strokeWidth) / 2;
+  const circum = 2 * Math.PI * radius;
+
+  // Recharts was startAngle=210, endAngle=-30. Range = 240 degrees.
+  const angleRange = 240; 
+  const startAngleOffset = 150; // SVG 0 is right (3 o'clock). 210 degrees CCW is +150 deg CW.
+  
+  // Transform raw value into percentage fill [0, 1]
+  const rawPct = useTransform(mv, (val) => {
+    const num = typeof val === 'number' ? val : (isNaN(parseFloat(val)) ? 0 : parseFloat(val));
+    return Math.max(0, Math.min(1, (num - min) / (max - min)));
+  });
+
+  // Apply a spring physics layer to the percentage so the needle moves smoothly
+  const pct = useSpring(rawPct, { stiffness: 150, damping: 25, restDelta: 0.001 });
+
+  // Dashoffset: 0 means full visible arc, circum means hidden arc. 
+  const arcLength = circum * (angleRange / 360);
+
+  // We want the gauge to fill up from the start point.
+  // By using `circum circum` for the dash array, we have one massive segment of ink
+  // and one massive segment of space. We offset the pattern by `circum - visible_length`
+  // so that only `visible_length` of ink remains to be drawn from path position 0.
+  const dashoffset = useTransform(pct, (p: number) => circum - arcLength * p);
+
+  // Center display formatted to 1 decimal place
+  const displayVal = useTransform(mv, (val) => {
+    const num = typeof val === 'number' ? val : parseFloat(val);
+    return isNaN(num) ? '--' : num.toFixed(1);
+  });
 
   return (
-    <div className="gauge-wrapper-md" style={{ position: 'relative', width: size, height: svgHeight, margin: '0 auto' }}>
-      <RadialBarChart
-        width={size}
-        height={svgHeight}
-        cx={size / 2}
-        cy={size / 2}
-        innerRadius={size / 2 - 20}
-        outerRadius={size / 2 - 3} // Made slightly thicker (outerRadius increased)
-        data={[{ value: pct }]}
-        startAngle={210}
-        endAngle={-30}
-      >
-        {/* Domain 0-100 so the bar represents percentage fill */}
-        <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
-        <RadialBar
-          background={{ fill: '#333' }}
-          dataKey="value"
-          cornerRadius={4}
-          fill="var(--accent-color)"
-          angleAxisId={0}
-          isAnimationActive={false}
+    <div className="gauge-wrapper-md" style={{ position: 'relative', width: size, height: size * 0.85, margin: '0 auto' }}>
+      <svg width={size} height={size} style={{ position: 'absolute', top: 0, left: 0 }}>
+        {/* Background Arc */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#333"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={`${arcLength} ${circum}`}
+          strokeDashoffset={0}
+          transform={`rotate(${startAngleOffset} ${size/2} ${size/2})`}
         />
-      </RadialBarChart>
+        {/* Foreground Animated Arc */}
+        <motion.circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="var(--accent-color)"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={`${circum} ${circum}`}
+          style={{ strokeDashoffset: dashoffset }}
+          transform={`rotate(${startAngleOffset} ${size/2} ${size/2})`}
+        />
+      </svg>
 
       {/* Center value */}
-      <div style={{
+      <motion.div style={{
         position: 'absolute',
         top: '50%',
         left: '50%',
-        transform: 'translate(-50%, -50%)',
+        x: '-50%',
+        y: '-50%',
         color: '#fff',
         fontWeight: 'bold',
         fontSize: 22,
         fontFamily: 'monospace',
         pointerEvents: 'none',
       }}>
-        {value.toFixed(1)}
-      </div>
+        {displayVal}
+      </motion.div>
 
       {/* Sub-labels pushed below center */}
       <div style={{
         position: 'absolute',
-        top: '75%', /* Adjusted for new compressed vertical bounding box */
+        top: '75%',
         left: '50%',
         transform: 'translateX(-50%)',
         textAlign: 'center',

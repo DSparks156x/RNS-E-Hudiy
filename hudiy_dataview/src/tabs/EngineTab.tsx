@@ -1,99 +1,72 @@
-import { DiagnosticMessage, DiagnosticValue } from '../types';
 import { Gauge } from '../components/Gauge';
 import { KnockBars } from '../components/KnockBars';
 import { InjectionBar } from '../components/InjectionBar';
+import { LiveText } from '../components/LiveText';
 
-function numVal(v: DiagnosticValue | undefined): number {
-  if (!v) return 0;
-  if (typeof v.value === 'number') return v.value;
-  const p = parseFloat(v.value);
-  return isNaN(p) ? 0 : p;
-}
+const fmtVal = (val: number | string) => {
+  const v = typeof val === 'number' ? val : parseFloat(val);
+  return isNaN(v) ? '--' : v.toFixed(1);
+};
+const fmtInt = (val: number | string) => {
+  const v = typeof val === 'number' ? val : parseInt(val, 10);
+  return isNaN(v) ? '--' : Math.round(v).toString();
+};
+const fmtIgn = (val: number | string) => {
+  const v = typeof val === 'number' ? val : parseFloat(val);
+  return isNaN(v) ? '--' : `${v.toFixed(1)} °BTDC`;
+};
 
-function fmtVal(v: DiagnosticValue | undefined): string {
-  if (!v) return '--';
-  return `${typeof v.value === 'number' ? v.value.toFixed(1) : v.value} ${v.unit}`;
-}
-
-type DataMap = Record<string, DiagnosticMessage>;
-
-interface EngineTabProps {
-  data: DataMap;
-}
-
-export function EngineTab({ data }: EngineTabProps) {
-  const grp3 = data['1:3'];
-  const grp20 = data['1:20'];
-  const grp106 = data['1:106'];
-  const grp115 = data['1:115'];
-  const grp134 = data['1:134'];
-  const grp2 = data['1:2'];
-
-  const rpm = fmtVal(grp3?.data[0]);
-  const ign = fmtVal(grp3?.data[3]);
-  const mafVal = numVal(grp3?.data[1]);
-
-  const knockValues = [0, 1, 2, 3].map((i) => numVal(grp20?.data[i]));
-
-  const fuelSpec = fmtVal(grp106?.data[0]);
-  const fuelActual = numVal(grp106?.data[1]);
-  const fuelDuty = fmtVal(grp106?.data[2]);
-  const injTimeNum = numVal(grp2?.data[2]);
-
-  const boostSpec = fmtVal(grp115?.data[2]);
-  const boostActual = numVal(grp115?.data[3]);
-
-  const temps = [0, 1, 2, 3].map((i) => fmtVal(grp134?.data[i]));
+export function EngineTab() {
   const tempLabels = ['Oil', 'Ambient', 'Intake Air', 'Coolant'];
 
   return (
     <section id="engine" className="tab-content active">
       <div className="engine-grid">
 
-        {/* Left Column: Air & Boost (Formerly Center) */}
+        {/* Left Column: Air & Boost */}
         <div className="engine-col">
           <div className="gauge-title">Mass Air Flow</div>
-          <Gauge id="gauge_maf" value={mafVal} min={0} max={400} label={['g/s', '']} size={125} />
+          <Gauge id="gauge_maf" groupKey="1:3" index={1} min={0} max={400} label={['g/s', '']} size={125} />
           <div className="gauge-title">Boost</div>
-          <Gauge id="gauge_boost" value={boostActual} min={0} max={3000} label={['mbar', 'Actual']} size={125} />
+          <Gauge id="gauge_boost" groupKey="1:115" index={3} min={0} max={3000} label={['mbar', 'Actual']} size={125} />
           <div className="stat-list">
             <div className="stat-row">
               <span className="stat-label">Request</span>
-              <span className="stat-value">{boostSpec}</span>
+              <span className="stat-value"><LiveText groupKey="1:115" index={2} format={(v) => `${fmtInt(v)} mbar`} /></span>
             </div>
           </div>
         </div>
 
-        {/* Center Column: Performance (Formerly Left) */}
+        {/* Center Column: Performance */}
         <div className="engine-col perf-col">
           <div className="perf-top">
             <div className="rpm-display">
               <div className="stat-label">Engine Speed</div>
-              <span className="value-md">{rpm}</span>
+              <span className="value-md"><LiveText groupKey="1:3" index={0} format={(v) => `${fmtInt(v)} /min`} /></span>
             </div>
             <div className="ign-display">
               <div className="stat-label">Ignition</div>
-              <span className="stat-value-lg">{ign}</span>
+              <span className="stat-value-lg"><LiveText groupKey="1:3" index={3} format={fmtIgn} /></span>
             </div>
           </div>
-          <KnockBars values={knockValues} />
+          <KnockBars groupKey="1:20" />
         </div>
 
         {/* Right Column: Fuel */}
         <div className="engine-col">
           <div className="gauge-title">Fuel Pressure</div>
-          <Gauge id="gauge_fuel" value={fuelActual} min={0} max={150} label={['Bar', 'Actual']} size={130} />
+          <Gauge id="gauge_fuel" groupKey="1:106" index={1} min={0} max={150} label={['Bar', 'Actual']} size={130} />
           <div className="stat-list">
             <div className="stat-row">
               <span className="stat-label">Specified</span>
-              <span className="stat-value">{fuelSpec}</span>
+              <span className="stat-value"><LiveText groupKey="1:106" index={0} format={(v) => `${fmtVal(v)} bar`} /></span>
             </div>
             <div className="stat-row">
               <span className="stat-label">Duty</span>
-              <span className="stat-value">{fuelDuty}</span>
+              <span className="stat-value"><LiveText groupKey="1:106" index={2} format={(v) => `${fmtVal(v)} %`} /></span>
             </div>
           </div>
-          <InjectionBar value={injTimeNum} />
+          <InjectionBar groupKey="1:2" index={2} />
         </div>
 
         {/* Bottom Row (Spans all 3 cols): Temps */}
@@ -101,7 +74,7 @@ export function EngineTab({ data }: EngineTabProps) {
           {tempLabels.map((label, i) => (
             <div key={label} className="temp-item">
               <span className="stat-label">{label}</span>
-              <span className="temp-val">{temps[i]}</span>
+              <span className="temp-val"><LiveText groupKey="1:134" index={i} format={(v) => `${fmtInt(v)} °C`} /></span>
             </div>
           ))}
         </div>

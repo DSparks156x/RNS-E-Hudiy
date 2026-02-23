@@ -1,32 +1,12 @@
-import { DiagnosticMessage, DiagnosticValue } from '../types';
 import { Gauge } from '../components/Gauge';
+import { LiveText } from '../components/LiveText';
 
-type DataMap = Record<string, DiagnosticMessage>;
+const fmtVal = (val: number | string, unit: string = '') => {
+  const v = typeof val === 'number' ? val : parseFloat(val);
+  return isNaN(v) ? '--' : `${v.toFixed(1)} ${unit}`;
+};
 
-function numVal(v: DiagnosticValue | undefined): number {
-  if (!v) return 0;
-  if (typeof v.value === 'number') return v.value;
-  const p = parseFloat(v.value);
-  return isNaN(p) ? 0 : p;
-}
-
-function fmtVal(v: DiagnosticValue | undefined): string {
-  if (!v) return '--';
-  return `${typeof v.value === 'number' ? v.value.toFixed(1) : v.value} ${v.unit}`;
-}
-
-interface AWDTabProps {
-  data: DataMap;
-}
-
-export function AWDTab({ data }: AWDTabProps) {
-  const grp1 = data['34:1'];
-  const grp3 = data['34:3'];
-  const grp5 = data['34:5'];
-
-  const awdPres = numVal(grp3?.data[0]);
-  const awdTorque = numVal(grp3?.data[1]);
-
+export function AWDTab() {
   return (
     <section id="awd" className="tab-content active">
       <div className="awd-layout">
@@ -35,18 +15,24 @@ export function AWDTab({ data }: AWDTabProps) {
           <h3>Haldex Performance (Grp 3)</h3>
           <div className="gauges-row">
             <div className="gauge-wrapper">
-              <Gauge id="gauge_awd_pres" value={awdPres} min={0} max={60} label={['Bar', 'Oil Pressure']} />
+              <Gauge id="gauge_awd_pres" groupKey="34:3" index={0} min={0} max={60} label={['Bar', 'Oil Pressure']} />
             </div>
             <div className="gauge-wrapper">
-              <Gauge id="gauge_awd_torque" value={awdTorque} min={0} max={2000} label={['Nm', 'Est. Torque']} />
+              <Gauge id="gauge_awd_torque" groupKey="34:3" index={1} min={0} max={2000} label={['Nm', 'Est. Torque']} />
             </div>
           </div>
           <div className="extra-vals-grid">
             <div className="col">
-              <div className="val-row-sm"><span className="label">Valve (N273):</span> <span>{fmtVal(grp3?.data[2])}</span></div>
+              <div className="val-row-sm">
+                <span className="label">Valve (N273):</span> 
+                <span><LiveText groupKey="34:3" index={2} format={(v) => fmtVal(v, '%')} /></span>
+              </div>
             </div>
             <div className="col">
-              <div className="val-row-sm"><span className="label">Current (N273):</span> <span>{fmtVal(grp3?.data[3])}</span></div>
+              <div className="val-row-sm">
+                <span className="label">Current (N273):</span> 
+                <span><LiveText groupKey="34:3" index={3} format={(v) => fmtVal(v, 'mA')} /></span>
+              </div>
             </div>
           </div>
         </div>
@@ -55,16 +41,18 @@ export function AWDTab({ data }: AWDTabProps) {
         <div className="panel awd-status">
           <h3>System Status (Grp 1)</h3>
           <div className="val-list">
-            {[
-              { label: 'Haldex Oil Temp', idx: 0 },
-              { label: 'Plate Temp', idx: 1 },
-              { label: 'Supply Voltage', idx: 2 },
-            ].map(({ label, idx }) => (
-              <div key={label} className="val-row">
-                <span className="label">{label}</span>
-                <span className="value">{fmtVal(grp1?.data[idx])}</span>
-              </div>
-            ))}
+            <div className="val-row">
+              <span className="label">Haldex Oil Temp</span>
+              <span className="value"><LiveText groupKey="34:1" index={0} format={(v) => fmtVal(v, '°C')} /></span>
+            </div>
+            <div className="val-row">
+              <span className="label">Plate Temp</span>
+              <span className="value"><LiveText groupKey="34:1" index={1} format={(v) => fmtVal(v, '°C')} /></span>
+            </div>
+            <div className="val-row">
+              <span className="label">Supply Voltage</span>
+              <span className="value"><LiveText groupKey="34:1" index={2} format={(v) => fmtVal(v, 'V')} /></span>
+            </div>
           </div>
         </div>
 
@@ -72,17 +60,22 @@ export function AWDTab({ data }: AWDTabProps) {
         <div className="panel awd-modes">
           <h3>Modes (Grp 5)</h3>
           <div className="val-list">
-            {[
-              { label: 'CAN Output', idx: 0 },
-              { label: 'Vehicle Mode', idx: 1 },
-              { label: 'Slip Control', idx: 2 },
-              { label: 'Op Mode', idx: 3 },
-            ].map(({ label, idx }) => (
-              <div key={label} className="val-row">
-                <span className="label">{label}</span>
-                <span className="value sm">{fmtVal(grp5?.data[idx])}</span>
-              </div>
-            ))}
+            <div className="val-row">
+              <span className="label">CAN Output</span>
+              <span className="value sm"><LiveText groupKey="34:5" index={0} /></span>
+            </div>
+            <div className="val-row">
+              <span className="label">Vehicle Mode</span>
+              <span className="value sm"><LiveText groupKey="34:5" index={1} /></span>
+            </div>
+            <div className="val-row">
+              <span className="label">Slip Control</span>
+              <span className="value sm"><LiveText groupKey="34:5" index={2} /></span>
+            </div>
+            <div className="val-row">
+              <span className="label">Op Mode</span>
+              <span className="value sm"><LiveText groupKey="34:5" index={3} /></span>
+            </div>
           </div>
         </div>
       </div>

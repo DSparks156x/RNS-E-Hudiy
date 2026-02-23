@@ -1,20 +1,39 @@
+import { motion, useTransform } from 'framer-motion';
+import { useLiveValue } from './LiveText';
+
 interface KnockBarsProps {
-  values: number[]; // 4 values, degrees retard
+  groupKey: string;
 }
 
-function KnockBar({ cyl, value }: { cyl: number; value: number }) {
+function KnockBar({ cyl, groupKey, index }: { cyl: number; groupKey: string; index: number }) {
+  const mv = useLiveValue(groupKey, index, 0);
+
   const maxRetard = 12.0;
-  const pct = Math.min((value / maxRetard) * 100, 100);
-  const color =
-    value <= 0.1 ? 'transparent' : value < 3 ? '#ffcc00' : '#ff0000';
+
+  // pct of the bar height
+  const pct = useTransform(mv, (val) => {
+    const v = typeof val === 'number' ? val : (isNaN(parseFloat(val)) ? 0 : parseFloat(val));
+    return Math.min((v / maxRetard) * 100, 100);
+  });
+
+  const color = useTransform(mv, (val) => {
+    const v = typeof val === 'number' ? val : parseFloat(val);
+    if (isNaN(v) || v <= 0.1) return 'transparent';
+    return v < 3 ? '#ffcc00' : '#ff0000';
+  });
+
+  const displayVal = useTransform(mv, (val) => {
+    const v = typeof val === 'number' ? val : parseFloat(val);
+    return !isNaN(v) && v > 0.1 ? v.toFixed(1) : '';
+  });
 
   return (
     <div className="k-bar-wrapper">
-      <div className="k-val">{value > 0.1 ? value.toFixed(1) : ''}</div>
+      <motion.div className="k-val">{displayVal}</motion.div>
       <div className="k-bar-track">
-        <div
+        <motion.div
           className="k-bar"
-          style={{ height: `${pct}%`, backgroundColor: color }}
+          style={{ height: useTransform(pct, p => `${p}%`), backgroundColor: color }}
         />
       </div>
       <div className="k-label">{cyl}</div>
@@ -22,13 +41,13 @@ function KnockBar({ cyl, value }: { cyl: number; value: number }) {
   );
 }
 
-export function KnockBars({ values }: KnockBarsProps) {
+export function KnockBars({ groupKey }: KnockBarsProps) {
   return (
     <div className="knock-container">
       <div className="knock-header">Timing Pull</div>
       <div className="knock-bars">
-        {values.map((v, i) => (
-          <KnockBar key={i} cyl={i + 1} value={v} />
+        {[0, 1, 2, 3].map((i) => (
+          <KnockBar key={i} cyl={i + 1} groupKey={groupKey} index={i} />
         ))}
       </div>
     </div>

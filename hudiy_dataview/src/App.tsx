@@ -17,7 +17,10 @@ const TABS: { id: TabId; label: string }[] = [
 export function App() {
   const [currentTab, setCurrentTab] = useState<TabId>('engine');
   const [smoothing, setSmoothing] = useState(true);
-  const { data, socket } = useSocket(currentTab);
+  
+  // Notice we only get the socket instance back now; data state is gone!
+  const { socket } = useSocket(currentTab);
+  
   const theme = useHudiyTheme();
 
   // Toggle smoothing on the server — app.py handles the 20Hz interpolation loop
@@ -78,9 +81,10 @@ export function App() {
           className="tab-strip"
           style={{ transform: `translateX(${translatePct}%)` }}
         >
-          <div className="tab-slide"><EngineTab data={data} /></div>
-          <div className="tab-slide"><TransmissionTab data={data} /></div>
-          <div className="tab-slide"><AWDTab data={data} /></div>
+          {/* We no longer need to pass the giant data object to components */}
+          <div className="tab-slide"><EngineTab /></div>
+          <div className="tab-slide"><TransmissionTab /></div>
+          <div className="tab-slide"><AWDTab /></div>
         </div>
       </div>
     </div>
