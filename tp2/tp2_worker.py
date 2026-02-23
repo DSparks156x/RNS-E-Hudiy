@@ -85,7 +85,8 @@ class TP2Service:
         session = {
             'protocol': proto,
             'subs': {}, # {group_id: count}
-            'groups_list': [], # Ordered list for cycling
+            'normal_groups_list': [],
+            'low_groups_list': [],
             'idx': 0,
             'tester_id': tester_id,
             'connected': False,
@@ -96,6 +97,34 @@ class TP2Service:
         }
         self.sessions[module_id] = session
         return session
+
+    def _rebuild_groups_list(self, session):
+        # NOTE: Must be called within Lock
+        now = time.time()
+        normal_set = set()
+        low_set = set()
+        expired_clients = []
+        
+        for cid, data in session.get('client_subs', {}).items():
+            if now - data.get('last_sync', 0) >= 15.0:
+                expired_clients.append(cid)
+            else:
+                normal_set.update(data.get('groups', []))
+                low_set.update(data.get('low_groups', []))
+                
+        for cid in expired_clients:
+            del session['client_subs'][cid]
+            logger.info(f"Client {cid} timed out and was removed.")
+            
+        # If a group is in normal, don't keep it in low
+        low_set = low_set - normal_set
+        
+        new_normal = list(normal_set)
+        new_low = list(low_set)
+        
+        session['normal_groups_list'] = new_normal
+        session['low_groups_list'] = new_low
+        session['active'] = len(new_normal) > 0 or len(new_low) > 0
 
     def _ensure_connected(self, module_id, session):
         # Main Thread Only
@@ -194,7 +223,8 @@ class TP2Service:
                                 "connected": s.get('connected', False),
                                 "active": s.get('active', False),
                                 "client_subs": s.get('client_subs', {}),
-                                "groups_list": s.get('groups_list', []),
+                                "normal_groups_list": s.get('normal_groups_list', []),
+                                "low_groups_list": s.get('low_groups_list', []),
                                 "error_count": s.get('error_count', 0),
                                 "last_activity": s.get('last_activity', 0),
                                 "group_errors": s.get('group_errors', {}),
@@ -211,10 +241,12 @@ class TP2Service:
                     client_id = msg.get("client_id")
                     mod = msg.get("module")
                     groups = msg.get("groups", [])
+                    lp_groups = msg.get("low_priority_groups", [])
                     
                     if client_id and mod is not None:
                         param_mod = int(mod)
                         param_groups = [int(g) for g in groups]
+                        param_lp_groups = [int(g) for g in lp_groups]
                         
                         with self.lock:
                             session = self._get_or_create_session(param_mod)
@@ -222,25 +254,16 @@ class TP2Service:
                             if 'client_subs' not in session:
                                 session['client_subs'] = {}
                                 
-                            if param_groups:
-                                session['client_subs'][client_id] = param_groups
-                            else:
-                                session['client_subs'].pop(client_id, None)
-                                
-                            # Rebuild the master polling list (union of all client groups)
-                            unique_groups = set()
-                            for subs in session['client_subs'].values():
-                                unique_groups.update(subs)
-                                
-                            session['groups_list'] = list(unique_groups)
-                            session['active'] = len(session['groups_list']) > 0
+                            session['client_subs'][client_id] = {
+                                'groups': param_groups,
+                                'low_groups': param_lp_groups,
+                                'last_sync': time.time()
+                            }
                             
-                            # Reset index if it's now out of bounds
-                            if session['idx'] >= len(session['groups_list']):
-                                session['idx'] = 0
-                                
-                            logger.info(f"(Cmd) SYNC for client '{client_id}', Mod 0x{param_mod:02X}, Groups: {session['groups_list']}")
-                            response = {"status": "ok", "message": "Synced", "active_groups": session['groups_list']}
+                            self._rebuild_groups_list(session)
+                            
+                            logger.info(f"(Cmd) SYNC for client '{client_id}', Mod 0x{param_mod:02X}, Normal: {session['normal_groups_list']}, Low: {session['low_groups_list']}")
+                            response = {"status": "ok", "message": "Synced", "active_groups": session['normal_groups_list']}
                     else:
                         response = {"status": "error", "message": "Missing client_id or module"}
 
@@ -307,6 +330,13 @@ class TP2Service:
                     continue
                     
                 for mod_id, session in current_sessions:
+                    # Check for expired clients periodically
+                    now = time.time()
+                    if now - session.get('last_expiry_check', 0) > 5.0:
+                        with self.lock:
+                            self._rebuild_groups_list(session)
+                        session['last_expiry_check'] = now
+
                     # Lifecycle Management
                     if not session['active']:
                         # Cleanup
@@ -328,7 +358,11 @@ class TP2Service:
                         continue
                     
                     # Connection Management
-                    if not session['groups_list']:
+                    normal_list = session.get('normal_groups_list', [])
+                    low_list = session.get('low_groups_list', [])
+                    cycle = session.get('cycle_count', 1)
+                    
+                    if not normal_list and not low_list:
                         # Keep Alive Only
                         if session['connected']:
                              try:
@@ -340,28 +374,40 @@ class TP2Service:
                     if not self._ensure_connected(mod_id, session):
                         continue
                     
-                    # Find Next Available Group
-                    # Logic
-                    # Safety check on index
-                    if session['idx'] >= len(session['groups_list']):
-                        session['idx'] = 0
+                    def get_active_list(n_list, l_list, c):
+                        if not n_list: return l_list
+                        if c >= 10 and l_list: return n_list + l_list
+                        return n_list
                         
+                    active_list = get_active_list(normal_list, low_list, cycle)
+                    
+                    if 'idx' not in session: session['idx'] = 0
+                    if session['idx'] >= len(active_list):
+                        session['idx'] = 0
+                        if normal_list:
+                            cycle += 1
+                            if cycle > 10 and low_list: cycle = 1
+                            session['cycle_count'] = cycle
+                            active_list = get_active_list(normal_list, low_list, cycle)
+
+                    if not active_list:
+                        continue
+
                     # Initialize tracking if missing
                     if 'group_errors' not in session: session['group_errors'] = {}
                     if 'group_cooldowns' not in session: session['group_cooldowns'] = {}
                         
-                    start_idx = session['idx']
                     grp = None
                     valid_group_found = False
                     
-                    for _ in range(len(session['groups_list'])):
-                        candidate_grp = session['groups_list'][session['idx']]
+                    for step in range(len(active_list)):
+                        check_idx = (session['idx'] + step) % len(active_list)
+                        candidate_grp = active_list[check_idx]
                         if time.time() > session['group_cooldowns'].get(candidate_grp, 0):
                             grp = candidate_grp
                             valid_group_found = True
+                            session['idx'] = check_idx
                             break
-                        # Move to next
-                        session['idx'] = (session['idx'] + 1) % len(session['groups_list'])
                         
                     if not valid_group_found:
                         # All groups in cooldown. Keep session alive but do nothing else.
@@ -420,9 +466,9 @@ class TP2Service:
                          session['group_cooldowns'][grp] = time.time() + 30.0
                          session['group_errors'][grp] = 0
                          
-                    # Cycle to next group unconditionally for next loop
-                    if session['groups_list']:
-                         session['idx'] = (session['idx'] + 1) % len(session['groups_list'])
+                    # Move to next group index unconditionally for next loop
+                    if active_list:
+                         session['idx'] += 1
                 
                 # Rate Limiting
                 time.sleep(0.05) # Faster for responsiveness, thread handles command blocking

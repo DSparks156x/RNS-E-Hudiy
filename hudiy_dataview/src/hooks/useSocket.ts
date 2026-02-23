@@ -14,10 +14,10 @@ const TAB_CONFIG: TabConfig = {
         { module: 0x02, group: 11 },
         { module: 0x02, group: 12 },
         { module: 0x02, group: 16 },
-        { module: 0x02, group: 19 },
+        { module: 0x02, group: 19, priority: 'low' },
     ],
     awd: [
-        { module: 0x22, group: 1 },
+        { module: 0x22, group: 1, priority: 'low' },
         { module: 0x22, group: 3 },
         { module: 0x22, group: 5 },
     ],
@@ -32,8 +32,8 @@ type DataMap = Record<string, DiagnosticMessage>;
 
 function subscribe(socket: Socket, groups: TabGroup[], action: 'add' | 'remove') {
     groups.forEach((item) => {
-        console.log(`${action.toUpperCase()} Group: Mod ${item.module} Grp ${item.group}`);
-        socket.emit('toggle_group', { module: item.module, group: item.group, action });
+        console.log(`${action.toUpperCase()} Group: Mod ${item.module} Grp ${item.group} Pri ${item.priority || 'normal'}`);
+        socket.emit('toggle_group', { module: item.module, group: item.group, action, priority: item.priority || 'normal' });
     });
 }
 
@@ -108,7 +108,7 @@ export function useSocket(currentTab: TabId) {
             const prevGroups = TAB_CONFIG[currentTabRef.current];
             if (prevGroups) {
                 prevGroups.forEach((item) => {
-                    socket.emit('toggle_group', { module: item.module, group: item.group, action: 'remove' });
+                    socket.emit('toggle_group', { module: item.module, group: item.group, action: 'remove', priority: item.priority || 'normal' });
                 });
             }
 

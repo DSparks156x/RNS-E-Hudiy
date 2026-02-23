@@ -15,6 +15,7 @@ export interface DiagnosticMessage {
 export interface TabGroup {
     module: number;
     group: number;
+    priority?: 'low' | 'normal';
 }
 
 /** Maps tab IDs to their subscribed groups. */

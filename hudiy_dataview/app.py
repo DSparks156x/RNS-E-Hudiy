@@ -419,8 +419,8 @@ def sync_subscriptions():
     """Background task to continuously enforce the app's desired subscriptions."""
     while True:
         socketio.sleep(3.0)
-        for mod, groups in list(current_subscriptions.items()):
-            worker.send_command("SYNC", module=mod, groups=list(groups), client_id="dataview")
+        for mod, groups_dict in list(current_subscriptions.items()):
+            worker.send_command("SYNC", module=mod, groups=list(groups_dict['normal']), low_priority_groups=list(groups_dict['low']), client_id="dataview")
 
 @app.route('/')
 def index():
@@ -436,21 +436,28 @@ def handle_toggle(data):
     mod = data.get('module')
     grp = data.get('group')
     action = data.get('action')
+    priority = data.get('priority', 'normal')
 
     if mod is not None and grp is not None:
         mod = int(mod)
         grp = int(grp)
         if mod not in current_subscriptions:
-            current_subscriptions[mod] = set()
+            current_subscriptions[mod] = {'normal': set(), 'low': set()}
 
         if action == 'add':
-            current_subscriptions[mod].add(grp)
+            if priority == 'low':
+                current_subscriptions[mod]['low'].add(grp)
+                current_subscriptions[mod]['normal'].discard(grp)
+            else:
+                current_subscriptions[mod]['normal'].add(grp)
+                current_subscriptions[mod]['low'].discard(grp)
         elif action == 'remove':
-            current_subscriptions[mod].discard(grp)
+            current_subscriptions[mod]['normal'].discard(grp)
+            current_subscriptions[mod]['low'].discard(grp)
 
-        worker.send_command("SYNC", module=mod, groups=list(current_subscriptions[mod]), client_id="dataview")
+        worker.send_command("SYNC", module=mod, groups=list(current_subscriptions[mod]['normal']), low_priority_groups=list(current_subscriptions[mod]['low']), client_id="dataview")
 
-    emit('command_response', {"status": "ok", "action": action, "module": mod, "group": grp})
+    emit('command_response', {"status": "ok", "action": action, "module": mod, "group": grp, "priority": priority})
 
 @socketio.on('set_smoothing')
 def handle_set_smoothing(data):

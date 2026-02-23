@@ -123,6 +123,7 @@ chown -R $REAL_USER:$REAL_USER "$REAL_HOME/dis_client"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/tp2"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/hudiy_dataview"
 chown $REAL_USER:$REAL_USER "$REAL_HOME/config.json"
+chmod +x "$REAL_HOME/hudiy_client/update_rnse.sh"
 
 echo "? Project files installed and cleaned."
 
@@ -468,91 +469,91 @@ else
     echo "   ⚠ No local config/hudiy directory found at ${SCRIPT_DIR}/config/hudiy. Skipping."
 fi
 
-# ------------------------------------------------------------------------------
-# 8. Configure Composite Video (Optional)
-# ------------------------------------------------------------------------------
-echo "? Step 8: Configure Composite Video (RNS-E TV-Out)..."
-echo "   Do you want to configure Composite Video output for the RNS-E screen?"
-read -p "   (y/n): " composite_choice
+# # ------------------------------------------------------------------------------
+# # 8. Configure Composite Video (Optional)
+# # ------------------------------------------------------------------------------
+# echo "? Step 8: Configure Composite Video (RNS-E TV-Out)..."
+# echo "   Do you want to configure Composite Video output for the RNS-E screen?"
+# read -p "   (y/n): " composite_choice
 
-if [[ "$composite_choice" =~ ^[Yy]$ ]]; then
-    echo ""
-    echo "   Which RNS-E version do you have?"
-    echo "   1) RNS-E 192 (CD/TV button) -> 480x234"
-    echo "   2) RNS-E 193 (MEDIA button) -> 800x480"
-    read -p "   Enter choice [1-2]: " rnse_version
+# if [[ "$composite_choice" =~ ^[Yy]$ ]]; then
+#     echo ""
+#     echo "   Which RNS-E version do you have?"
+#     echo "   1) RNS-E 192 (CD/TV button) -> 480x234"
+#     echo "   2) RNS-E 193 (MEDIA button) -> 800x480"
+#     read -p "   Enter choice [1-2]: " rnse_version
 
-    case $rnse_version in
-        1)
-            CVT_MODE="480 234 60 6 0 0 0"
-            CMDLINE_RES="480x234"
-            echo "   -> Selected 192 (480x234)"
-            ;;
-        2)
-            CVT_MODE="800 480 60 6 0 0 0"
-            CMDLINE_RES="800x480"
-            echo "   -> Selected 193 (800x480)"
-            ;;
-        *)
-            CVT_MODE="800 480 60 6 0 0 0"
-            CMDLINE_RES="800x480"
-            echo "   -> Invalid choice. Defaulting to 193 (800x480)."
-            ;;
-    esac
+#     case $rnse_version in
+#         1)
+#             CVT_MODE="480 234 60 6 0 0 0"
+#             CMDLINE_RES="480x234"
+#             echo "   -> Selected 192 (480x234)"
+#             ;;
+#         2)
+#             CVT_MODE="800 480 60 6 0 0 0"
+#             CMDLINE_RES="800x480"
+#             echo "   -> Selected 193 (800x480)"
+#             ;;
+#         *)
+#             CVT_MODE="800 480 60 6 0 0 0"
+#             CMDLINE_RES="800x480"
+#             echo "   -> Invalid choice. Defaulting to 193 (800x480)."
+#             ;;
+#     esac
 
-    # 1. Edit config.txt
-    echo "   Modifying $CONFIG_TXT..."
-    cp "$CONFIG_TXT" "$CONFIG_TXT.bak"
+#     # 1. Edit config.txt
+#     echo "   Modifying $CONFIG_TXT..."
+#     cp "$CONFIG_TXT" "$CONFIG_TXT.bak"
     
-    # We use sed to find the KMS line and REPLACE it with the FKMS line.
-    # This handles the replacement inline without relying on unreliable grep checks.
-    # If standard KMS is found, we comment it out and add FKMS below it.
-    if grep -q "dtoverlay=vc4-kms-v3d" "$CONFIG_TXT"; then
-        # Disable KMS, Add FKMS
-        sed -i 's/^dtoverlay=vc4-kms-v3d/#dtoverlay=vc4-kms-v3d\ndtoverlay=vc4-fkms-v3d,composite=1/g' "$CONFIG_TXT"
-    elif grep -q "dtoverlay=vc4-fkms-v3d" "$CONFIG_TXT"; then
-         # Ensure composite=1 is present
-         if ! grep -q "composite=1" "$CONFIG_TXT"; then
-            sed -i 's/dtoverlay=vc4-fkms-v3d/dtoverlay=vc4-fkms-v3d,composite=1/g' "$CONFIG_TXT"
-         fi
-    else
-         # If neither exists, append it
-         echo "dtoverlay=vc4-fkms-v3d,composite=1" >> "$CONFIG_TXT"
-    fi
+#     # We use sed to find the KMS line and REPLACE it with the FKMS line.
+#     # This handles the replacement inline without relying on unreliable grep checks.
+#     # If standard KMS is found, we comment it out and add FKMS below it.
+#     if grep -q "dtoverlay=vc4-kms-v3d" "$CONFIG_TXT"; then
+#         # Disable KMS, Add FKMS
+#         sed -i 's/^dtoverlay=vc4-kms-v3d/#dtoverlay=vc4-kms-v3d\ndtoverlay=vc4-fkms-v3d,composite=1/g' "$CONFIG_TXT"
+#     elif grep -q "dtoverlay=vc4-fkms-v3d" "$CONFIG_TXT"; then
+#          # Ensure composite=1 is present
+#          if ! grep -q "composite=1" "$CONFIG_TXT"; then
+#             sed -i 's/dtoverlay=vc4-fkms-v3d/dtoverlay=vc4-fkms-v3d,composite=1/g' "$CONFIG_TXT"
+#          fi
+#     else
+#          # If neither exists, append it
+#          echo "dtoverlay=vc4-fkms-v3d,composite=1" >> "$CONFIG_TXT"
+#     fi
 
-    # Append the video settings block
-    cat <<EOF >> "$CONFIG_TXT"
+#     # Append the video settings block
+#     cat <<EOF >> "$CONFIG_TXT"
 
-# --- RNS-E Composite Video Settings ---
-# Force HDMI driver 2 for audio compatibility (standard DMT/custom mode practice)
-hdmi_drive=2
-hdmi_ignore_hotplug=1
-hdmi_cvt=$CVT_MODE
-hdmi_group=2
-hdmi_mode=87
-enable_tvout=1
-# overscan_scale=1
-# overscan_bottom=0
-# overscan_top=0 
-# overscan_left=0
-# overscan_right=0
-EOF
+# # --- RNS-E Composite Video Settings ---
+# # Force HDMI driver 2 for audio compatibility (standard DMT/custom mode practice)
+# hdmi_drive=2
+# hdmi_ignore_hotplug=1
+# hdmi_cvt=$CVT_MODE
+# hdmi_group=2
+# hdmi_mode=87
+# enable_tvout=1
+# # overscan_scale=1
+# # overscan_bottom=0
+# # overscan_top=0 
+# # overscan_left=0
+# # overscan_right=0
+# EOF
 
-    # 2. Edit cmdline.txt - SAFER APPEND METHOD
-    echo "   Modifying $CMDLINE_TXT..."
-    cp "$CMDLINE_TXT" "$CMDLINE_TXT.bak"
+#     # 2. Edit cmdline.txt - SAFER APPEND METHOD
+#     echo "   Modifying $CMDLINE_TXT..."
+#     cp "$CMDLINE_TXT" "$CMDLINE_TXT.bak"
 
-    # Remove any existing Composite arguments to avoid duplicates
-    sed -i 's/ video=Composite-1[^ ]*//g' "$CMDLINE_TXT"
+#     # Remove any existing Composite arguments to avoid duplicates
+#     sed -i 's/ video=Composite-1[^ ]*//g' "$CMDLINE_TXT"
 
-    # Safely append to the end of the line using sed substitute
-    # s/$/ text/ adds ' text' to the end of the line.
-    sed -i "s/$/ video=Composite-1:${CMDLINE_RES}@60i,margin_left=0,margin_right=0,margin_top=0,margin_bottom=0/" "$CMDLINE_TXT"
+#     # Safely append to the end of the line using sed substitute
+#     # s/$/ text/ adds ' text' to the end of the line.
+#     sed -i "s/$/ video=Composite-1:${CMDLINE_RES}@60i,margin_left=0,margin_right=0,margin_top=0,margin_bottom=0/" "$CMDLINE_TXT"
 
-    echo "? Composite Video configured."
-else
-    echo "   Skipping Composite Video configuration."
-fi
+#     echo "? Composite Video configured."
+# else
+#     echo "   Skipping Composite Video configuration."
+# fi
 
 
 echo ""

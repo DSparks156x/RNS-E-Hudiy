@@ -381,6 +381,10 @@ class TP2BridgeHandler(ClientEventHandler):
         req_act.action = "toggle_diagnostics"
         client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act.SerializeToString())
         
+        req_act_update = hudiy_api.RegisterActionRequest()
+        req_act_update.action = "update_rnse"
+        client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_update.SerializeToString())
+        
         # 2. Register Icon
         req_icon = hudiy_api.RegisterStatusIconRequest()
         req_icon.description = "Diagnostics Active"
@@ -404,6 +408,20 @@ class TP2BridgeHandler(ClientEventHandler):
             logger.info("Hudiy Action: Toggle Diagnostics")
             self.send_command("TOGGLE")
             self.check_status_now(client)
+        elif message.action == "update_rnse":
+            logger.info("Hudiy Action: Update RNS-E")
+            import subprocess
+            
+            # Send quit action to gracefully close Hudiy
+            req_quit = hudiy_api.DispatchAction()
+            req_quit.action = "quit_hudiy"
+            client.send(hudiy_api.MESSAGE_DISPATCH_ACTION, 0, req_quit.SerializeToString())
+            
+            # Launch bash script
+            logger.info("Executing updater bash script...")
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            updater_script = os.path.join(script_dir, "update_rnse.sh")
+            subprocess.Popen(["sudo", "bash", updater_script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def send_command(self, cmd):
         with self.lock:
