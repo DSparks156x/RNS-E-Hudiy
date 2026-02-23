@@ -1,5 +1,5 @@
 interface SelectorBarsProps {
-  // 4 values: -100 to 100 (travel in mm)
+  // 4 values: -9 to 9 (travel in mm)
   values: number[];
   topLabels: string[];
   botLabels: string[];
@@ -14,9 +14,9 @@ function SelectorBar({
   topLabel: string;
   botLabel: string;
 }) {
-  const clamped = Math.max(-100, Math.min(100, value));
-  // Map ±100 to 50% of the track (fills half the track at max)
-  const fillPct = Math.abs(clamped) / 2;
+  const clamped = Math.max(-9, Math.min(9, value));
+  // Map ±9 to 50% of the track (fills half the track at max)
+  const fillPct = (Math.abs(clamped) / 9) * 50;
   const isPositive = clamped >= 0;
 
   // Anchored at center, grows outward — left/right:0 pins width to track exactly
@@ -26,7 +26,7 @@ function SelectorBar({
     left: 0,
     right: 0,
     height: isPositive ? `${fillPct}%` : '0%',
-    backgroundColor: '#ff3b3b',
+    backgroundColor: 'var(--accent-color)',
     transition: 'height var(--rx-interval, 200ms) ease-out',
   };
 
@@ -36,7 +36,8 @@ function SelectorBar({
     left: 0,
     right: 0,
     height: !isPositive ? `${fillPct}%` : '0%',
-    backgroundColor: '#3b3bff',
+    backgroundColor: 'var(--text-color)', // Using text-color instead of hardcoded blue for now so it matches theme
+    opacity: 0.8,
     transition: 'height var(--rx-interval, 200ms) ease-out',
   };
 

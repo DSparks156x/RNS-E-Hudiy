@@ -4,7 +4,7 @@
     --bg-color: #121212;
     --panel-bg: #1e1e1e;
     --text-color: #ffffff;
-    --accent-color: #ff3b3b;
+    --accent-color: var(--primary-color, #ff3b3b);
     /* Hudiy Red/Orange */
     --accent-dim: #7f1d1d;
     --grid-gap: 5px;
@@ -18,14 +18,13 @@
     outline: none;
 }
 
-html,
 body {
     margin: 0;
     padding: 0;
     width: 100%;
     height: 100%;
     background-color: var(--bg-color);
-    color: var(--text-color);
+    color: var(--text-color, #ffffff);
     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     overflow: hidden;
 }
@@ -61,7 +60,8 @@ body {
     flex: 1;
     background: none;
     border: none;
-    color: #888;
+    color: var(--text-color);
+    opacity: 0.6;
     font-size: 18px;
     font-weight: bold;
     cursor: pointer;
@@ -74,16 +74,17 @@ body {
     background-color: #1a1a1a;
 }
 
-/* Smoothing toggle pill — lives in the right of the nav bar */
+/* Smoothing toggle pill — lives in the left of the nav bar */
 .smooth-toggle {
     flex: 0;
     align-self: center;
     margin: 0 8px;
-    padding: 3px 10px;
+    padding: 3px 20px;
     background: #1a1a1a;
     border: 1px solid #444;
     border-radius: 12px;
-    color: #666;
+    color: var(--text-color);
+    opacity: 0.6;
     font-size: 16px;
     font-weight: bold;
     cursor: pointer;
@@ -176,13 +177,15 @@ body {
 }
 
 .label {
-    color: #888;
+    color: var(--text-color);
+    opacity: 0.6;
 }
 
 .value {
     font-weight: bold;
     font-family: monospace;
     font-size: 18px;
+    color: var(--text-color);
 }
 
 /* Transmission Layout */
@@ -190,7 +193,7 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     /* Pressure | Selector */
-    grid-template-rows: 1.5fr 0.5fr;
+    grid-template-rows: calc(100% - 40px) 35px;
     /* Main | Bottom */
     grid-template-areas:
         "pressure selector"
@@ -212,9 +215,9 @@ body {
 
 .panel h3 {
     margin-top: 0;
-    font-size: 14px;
     /* Smaller header */
-    color: #bbb;
+    color: var(--text-color);
+    opacity: 0.73;
     text-align: center;
     margin-bottom: 5px;
     white-space: nowrap;
@@ -280,7 +283,8 @@ body {
     left: 50%;
     transform: translateX(-50%);
     font-size: 11px;
-    color: #666;
+    color: var(--text-color);
+    opacity: 0.6;
     width: 100%;
     text-align: center;
 }
@@ -352,14 +356,16 @@ body {
     margin-bottom: 7px;
     font-size: 14px;
     font-weight: bold;
-    color: #aaa;
+    color: var(--text-color);
+    opacity: 0.6;
 }
 
 .bar-label-bot {
     margin-top: 7px;
     font-size: 14px;
     font-weight: bold;
-    color: #aaa;
+    color: var(--text-color);
+    opacity: 0.6;
 }
 
 /* Temp Panel */
@@ -397,7 +403,8 @@ body {
 .val-label {
     display: block;
     font-size: 10px;
-    color: #666;
+    color: var(--text-color);
+    opacity: 0.6;
     font-family: sans-serif;
     margin-bottom: 2px;
 }
@@ -513,7 +520,8 @@ body {
 .stat-label {
     font-size: 11px;
     /* Smaller label */
-    color: #888;
+    color: var(--text-color);
+    opacity: 0.6;
     white-space: nowrap;
     /* Prevent label wrapping */
 }
@@ -522,7 +530,7 @@ body {
     font-size: 16px;
     /* Slightly smaller value */
     font-weight: bold;
-    color: #ddd;
+    color: var(--text-color);
     font-family: monospace;
     text-align: right;
 }
@@ -543,7 +551,7 @@ body {
 
 .temp-val {
     font-size: 18px;
-    color: #fff;
+    color: var(--text-color);
     font-weight: bold;
     font-family: monospace;
 }
@@ -619,7 +627,8 @@ body {
     left: 50%;
     transform: translateX(-50%);
     font-size: 11px;
-    color: #888;
+    color: var(--text-color);
+    opacity: 0.6;
     width: 100%;
     text-align: center;
 }
@@ -638,7 +647,8 @@ body {
     left: 50%;
     transform: translateX(-50%);
     font-size: 12px;
-    color: #888;
+    color: var(--text-color) !important;
+    opacity: 0.7;
     text-transform: uppercase;
 }
 
@@ -654,11 +664,11 @@ body {
     min-height: 0;
 }
 
-/* Use .stat-label style for header to match Ignition/RPM */
 .knock-header {
     text-align: center;
     font-size: 14px;
-    color: #888;
+    color: var(--text-color);
+    opacity: 0.6;
     text-transform: uppercase;
     margin-bottom: 5px;
 }
@@ -686,7 +696,8 @@ body {
 
 .k-label {
     font-size: 12px;
-    color: #888;
+    color: var(--text-color);
+    opacity: 0.6;
     margin-bottom: 2px;
     text-align: center;
     width: 100%;
@@ -742,7 +753,8 @@ body {
 
 .inj-label {
     font-size: 11px;
-    color: #888;
+    color: var(--text-color);
+    opacity: 0.6;
 }
 
 .inj-val {

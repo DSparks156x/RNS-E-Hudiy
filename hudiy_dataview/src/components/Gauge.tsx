@@ -32,7 +32,7 @@ export function Gauge({ value, min, max, label, size = 140 }: GaugeProps) {
           background={{ fill: '#333' }}
           dataKey="value"
           cornerRadius={4}
-          fill="#ff3b3b"
+          fill="var(--accent-color)"
           angleAxisId={0}
           isAnimationActive={false}
         />

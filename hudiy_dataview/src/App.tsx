@@ -6,6 +6,8 @@ import { EngineTab } from './tabs/EngineTab';
 import { TransmissionTab } from './tabs/TransmissionTab';
 import { AWDTab } from './tabs/AWDTab';
 
+import { useHudiyTheme } from './hooks/useHudiyTheme';
+
 const TABS: { id: TabId; label: string }[] = [
   { id: 'engine', label: 'Engine' },
   { id: 'transmission', label: 'Transmission' },
@@ -16,6 +18,7 @@ export function App() {
   const [currentTab, setCurrentTab] = useState<TabId>('engine');
   const [smoothing, setSmoothing] = useState(true);
   const { data, intervalMs, socket } = useSocket(currentTab);
+  const theme = useHudiyTheme();
 
   // Toggle smoothing on the server — app.py handles the 20Hz interpolation loop
   const toggleSmoothing = useCallback(() => {
@@ -40,11 +43,22 @@ export function App() {
   const tabCount = TABS.length;
   const translatePct = -(currentIndex * (100 / tabCount));
 
-
-
   return (
-    <div className="container">
+    <div
+      className="container"
+      style={{
+        '--accent-color': theme.primary,
+        '--text-color': theme.onSurface,
+      } as React.CSSProperties}
+    >
       <nav className="tabs">
+        <button
+          className={`smooth-toggle${smoothing ? ' active' : ''}`}
+          onClick={toggleSmoothing}
+          title="Toggle data smoothing"
+        >
+          ~
+        </button>
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -54,13 +68,6 @@ export function App() {
             {tab.label}
           </button>
         ))}
-        <button
-          className={`smooth-toggle${smoothing ? ' active' : ''}`}
-          onClick={toggleSmoothing}
-          title="Toggle data smoothing"
-        >
-          ~
-        </button>
       </nav>
 
       <div
