@@ -27,5 +27,10 @@ cd ~
 wget -q -O install_update.sh https://raw.githubusercontent.com/DSparks156x/RNS-E-Hudiy/main/install.sh
 chmod +x install_update.sh
 
-# Run install script and auto-accept the reboot prompt at the end
-echo "y" | sudo ./install_update.sh
+# Run install script and auto-reject the reboot prompt at the end
+echo "n" | sudo ./install_update.sh
+
+#rebooting immediately causes reboot to take forever, something is taking its time. 
+
+sleep 10
+sudo reboot now
