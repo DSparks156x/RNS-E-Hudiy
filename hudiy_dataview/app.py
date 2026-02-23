@@ -27,7 +27,8 @@ except Exception as _e:
 # --- Setup Flask & SocketIO ---
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'hudiy_secret'
-socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*')
+socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*',
+                    ping_interval=60, ping_timeout=120)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] (DataView) %(message)s')
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ MOCK_MODE = False
 SMOOTHING_ENABLED = True  # default on
 
 # --- Server-Side Interpolator ---
-EMIT_INTERVAL = 0.05    # 20Hz broadcast rate
+EMIT_INTERVAL = 0.25    # 4Hz broadcast rate — keeps Pi QtWebEngine socket buffer clear
 EMA_ALPHA     = 0.92     # applied to incoming source values before linear interp (0=frozen, 1=raw)
 
 class Interpolator:
@@ -148,18 +149,41 @@ class Interpolator:
 interpolator = Interpolator()
 
 
+# Track when each (module, group) last received a real data update so the
+# broadcast loop only fires for groups with fresh data, not stale ones.
+_last_update_time: dict = {}
+_last_update_lock = threading.Lock()
+
 def interpolation_broadcast_loop():
-    """Background task: runs at 20Hz, emits interpolated data to all clients."""
+    """Background task: runs at 20Hz, emits interpolated data to clients.
+    Batches all fresh group updates into a single emit to minimise WebSocket
+    frame overhead (N individual emits per cycle was the main Pi bottleneck)."""
+    _emit_count = 0
+    _emit_log_time = time.monotonic()
     while True:
         socketio.sleep(EMIT_INTERVAL)
         if not SMOOTHING_ENABLED:
-            continue  # raw mode: data is emitted directly in update()
-        with interpolator._lock:
-            keys = list(interpolator._latest_msg.keys())
-        for (module, group) in keys:
+            continue  # raw mode: data is emitted directly in ingest()
+        now = time.monotonic()
+        with _last_update_lock:
+            fresh_keys = [k for k, t in _last_update_time.items() if now - t < 5.0]
+        if not fresh_keys:
+            continue
+        batch = []
+        for (module, group) in fresh_keys:
             msg = interpolator.get_interpolated(module, group)
             if msg:
-                socketio.emit('diagnostic_update', msg)
+                batch.append(msg)
+        if batch:
+            # namespace='/' is required when calling emit from a background task
+            # outside a request context; without it flask_socketio can silently drop it.
+            socketio.emit('diagnostic_batch', batch, namespace='/')
+            _emit_count += len(batch)
+            now2 = time.monotonic()
+            if now2 - _emit_log_time >= 5.0:
+                logger.info(f"Broadcast loop: emitted {_emit_count} group updates in last 5s")
+                _emit_count = 0
+                _emit_log_time = now2
 
 
 # --- ZMQ Worker ---
@@ -216,7 +240,12 @@ class ZMQWorker:
             logger.error(f"ZMQ Connection Failed: {e}")
             return False
 
-    def send_command(self, cmd, module=None, group=None, **kwargs):
+    def send_command(self, cmd, module=None, group=None, fire_and_forget=False, **kwargs):
+        """Send a command to tp2_worker.
+        fire_and_forget=True: queues the message and returns immediately without
+        waiting for the ZMQ reply. Use this from SocketIO event handlers so they
+        never block the handler thread on a slow ZMQ round-trip.
+        """
         if MOCK_MODE:
             logger.info(f"MOCK CMD: {cmd} Mod:{module} Grp:{group}")
             return {"status": "mock_ok"}
@@ -226,6 +255,8 @@ class ZMQWorker:
         msg.update(kwargs)
         result_q = queue.Queue(maxsize=1)
         self._cmd_queue.put((msg, result_q))
+        if fire_and_forget:
+            return {"status": "queued"}
         try:
             return result_q.get(timeout=5.0)
         except queue.Empty:
@@ -379,10 +410,13 @@ class ZMQWorker:
 
     def run_real(self):
         logger.info("Starting ZMQ Subscriber Loop...")
+        _recv_count = 0
+        _recv_log_time = time.monotonic()
         while self.running:
             try:
-                if self.sub_sock.poll(500):
-                    # Drain all available messages
+                if self.sub_sock.poll(100):  # Reduced from 500ms so loop is more responsive
+                    # Drain all available messages in this poll cycle
+                    drained = 0
                     while self.sub_sock.poll(0):
                         topic, msg = self.sub_sock.recv_multipart()
                         if topic == b'HUDIY_DIAG':
@@ -390,7 +424,16 @@ class ZMQWorker:
                             mod = payload.get('module')
                             grp = payload.get('group')
                             data = payload.get('data')
+                            logger.debug(f"ZMQ RX: Mod 0x{mod:02X} Grp {grp}")
                             self.ingest(mod, grp, data)
+                            drained += 1
+                            _recv_count += 1
+                    if drained > 0:
+                        now = time.monotonic()
+                        if now - _recv_log_time >= 5.0:
+                            logger.info(f"ZMQ RX rate: {_recv_count} msgs in last 5s")
+                            _recv_count = 0
+                            _recv_log_time = now
                 socketio.sleep(0.01)
             except Exception as e:
                 logger.error(f"ZMQ Sub Error: {e}")
@@ -399,10 +442,10 @@ class ZMQWorker:
     def ingest(self, module, group, data):
         """Feed new raw data into the interpolator; emit directly if smoothing is off."""
         interpolator.update(module, group, data)
+        # Record arrival time so the broadcast loop knows this group is fresh.
+        with _last_update_lock:
+            _last_update_time[(module, group)] = time.monotonic()
         if not SMOOTHING_ENABLED:
-            # Pass-through: emit raw immediately.
-            # Explicit namespace='/' is required when calling from a plain thread
-            # (i.e. not a socketio.start_background_task) to avoid silent failures.
             socketio.emit('diagnostic_update', {
                 'module': module,
                 'group': group,
@@ -416,11 +459,12 @@ worker = ZMQWorker()
 current_subscriptions = {}
 
 def sync_subscriptions():
-    """Background task to continuously enforce the app's desired subscriptions."""
+    """Background task: periodically re-asserts subscriptions as a heartbeat.
+    Uses fire_and_forget so it never competes with UI commands for the queue."""
     while True:
-        socketio.sleep(3.0)
+        socketio.sleep(10.0)
         for mod, groups_dict in list(current_subscriptions.items()):
-            worker.send_command("SYNC", module=mod, groups=list(groups_dict['normal']), low_priority_groups=list(groups_dict['low']), client_id="dataview")
+            worker.send_command("SYNC", module=mod, groups=list(groups_dict['normal']), low_priority_groups=list(groups_dict['low']), client_id="dataview", fire_and_forget=True)
 
 @app.route('/')
 def index():
@@ -428,8 +472,12 @@ def index():
 
 @socketio.on('connect')
 def handle_connect():
-    logger.info("Client Connected")
+    logger.info(f"Client Connected (sid={request.sid})")
     emit('status', {'mock_mode': MOCK_MODE, 'smoothing': SMOOTHING_ENABLED})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    logger.info(f"Client Disconnected (sid={request.sid})")
 
 @socketio.on('toggle_group')
 def handle_toggle(data):
@@ -455,7 +503,18 @@ def handle_toggle(data):
             current_subscriptions[mod]['normal'].discard(grp)
             current_subscriptions[mod]['low'].discard(grp)
 
-        worker.send_command("SYNC", module=mod, groups=list(current_subscriptions[mod]['normal']), low_priority_groups=list(current_subscriptions[mod]['low']), client_id="dataview")
+        # Snapshot sets into locals before any async work so concurrent handlers
+        # can't delete the key between our send_command and the empty-check below.
+        mod_entry = current_subscriptions.get(mod)
+        if mod_entry is None:
+            return  # Another thread already cleaned it up
+        normal_now = set(mod_entry['normal'])
+        low_now = set(mod_entry['low'])
+
+        worker.send_command("SYNC", module=mod, groups=list(normal_now), low_priority_groups=list(low_now), client_id="dataview", fire_and_forget=True)
+
+        if not normal_now and not low_now:
+            current_subscriptions.pop(mod, None)  # safe even if already removed
 
     emit('command_response', {"status": "ok", "action": action, "module": mod, "group": grp, "priority": priority})
 

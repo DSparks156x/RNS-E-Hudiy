@@ -23,11 +23,6 @@ const TAB_CONFIG: TabConfig = {
     ],
 };
 
-const RX_WINDOW_MS = 2000;
-const FALLBACK_INTERVAL_MS = 200;
-const MIN_INTERVAL_MS = 50;
-const MAX_INTERVAL_MS = 500;
-
 type DataMap = Record<string, DiagnosticMessage>;
 
 function subscribe(socket: Socket, groups: TabGroup[], action: 'add' | 'remove') {
@@ -39,19 +34,29 @@ function subscribe(socket: Socket, groups: TabGroup[], action: 'add' | 'remove')
 
 export function useSocket(currentTab: TabId) {
     const [data, setData] = useState<DataMap>({});
-    const [intervalMs, setIntervalMs] = useState<number>(FALLBACK_INTERVAL_MS);
     const socketRef = useRef<Socket | null>(null);
     const currentTabRef = useRef<TabId>(currentTab);
     // Accumulate messages between animation frames, then flush once per frame
     const pendingRef = useRef<DataMap>({});
     const rafRef = useRef<number | null>(null);
-    // Rolling window of message timestamps for rate calculation
-    const rxTimestampsRef = useRef<number[]>([]);
 
     // Connect once on mount
     useEffect(() => {
         const socket = io();
         socketRef.current = socket;
+
+        // Single RAF flush function — shared by both event handlers.
+        // Schedules exactly one setData call per animation frame regardless of
+        // how many socket messages arrive between frames.
+        const scheduleFlush = () => {
+            if (!rafRef.current) {
+                rafRef.current = requestAnimationFrame(() => {
+                    setData((prev) => ({ ...prev, ...pendingRef.current }));
+                    pendingRef.current = {};
+                    rafRef.current = null;
+                });
+            }
+        };
 
         socket.on('connect', () => {
             console.log('Connected to Backend');
@@ -63,31 +68,18 @@ export function useSocket(currentTab: TabId) {
             const m = msg as DiagnosticMessage;
             // Accumulate into pending — last value per key wins within the frame
             pendingRef.current[diagKey(m.module, m.group)] = m;
+            scheduleFlush();
+        });
 
-            // Record timestamp for RX rate measurement
-            const now = performance.now();
-            rxTimestampsRef.current.push(now);
-
-            // Schedule a single flush on the next animation frame if not already pending
-            if (!rafRef.current) {
-                rafRef.current = requestAnimationFrame(() => {
-                    setData((prev) => ({ ...prev, ...pendingRef.current }));
-                    pendingRef.current = {};
-                    rafRef.current = null;
-
-                    // Compute average interval from the rolling 2-second window
-                    const cutoff = performance.now() - RX_WINDOW_MS;
-                    const ts = rxTimestampsRef.current.filter((t) => t >= cutoff);
-                    rxTimestampsRef.current = ts;
-
-                    if (ts.length >= 2) {
-                        const totalSpan = ts[ts.length - 1] - ts[0];
-                        const avgInterval = totalSpan / (ts.length - 1);
-                        const clamped = Math.min(MAX_INTERVAL_MS, Math.max(MIN_INTERVAL_MS, avgInterval));
-                        setIntervalMs(Math.round(clamped));
-                    }
-                });
+        // Smoothing-mode batch: server sends all fresh groups in one emit instead of N.
+        // Feed each group into the same pending accumulator so the RAF flush handles them.
+        socket.on('diagnostic_batch', (batch: unknown) => {
+            const msgs = batch as DiagnosticMessage[];
+            if (!Array.isArray(msgs) || msgs.length === 0) return;
+            for (const m of msgs) {
+                pendingRef.current[diagKey(m.module, m.group)] = m;
             }
+            scheduleFlush();
         });
 
         return () => {
@@ -122,5 +114,5 @@ export function useSocket(currentTab: TabId) {
         }
     }, [currentTab]);
 
-    return { data, intervalMs, socket: socketRef.current };
+    return { data, socket: socketRef.current };
 }

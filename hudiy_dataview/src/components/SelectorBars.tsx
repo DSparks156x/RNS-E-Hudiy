@@ -27,7 +27,7 @@ function SelectorBar({
     right: 0,
     height: isPositive ? `${fillPct}%` : '0%',
     backgroundColor: 'var(--accent-color)',
-    transition: 'height var(--rx-interval, 200ms) ease-out',
+    transition: 'height 250ms ease-out',
   };
 
   const lowerStyle: React.CSSProperties = {
@@ -38,7 +38,7 @@ function SelectorBar({
     height: !isPositive ? `${fillPct}%` : '0%',
     backgroundColor: 'var(--text-color)', // Using text-color instead of hardcoded blue for now so it matches theme
     opacity: 0.8,
-    transition: 'height var(--rx-interval, 200ms) ease-out',
+    transition: 'height 250ms ease-out',
   };
 
   return (
