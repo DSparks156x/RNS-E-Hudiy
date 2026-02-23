@@ -1,3 +1,6 @@
+import gevent.monkey
+gevent.monkey.patch_all()
+
 import os
 import sys
 import json
@@ -6,7 +9,7 @@ import threading
 import queue
 import logging
 import random
-import zmq
+import zmq.green as zmq
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 
@@ -27,7 +30,7 @@ except Exception as _e:
 # --- Setup Flask & SocketIO ---
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'hudiy_secret'
-socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*',
+socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins='*',
                     ping_interval=60, ping_timeout=120)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] (DataView) %(message)s')
@@ -515,6 +518,17 @@ def handle_toggle(data):
 
         if not normal_now and not low_now:
             current_subscriptions.pop(mod, None)  # safe even if already removed
+
+        # Snapshot push: immediately send whatever cached data we have for this
+        # group to the subscribing client so it doesn't blank-wait for the next
+        # broadcast cycle (up to 250ms gap, or infinite if data is >5s stale).
+        if action == 'add':
+            if SMOOTHING_ENABLED:
+                snap = interpolator.get_interpolated(mod, grp)
+            else:
+                snap = interpolator.get_raw(mod, grp)
+            if snap:
+                emit('diagnostic_batch', [snap])
 
     emit('command_response', {"status": "ok", "action": action, "module": mod, "group": grp, "priority": priority})
 
