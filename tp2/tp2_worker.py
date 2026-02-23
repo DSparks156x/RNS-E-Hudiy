@@ -395,9 +395,7 @@ class TP2Service:
                             # NRC (Negative Response Code)
                             logger.warning(f"Mod 0x{mod_id:02X} Grp {grp} Rejected: {resp}")
                             session['group_errors'][grp] = session['group_errors'].get(grp, 0) + 1
-                            
-                        # MANDATORY KEEP-ALIVE
-                        proto.send_keep_alive()
+
 
                     except TP2Error as e:
                         session['group_errors'][grp] = session['group_errors'].get(grp, 0) + 1

@@ -76,6 +76,10 @@ class TP2Coding:
             val = (a * b) / 100.0
             unit = "km/h"
             
+        elif t == 13: # mm
+            val = (b - 127) * 0.001 * a
+            unit = "mm"
+
         elif t == 15: # Time ms
             val = a * b * 0.01
             unit = "ms"
@@ -112,10 +116,6 @@ class TP2Coding:
             # It seems diag.c is incomplete for some or relies on defaults.
             val = f"{a} {b}" # Raw fallback
             unit = "km"
-
-        elif t == 37: # Status Message
-             val = f"0x{a:02X} 0x{b:02X}" # Usually hex values for status bits
-             unit = "Status"
 
         elif t == 52: # Torque Nm
              val = (b * 0.02 * a) - a

@@ -382,13 +382,15 @@ class ZMQWorker:
         while self.running:
             try:
                 if self.sub_sock.poll(500):
-                    topic, msg = self.sub_sock.recv_multipart()
-                    if topic == b'HUDIY_DIAG':
-                        payload = json.loads(msg)
-                        mod = payload.get('module')
-                        grp = payload.get('group')
-                        data = payload.get('data')
-                        self.ingest(mod, grp, data)
+                    # Drain all available messages
+                    while self.sub_sock.poll(0):
+                        topic, msg = self.sub_sock.recv_multipart()
+                        if topic == b'HUDIY_DIAG':
+                            payload = json.loads(msg)
+                            mod = payload.get('module')
+                            grp = payload.get('group')
+                            data = payload.get('data')
+                            self.ingest(mod, grp, data)
                 socketio.sleep(0.01)
             except Exception as e:
                 logger.error(f"ZMQ Sub Error: {e}")
@@ -472,8 +474,7 @@ if __name__ == '__main__':
         MOCK_MODE = True
         logger.warning("FORCED MOCK MODE")
 
-    worker_thread = threading.Thread(target=worker.run, daemon=True)
-    worker_thread.start()
+    socketio.start_background_task(worker.run)
 
     logger.info("Starting Flask-SocketIO Server on port 5003")
     socketio.start_background_task(sync_subscriptions)
