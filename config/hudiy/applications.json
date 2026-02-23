@@ -3,7 +3,7 @@
         {
             "action": "hudiy_diagnostics",
             "url": "http://localhost:5003",
-            "allowBackground": true,
+            "allowBackground": false,
             "controlAudioFocus": false,
             "audioStreamCategory": "NONE"
         }

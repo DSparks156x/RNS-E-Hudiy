@@ -17,7 +17,7 @@ const TABS: { id: TabId; label: string }[] = [
 export function App() {
   const [currentTab, setCurrentTab] = useState<TabId>('engine');
   const [smoothing, setSmoothing] = useState(true);
-  const { data, intervalMs, socket } = useSocket(currentTab);
+  const { data, socket } = useSocket(currentTab);
   const theme = useHudiyTheme();
 
   // Toggle smoothing on the server — app.py handles the 20Hz interpolation loop
@@ -72,7 +72,6 @@ export function App() {
 
       <div
         className="tab-swipe-area"
-        style={{ '--rx-interval': `${intervalMs}ms` } as React.CSSProperties}
         {...swipeHandlers}
       >
         <div

@@ -420,6 +420,7 @@ class TP2Service:
                         
                     proto = session['protocol']
                     
+                    logger.info(f"Polling Mod 0x{mod_id:02X} Grp {grp}")
                     try:
                         resp = proto.send_kvp_request([0x21, grp])
                         
@@ -433,32 +434,47 @@ class TP2Service:
                                 'data': decoded
                             }
                             self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
+                            logger.info(f"Published Mod 0x{mod_id:02X} Grp {grp}: {[d.get('value') for d in decoded]}")
                             
                             session['group_errors'][grp] = 0 
-                            session['error_count'] = 0 
+                            session['error_count'] = 0
+                            
+                            # Keep ECU session alive after each successful read.
+                            # ECUs have a channel-level inactivity timeout; without this
+                            # the session drops when cycling through many groups.
+                            try:
+                                proto.send_keep_alive()
+                            except Exception as ka_e:
+                                logger.warning(f"Mod 0x{mod_id:02X} Keep-Alive failed after read: {ka_e}")
+                                session['connected'] = False
                             
                         elif resp and resp[0] == 0x7F:
                             # NRC (Negative Response Code)
-                            logger.warning(f"Mod 0x{mod_id:02X} Grp {grp} Rejected: {resp}")
+                            logger.warning(f"Mod 0x{mod_id:02X} Grp {grp} Rejected (NRC): {resp}")
                             session['group_errors'][grp] = session['group_errors'].get(grp, 0) + 1
 
 
-                    except TP2Error as e:
+                    except Exception as e:
                         session['group_errors'][grp] = session['group_errors'].get(grp, 0) + 1
                         logger.error(f"Mod 0x{mod_id:02X} Grp {grp} Error: {e} (Count: {session['group_errors'][grp]})")
                         
                         # Session level fallback
                         session['error_count'] += 1
-                        if session['error_count'] >= 5:
-                            logger.error("Too many session errors. Forcing Reconnect.")
+                        if session['error_count'] >= 10:
+                            logger.error(f"Mod 0x{mod_id:02X}: Too many session errors. Forcing Reconnect.")
                             session['connected'] = False
-                            proto.disconnect()
+                            try: proto.disconnect()
+                            except: pass
                             session['error_count'] = 0
                         else:
-                            try: proto.send_keep_alive()
-                            except: 
+                            try:
+                                if not proto.send_keep_alive():
+                                    session['connected'] = False
+                                    proto.disconnect()
+                            except:
                                 session['connected'] = False
-                                proto.disconnect()
+                                try: proto.disconnect()
+                                except: pass
                                 
                     # Cooldown logic for this group
                     if session['group_errors'].get(grp, 0) >= 3:

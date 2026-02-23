@@ -349,7 +349,7 @@ body {
 /* Positive fill: anchored at center, grows upward */
 .bar-fill-pos,
 .bar-fill-neg {
-    transition: height var(--rx-interval, 80ms) ease-out;
+    transition: height 250ms ease-out;
 }
 
 .bar-label-top {
@@ -720,7 +720,7 @@ body {
     position: absolute;
     bottom: 0;
     left: 0;
-    transition: height var(--rx-interval, 80ms) ease-out;
+    transition: height 250ms ease-out;
     border-radius: 5px 5px 0 0;
 }
 
@@ -791,7 +791,7 @@ body {
 .inj-bar-fill {
     height: 100%;
     background-color: var(--accent-color);
-    transition: width var(--rx-interval, 80ms) ease-out;
+    transition: width 250ms ease-out;
     border-radius: 4px;
 }
 
