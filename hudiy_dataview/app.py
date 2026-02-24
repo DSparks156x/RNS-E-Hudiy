@@ -50,7 +50,7 @@ SMOOTHING_ENABLED = True  # default on
 
 # --- Server-Side Interpolator ---
 EMIT_INTERVAL = 0.25    # 4Hz broadcast rate — keeps Pi QtWebEngine socket buffer clear
-EMA_ALPHA     = 0.92     # applied to incoming source values before linear interp (0=frozen, 1=raw)
+EMA_ALPHA     = 0.98     # applied to incoming source values before linear interp (0=frozen, 1=raw)
 
 class Interpolator:
     """
