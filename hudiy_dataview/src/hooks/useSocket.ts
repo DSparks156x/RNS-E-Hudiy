@@ -18,9 +18,9 @@ const TAB_CONFIG: TabConfig = {
         { module: 0x02, group: 19, priority: 'low' },
     ],
     awd: [
-        { module: 0x22, group: 1, priority: 'low' },
-        { module: 0x22, group: 3 },
-        { module: 0x22, group: 5 },
+        { module: 0x0A, group: 1, priority: 'low' },
+        { module: 0x0A, group: 3 },
+        { module: 0x0A, group: 5 },
     ],
 };
 

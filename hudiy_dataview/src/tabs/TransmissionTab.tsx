@@ -8,13 +8,13 @@ const fmtVal = (val: number | string, unit: string = '') => {
 };
 
 const StringText = ({ groupKey, index, unit = '' }: { groupKey: string; index: number; unit?: string }) => (
-  <LiveText 
-    groupKey={groupKey} 
-    index={index} 
+  <LiveText
+    groupKey={groupKey}
+    index={index}
     format={(v) => {
       if (typeof v === 'string' && isNaN(parseFloat(v))) return v;
       return fmtVal(v, unit);
-    }} 
+    }}
   />
 );
 
@@ -29,10 +29,10 @@ export function TransmissionTab() {
           <h3>Clutches</h3>
           <div className="gauges-row">
             <div className="gauge-wrapper">
-              <Gauge id="gauge_pres_1" groupKey="2:11" index={3} min={0} max={20} label={['Bar', 'Clutch 1']} />
+              <Gauge id="gauge_pres_1" groupKey="2:11" index={3} min={0} max={20} label={['Bar', 'Clutch 1']} sizeClass="gauge-md" />
             </div>
             <div className="gauge-wrapper">
-              <Gauge id="gauge_pres_2" groupKey="2:12" index={3} min={0} max={20} label={['Bar', 'Clutch 2']} />
+              <Gauge id="gauge_pres_2" groupKey="2:12" index={3} min={0} max={20} label={['Bar', 'Clutch 2']} sizeClass="gauge-md" />
             </div>
           </div>
           <div className="extra-vals-grid">
@@ -54,8 +54,8 @@ export function TransmissionTab() {
           <h3>Selector Travel (Grp 16)</h3>
           <SelectorBars
             groupKey="2:16"
-            topLabels={['1', '2', '5', '6']}
-            botLabels={['3', '4', 'N', 'R']}
+            topLabels={['1', '4', '5', '6']}
+            botLabels={['3', '2', 'N', 'R']}
           />
         </div>
 

@@ -389,19 +389,19 @@ class ZMQWorker:
 
             # --- AWD ---
             awd_torq = round(random.uniform(0, 2200), 0)
-            self.ingest(0x22, 1, [
+            self.ingest(0x0A, 1, [
                 {'value': random.randint(18, 95),               'unit': 'C'},
                 {'value': random.randint(18, 160),              'unit': 'C'},
                 {'value': round(random.uniform(11.8, 14.6), 2), 'unit': 'V'},
                 {'value': 0,                                    'unit': ''}
             ])
-            self.ingest(0x22, 3, [
+            self.ingest(0x0A, 3, [
                 {'value': round(random.uniform(0, 70), 1),  'unit': 'bar'},
                 {'value': awd_torq,                         'unit': 'Nm'},
                 {'value': random.randint(0, 100),           'unit': '%'},
                 {'value': round(random.uniform(0, 5.0), 2), 'unit': 'A'}
             ])
-            self.ingest(0x22, 5, [
+            self.ingest(0x0A, 5, [
                 {'value': random.randint(0, 255),                    'unit': ''},
                 {'value': "SPORT" if state_rpm > 3000 else "NORMAL", 'unit': ''},
                 {'value': "ACTIVE" if awd_torq > 500 else "IDLE",    'unit': ''},

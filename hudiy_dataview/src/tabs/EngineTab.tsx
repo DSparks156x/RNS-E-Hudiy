@@ -26,9 +26,9 @@ export function EngineTab() {
         {/* Left Column: Air & Boost */}
         <div className="engine-col">
           <div className="gauge-title">Mass Air Flow</div>
-          <Gauge id="gauge_maf" groupKey="1:3" index={1} min={0} max={400} label={['g/s', '']} size={125} />
+          <Gauge id="gauge_maf" groupKey="1:3" index={1} min={0} max={400} label={['g/s', '']} sizeClass="gauge-sm" />
           <div className="gauge-title">Boost</div>
-          <Gauge id="gauge_boost" groupKey="1:115" index={3} min={0} max={3000} label={['mbar', 'Actual']} size={125} />
+          <Gauge id="gauge_boost" groupKey="1:115" index={3} min={0} max={3000} label={['mbar', 'Actual']} sizeClass="gauge-sm" />
           <div className="stat-list">
             <div className="stat-row">
               <span className="stat-label">Request</span>
@@ -55,7 +55,7 @@ export function EngineTab() {
         {/* Right Column: Fuel */}
         <div className="engine-col">
           <div className="gauge-title">Fuel Pressure</div>
-          <Gauge id="gauge_fuel" groupKey="1:106" index={1} min={0} max={150} label={['Bar', 'Actual']} size={130} />
+          <Gauge id="gauge_fuel" groupKey="1:106" index={1} min={0} max={150} label={['Bar', 'Actual']} sizeClass="gauge-sm" />
           <div className="stat-list">
             <div className="stat-row">
               <span className="stat-label">Specified</span>
