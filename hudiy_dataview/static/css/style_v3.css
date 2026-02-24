@@ -192,13 +192,15 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     /* Pressure | Selector */
-    grid-template-rows: calc(100% - 40px) 35px;
+    grid-template-rows: calc(100% - 45px) 35px;
     /* Main | Bottom */
     grid-template-areas:
         "pressure selector"
         "temp temp";
     gap: 10px;
     height: 100%;
+    padding: 0px;
+    box-sizing: border-box;
 }
 
 .panel {
