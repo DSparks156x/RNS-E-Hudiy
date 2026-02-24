@@ -137,7 +137,6 @@ body {
 .tab-slide {
     width: 33.333%;
     flex-shrink: 0;
-    height: 100%;
     overflow: hidden;
 }
 
@@ -209,6 +208,8 @@ body {
     border: 1px solid #333;
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
     min-height: 0;
     flex: 1;
     /* Allow panels to grow */
@@ -474,7 +475,7 @@ body {
     display: grid;
     grid-template-columns: 1.6fr 1.1fr 1.1fr;
     grid-template-rows: 1fr;
-    gap: var(--grid-gap);
+    gap: 10px;
     height: 100%;
 }
 
@@ -493,6 +494,7 @@ body {
 .val-list {
     display: flex;
     flex-direction: column;
+    flex: 1;
     padding: 2px 0;
 }
 
@@ -514,9 +516,9 @@ body {
 .engine-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    grid-template-rows: calc(100% - 37px) 35px;
+    grid-template-rows: calc(100% - 45px) 35px;
     /* Strict height limits! */
-    gap: 2px;
+    gap: 10px;
     height: 100%;
     padding: 0px;
     box-sizing: border-box;
