@@ -1,1 +1,4 @@
 node_modules/
+
+# Hudiy Dataview React App Build Output
+/hudiy_dataview/static/js/main.js

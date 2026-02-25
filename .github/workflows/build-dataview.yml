@@ -1,0 +1,41 @@
+name: Build Dataview React App
+
+on:
+  push:
+    paths:
+      - 'hudiy_dataview/**'
+      - '.github/workflows/build-dataview.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: 'hudiy_dataview/package-lock.json'
+
+    - name: Install dependencies
+      working-directory: ./hudiy_dataview
+      run: npm install
+
+    - name: Build
+      working-directory: ./hudiy_dataview
+      run: npm run build
+
+    - name: Commit and push changes
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git add -f hudiy_dataview/static/js/main.js
+        git commit -m "chore: auto-build Dataview React App [skip ci]" || echo "No changes to commit"
+        git push
