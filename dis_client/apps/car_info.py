@@ -20,24 +20,24 @@ class CarInfoApp(BaseApp):
         # Example CAN IDs (Adjust to match your actual config)
         # For now, I'll assume some standard-ish logic or just store raw values
         
-        # Oil Temp (Example ID 0x5C0, byte 0 - 60)
-        if '51A' in topic: 
+        # Oil Temp (Example ID 0x555, byte 7 - 60)
+        if '555' in topic: 
             try:
-                temp = payload[0] - 60
+                temp = payload[7] - 60
                 self.data['oil'] = f"{temp}C"
             except: pass
 
-        # Battery Voltage (Example ID 0x520, byte 0 * 0.05)
-        if '520' in topic: # Adjust ID!
+        # Battery Voltage (Example ID 0x571)
+        if '571' in topic: # Adjust ID!
             try:
-                volts = payload[0] * 0.05
+                volts = ((payload[0]/2)+50)/10
                 self.data['bat'] = f"{volts:.1f}V"
             except: pass
             
-        # Fuel Level (Example ID 0x420)
-        if '420' in topic:
+        # Fuel Level (Example ID 0x35B, byte 5)
+        if '35B' in topic:
             try:
-                liters = payload[0]
+                liters = payload[5]
                 self.data['fuel'] = f"{liters}L"
             except: pass
 

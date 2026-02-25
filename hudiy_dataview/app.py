@@ -22,10 +22,12 @@ try:
         _cfg = json.load(_f)
     ZMQ_PUB_ADDR = _cfg['zmq'].get('tp2_stream',  _DEFAULT_TP2_STREAM)
     ZMQ_REQ_ADDR = _cfg['zmq'].get('tp2_command', _DEFAULT_TP2_COMMAND)
+    ZMQ_CAN_ADDR = _cfg['zmq'].get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc')
 except Exception as _e:
     logging.warning(f"Could not load config.json, using default ZMQ addresses: {_e}")
     ZMQ_PUB_ADDR = _DEFAULT_TP2_STREAM
     ZMQ_REQ_ADDR = _DEFAULT_TP2_COMMAND
+    ZMQ_CAN_ADDR = 'ipc:///run/rnse_control/can_stream.ipc'
 
 # --- Setup Flask & SocketIO ---
 app = Flask(__name__)
@@ -195,6 +197,7 @@ class ZMQWorker:
         self.context = zmq.Context()
         self.running = True
         self.sub_sock = None
+        self.can_sock = None
         self._cmd_queue = queue.Queue()
         self._cmd_thread = threading.Thread(target=self._command_loop, daemon=True)
         self._cmd_thread.start()
@@ -238,6 +241,12 @@ class ZMQWorker:
             self.sub_sock.connect(ZMQ_PUB_ADDR)
             self.sub_sock.subscribe(b"HUDIY_DIAG")
             logger.info(f"Connected to ZMQ PUB at {ZMQ_PUB_ADDR}")
+            
+            self.can_sock = self.context.socket(zmq.SUB)
+            self.can_sock.connect(ZMQ_CAN_ADDR)
+            for t in [b"CAN_35B", b"CAN_0x35B", b"CAN_555", b"CAN_0x555", b"CAN_527", b"CAN_0x527"]:
+                self.can_sock.subscribe(t)
+            logger.info(f"Connected to ZMQ CAN at {ZMQ_CAN_ADDR}")
             return True
         except Exception as e:
             logger.error(f"ZMQ Connection Failed: {e}")
@@ -340,18 +349,11 @@ class ZMQWorker:
                 {'value': round(boost + random.uniform(-150, 150), 0), 'unit': 'mbar'}
             ])
 
-            self.ingest(0x01, 134, [
-                {'value': random.randint(75, 115), 'unit': 'C'},
-                {'value': random.randint(12, 38),  'unit': 'C'},
-                {'value': random.randint(25, 70),  'unit': 'C'},
-                {'value': random.randint(75, 110), 'unit': 'C'}
-            ])
-
-            self.ingest(0x01, 2, [
+            self.ingest(0x01, 102, [
                 {'value': round(rpm, 1),                    'unit': 'RPM'},
-                {'value': round(random.uniform(5, 160), 1), 'unit': '%'},
-                {'value': round(random.uniform(0, 6), 2),   'unit': 'ms'},
-                {'value': round(maf, 2),                    'unit': 'g/s'}
+                {'value': random.randint(75, 110),          'unit': 'C'},
+                {'value': random.randint(25, 70),           'unit': 'C'},
+                {'value': round(random.uniform(0, 6), 2),   'unit': 'ms'}
             ])
 
             # --- Transmission ---
@@ -415,10 +417,18 @@ class ZMQWorker:
         logger.info("Starting ZMQ Subscriber Loop...")
         _recv_count = 0
         _recv_log_time = time.monotonic()
+        
+        poller = zmq.Poller()
+        if self.sub_sock:
+            poller.register(self.sub_sock, zmq.POLLIN)
+        if self.can_sock:
+            poller.register(self.can_sock, zmq.POLLIN)
+
         while self.running:
             try:
-                if self.sub_sock.poll(100):  # Reduced from 500ms so loop is more responsive
-                    # Drain all available messages in this poll cycle
+                socks = dict(poller.poll(100))
+                
+                if self.sub_sock in socks:
                     drained = 0
                     while self.sub_sock.poll(0):
                         topic, msg = self.sub_sock.recv_multipart()
@@ -427,16 +437,40 @@ class ZMQWorker:
                             mod = payload.get('module')
                             grp = payload.get('group')
                             data = payload.get('data')
-                            logger.debug(f"ZMQ RX: Mod 0x{mod:02X} Grp {grp}")
                             self.ingest(mod, grp, data)
                             drained += 1
                             _recv_count += 1
+                    
                     if drained > 0:
                         now = time.monotonic()
                         if now - _recv_log_time >= 5.0:
                             logger.info(f"ZMQ RX rate: {_recv_count} msgs in last 5s")
                             _recv_count = 0
                             _recv_log_time = now
+                
+                if self.can_sock in socks:
+                    while self.can_sock.poll(0):
+                        topic, msg = self.can_sock.recv_multipart()
+                        t_str = topic.decode()
+                        
+                        try:
+                            payload = bytes.fromhex(json.loads(msg)['data_hex'])
+                            if '35B' in t_str and len(payload) >= 4:
+                                rpm = (payload[2] * 256 + payload[1]) / 4.0
+                                coolant = (payload[3] * 0.75) - 64
+                                logger.info(f"[CAN] 35B -> RPM: {rpm}, Coolant: {coolant}")
+                                
+                            if '555' in t_str and len(payload) >= 8:
+                                boost = (payload[3] + payload[4] * 256) * 0.08
+                                oil_temp = payload[7] - 60
+                                logger.info(f"[CAN] 555 -> Boost: {boost}, Oil: {oil_temp}")
+                                
+                            if '527' in t_str and len(payload) >= 6:
+                                ambient = (payload[5] * 0.5) - 50
+                                logger.info(f"[CAN] 527 -> Ambient: {ambient}")
+                        except Exception as e:
+                            logger.debug(f"Error parsing CAN message {t_str}: {e}")
+                            
                 socketio.sleep(0.01)
             except Exception as e:
                 logger.error(f"ZMQ Sub Error: {e}")

@@ -17,8 +17,6 @@ const fmtIgn = (val: number | string) => {
 };
 
 export function EngineTab() {
-  const tempLabels = ['Oil', 'Ambient', 'Intake Air', 'Coolant'];
-
   return (
     <section id="engine" className="tab-content active">
       <div className="engine-grid">
@@ -66,17 +64,27 @@ export function EngineTab() {
               <span className="stat-value"><LiveText groupKey="1:106" index={2} format={(v) => `${fmtVal(v)} %`} /></span>
             </div>
           </div>
-          <InjectionBar groupKey="1:2" index={2} />
+          <InjectionBar groupKey="1:102" index={3} />
         </div>
 
         {/* Bottom Row (Spans all 3 cols): Temps */}
         <div className="engine-temp-row">
-          {tempLabels.map((label, i) => (
-            <div key={label} className="temp-item">
-              <span className="stat-label">{label}</span>
-              <span className="temp-val"><LiveText groupKey="1:134" index={i} format={(v) => `${fmtInt(v)} °C`} /></span>
-            </div>
-          ))}
+          <div className="temp-item">
+            <span className="stat-label">Oil</span>
+            <span className="temp-val"><LiveText groupKey="none" index={0} format={(v) => `${fmtInt(v)} °C`} /></span>
+          </div>
+          <div className="temp-item">
+            <span className="stat-label">Ambient</span>
+            <span className="temp-val"><LiveText groupKey="none" index={0} format={(v) => `${fmtInt(v)} °C`} /></span>
+          </div>
+          <div className="temp-item">
+            <span className="stat-label">Intake Air</span>
+            <span className="temp-val"><LiveText groupKey="1:102" index={2} format={(v) => `${fmtInt(v)} °C`} /></span>
+          </div>
+          <div className="temp-item">
+            <span className="stat-label">Coolant</span>
+            <span className="temp-val"><LiveText groupKey="1:102" index={1} format={(v) => `${fmtInt(v)} °C`} /></span>
+          </div>
         </div>
 
       </div>

@@ -92,6 +92,10 @@ class TP2Coding:
              val = a * b * 0.01
              unit = "l"
             
+        elif t == 22: # Time ms
+             val = a * b * 0.001
+             unit = "ms"
+            
         elif t == 24: # Amps
              val = a * b * 0.01 # Placeholder scaler
              unit = "A"

@@ -5,7 +5,7 @@ import { DataStore } from '../store/DataStore';
 
 const TAB_CONFIG: TabConfig = {
     engine: [
-        { module: 0x01, group: 2 },
+        { module: 0x01, group: 102 },
         { module: 0x01, group: 3 },
         { module: 0x01, group: 20 },
         { module: 0x01, group: 106 },

@@ -12,18 +12,21 @@ function KnockBar({ cyl, groupKey, index }: { cyl: number; groupKey: string; ind
 
   // pct of the bar height
   const pct = useTransform(mv, (val) => {
-    const v = typeof val === 'number' ? val : (isNaN(parseFloat(val)) ? 0 : parseFloat(val));
+    let v = typeof val === 'number' ? val : (isNaN(parseFloat(val)) ? 0 : parseFloat(val));
+    v = Math.abs(v);
     return Math.min((v / maxRetard) * 100, 100);
   });
 
   const color = useTransform(mv, (val) => {
-    const v = typeof val === 'number' ? val : parseFloat(val);
+    let v = typeof val === 'number' ? val : parseFloat(val);
+    v = Math.abs(v);
     if (isNaN(v) || v <= 0.1) return 'transparent';
     return v < 3 ? '#ffcc00' : '#ff0000';
   });
 
   const displayVal = useTransform(mv, (val) => {
-    const v = typeof val === 'number' ? val : parseFloat(val);
+    let v = typeof val === 'number' ? val : parseFloat(val);
+    v = Math.abs(v);
     return !isNaN(v) && v > 0.1 ? v.toFixed(1) : '';
   });
 
