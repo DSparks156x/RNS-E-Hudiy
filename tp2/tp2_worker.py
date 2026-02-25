@@ -441,6 +441,22 @@ class TP2Service:
                                 else:
                                     logger.warning(f"Mod 0x{mod_id:02X} DTC Response length mismatch. Expected {count*3}, got {len(dtc_data)}")
                                 
+                                # Fetch freeze frame data for each DTC if possible
+                                for dtc_item in dtc_list:
+                                    dtc_code = dtc_item['code_dec']
+                                    hi = (dtc_code >> 8) & 0xFF
+                                    lo = dtc_code & 0xFF
+                                    try:
+                                        # Try requesting specific freeze frame for this DTC
+                                        ff_resp = proto.send_kvp_request([0x12, 0x00, hi, lo])
+                                        if ff_resp and ff_resp[0] == 0x52:
+                                            # successful freeze frame read, attach raw hex string
+                                            dtc_item['freeze_frame_raw'] = [f"{b:02X}" for b in ff_resp[1:]]
+                                        elif ff_resp and ff_resp[0] == 0x7F:
+                                            logger.debug(f"Mod 0x{mod_id:02X} Rejected Freeze Frame for {dtc_item['code']}: {ff_resp}")
+                                    except Exception as ff_e:
+                                        logger.debug(f"Mod 0x{mod_id:02X} Freeze Frame read error for {dtc_item['code']}: {ff_e}")
+
                                 # Broadcast DTCs
                                 payload = {
                                     'module': mod_id,
@@ -451,8 +467,7 @@ class TP2Service:
                                 self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
                                 logger.info(f"Published Mod 0x{mod_id:02X} DTCs: {dtc_list}")
                             
-                            # Fetch freeze frame if supported? Leaving out for now to ensure stability, or implement simple 0x12
-                            # Freeze frame varies heavily by module and protocol variant. 
+                                # (Freeze frame requests are now handled per-DTC above)
                             
                         except Exception as e:
                             logger.error(f"Mod 0x{mod_id:02X} DTC Error: {e}")

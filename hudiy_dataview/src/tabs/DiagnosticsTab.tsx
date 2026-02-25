@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useSocket } from '../hooks/useSocket';
 import { useHudiyTheme } from '../hooks/useHudiyTheme';
+import { Keypad } from '../components/Keypad';
 
 interface DTC {
     code: string;
     code_dec: number;
     status: number;
+    freeze_frame_raw?: string[];
 }
 
 const KNOWN_MODULES = [
@@ -30,7 +32,6 @@ export function DiagnosticsTab() {
     const { socket } = useSocket('diagnostics');
 
     const [selectedModule, setSelectedModule] = useState<number | null>(null);
-    const [selectorOpen, setSelectorOpen] = useState(false);
     const [dtcs, setDtcs] = useState<DTC[]>([]);
     const [loadingDTCs, setLoadingDTCs] = useState(false);
 
@@ -39,6 +40,10 @@ export function DiagnosticsTab() {
     const [group2, setGroup2] = useState<string>('');
     const [group3, setGroup3] = useState<string>('');
     const [groupData, setGroupData] = useState<Record<string, any>>({});
+
+    // Keypad State
+    const [activeKeypad, setActiveKeypad] = useState<1 | 2 | 3 | null>(null);
+    const [tempKeypadVal, setTempKeypadVal] = useState<string>('');
 
     useEffect(() => {
         if (!socket) return;
@@ -110,28 +115,42 @@ export function DiagnosticsTab() {
         }
     };
 
-    const handleGroup1Change = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        toggleSubscription(group1, val);
-        setGroup1(val);
+    const handleInputClick = (groupNum: 1 | 2 | 3, currentVal: string) => {
+        setActiveKeypad(groupNum);
+        setTempKeypadVal(currentVal);
     };
 
-    const handleGroup2Change = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        toggleSubscription(group2, val);
-        setGroup2(val);
+    const handleKeypadClose = () => {
+        if (activeKeypad === 1) {
+            toggleSubscription(group1, tempKeypadVal);
+            setGroup1(tempKeypadVal);
+        } else if (activeKeypad === 2) {
+            toggleSubscription(group2, tempKeypadVal);
+            setGroup2(tempKeypadVal);
+        } else if (activeKeypad === 3) {
+            toggleSubscription(group3, tempKeypadVal);
+            setGroup3(tempKeypadVal);
+        }
+        setActiveKeypad(null);
     };
 
-    const handleGroup3Change = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        toggleSubscription(group3, val);
-        setGroup3(val);
+    const renderGroupFields = (_grpId: string, values: any[]) => {
+        if (!values || values.length === 0) return <div style={styles.emptyGroup}>No Data</div>;
+        return (
+            <div style={styles.groupFields}>
+                {values.map((v, i) => (
+                    <div key={i} style={{ ...styles.fieldBox, borderColor: 'rgba(255,255,255,0.1)' }}>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{v.value}</div>
+                        <div style={{ fontSize: '0.8rem', color: '#aaa' }}>{v.unit || '-'}</div>
+                    </div>
+                ))}
+            </div>
+        );
     };
 
-    const ModuleSelectorModal = () => (
-        <div style={styles.modalOverlay} onClick={() => setSelectorOpen(false)}>
-            <div style={{ ...styles.modalContent, backgroundColor: theme.surfaceColor }} onClick={(e) => e.stopPropagation()}>
-                <h2 style={{ color: theme.onSurface }}>Select Module</h2>
+    if (selectedModule === null) {
+        return (
+            <section id="diagnostics" className="tab-content" style={{ color: theme.onSurface, padding: '10px', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <div style={styles.moduleGrid}>
                     {KNOWN_MODULES.map(mod => (
                         <button
@@ -139,160 +158,176 @@ export function DiagnosticsTab() {
                             style={{ ...styles.moduleBtn, backgroundColor: theme.primary, color: theme.onSurface }}
                             onClick={() => {
                                 setSelectedModule(mod.id);
-                                setSelectorOpen(false);
                                 setGroup1(''); setGroup2(''); setGroup3('');
                                 setGroupData({});
                                 setDtcs([]);
                             }}
                         >
-                            <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>0x{mod.id.toString(16).padStart(2, '0').toUpperCase()}</span>
-                            <span>{mod.name}</span>
+                            <span style={{ fontSize: '1.2rem', fontWeight: 'bold', lineHeight: 1.1, wordBreak: 'break-word' }}>{mod.name}</span>
+                            <span style={{ fontSize: '1rem', opacity: 0.8 }}>0x{mod.id.toString(16).padStart(2, '0').toUpperCase()}</span>
                         </button>
                     ))}
                 </div>
-            </div>
-        </div>
-    );
-
-    const renderGroupFields = (grpId: string, values: any[]) => {
-        if (!values || values.length === 0) return <div style={styles.emptyGroup}>No Data</div>;
-        return (
-            <div style={styles.groupFields}>
-                {values.map((v, i) => (
-                    <div key={i} style={{ ...styles.fieldBox, borderColor: theme.surfaceHighlight }}>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{v.value}</div>
-                        <div style={{ fontSize: '0.8rem', color: theme.onSurfaceSecondary }}>{v.unit || '-'}</div>
-                    </div>
-                ))}
-            </div>
+            </section>
         );
-    };
+    }
 
     return (
-        <div style={{ padding: '10px', height: '100%', display: 'flex', flexDirection: 'column', color: theme.onSurface }}>
+        <section id="diagnostics" className="tab-content" style={{ color: theme.onSurface, padding: '10px', height: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, minHeight: 0, boxSizing: 'border-box' }}>
             {/* Header / Module Selection */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexShrink: 0 }}>
                 <button
-                    style={{ ...styles.mainSelectBtn, backgroundColor: theme.surfaceHighlight }}
-                    onClick={() => setSelectorOpen(true)}
+                    style={{ ...styles.actionBtn, backgroundColor: 'rgba(0,0,0,0.3)', color: theme.onSurface, border: `1px solid rgba(255,255,255,0.1)` }}
+                    onClick={() => setSelectedModule(null)}
                 >
-                    {selectedModule !== null
-                        ? `Module 0x${selectedModule.toString(16).padStart(2, '0').toUpperCase()}`
-                        : 'Tap to Select Module'}
+                    ← Back
                 </button>
 
+                <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <h2 style={{ margin: 0, opacity: 0.9 }}>
+                        {KNOWN_MODULES.find(m => m.id === selectedModule)?.name || 'Unknown'}
+                    </h2>
+                    <span style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '2px' }}>
+                        0x{selectedModule.toString(16).padStart(2, '0').toUpperCase()}
+                    </span>
+                </div>
+
                 <button
-                    style={{ ...styles.actionBtn, backgroundColor: selectedModule !== null ? theme.primary : '#555' }}
+                    style={{ ...styles.actionBtn, backgroundColor: loadingDTCs ? '#555' : theme.primary }}
                     onClick={requestDTCs}
-                    disabled={selectedModule === null || loadingDTCs}
+                    disabled={loadingDTCs}
                 >
                     {loadingDTCs ? 'Reading...' : 'Read DTCs'}
                 </button>
             </div>
 
             {/* Content Area split into DTCs and Measuring Groups */}
-            <div style={{ display: 'flex', flex: 1, gap: '15px', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', flexGrow: 1, gap: '15px', minHeight: 0, height: '100%' }}>
 
-                {/* Left Side: DTCs */}
-                <div style={{ ...styles.panel, backgroundColor: theme.surfaceColor, flex: 1 }}>
-                    <h3 style={{ marginTop: 0, borderBottom: `1px solid ${theme.surfaceHighlight}`, paddingBottom: '8px' }}>Fault Codes</h3>
-                    <div style={{ overflowY: 'auto', flex: 1 }}>
+                {/* Left Side: DTCs (and Keypad overlay) */}
+                <div style={{ ...styles.panel, backgroundColor: 'rgba(0,0,0,0.3)', flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', boxSizing: 'border-box', position: 'relative' }}>
+                    <h3 style={{ marginTop: 0, borderBottom: `1px solid rgba(255,255,255,0.1)`, paddingBottom: '8px', flexShrink: 0 }}>Fault Codes</h3>
+                    <div style={{ overflowY: 'auto', flexGrow: 1, minHeight: 0 }}>
                         {dtcs.length === 0 && !loadingDTCs && <div style={{ padding: '10px', opacity: 0.7 }}>No fault codes found.</div>}
                         {loadingDTCs && <div style={{ padding: '10px', opacity: 0.7 }}>Querying module...</div>}
                         {dtcs.map((dtc, i) => (
-                            <div key={i} style={{ padding: '10px', borderBottom: `1px solid ${theme.surfaceHighlight}`, display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ fontFamily: 'monospace', fontSize: '1.2rem', fontWeight: 'bold' }}>{dtc.code}</span>
-                                <span style={{ fontSize: '0.9rem', opacity: 0.7 }}>Status: 0x{dtc.status.toString(16).padStart(2, '0')}</span>
+                            <div key={i} style={{ padding: '10px', borderBottom: `1px solid rgba(255,255,255,0.1)`, display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span style={{ fontFamily: 'monospace', fontSize: '1.2rem', fontWeight: 'bold' }}>{dtc.code}</span>
+                                    <span style={{ fontSize: '0.9rem', opacity: 0.7 }}>Status: 0x{dtc.status.toString(16).padStart(2, '0')}</span>
+                                </div>
+                                {dtc.freeze_frame_raw && dtc.freeze_frame_raw.length > 0 && (
+                                    <div style={{ marginTop: '8px', padding: '6px', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '4px' }}>
+                                        <span style={{ fontSize: '0.8rem', opacity: 0.6, display: 'block', marginBottom: '4px' }}>Freeze Frame (Raw Hex)</span>
+                                        <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: theme.primary, wordBreak: 'break-all' }}>
+                                            {dtc.freeze_frame_raw.join(' ')}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
+                    {activeKeypad !== null && (
+                        <Keypad
+                            value={tempKeypadVal}
+                            onChange={setTempKeypadVal}
+                            onClose={handleKeypadClose}
+                            onSubmit={(nextVal) => {
+                                if (activeKeypad === 1) {
+                                    toggleSubscription(group1, nextVal);
+                                    setGroup1(nextVal);
+                                } else if (activeKeypad === 2) {
+                                    toggleSubscription(group2, nextVal);
+                                    setGroup2(nextVal);
+                                } else if (activeKeypad === 3) {
+                                    toggleSubscription(group3, nextVal);
+                                    setGroup3(nextVal);
+                                }
+                            }}
+                        />
+                    )}
                 </div>
 
                 {/* Right Side: RT Data */}
-                <div style={{ ...styles.panel, backgroundColor: theme.surfaceColor, flex: 1 }}>
-                    <h3 style={{ marginTop: 0, borderBottom: `1px solid ${theme.surfaceHighlight}`, paddingBottom: '8px' }}>Measuring Groups</h3>
+                <div style={{ ...styles.panel, backgroundColor: 'rgba(0,0,0,0.3)', flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', boxSizing: 'border-box' }}>
+                    <h3 style={{ marginTop: 0, borderBottom: `1px solid rgba(255,255,255,0.1)`, paddingBottom: '8px', flexShrink: 0 }}>Measuring Groups</h3>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flexGrow: 1, overflowY: 'auto', minHeight: 0, height: '100%', paddingRight: '5px' }}>
                         {/* Group 1 */}
                         <div style={styles.groupRow}>
                             <input
-                                type="number"
+                                type="text"
+                                readOnly
                                 placeholder="Grp 1"
-                                value={group1}
-                                onChange={handleGroup1Change}
-                                style={{ ...styles.groupInput, backgroundColor: theme.surfaceHighlight, color: theme.onSurface }}
+                                value={activeKeypad === 1 ? tempKeypadVal : group1}
+                                onClick={() => handleInputClick(1, group1)}
+                                style={{ ...styles.groupInput, backgroundColor: activeKeypad === 1 ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)', color: theme.onSurface, cursor: 'pointer' }}
                             />
-                            <div style={{ flex: 1 }}>{renderGroupFields(group1, groupData[group1])}</div>
+                            <div style={{ flexGrow: 1, display: 'flex' }}>{renderGroupFields(group1, groupData[group1])}</div>
                         </div>
 
                         {/* Group 2 */}
                         <div style={styles.groupRow}>
                             <input
-                                type="number"
+                                type="text"
+                                readOnly
                                 placeholder="Grp 2"
-                                value={group2}
-                                onChange={handleGroup2Change}
-                                style={{ ...styles.groupInput, backgroundColor: theme.surfaceHighlight, color: theme.onSurface }}
+                                value={activeKeypad === 2 ? tempKeypadVal : group2}
+                                onClick={() => handleInputClick(2, group2)}
+                                style={{ ...styles.groupInput, backgroundColor: activeKeypad === 2 ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)', color: theme.onSurface, cursor: 'pointer' }}
                             />
-                            <div style={{ flex: 1 }}>{renderGroupFields(group2, groupData[group2])}</div>
+                            <div style={{ flexGrow: 1, display: 'flex' }}>{renderGroupFields(group2, groupData[group2])}</div>
                         </div>
 
                         {/* Group 3 */}
                         <div style={styles.groupRow}>
                             <input
-                                type="number"
+                                type="text"
+                                readOnly
                                 placeholder="Grp 3"
-                                value={group3}
-                                onChange={handleGroup3Change}
-                                style={{ ...styles.groupInput, backgroundColor: theme.surfaceHighlight, color: theme.onSurface }}
+                                value={activeKeypad === 3 ? tempKeypadVal : group3}
+                                onClick={() => handleInputClick(3, group3)}
+                                style={{ ...styles.groupInput, backgroundColor: activeKeypad === 3 ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)', color: theme.onSurface, cursor: 'pointer' }}
                             />
-                            <div style={{ flex: 1 }}>{renderGroupFields(group3, groupData[group3])}</div>
+                            <div style={{ flexGrow: 1, display: 'flex' }}>{renderGroupFields(group3, groupData[group3])}</div>
                         </div>
                     </div>
                 </div>
             </div>
-
-            {selectorOpen && <ModuleSelectorModal />}
-        </div>
+        </section>
     );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-    mainSelectBtn: {
-        padding: '15px 25px',
-        fontSize: '1.5rem',
-        borderRadius: '8px',
-        border: 'none',
-        color: 'white',
-        cursor: 'pointer',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
-        fontWeight: 'bold'
-    },
     actionBtn: {
-        padding: '15px 25px',
-        fontSize: '1.3rem',
+        padding: '10px 20px',
+        fontSize: '1.2rem',
         borderRadius: '8px',
         border: 'none',
         color: 'white',
         cursor: 'pointer',
         fontWeight: 'bold',
-        minWidth: '150px'
+        minWidth: 'min(120px, 20vw)',
     },
     panel: {
         borderRadius: '8px',
-        padding: '15px',
+        padding: '12px',
         display: 'flex',
         flexDirection: 'column',
+        minHeight: 0
     },
     groupRow: {
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'stretch',
         gap: '10px',
-        minHeight: '80px',
+        flexGrow: 1,
+        minHeight: 0
     },
     groupInput: {
-        width: '60px',
-        height: '60px',
+        width: 'auto',
+        minWidth: '50px',
+        maxWidth: '80px',
+        maxHeight: '60px',
         fontSize: '1.2rem',
         textAlign: 'center',
         borderRadius: '8px',
@@ -304,7 +339,8 @@ const styles: Record<string, React.CSSProperties> = {
         display: 'grid',
         gridTemplateColumns: 'repeat(4, 1fr)',
         gap: '5px',
-        height: '100%',
+        flexGrow: 1,
+        minHeight: 0
     },
     fieldBox: {
         border: '1px solid',
@@ -314,7 +350,10 @@ const styles: Record<string, React.CSSProperties> = {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '5px',
-        backgroundColor: 'rgba(0,0,0,0.1)'
+        backgroundColor: 'rgba(0,0,0,0.1)',
+        overflow: 'hidden',
+        minWidth: 0,
+        minHeight: 0
     },
     emptyGroup: {
         height: '100%',
@@ -324,39 +363,25 @@ const styles: Record<string, React.CSSProperties> = {
         opacity: 0.5,
         fontStyle: 'italic'
     },
-    modalOverlay: {
-        position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000
-    },
-    modalContent: {
-        width: '90%',
-        maxHeight: '90%',
-        borderRadius: '12px',
-        padding: '20px',
-        display: 'flex',
-        flexDirection: 'column',
-    },
     moduleGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-        gap: '15px',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+        gap: '10px',
         overflowY: 'auto',
-        marginTop: '15px'
+        flex: 1,
+        padding: '5px',
+        minHeight: 0
     },
     moduleBtn: {
-        padding: '15px',
+        padding: '15px 10px',
         borderRadius: '8px',
         border: 'none',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: '5px',
+        gap: '10px',
         cursor: 'pointer',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+        boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+        transition: 'transform 0.1s'
     }
 };

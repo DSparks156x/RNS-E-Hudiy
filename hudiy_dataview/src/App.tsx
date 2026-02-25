@@ -13,7 +13,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'engine', label: 'Engine' },
   { id: 'transmission', label: 'Transmission' },
   { id: 'awd', label: 'AWD' },
-  { id: 'diagnostics', label: 'Diag/Data' },
+  { id: 'diagnostics', label: 'Diagnostics' },
 ];
 
 export function App() {
