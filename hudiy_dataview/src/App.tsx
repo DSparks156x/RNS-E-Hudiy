@@ -5,6 +5,7 @@ import { TabId } from './types';
 import { EngineTab } from './tabs/EngineTab';
 import { TransmissionTab } from './tabs/TransmissionTab';
 import { AWDTab } from './tabs/AWDTab';
+import { DiagnosticsTab } from './tabs/DiagnosticsTab';
 
 import { useHudiyTheme } from './hooks/useHudiyTheme';
 
@@ -12,15 +13,16 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'engine', label: 'Engine' },
   { id: 'transmission', label: 'Transmission' },
   { id: 'awd', label: 'AWD' },
+  { id: 'diagnostics', label: 'Diag/Data' },
 ];
 
 export function App() {
   const [currentTab, setCurrentTab] = useState<TabId>('engine');
   const [smoothing, setSmoothing] = useState(true);
-  
+
   // Notice we only get the socket instance back now; data state is gone!
   const { socket } = useSocket(currentTab);
-  
+
   const theme = useHudiyTheme();
 
   // Toggle smoothing on the server — app.py handles the 20Hz interpolation loop
@@ -85,6 +87,7 @@ export function App() {
           <div className="tab-slide"><EngineTab /></div>
           <div className="tab-slide"><TransmissionTab /></div>
           <div className="tab-slide"><AWDTab /></div>
+          <div className="tab-slide"><DiagnosticsTab /></div>
         </div>
       </div>
     </div>

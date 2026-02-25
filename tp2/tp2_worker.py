@@ -267,6 +267,21 @@ class TP2Service:
                     else:
                         response = {"status": "error", "message": "Missing client_id or module"}
 
+                elif cmd == "READ_DTC":
+                    mod = msg.get("module")
+                    if mod is not None:
+                        param_mod = int(mod)
+                        with self.lock:
+                            session = self._get_or_create_session(param_mod)
+                            session['pending_dtc_req'] = True
+                            if 'dtc_cooldown' not in session:
+                                session['dtc_cooldown'] = 0
+                            if not session['active']:
+                                session['active'] = True
+                        response = {"status": "queued", "module": mod}
+                    else:
+                        response = {"status": "error", "message": "Missing module"}
+
                 elif cmd == "CLEAR":
                     with self.lock:
                         for mod, sess in self.sessions.items():
@@ -390,8 +405,69 @@ class TP2Service:
                             session['cycle_count'] = cycle
                             active_list = get_active_list(normal_list, low_list, cycle)
 
-                    if not active_list:
+                    if not active_list and not session.get('pending_dtc_req'):
                         continue
+
+                    # Process DTC Request if pending
+                    if session.get('pending_dtc_req') and time.time() > session.get('dtc_cooldown', 0):
+                        proto = session['protocol']
+                        logger.info(f"Polling Mod 0x{mod_id:02X} for DTCs...")
+                        try:
+                            # 0x18 Read By Status
+                            resp = proto.send_kvp_request([0x18, 0x00, 0xFF, 0x00])
+                            
+                            if not resp:
+                                logger.error(f"Mod 0x{mod_id:02X} No response for DTC request.")
+                            elif resp[0] == 0x7F:
+                                logger.warning(f"Mod 0x{mod_id:02X} DTC Request Rejected (NRC): {resp}")
+                            elif resp[0] == 0x58:
+                                count = resp[1]
+                                dtc_data = resp[2:]
+                                dtc_list = []
+                                
+                                if len(dtc_data) >= count * 3:
+                                    for i in range(count):
+                                        idx = i * 3
+                                        hi = dtc_data[idx]
+                                        lo = dtc_data[idx+1]
+                                        status = dtc_data[idx+2]
+                                        code = (hi << 8) | lo
+                                        # Format as unshortened 5-digit hex string per user request
+                                        dtc_list.append({
+                                            'code': f"{code:04X}", # Need pure hex format or 5 digit code
+                                            'code_dec': code,
+                                            'status': status
+                                        })
+                                else:
+                                    logger.warning(f"Mod 0x{mod_id:02X} DTC Response length mismatch. Expected {count*3}, got {len(dtc_data)}")
+                                
+                                # Broadcast DTCs
+                                payload = {
+                                    'module': mod_id,
+                                    'type': 'dtc_report',
+                                    'count': count,
+                                    'dtcs': dtc_list
+                                }
+                                self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
+                                logger.info(f"Published Mod 0x{mod_id:02X} DTCs: {dtc_list}")
+                            
+                            # Fetch freeze frame if supported? Leaving out for now to ensure stability, or implement simple 0x12
+                            # Freeze frame varies heavily by module and protocol variant. 
+                            
+                        except Exception as e:
+                            logger.error(f"Mod 0x{mod_id:02X} DTC Error: {e}")
+                            
+                        # Clear flag and set a cooldown so we don't spam requests if the UI bugs out
+                        session['pending_dtc_req'] = False
+                        session['dtc_cooldown'] = time.time() + 2.0
+                        
+                        # Continue to normal polling
+                        if not active_list:
+                            try:
+                                session['protocol'].send_keep_alive()
+                            except:
+                                session['connected'] = False
+                            continue
 
                     # Initialize tracking if missing
                     if 'group_errors' not in session: session['group_errors'] = {}

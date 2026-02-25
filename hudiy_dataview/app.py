@@ -583,6 +583,17 @@ def handle_set_smoothing(data):
             if msg:
                 emit('diagnostic_update', msg)
 
+@socketio.on('request_dtcs')
+def handle_request_dtcs(data):
+    mod = data.get('module')
+    if mod is not None:
+        logger.info(f"Client requested DTCs for module {mod}")
+        worker.send_command("READ_DTC", module=int(mod), fire_and_forget=True)
+        emit('command_response', {"status": "ok", "action": "request_dtcs", "module": mod})
+    else:
+        emit('command_response', {"status": "error", "message": "Missing module"})
+
+
 if __name__ == '__main__':
     if '--mock' in sys.argv:
         MOCK_MODE = True

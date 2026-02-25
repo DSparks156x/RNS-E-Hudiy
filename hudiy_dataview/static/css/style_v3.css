@@ -126,8 +126,8 @@ body {
 .tab-strip {
     display: flex;
     flex-direction: row;
-    /* 3 tabs × 100% viewport width */
-    width: 300%;
+    /* 4 tabs × 100% viewport width */
+    width: 400%;
     height: 100%;
     transition: transform 0.28s ease-out;
     will-change: transform;
@@ -135,7 +135,7 @@ body {
 
 /* Each slide is exactly one viewport-width wide */
 .tab-slide {
-    width: 33.333%;
+    width: 25%;
     flex-shrink: 0;
     overflow: hidden;
 }

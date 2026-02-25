@@ -21,7 +21,7 @@ export interface TabGroup {
 /** Maps tab IDs to their subscribed groups. */
 export type TabConfig = Record<string, TabGroup[]>;
 
-export type TabId = 'engine' | 'transmission' | 'awd';
+export type TabId = 'engine' | 'transmission' | 'awd' | 'diagnostics';
 
 /** Key used to store/look up a diagnostic message: "mod:grp" */
 export function diagKey(module: number | string, group: number): string {
