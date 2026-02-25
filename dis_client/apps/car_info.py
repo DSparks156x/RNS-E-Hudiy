@@ -21,7 +21,7 @@ class CarInfoApp(BaseApp):
         # For now, I'll assume some standard-ish logic or just store raw values
         
         # Oil Temp (Example ID 0x5C0, byte 0 - 60)
-        if '5C0' in topic: 
+        if '51A' in topic: 
             try:
                 temp = payload[0] - 60
                 self.data['oil'] = f"{temp}C"
