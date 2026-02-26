@@ -124,7 +124,7 @@ class TP2Service:
         
         session['normal_groups_list'] = new_normal
         session['low_groups_list'] = new_low
-        session['active'] = len(new_normal) > 0 or len(new_low) > 0
+        session['active'] = len(new_normal) > 0 or len(new_low) > 0 or session.get('pending_dtc_req', False)
 
     def _ensure_connected(self, module_id, session):
         # Main Thread Only
@@ -433,10 +433,10 @@ class TP2Service:
                                         lo = dtc_data[idx+1]
                                         status = dtc_data[idx+2]
                                         code = (hi << 8) | lo
-                                        # Format as unshortened 5-digit hex string per user request
+                                        # Format as unshortened hex string and padded decimal string
                                         dtc_list.append({
                                             'code': f"{code:04X}", # Need pure hex format or 5 digit code
-                                            'code_dec': code,
+                                            'code_dec': str(code).zfill(5), # VAG codes are typically 5 or 6 digit decimal
                                             'status': status
                                         })
                                 else:
