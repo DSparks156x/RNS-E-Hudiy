@@ -60,6 +60,7 @@ class DisplayEngine:
             self.sub_hudiy.subscribe(t)
 
         self.draw = self.zmq_ctx.socket(zmq.PUSH)
+        self.draw.setsockopt(zmq.SNDHWM, 50) # Prevent long backlogs if service freezes
         self.draw.connect(self.cfg['zmq']['dis_draw'])
         self.poller = zmq.Poller()
         self.poller.register(self.sub, zmq.POLLIN)
@@ -115,6 +116,12 @@ class DisplayEngine:
 
     def switch_page(self, delta):
         """Cycles to the next/prev page in the list, skipping inactive apps."""
+        # Throttle page switching to avoid accidental double-taps causing rapid jumps
+        now = time.time()
+        if hasattr(self, 'last_switch') and (now - self.last_switch < 0.2):
+            return
+        self.last_switch = now
+
         count = len(self.pages)
         start_idx = self.current_page_idx
         
@@ -169,26 +176,48 @@ class DisplayEngine:
             # Pass holds or other events to app if needed
             self.current_app.handle_input(action)
 
+    def _send_draw(self, payload):
+        """Send a JSON command to the DIS service without blocking."""
+        try:
+            self.draw.send_json(payload, flags=zmq.NOBLOCK)
+        except zmq.Again:
+            # If the service is stuck, we drop frames rather than backlogging them
+            pass
+        except Exception as e:
+            logger.error(f"Draw socket error: {e}")
+
     def force_redraw(self, send_clear=False):
         self.last_sent = {k: None for k in self.Y}
         self.last_sent['custom_sig'] = None
         if send_clear:
-            self.draw.send_json({'command': 'clear'})
-            self.draw.send_json({'command': 'commit'})
+            self._send_draw({'command': 'clear'})
+            self._send_draw({'command': 'commit'})
             self.last_sent_flags = {k: 0 for k in self.Y}
 
     def run(self):
         logger.info("DIS Engine V5.8 Running")
         time.sleep(1.0) 
         self.force_redraw(send_clear=True)
+        self.last_loop = time.time()
         
         while True:
             try:
+                now = time.time()
+                loop_delta = now - self.last_loop
+                self.last_loop = now
+
+                # If loop was frozen for > 1.5s, we might have a backlog of stale inputs.
+                # Signal _handle_can to drain rather than process if it senses a burst.
+                is_stale = loop_delta > 1.5
+
                 socks = dict(self.poller.poll(30))
                 if self.sub_hudiy in socks:
                     try:
-                        while True:
+                        # Limit Hudiy processing per loop to avoid blocking too long
+                        h_count = 0
+                        while h_count < 20:
                             parts = self.sub_hudiy.recv_multipart(flags=zmq.NOBLOCK)
+                            h_count += 1
                             if len(parts) == 2:
                                 topic, msg = parts
                                 try:
@@ -210,24 +239,31 @@ class DisplayEngine:
                                                     self.switch_to_app('app_media_player')
 
                                     self.current_app.update_hudiy(topic, data)
-                                    if topic == b'HUDIY_MEDIA':
-                                        label = data.get('source_label', 'Now Playing')
-                                        # self.apps['menu_media'].set_item_label('app_media_player', label) # REMOVED
                                 except json.JSONDecodeError: pass
                     except zmq.Again: pass
 
-                if self.sub in socks: self._handle_can()
+                if self.sub in socks: self._handle_can(skip_processing=is_stale)
+                if is_stale:
+                    logger.warning(f"Engine lag detected ({loop_delta:.2f}s), drained stale inputs")
                 self._check_buttons()
                 self._draw()
                 time.sleep(0.01)
             except KeyboardInterrupt: break
             except Exception as e: logger.error(f"Err: {e}", exc_info=True); time.sleep(1)
 
-    def _handle_can(self):
+    def _handle_can(self, skip_processing=False):
         try:
-            while True:
+            m_count = 0
+            # If we are skip_processing (draining), we want to wipe the queue completely
+            # Otherwise we limit intake per loop to keep the UI fluid
+            limit = 1000 if skip_processing else 50
+            
+            while m_count < limit:
                 parts = self.sub.recv_multipart(flags=zmq.NOBLOCK)
+                m_count += 1
                 if len(parts) == 2:
+                    if skip_processing: continue
+
                     topic, msg = parts
                     t_str = topic.decode()
                     payload = bytes.fromhex(json.loads(msg)['data_hex'])
@@ -272,20 +308,20 @@ class DisplayEngine:
                 
                 if current_type and current_type == prev_type:
                     if view[0].get('clear_on_update', True):
-                        self.draw.send_json({'command': 'clear_payload'}) # Only clear cache, keep pixels
+                        self._send_draw({'command': 'clear_payload'}) # Only clear cache, keep pixels
                 else:
-                    self.draw.send_json({'command': 'clear'}) # Full wipe
+                    self._send_draw({'command': 'clear'}) # Full wipe
                 
                 for item in view:
                     if 'type' in item: continue
                     cmd = item.get('cmd')
                     if cmd == 'draw_bitmap':
-                        self.draw.send_json({'command': 'draw_bitmap', 'icon_name': item.get('icon'), 'x': item.get('x', 0), 'y': item.get('y', 0)})
+                        self._send_draw({'command': 'draw_bitmap', 'icon_name': item.get('icon'), 'x': item.get('x', 0), 'y': item.get('y', 0)})
                     elif cmd == 'draw_text':
-                        self.draw.send_json({'command': 'draw_text', 'text': item.get('text', ''), 'x': item.get('x', 0), 'y': item.get('y', 0), 'flags': item.get('flags', 0x06)})
+                        self._send_draw({'command': 'draw_text', 'text': item.get('text', ''), 'x': item.get('x', 0), 'y': item.get('y', 0), 'flags': item.get('flags', 0x06)})
                     elif cmd == 'draw_line':
-                        self.draw.send_json({'command': 'draw_line', 'x': item.get('x', 0), 'y': item.get('y', 0), 'length': item.get('len', 0), 'vertical': item.get('vert', True)})
-                self.draw.send_json({'command': 'commit'})
+                        self._send_draw({'command': 'draw_line', 'x': item.get('x', 0), 'y': item.get('y', 0), 'length': item.get('len', 0), 'vertical': item.get('vert', True)})
+                self._send_draw({'command': 'commit'})
                 
                 self.last_sent['custom_sig'] = current_sig
                 self.last_sent['last_type'] = current_type
@@ -321,18 +357,18 @@ class DisplayEngine:
                         clear_x = curr_eff * char_width
                         clear_w = 64 - clear_x
                         if clear_w > 0:
-                            self.draw.send_json({'command': 'clear_area', 'x': clear_x, 'y': self.Y[k], 'w': clear_w, 'h': 9})
+                            self._send_draw({'command': 'clear_area', 'x': clear_x, 'y': self.Y[k], 'w': clear_w, 'h': 9})
                 
                 if must_clear:
-                    self.draw.send_json({'command': 'clear_area', 'x': 0, 'y': self.Y[k], 'w': 64, 'h': 9})
+                    self._send_draw({'command': 'clear_area', 'x': 0, 'y': self.Y[k], 'w': 64, 'h': 9})
                 
-                self.draw.send_json({'command':'draw_text', 'text':txt, 'y':self.Y[k], 'flags':flag})
+                self._send_draw({'command':'draw_text', 'text':txt, 'y':self.Y[k], 'flags':flag})
                 self.last_sent[k] = txt
                 self.last_sent_flags[k] = flag
                 changed = True
         
         if changed: 
-            self.draw.send_json({'command':'commit'})
+            self._send_draw({'command':'commit'})
 
 if __name__ == "__main__":
     DisplayEngine().run()

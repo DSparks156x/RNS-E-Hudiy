@@ -9,6 +9,11 @@
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "query_stats",
             "action": "hudiy_diagnostics"
+        },
+        {
+            "iconFontFamily": "Hudiy Symbols",
+            "iconName": "\ue900",
+            "action": "resume_android_auto_projection"
         }
     ]
 }

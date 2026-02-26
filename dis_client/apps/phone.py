@@ -1,4 +1,4 @@
-from .base import BaseApp
+import json, os
 
 class PhoneApp(BaseApp):
     def __init__(self):
@@ -8,6 +8,15 @@ class PhoneApp(BaseApp):
         self.battery = 0
         self.signal = 0
         self.conn_state = "DISCONNECTED"
+
+    def on_enter(self):
+        super().on_enter()
+        try:
+            if os.path.exists('/tmp/current_call.json'):
+                with open('/tmp/current_call.json', 'r') as f:
+                    data = json.load(f)
+                    self.update_hudiy(b'HUDIY_PHONE', data)
+        except Exception: pass
 
     def update_hudiy(self, topic, data):
         if topic == b'HUDIY_PHONE':

@@ -26,9 +26,11 @@ class BaseApp:
         self._scroll_state = {} # Reset scroll states
 
     def update_can(self, topic, payload):
+        """Called by DisplayEngine when a CAN message arrives."""
         pass
 
     def update_hudiy(self, topic, data):
+        """Called by DisplayEngine when Hudiy API data arrives."""
         pass
 
     def handle_input(self, action):
