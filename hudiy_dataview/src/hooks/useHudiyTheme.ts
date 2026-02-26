@@ -56,6 +56,7 @@ export function useHudiyTheme(socket: Socket | null) {
 
         const updateColors = () => {
             if (h.colorScheme) {
+                console.log("HUDIY_THEME_UPDATE:", h.colorScheme);
                 // Also send it to the backend so it shows up in the python terminal easily
                 if (socket) {
                     socket.emit('log_theme', h.colorScheme);

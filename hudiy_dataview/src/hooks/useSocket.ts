@@ -45,6 +45,24 @@ export function useSocket(currentTab: TabId) {
         const socket = io();
         socketRef.current = socket;
 
+        // --- Console Forwarding ---
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+
+        console.log = (...args: any[]) => {
+            originalLog(...args);
+            socket.emit('client_log', { level: 'info', args });
+        };
+        console.warn = (...args: any[]) => {
+            originalWarn(...args);
+            socket.emit('client_log', { level: 'warn', args });
+        };
+        console.error = (...args: any[]) => {
+            originalError(...args);
+            socket.emit('client_log', { level: 'error', args });
+        };
+
         socket.on('connect', () => {
             console.log('Connected to Backend');
             const groups = TAB_CONFIG[currentTabRef.current];
