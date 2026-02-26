@@ -5,16 +5,16 @@ import sys
 
 def main():
     parser = argparse.ArgumentParser(description="TP2 Worker Debugger")
-    parser.add_argument("--port", type=int, default=5556, help="TP2 Command Port (default: 5556)")
+    parser.add_argument("--addr", type=str, default="ipc:///run/rnse_control/tp2_cmd.ipc", help="TP2 Command Address (default: ipc:///run/rnse_control/tp2_cmd.ipc)")
     args = parser.parse_args()
 
     context = zmq.Context()
     socket = context.socket(zmq.REQ)
     socket.setsockopt(zmq.RCVTIMEO, 2000) # 2s timeout
-    socket.connect(f"tcp://localhost:{args.port}")
+    socket.connect(args.addr)
 
     cmd = {"cmd": "STATUS"}
-    print(f"Sending STATUS command to TP2 Worker on port {args.port}...")
+    print(f"Sending STATUS command to TP2 Worker on {args.addr}...")
     
     socket.send_json(cmd)
 

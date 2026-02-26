@@ -376,8 +376,9 @@ class TP2Service:
                     normal_list = session.get('normal_groups_list', [])
                     low_list = session.get('low_groups_list', [])
                     cycle = session.get('cycle_count', 1)
+                    pending_dtc = session.get('pending_dtc_req', False)
                     
-                    if not normal_list and not low_list:
+                    if not normal_list and not low_list and not pending_dtc:
                         # Keep Alive Only
                         if session['connected']:
                              try:
