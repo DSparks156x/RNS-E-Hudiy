@@ -36,6 +36,8 @@ const DEFAULT_DEV_THEME: HudiyColorScheme = {
     darkThemeEnabled: true,
     background: '#121212',
     surface: '#1e1e1e',
+    surfaceContainer: '#1d2024',
+    surfaceDim: '#141414',
     onBackground: '#e0e0e0',
     primaryContainer: '#6b0000',
     onPrimaryContainer: '#ffdad6',
@@ -48,42 +50,79 @@ const DEFAULT_DEV_THEME: HudiyColorScheme = {
 export function useHudiyTheme(socket: Socket | null) {
     const [theme, setTheme] = useState<HudiyColorScheme>(DEFAULT_DEV_THEME);
 
+    // Listen for mock themes emitted from the server (especially useful in Vite dev mode
+    // where window.hudiy wasn't injected natively or by Jinja)
     useEffect(() => {
-        // If not running inside Hudiy host, abort.
-        if (!window.hudiy) return;
+        if (!socket) return;
 
-        const h = window.hudiy;
-
-        const updateColors = () => {
-            if (h.colorScheme) {
-                // Also send it to the backend so it shows up in the python terminal easily
-                if (socket) {
-                    socket.emit('log_theme', h.colorScheme);
+        const onStatus = (data: any) => {
+            if (data.mock_theme) {
+                console.log("Applying Mock Theme from backend", data.mock_theme);
+                if (!window.hudiy) {
+                    window.hudiy = { colorScheme: data.mock_theme };
+                } else {
+                    window.hudiy.colorScheme = data.mock_theme;
+                    if (window.hudiy.onColorSchemeChanged) {
+                        window.hudiy.onColorSchemeChanged();
+                    }
                 }
-                setTheme({ ...h.colorScheme });
+                setTheme(data.mock_theme);
             }
         };
 
-        // Override the callbacks to trigger our React state sync
-        const originalColorChanged = h.onColorSchemeChanged;
-        const originalAttached = h.onAttached;
-
-        h.onColorSchemeChanged = () => {
-            updateColors();
-            if (originalColorChanged) originalColorChanged();
-        };
-
-        h.onAttached = () => {
-            updateColors();
-            if (originalAttached) originalAttached();
-        };
-
-        // Run once on mount in case it attached before React rendered
-        updateColors();
+        socket.on('status', onStatus);
 
         return () => {
-            h.onColorSchemeChanged = originalColorChanged;
-            h.onAttached = originalAttached;
+            socket.off('status', onStatus);
+        };
+    }, [socket]);
+
+    useEffect(() => {
+        const attachHudiyListeners = () => {
+            if (!window.hudiy) return;
+
+            const h = window.hudiy;
+
+            const updateColors = () => {
+                if (h.colorScheme) {
+                    if (socket) {
+                        socket.emit('log_theme', h.colorScheme);
+                    }
+                    setTheme({ ...h.colorScheme });
+                }
+            };
+
+            const originalColorChanged = h.onColorSchemeChanged;
+            const originalAttached = h.onAttached;
+
+            h.onColorSchemeChanged = () => {
+                updateColors();
+                if (originalColorChanged) originalColorChanged();
+            };
+
+            h.onAttached = () => {
+                updateColors();
+                if (originalAttached) originalAttached();
+            };
+
+            // Run once
+            updateColors();
+
+            return () => {
+                h.onColorSchemeChanged = originalColorChanged;
+                h.onAttached = originalAttached;
+            };
+        };
+
+        // Try attaching immediately in case it exists.
+        const cleanup = attachHudiyListeners();
+
+        // If it was created later by our socket mock, we need to know. 
+        // We handle that directly in the socket.on('status') block by calling setTheme, 
+        // so we don't strictly need a mutation observer here.
+
+        return () => {
+            if (cleanup) cleanup();
         };
     }, []);
 

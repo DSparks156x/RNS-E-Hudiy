@@ -92,7 +92,7 @@ const btnStyle: React.CSSProperties = {
     fontSize: '24px',
     fontWeight: 'bold',
     borderRadius: '8px',
-    border: '1px solid rgba(255,255,255,0.1)',
+    border: 'none',
     backgroundColor: '#2a2a2a',
     color: '#fff',
     cursor: 'pointer',

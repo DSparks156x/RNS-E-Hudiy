@@ -1,17 +1,6 @@
 /* Hudiy Data View Styling (800x480) */
 
 :root {
-    --bg-color: var(--background, #121212);
-    --panel-bg: var(--surface, #1e1e1e);
-    --text-color: var(--on-surface, #ffffff);
-    --accent-color: var(--primary, #ff3b3b);
-    /* Hudiy Material Mapping */
-    --accent-dim: var(--primary-container, #7f1d1d);
-    --border-color: var(--outline-variant, #333);
-    --border-highlight: var(--outline, #444);
-    --panel-highlight: var(--surface-variant, #1a1a1a);
-    --text-muted: var(--on-surface-variant, #bbbbbb);
-
     --grid-gap: 5px;
     --tab-height: 35px;
 }
@@ -29,8 +18,7 @@ body {
     padding: 0;
     width: 100%;
     height: 100%;
-    background-color: var(--bg-color);
-    color: var(--text-color, #ffffff);
+    background-color: #000000;
     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     overflow: hidden;
 }
@@ -53,14 +41,28 @@ body {
     max-width: 800px;
     max-height: 480px;
     overflow: hidden;
+
+    --background: #121212;
+    --surface-container: var(--surface, #1e1e1e);
+    --surface-dim: #141414;
+    --on-surface: #ffffff;
+    --primary: #ff3b3b;
+    /* Hudiy Material Mapping */
+    --primary-container: #7f1d1d;
+    --outline-variant: #333;
+    --outline: #444;
+    --surface-variant: #1a1a1a;
+    --on-surface-variant: #bbbbbb;
+
+    background-color: var(--background);
+    color: var(--on-surface);
 }
 
 /* Tabs */
 .tabs {
     display: flex;
     height: var(--tab-height);
-    background-color: var(--panel-bg);
-    border-bottom: 2px solid var(--border-color);
+    background-color: var(--background);
 }
 
 .tab.k-bar.empty {
@@ -73,16 +75,18 @@ body {
     width: 100%;
     padding: 2px 0;
     font-size: 14px;
-    background: var(--panel-bg);
-    border: 1px solid var(--border-color);
+    background: var(--surface-container);
+    border: 1px solid var(--outline-variant);
     box-sizing: border-box;
 }
 
 .tab-btn {
     flex: 1;
+    margin: 4px;
     background: none;
     border: none;
-    color: var(--text-color);
+    border-radius: 20px;
+    color: var(--on-surface);
     opacity: 0.6;
     font-size: 18px;
     font-weight: bold;
@@ -91,9 +95,9 @@ body {
 }
 
 .tab-btn.active {
-    color: var(--accent-color);
-    border-bottom: 4px solid var(--accent-color);
-    background-color: var(--panel-highlight);
+    color: var(--primary);
+    background-color: var(--surface-container);
+    opacity: 1;
 }
 
 /* Smoothing toggle pill — lives in the left of the nav bar */
@@ -103,10 +107,10 @@ body {
     align-self: center;
     margin: 0 8px;
     padding: 3px 20px;
-    background: var(--panel-highlight);
-    border: 1px solid var(--border-highlight);
-    border-radius: 12px;
-    color: var(--text-color);
+    background: var(--surface-container);
+    border: 1px solid var(--outline);
+    border-radius: 20px;
+    color: var(--on-surface);
     opacity: 0.6;
     font-size: 16px;
     font-weight: bold;
@@ -128,9 +132,9 @@ body {
 }
 
 .smooth-toggle.active {
-    background: var(--panel-bg);
-    border-color: var(--accent-color);
-    color: var(--accent-color);
+    background: var(--surface-container);
+    border-color: var(--primary);
+    color: var(--primary);
 }
 
 /* Section Content */
@@ -188,17 +192,16 @@ body {
 }
 
 .group-box {
-    background-color: var(--panel-bg);
-    border-radius: 8px;
+    background-color: var(--surface-container);
+    border-radius: 16px;
     padding: 5px;
-    border: 1px solid var(--border-color);
 }
 
 .group-box h3 {
     margin-top: 0;
-    border-bottom: 1px solid var(--border-highlight);
+    border-bottom: 1px solid var(--outline);
     padding-bottom: 2px;
-    color: var(--text-muted);
+    color: var(--on-surface-variant);
     font-size: 15px;
     margin-bottom: 5px;
 }
@@ -207,7 +210,7 @@ body {
     display: flex;
     justify-content: space-between;
     padding: 5px 0;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--outline-variant);
 }
 
 .val-row:last-child {
@@ -215,7 +218,7 @@ body {
 }
 
 .label {
-    color: var(--text-color);
+    color: var(--on-surface);
     opacity: 0.6;
 }
 
@@ -223,7 +226,7 @@ body {
     font-weight: bold;
     font-family: monospace;
     font-size: 18px;
-    color: var(--text-color);
+    color: var(--on-surface);
 }
 
 /* Transmission Layout */
@@ -243,10 +246,9 @@ body {
 }
 
 .panel {
-    background-color: var(--panel-bg);
-    border-radius: 8px;
+    background-color: var(--surface-container);
+    border-radius: 16px;
     padding: 6px;
-    border: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -260,7 +262,7 @@ body {
 .gauge-title {
     margin-top: 0;
     /* Smaller header */
-    color: var(--text-color);
+    color: var(--on-surface);
     opacity: 0.73;
     text-align: center;
     margin-bottom: 5px;
@@ -322,7 +324,7 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    color: var(--text-color);
+    color: var(--on-surface);
     font-weight: bold;
     font-size: clamp(14px, 3.5vw, 22px);
     font-family: monospace;
@@ -341,7 +343,7 @@ body {
 }
 
 .gauge-label-line {
-    color: var(--text-muted);
+    color: var(--on-surface-variant);
     font-size: clamp(8px, 1.5vw, 12px);
     line-height: 1.3;
 }
@@ -359,7 +361,7 @@ body {
     display: flex;
     justify-content: space-between;
     padding-top: 5px;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid var(--outline-variant);
     font-size: 12px;
 }
 
@@ -381,7 +383,7 @@ body {
     left: 50%;
     transform: translateX(-50%);
     font-size: 11px;
-    color: var(--text-color);
+    color: var(--on-surface);
     opacity: 0.6;
     width: 100%;
     text-align: center;
@@ -417,8 +419,8 @@ body {
     width: 25px;
     height: 85%;
     /* Adjust height to leave room for labels */
-    background-color: var(--panel-highlight);
-    border-radius: 6px;
+    background-color: var(--surface-dim);
+    border-radius: 10px;
     position: relative;
     overflow: hidden;
     margin: 2px 0;
@@ -429,7 +431,6 @@ body {
     content: '';
     position: absolute;
     inset: 0;
-    border: 1px solid var(--border-highlight);
     border-radius: 4px;
     pointer-events: none;
     z-index: 1;
@@ -438,8 +439,8 @@ body {
 /* Add support for data-theme light forcing specific overrides if needed */
 [data-theme="light"] {
     /* For light mode we might want stronger borders since contrast works differently */
-    --border-color: #d1d1d1;
-    --border-highlight: #b0b0b0;
+    --outline-variant: #d1d1d1;
+    --outline: #b0b0b0;
 }
 
 /* Centre reference line */
@@ -449,7 +450,7 @@ body {
     left: 0;
     right: 0;
     height: 1px;
-    background-color: var(--border-highlight);
+    background-color: var(--outline);
     transform: translateY(-50%);
 }
 
@@ -463,7 +464,7 @@ body {
     margin-bottom: 7px;
     font-size: 14px;
     font-weight: bold;
-    color: var(--text-color);
+    color: var(--on-surface);
     opacity: 0.6;
 }
 
@@ -471,7 +472,7 @@ body {
     margin-top: 7px;
     font-size: 14px;
     font-weight: bold;
-    color: var(--text-color);
+    color: var(--on-surface);
     opacity: 0.6;
 }
 
@@ -496,13 +497,12 @@ body {
 }
 
 .val-box {
-    background: var(--panel-highlight);
+    background: var(--surface-variant);
     padding: 5px 10px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
+    border-radius: 10px;
     font-family: monospace;
     font-size: 16px;
-    color: var(--accent-color);
+    color: var(--primary);
     text-align: center;
     min-width: 80px;
 }
@@ -511,21 +511,21 @@ body {
     font-family: monospace;
     font-size: 16px;
     line-height: 1.4;
-    color: var(--text-color);
+    color: var(--on-surface);
     overflow-y: auto;
     padding-right: 10px;
     height: 100%;
 }
 
 .diag-error {
-    color: var(--accent-color);
+    color: var(--primary);
     font-weight: bold;
 }
 
 .val-label {
     display: block;
     font-size: 10px;
-    color: var(--text-color);
+    color: var(--on-surface);
     opacity: 0.6;
     font-family: sans-serif;
     margin-bottom: 2px;
@@ -565,7 +565,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--outline-variant);
     padding: 3px 0;
 }
 
@@ -588,10 +588,9 @@ body {
 }
 
 .engine-col {
-    background-color: var(--panel-bg);
-    border-radius: 8px;
+    background-color: var(--surface-container);
+    border-radius: 16px;
     padding: 5px;
-    border: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -613,9 +612,8 @@ body {
     flex-direction: row;
     align-items: center;
     justify-content: space-around;
-    background-color: var(--panel-bg);
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
+    background-color: var(--surface-container);
+    border-radius: 16px;
     padding: 0 10px;
     height: 100%;
 }
@@ -636,14 +634,14 @@ body {
     /* Full width */
     margin: 1px auto;
     /* Minimal margin */
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--outline-variant);
     padding-bottom: 1px;
 }
 
 .stat-label {
     font-size: 11px;
     /* Smaller label */
-    color: var(--text-color);
+    color: var(--on-surface);
     opacity: 0.6;
     white-space: nowrap;
     /* Prevent label wrapping */
@@ -653,14 +651,14 @@ body {
     font-size: 16px;
     /* Slightly smaller value */
     font-weight: bold;
-    color: var(--text-color);
+    color: var(--on-surface);
     font-family: monospace;
     text-align: right;
 }
 
 .stat-value-md {
     font-size: 20px;
-    color: var(--accent-color);
+    color: var(--primary);
     font-weight: bold;
 }
 
@@ -674,7 +672,7 @@ body {
 
 .temp-val {
     font-size: 18px;
-    color: var(--text-color);
+    color: var(--on-surface);
     font-weight: bold;
     font-family: monospace;
 }
@@ -720,13 +718,13 @@ body {
 .stat-value-xl {
     font-size: 42px;
     font-weight: bold;
-    color: var(--accent-color);
+    color: var(--primary);
 }
 
 .value-xl {
     font-size: 32px;
     font-weight: bold;
-    color: var(--accent-color);
+    color: var(--primary);
 }
 
 .timing-display {
@@ -750,7 +748,7 @@ body {
     left: 50%;
     transform: translateX(-50%);
     font-size: 11px;
-    color: var(--text-color);
+    color: var(--on-surface);
     opacity: 0.6;
     width: 100%;
     text-align: center;
@@ -770,7 +768,7 @@ body {
     left: 50%;
     transform: translateX(-50%);
     font-size: 12px;
-    color: var(--text-color) !important;
+    color: var(--on-surface) !important;
     opacity: 0.7;
     text-transform: uppercase;
 }
@@ -790,7 +788,7 @@ body {
 .knock-header {
     text-align: center;
     font-size: 14px;
-    color: var(--text-color);
+    color: var(--on-surface);
     opacity: 0.6;
     text-transform: uppercase;
     margin-bottom: 5px;
@@ -819,7 +817,7 @@ body {
 
 .k-label {
     font-size: 12px;
-    color: var(--text-color);
+    color: var(--on-surface);
     opacity: 0.6;
     margin-bottom: 2px;
     text-align: center;
@@ -830,8 +828,8 @@ body {
     width: 100%;
     flex: 1;
     position: relative;
-    background: var(--panel-highlight);
-    border: 1px solid var(--border-highlight);
+    background: var(--inverse-on-surface);
+    border: 1px solid var(--outline);
     border-radius: 6px;
     overflow: hidden;
 }
@@ -839,7 +837,7 @@ body {
 .k-bar {
     width: 100%;
     height: 0%;
-    background: var(--accent-color);
+    background: var(--primary);
     position: absolute;
     bottom: 0;
     left: 0;
@@ -849,7 +847,7 @@ body {
 
 .k-val {
     font-size: 10px;
-    color: var(--accent-color);
+    color: var(--primary);
     font-weight: bold;
     min-height: 12px;
 }
@@ -876,13 +874,13 @@ body {
 
 .inj-label {
     font-size: 11px;
-    color: var(--text-color);
+    color: var(--on-surface);
     opacity: 0.6;
 }
 
 .inj-val {
     font-size: 14px;
-    color: var(--accent-color);
+    color: var(--primary);
     font-weight: bold;
     font-family: monospace;
 }
@@ -895,25 +893,15 @@ body {
 .inj-bar-track {
     width: 100%;
     height: 100%;
-    background-color: #333;
-    border-radius: 6px;
+    background-color: var(--surface-dim);
+    border-radius: 10px;
     position: relative;
     overflow: hidden;
 }
 
-.inj-bar-track::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border: 1px solid #444;
-    border-radius: 4px;
-    pointer-events: none;
-    z-index: 1;
-}
-
 .inj-bar-fill {
     height: 100%;
-    background-color: var(--accent-color);
+    background-color: var(--primary-fixed);
     transition: width 250ms ease-out;
     border-radius: 4px;
 }

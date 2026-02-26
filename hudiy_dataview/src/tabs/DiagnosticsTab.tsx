@@ -29,9 +29,9 @@ const KNOWN_MODULES = [
 const rememberedDiagnosticsGroups: Record<number, { g1: string, g2: string, g3: string }> = {};
 
 export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
-    const theme = useHudiyTheme();
     // Use the socket hook to get the connection. We don't subscribe to fixed groups here.
     const { socket } = useSocket('diagnostics');
+    const { theme } = useHudiyTheme(socket);
 
     const [selectedModule, setSelectedModule] = useState<number | null>(null);
     const [dtcs, setDtcs] = useState<DTC[]>([]);
@@ -192,7 +192,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                     {KNOWN_MODULES.map(mod => (
                         <button
                             key={mod.id}
-                            style={{ ...styles.moduleBtn, backgroundColor: theme.primary, color: theme.onSurface }}
+                            style={{ ...styles.moduleBtn, backgroundColor: theme.primaryContainer, color: theme.onPrimaryContainer }}
                             onClick={() => {
                                 setSelectedModule(mod.id);
                                 const saved = rememberedDiagnosticsGroups[mod.id] || { g1: '', g2: '', g3: '' };
@@ -221,7 +221,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
             {/* Header / Module Selection */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexShrink: 0 }}>
                 <button
-                    style={{ ...styles.actionBtn, backgroundColor: 'rgba(0,0,0,0.3)', color: theme.onSurface, border: `1px solid rgba(255,255,255,0.1)` }}
+                    style={{ ...styles.actionBtn, backgroundColor: 'rgba(0,0,0,0.3)', color: theme.onSurface, border: 'none' }}
                     onClick={() => {
                         if (selectedModule !== null) {
                             rememberedDiagnosticsGroups[selectedModule] = { g1: group1, g2: group2, g3: group3 };
@@ -398,8 +398,8 @@ const styles: Record<string, React.CSSProperties> = {
         minHeight: 0
     },
     fieldBox: {
-        border: '1px solid',
-        borderRadius: '6px',
+        border: 'none',
+        borderRadius: '10px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -429,14 +429,13 @@ const styles: Record<string, React.CSSProperties> = {
     },
     moduleBtn: {
         padding: '15px 10px',
-        borderRadius: '8px',
+        borderRadius: '16px',
         border: 'none',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         gap: '10px',
         cursor: 'pointer',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
         transition: 'transform 0.1s'
     }
 };

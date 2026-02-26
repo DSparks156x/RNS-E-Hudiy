@@ -50,6 +50,50 @@ def add_header(response):
 MOCK_MODE = False
 SMOOTHING_ENABLED = True  # default on
 
+MOCK_THEME_DATA = None
+
+LIGHT_THEME = {
+    'primaryPaletteKeyColor': '#ad625c', 'secondaryPaletteKeyColor': '#926f6b', 'tertiaryPaletteKeyColor': '#8d7444', 'neutralPaletteKeyColor': '#827472', 'neutralVariantPaletteKeyColor': '#857371',
+    'background': '#fff8f7', 'onBackground': '#231918', 'surface': '#fff8f7', 'surfaceDim': '#d4c3c1', 'surfaceBright': '#fff8f7',
+    'surfaceContainerLowest': '#ffffff', 'surfaceContainerLow': '#fff0ef', 'surfaceContainer': '#f6e4e2', 'surfaceContainerHigh': '#ebd9d7', 'surfaceContainerHighest': '#dfcecc',
+    'onSurface': '#180f0e', 'surfaceVariant': '#f5dddb', 'onSurfaceVariant': '#413331', 'inverseSurface': '#392e2d', 'inverseOnSurface': '#ffedeb',
+    'outline': '#5f4f4d', 'outlineVariant': '#7b6967', 'shadow': '#000000', 'scrim': '#000000', 'surfaceTint': '#904a45',
+    'primary': '#5e2320', 'onPrimary': '#ffffff', 'primaryContainer': '#a15852', 'onPrimaryContainer': '#ffffff', 'inversePrimary': '#ffb3ac',
+    'secondary': '#4b2f2c', 'onSecondary': '#ffffff', 'secondaryContainer': '#876561', 'onSecondaryContainer': '#ffffff',
+    'tertiary': '#463309', 'onTertiary': '#ffffff', 'tertiaryContainer': '#826a3b', 'onTertiaryContainer': '#ffffff',
+    'error': '#740006', 'onError': '#ffffff', 'errorContainer': '#cf2c27', 'onErrorContainer': '#ffffff',
+    'primaryFixed': '#a15852', 'primaryFixedDim': '#84413c', 'onPrimaryFixed': '#ffffff', 'onPrimaryFixedVariant': '#ffffff',
+    'secondaryFixed': '#876561', 'secondaryFixedDim': '#6d4d4a', 'onSecondaryFixed': '#ffffff', 'onSecondaryFixedVariant': '#ffffff',
+    'tertiaryFixed': '#826a3b', 'tertiaryFixedDim': '#675126', 'onTertiaryFixed': '#ffffff', 'onTertiaryFixedVariant': '#ffffff',
+    'darkThemeEnabled': False
+}
+
+DARK_THEME = {
+    'primaryPaletteKeyColor': '#5a77ab', 'secondaryPaletteKeyColor': '#6e778a', 'tertiaryPaletteKeyColor': '#8a6e8f', 'neutralPaletteKeyColor': '#76777d', 'neutralVariantPaletteKeyColor': '#74777f',
+    'background': '#111318', 'onBackground': '#e2e2e9', 'surface': '#111318', 'surfaceDim': '#111318', 'surfaceBright': '#37393e',
+    'surfaceContainerLowest': '#0c0e13', 'surfaceContainerLow': '#191c20', 'surfaceContainer': '#1d2024', 'surfaceContainerHigh': '#282a2f', 'surfaceContainerHighest': '#33353a',
+    'onSurface': '#e2e2e9', 'surfaceVariant': '#44474e', 'onSurfaceVariant': '#c4c6d0', 'inverseSurface': '#e2e2e9', 'inverseOnSurface': '#2e3036',
+    'outline': '#8e9099', 'outlineVariant': '#44474e', 'shadow': '#000000', 'scrim': '#000000', 'surfaceTint': '#aac7ff',
+    'primary': '#aac7ff', 'onPrimary': '#0a305f', 'primaryContainer': '#284777', 'onPrimaryContainer': '#d6e3ff', 'inversePrimary': '#415f91',
+    'secondary': '#bec6dc', 'onSecondary': '#283141', 'secondaryContainer': '#3e4759', 'onSecondaryContainer': '#dae2f9',
+    'tertiary': '#ddbce0', 'onTertiary': '#3f2844', 'tertiaryContainer': '#573e5c', 'onTertiaryContainer': '#fad8fd',
+    'error': '#ffb4ab', 'onError': '#690005', 'errorContainer': '#93000a', 'onErrorContainer': '#ffdad6',
+    'primaryFixed': '#d6e3ff', 'primaryFixedDim': '#aac7ff', 'onPrimaryFixed': '#001b3e', 'onPrimaryFixedVariant': '#284777',
+    'secondaryFixed': '#dae2f9', 'secondaryFixedDim': '#bec6dc', 'onSecondaryFixed': '#131c2b', 'onSecondaryFixedVariant': '#3e4759',
+    'tertiaryFixed': '#fad8fd', 'tertiaryFixedDim': '#ddbce0', 'onTertiaryFixed': '#28132e', 'onTertiaryFixedVariant': '#573e5c',
+    'darkThemeEnabled': True
+}
+
+if '--mock' in sys.argv:
+    MOCK_MODE = True
+    logger.warning("FORCED MOCK MODE (via sys.argv early parse)")
+    if '-l' in sys.argv:
+        MOCK_THEME_DATA = LIGHT_THEME
+        logger.info("Mock Theme: LIGHT")
+    elif '-d' in sys.argv:
+        MOCK_THEME_DATA = DARK_THEME
+        logger.info("Mock Theme: DARK")
+
 # --- Server-Side Interpolator ---
 EMIT_INTERVAL = 0.25    # 4Hz broadcast rate — keeps Pi QtWebEngine socket buffer clear
 EMA_ALPHA     = 0.98     # applied to incoming source values before linear interp (0=frozen, 1=raw)
@@ -512,12 +556,13 @@ def sync_subscriptions():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    theme_json = json.dumps(MOCK_THEME_DATA) if MOCK_THEME_DATA else None
+    return render_template('index.html', mock_theme_data=theme_json)
 
 @socketio.on('connect')
 def handle_connect():
     logger.info(f"Client Connected (sid={request.sid})")
-    emit('status', {'mock_mode': MOCK_MODE, 'smoothing': SMOOTHING_ENABLED})
+    emit('status', {'mock_mode': MOCK_MODE, 'smoothing': SMOOTHING_ENABLED, 'mock_theme': MOCK_THEME_DATA})
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -613,10 +658,6 @@ def handle_log_theme(theme_data):
 
 
 if __name__ == '__main__':
-    if '--mock' in sys.argv:
-        MOCK_MODE = True
-        logger.warning("FORCED MOCK MODE")
-
     socketio.start_background_task(worker.run)
 
     logger.info("Starting Flask-SocketIO Server on port 5003")

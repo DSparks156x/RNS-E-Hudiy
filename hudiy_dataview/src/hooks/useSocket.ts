@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { DiagnosticMessage, TabId, TabGroup, TabConfig } from '../types';
 import { DataStore } from '../store/DataStore';
@@ -37,38 +37,37 @@ function subscribe(socket: Socket, groups: TabGroup[], action: 'add' | 'remove')
  * read via useMotionValue subscriptions in the component tree.
  */
 export function useSocket(currentTab: TabId) {
-    const socketRef = useRef<Socket | null>(null);
+    const [socket, setSocket] = useState<Socket | null>(null);
     const currentTabRef = useRef<TabId>(currentTab);
 
     // Connect once on mount
     useEffect(() => {
-        const socket = io();
-        socketRef.current = socket;
+        const s = io();
+        setSocket(s);
 
-        socket.on('connect', () => {
+        s.on('connect', () => {
             console.log('Connected to Backend');
             const groups = TAB_CONFIG[currentTabRef.current];
-            if (groups) subscribe(socket, groups, 'add');
+            if (groups) subscribe(s, groups, 'add');
         });
 
-        socket.on('diagnostic_update', (msg: unknown) => {
+        s.on('diagnostic_update', (msg: unknown) => {
             DataStore.update([msg as DiagnosticMessage]);
         });
 
-        socket.on('diagnostic_batch', (batch: unknown) => {
+        s.on('diagnostic_batch', (batch: unknown) => {
             const msgs = batch as DiagnosticMessage[];
             if (!Array.isArray(msgs) || msgs.length === 0) return;
             DataStore.update(msgs);
         });
 
         return () => {
-            socket.disconnect();
+            s.disconnect();
         };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Manage subscriptions when tab changes
     useEffect(() => {
-        const socket = socketRef.current;
         if (!socket?.connected) return;
 
         // Only unsubscribe and subscribe if the tab actually changed
@@ -91,5 +90,5 @@ export function useSocket(currentTab: TabId) {
         }
     }, [currentTab]);
 
-    return { socket: socketRef.current };
+    return { socket };
 }

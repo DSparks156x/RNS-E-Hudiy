@@ -59,9 +59,6 @@ export function App() {
     return acc;
   }, {} as Record<string, string>);
 
-  // Also include the ones we historically used to not break anything immediately
-  themeVars['--accent-color'] = theme.primary || '#ff3b3b';
-  themeVars['--text-color'] = theme.onSurface || '#ffffff';
 
   return (
     <div
