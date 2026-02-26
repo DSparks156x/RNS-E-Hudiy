@@ -42,10 +42,14 @@ def listen_for_dtc():
 
 def main():
     module = 0x01
+    action = "READ_DTC"
+    
     if len(sys.argv) > 1:
         module = int(sys.argv[1], 0)
+    if len(sys.argv) > 2 and sys.argv[2] == "clear":
+        action = "CLEAR_DTC"
         
-    print(f"[*] Requesting DTCs for Module 0x{module:02X}")
+    print(f"[*] Requesting {action} for Module 0x{module:02X}")
     
     # Start listener thread
     listener = threading.Thread(target=listen_for_dtc, daemon=True)
@@ -59,7 +63,7 @@ def main():
     req_sock.connect(TP2_CMD_ADDR)
     
     cmd = {
-        "cmd": "READ_DTC",
+        "cmd": action,
         "module": module
     }
     

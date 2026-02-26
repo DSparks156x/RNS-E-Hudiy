@@ -124,7 +124,7 @@ class TP2Service:
         
         session['normal_groups_list'] = new_normal
         session['low_groups_list'] = new_low
-        session['active'] = len(new_normal) > 0 or len(new_low) > 0 or session.get('pending_dtc_req', False)
+        session['active'] = len(new_normal) > 0 or len(new_low) > 0 or session.get('pending_dtc_req', False) or session.get('pending_dtc_clear', False)
 
     def _ensure_connected(self, module_id, session):
         # Main Thread Only
@@ -281,6 +281,19 @@ class TP2Service:
                         response = {"status": "queued", "module": mod}
                     else:
                         response = {"status": "error", "message": "Missing module"}
+                        
+                elif cmd == "CLEAR_DTC":
+                    mod = msg.get("module")
+                    if mod is not None:
+                        param_mod = int(mod)
+                        with self.lock:
+                            session = self._get_or_create_session(param_mod)
+                            session['pending_dtc_clear'] = True
+                            if not session['active']:
+                                session['active'] = True
+                        response = {"status": "queued", "module": mod, "action": "clear"}
+                    else:
+                        response = {"status": "error", "message": "Missing module"}
 
                 elif cmd == "CLEAR":
                     with self.lock:
@@ -377,8 +390,9 @@ class TP2Service:
                     low_list = session.get('low_groups_list', [])
                     cycle = session.get('cycle_count', 1)
                     pending_dtc = session.get('pending_dtc_req', False)
+                    pending_clear = session.get('pending_dtc_clear', False)
                     
-                    if not normal_list and not low_list and not pending_dtc:
+                    if not normal_list and not low_list and not pending_dtc and not pending_clear:
                         # Keep Alive Only
                         if session['connected']:
                              try:
@@ -406,9 +420,28 @@ class TP2Service:
                             session['cycle_count'] = cycle
                             active_list = get_active_list(normal_list, low_list, cycle)
 
-                    if not active_list and not session.get('pending_dtc_req'):
+                    if not active_list and not session.get('pending_dtc_req') and not session.get('pending_dtc_clear'):
                         continue
 
+                    # Process DTC Clear if pending
+                    if session.get('pending_dtc_clear'):
+                        proto = session['protocol']
+                        logger.info(f"Mod 0x{mod_id:02X}: Sending Clear DTCs (0x14)...")
+                        try:
+                            # 0x14 FF 00 - Clear All DTCs
+                            resp = proto.send_kvp_request([0x14, 0xFF, 0x00])
+                            if resp and resp[0] == 0x54:
+                                logger.info(f"Mod 0x{mod_id:02X} DTCs Cleared successfully.")
+                                # Auto-queue a read to verify
+                                session['pending_dtc_req'] = True
+                                session['dtc_cooldown'] = time.time() + 1.0 # short delay before reading
+                            else:
+                                logger.warning(f"Mod 0x{mod_id:02X} failed to clear DTCs: {resp}")
+                        except Exception as e:
+                            logger.error(f"Mod 0x{mod_id:02X} DTC Clear Error: {e}")
+                        
+                        session['pending_dtc_clear'] = False
+                        
                     # Process DTC Request if pending
                     if session.get('pending_dtc_req') and time.time() > session.get('dtc_cooldown', 0):
                         proto = session['protocol']
@@ -417,21 +450,42 @@ class TP2Service:
                             # 0x18 Read By Status
                             resp = proto.send_kvp_request([0x18, 0x00, 0xFF, 0x00])
                             
+                            # Fallback 1: Some modules don't like mask 0xFF, use 0x00
+                            if resp and len(resp) >= 3 and resp[0] == 0x7F and resp[1] == 0x18:
+                                logger.info(f"Mod 0x{mod_id:02X} 0x18 0xFF rejected (NRC {resp[2]}), trying 0x18 0x00")
+                                resp_alt = proto.send_kvp_request([0x18, 0x00, 0x00, 0x00])
+                                if resp_alt: resp = resp_alt
+
+                            # Fallback 2: Try older KWP 0x13
+                            if resp and len(resp) >= 3 and resp[0] == 0x7F and resp[1] == 0x18:
+                                logger.info(f"Mod 0x{mod_id:02X} 0x18 rejected (NRC {resp[2]}), trying 0x13 ReadDTCs")
+                                resp_fallback = proto.send_kvp_request([0x13])
+                                if resp_fallback: resp = resp_fallback
+
+                            # Fallback 3: Try standard OBD 0x03
+                            if resp and len(resp) >= 3 and resp[0] == 0x7F and resp[1] == 0x13:
+                                logger.info(f"Mod 0x{mod_id:02X} 0x13 rejected (NRC {resp[2]}), trying OBD 0x03")
+                                resp_obd = proto.send_kvp_request([0x03])
+                                if resp_obd: resp = resp_obd
+                                
                             if not resp:
                                 logger.error(f"Mod 0x{mod_id:02X} No response for DTC request.")
                             elif resp[0] == 0x7F:
                                 logger.warning(f"Mod 0x{mod_id:02X} DTC Request Rejected (NRC): {resp}")
-                            elif resp[0] == 0x58:
+                            elif resp[0] in [0x58, 0x53]:
                                 count = resp[1]
                                 dtc_data = resp[2:]
                                 dtc_list = []
                                 
-                                if len(dtc_data) >= count * 3:
+                                is_0x53 = (resp[0] == 0x53)
+                                bytes_per_dtc = 2 if is_0x53 else 3
+                                
+                                if len(dtc_data) >= count * bytes_per_dtc:
                                     for i in range(count):
-                                        idx = i * 3
+                                        idx = i * bytes_per_dtc
                                         hi = dtc_data[idx]
                                         lo = dtc_data[idx+1]
-                                        status = dtc_data[idx+2]
+                                        status = 0 if is_0x53 else dtc_data[idx+2]
                                         code = (hi << 8) | lo
                                         # Format as unshortened hex string and padded decimal string
                                         dtc_list.append({
@@ -440,13 +494,13 @@ class TP2Service:
                                             'status': status
                                         })
                                 else:
-                                    logger.warning(f"Mod 0x{mod_id:02X} DTC Response length mismatch. Expected {count*3}, got {len(dtc_data)}")
+                                    logger.warning(f"Mod 0x{mod_id:02X} DTC Response length mismatch. Expected {count*bytes_per_dtc}, got {len(dtc_data)}")
                                 
                                 # Fetch freeze frame data for each DTC if possible
                                 for dtc_item in dtc_list:
                                     dtc_code = dtc_item['code_dec']
-                                    hi = (dtc_code >> 8) & 0xFF
-                                    lo = dtc_code & 0xFF
+                                    hi = (int(dtc_code) >> 8) & 0xFF
+                                    lo = int(dtc_code) & 0xFF
                                     try:
                                         # Try requesting specific freeze frame for this DTC
                                         ff_resp = proto.send_kvp_request([0x12, 0x00, hi, lo])
@@ -467,8 +521,6 @@ class TP2Service:
                                 }
                                 self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
                                 logger.info(f"Published Mod 0x{mod_id:02X} DTCs: {dtc_list}")
-                            
-                                # (Freeze frame requests are now handled per-DTC above)
                             
                         except Exception as e:
                             logger.error(f"Mod 0x{mod_id:02X} DTC Error: {e}")
