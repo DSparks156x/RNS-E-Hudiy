@@ -600,6 +600,16 @@ def handle_request_dtcs(data):
     else:
         emit('command_response', {"status": "error", "message": "Missing module"})
 
+@socketio.on('clear_dtcs')
+def handle_clear_dtcs(data):
+    mod = data.get('module')
+    if mod is not None:
+        logger.info(f"Client requested CLEAR DTCs for module {mod}")
+        worker.send_command("CLEAR_DTC", module=int(mod), fire_and_forget=True)
+        emit('command_response', {"status": "ok", "action": "clear_dtcs", "module": mod})
+    else:
+        emit('command_response', {"status": "error", "message": "Missing module"})
+
 @socketio.on('log_theme')
 def handle_log_theme(theme_data):
     logger.info("=== HUDIY THEME PAYLOAD ===")
