@@ -230,7 +230,7 @@ def interpolation_broadcast_loop():
             _emit_count += len(batch)
             now2 = time.monotonic()
             if now2 - _emit_log_time >= 5.0:
-                logger.info(f"Broadcast loop: emitted {_emit_count} group updates in last 5s")
+                #logger.info(f"Broadcast loop: emitted {_emit_count} group updates in last 5s")
                 _emit_count = 0
                 _emit_log_time = now2
 
@@ -495,7 +495,7 @@ class ZMQWorker:
                     if drained > 0:
                         now = time.monotonic()
                         if now - _recv_log_time >= 5.0:
-                            logger.info(f"ZMQ RX rate: {_recv_count} msgs in last 5s")
+                            # logger.info(f"ZMQ RX rate: {_recv_count} msgs in last 5s")
                             _recv_count = 0
                             _recv_log_time = now
                 
@@ -645,6 +645,16 @@ def handle_request_dtcs(data):
     else:
         emit('command_response', {"status": "error", "message": "Missing module"})
 
+@socketio.on('clear_dtcs')
+def handle_clear_dtcs(data):
+    mod = data.get('module')
+    if mod is not None:
+        logger.info(f"Client requested CLEAR DTCs for module {mod}")
+        worker.send_command("CLEAR_DTC", module=int(mod), fire_and_forget=True)
+        emit('command_response', {"status": "ok", "action": "clear_dtcs", "module": mod})
+    else:
+        emit('command_response', {"status": "error", "message": "Missing module"})
+
 @socketio.on('log_theme')
 def handle_log_theme(theme_data):
     logger.info("=== HUDIY THEME PAYLOAD ===")
@@ -655,6 +665,19 @@ def handle_log_theme(theme_data):
     except Exception as e:
         logger.error(f"Failed to parse theme data: {theme_data} - {e}")
     logger.info("===========================")
+
+@socketio.on('client_log')
+def handle_client_log(data):
+    level = data.get('level', 'info')
+    args = data.get('args', [])
+    
+    msg = " ".join(str(a) for a in args)
+    if level == 'error':
+        logger.error(f"[JS Console] {msg}")
+    elif level == 'warn':
+        logger.warning(f"[JS Console] {msg}")
+    else:
+        logger.info(f"[JS Console] {msg}")
 
 
 if __name__ == '__main__':

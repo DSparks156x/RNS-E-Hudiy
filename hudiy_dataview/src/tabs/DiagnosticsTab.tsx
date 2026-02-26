@@ -133,6 +133,13 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
         socket.emit('request_dtcs', { module: selectedModule });
     };
 
+    const requestClearDTCs = () => {
+        if (!socket || selectedModule === null) return;
+        setLoadingDTCs(true);
+        setDtcs([]);
+        socket.emit('clear_dtcs', { module: selectedModule });
+    };
+
     const toggleSubscription = (oldGrp: string, newGrp: string) => {
         if (!socket || selectedModule === null) return;
 
@@ -247,13 +254,22 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                     </span>
                 </div>
 
-                <button
-                    style={{ ...styles.actionBtn, backgroundColor: loadingDTCs ? '#555' : theme.primary }}
-                    onClick={requestDTCs}
-                    disabled={loadingDTCs}
-                >
-                    {loadingDTCs ? 'Reading...' : 'Read DTCs'}
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                        style={{ ...styles.actionBtn, backgroundColor: loadingDTCs ? '#555' : 'rgba(255, 60, 60, 0.8)' }}
+                        onClick={requestClearDTCs}
+                        disabled={loadingDTCs}
+                    >
+                        Clear DTCs
+                    </button>
+                    <button
+                        style={{ ...styles.actionBtn, backgroundColor: loadingDTCs ? '#555' : theme.primary }}
+                        onClick={requestDTCs}
+                        disabled={loadingDTCs}
+                    >
+                        {loadingDTCs ? 'Reading...' : 'Read DTCs'}
+                    </button>
+                </div>
             </div>
 
             {/* Content Area split into DTCs and Measuring Groups */}
@@ -268,7 +284,10 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                         {dtcs.map((dtc, i) => (
                             <div key={i} style={{ padding: '10px', borderBottom: `1px solid rgba(255,255,255,0.1)`, display: 'flex', flexDirection: 'column' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                    <span style={{ fontFamily: 'monospace', fontSize: '1.2rem', fontWeight: 'bold' }}>{dtc.code}</span>
+                                    <div>
+                                        <span style={{ fontFamily: 'monospace', fontSize: '1.2rem', fontWeight: 'bold', marginRight: '6px' }}>{dtc.code_dec}</span>
+                                        <span style={{ fontSize: '0.9rem', opacity: 0.7 }}>(Hex: {dtc.code})</span>
+                                    </div>
                                     <span style={{ fontSize: '0.9rem', opacity: 0.7 }}>Status: 0x{dtc.status.toString(16).padStart(2, '0')}</span>
                                 </div>
                                 {dtc.freeze_frame_raw && dtc.freeze_frame_raw.length > 0 && (
