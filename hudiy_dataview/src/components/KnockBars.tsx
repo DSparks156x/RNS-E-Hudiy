@@ -18,10 +18,12 @@ function KnockBar({ cyl, groupKey, index }: { cyl: number; groupKey: string; ind
   });
 
   const color = useTransform(mv, (val) => {
-    let v = typeof val === 'number' ? val : parseFloat(val);
+    let v = typeof val === 'number' ? val : parseFloat(val as string);
     v = Math.abs(v);
     if (isNaN(v) || v <= 0.1) return 'transparent';
-    return v < 3 ? '#ffcc00' : '#ff0000';
+    if (v < 5) return 'var(--surface-tint)';
+    if (v < 10) return 'var(--tertiary-fixed)';
+    return 'var(--error-container)';
   });
 
   const displayVal = useTransform(mv, (val) => {

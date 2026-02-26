@@ -15,6 +15,11 @@ export interface HudiyColorScheme {
     onSurfaceVariant?: string;
     outline?: string;
     outlineVariant?: string;
+    secondaryFixed?: string;
+    tertiaryFixed?: string;
+    error?: string;
+    surfaceTint?: string;
+    errorContainer?: string;
     [key: string]: any; // Catch-all for any other variables Hudiy sends
 }
 
@@ -44,7 +49,12 @@ const DEFAULT_DEV_THEME: HudiyColorScheme = {
     surfaceVariant: '#444444',
     onSurfaceVariant: '#c4c4c4',
     outline: '#8c8c8c',
-    outlineVariant: '#444444'
+    outlineVariant: '#444444',
+    secondaryFixed: '#ffcd2e', // Gold/Yellow
+    tertiaryFixed: '#ff8a2e',  // Orange
+    error: '#ff3b3b',           // Red (Primary)
+    surfaceTint: '#ff3b3b',     // Often same as primary
+    errorContainer: '#93000a'
 };
 
 export function useHudiyTheme(socket: Socket | null) {

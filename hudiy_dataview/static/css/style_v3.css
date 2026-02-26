@@ -53,6 +53,11 @@ body {
     --outline: #444;
     --surface-variant: #1a1a1a;
     --on-surface-variant: #bbbbbb;
+    --secondary-fixed: #ffcd2e;
+    --tertiary-fixed: #ff8a2e;
+    --error: #ff3b3b;
+    --surface-tint: #ff3b3b;
+    --error-container: #93000a;
 
     background-color: var(--background);
     color: var(--on-surface);
@@ -108,7 +113,7 @@ body {
     margin: 0 8px;
     padding: 3px 20px;
     background: var(--surface-container);
-    border: 1px solid var(--outline);
+    border: 3px solid var(--surface-container-high);
     border-radius: 20px;
     color: var(--on-surface);
     opacity: 0.6;
@@ -132,9 +137,10 @@ body {
 }
 
 .smooth-toggle.active {
-    background: var(--surface-container);
+    background: var(--on-primary);
     border-color: var(--primary);
     color: var(--primary);
+
 }
 
 /* Section Content */
@@ -259,7 +265,8 @@ body {
 }
 
 .panel h3,
-.gauge-title {
+.gauge-title,
+.knock-header {
     margin-top: 0;
     /* Smaller header */
     color: var(--on-surface);
@@ -785,14 +792,7 @@ body {
     min-height: 0;
 }
 
-.knock-header {
-    text-align: center;
-    font-size: 14px;
-    color: var(--on-surface);
-    opacity: 0.6;
-    text-transform: uppercase;
-    margin-bottom: 5px;
-}
+
 
 .knock-bars {
     display: flex;
@@ -829,7 +829,7 @@ body {
     flex: 1;
     position: relative;
     background: var(--inverse-on-surface);
-    border: 1px solid var(--outline);
+    /* border: 1px solid var(--outline); */
     border-radius: 6px;
     overflow: hidden;
 }

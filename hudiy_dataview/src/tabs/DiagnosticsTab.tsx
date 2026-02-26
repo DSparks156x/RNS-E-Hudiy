@@ -183,9 +183,9 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
         return (
             <div style={styles.groupFields}>
                 {values.map((v, i) => (
-                    <div key={i} style={{ ...styles.fieldBox, borderColor: 'rgba(255,255,255,0.1)' }}>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{v.value}</div>
-                        <div style={{ fontSize: '0.8rem', color: '#aaa' }}>{v.unit || '-'}</div>
+                    <div key={i} style={{ ...styles.fieldBox, border: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}` }}>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.onSurface }}>{v.value}</div>
+                        <div style={{ fontSize: '0.8rem', color: theme.onSurfaceVariant || '#aaa' }}>{v.unit || '-'}</div>
                     </div>
                 ))}
             </div>
@@ -228,7 +228,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
             {/* Header / Module Selection */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexShrink: 0 }}>
                 <button
-                    style={{ ...styles.actionBtn, backgroundColor: 'rgba(0,0,0,0.3)', color: theme.onSurface, border: 'none' }}
+                    style={{ ...styles.actionBtn, backgroundColor: theme.surfaceDim || 'rgba(0,0,0,0.3)', color: theme.onSurface, border: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
                     onClick={() => {
                         if (selectedModule !== null) {
                             rememberedDiagnosticsGroups[selectedModule] = { g1: group1, g2: group2, g3: group3 };
@@ -242,7 +242,10 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                         setDtcs([]);
                     }}
                 >
-                    ← Back
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                    Back
                 </button>
 
                 <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -256,14 +259,14 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
 
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <button
-                        style={{ ...styles.actionBtn, backgroundColor: loadingDTCs ? '#555' : 'rgba(255, 60, 60, 0.8)' }}
+                        style={{ ...styles.actionBtn, backgroundColor: loadingDTCs ? theme.surfaceVariant : 'rgba(255, 60, 60, 0.8)' }}
                         onClick={requestClearDTCs}
                         disabled={loadingDTCs}
                     >
                         Clear DTCs
                     </button>
                     <button
-                        style={{ ...styles.actionBtn, backgroundColor: loadingDTCs ? '#555' : theme.primary }}
+                        style={{ ...styles.actionBtn, backgroundColor: loadingDTCs ? theme.surfaceVariant : theme.primary }}
                         onClick={requestDTCs}
                         disabled={loadingDTCs}
                     >
@@ -276,13 +279,13 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
             <div style={{ display: 'flex', flexGrow: 1, gap: '15px', minHeight: 0, height: '100%' }}>
 
                 {/* Left Side: DTCs (and Keypad overlay) */}
-                <div style={{ ...styles.panel, backgroundColor: 'rgba(0,0,0,0.3)', flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', boxSizing: 'border-box', position: 'relative' }}>
-                    <h3 style={{ marginTop: 0, borderBottom: `1px solid rgba(255,255,255,0.1)`, paddingBottom: '8px', flexShrink: 0 }}>Fault Codes</h3>
+                <div style={{ ...styles.panel, backgroundColor: theme.surfaceContainer || 'rgba(0,0,0,0.3)', flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', boxSizing: 'border-box', position: 'relative' }}>
+                    <h3 style={{ marginTop: 0, borderBottom: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}`, paddingBottom: '8px', flexShrink: 0 }}>Fault Codes</h3>
                     <div style={{ overflowY: 'auto', flexGrow: 1, minHeight: 0 }}>
                         {dtcs.length === 0 && !loadingDTCs && <div style={{ padding: '10px', opacity: 0.7 }}>No fault codes found.</div>}
                         {loadingDTCs && <div style={{ padding: '10px', opacity: 0.7 }}>Querying module...</div>}
                         {dtcs.map((dtc, i) => (
-                            <div key={i} style={{ padding: '10px', borderBottom: `1px solid rgba(255,255,255,0.1)`, display: 'flex', flexDirection: 'column' }}>
+                            <div key={i} style={{ padding: '10px', borderBottom: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}`, display: 'flex', flexDirection: 'column' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                     <div>
                                         <span style={{ fontFamily: 'monospace', fontSize: '1.2rem', fontWeight: 'bold', marginRight: '6px' }}>{dtc.code_dec}</span>
@@ -291,7 +294,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                                     <span style={{ fontSize: '0.9rem', opacity: 0.7 }}>Status: 0x{dtc.status.toString(16).padStart(2, '0')}</span>
                                 </div>
                                 {dtc.freeze_frame_raw && dtc.freeze_frame_raw.length > 0 && (
-                                    <div style={{ marginTop: '8px', padding: '6px', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '4px' }}>
+                                    <div style={{ marginTop: '8px', padding: '6px', backgroundColor: theme.surfaceDim || 'rgba(0,0,0,0.2)', borderRadius: '4px' }}>
                                         <span style={{ fontSize: '0.8rem', opacity: 0.6, display: 'block', marginBottom: '4px' }}>Freeze Frame (Raw Hex)</span>
                                         <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: theme.primary, wordBreak: 'break-all' }}>
                                             {dtc.freeze_frame_raw.join(' ')}
@@ -323,8 +326,8 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                 </div>
 
                 {/* Right Side: RT Data */}
-                <div style={{ ...styles.panel, backgroundColor: 'rgba(0,0,0,0.3)', flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', boxSizing: 'border-box' }}>
-                    <h3 style={{ marginTop: 0, borderBottom: `1px solid rgba(255,255,255,0.1)`, paddingBottom: '8px', flexShrink: 0 }}>Measuring Groups</h3>
+                <div style={{ ...styles.panel, backgroundColor: theme.surfaceContainer || 'rgba(0,0,0,0.3)', flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', boxSizing: 'border-box' }}>
+                    <h3 style={{ marginTop: 0, borderBottom: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}`, paddingBottom: '8px', flexShrink: 0 }}>Measuring Groups</h3>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flexGrow: 1, overflowY: 'auto', minHeight: 0, height: '100%', paddingRight: '5px' }}>
                         {/* Group 1 */}
@@ -335,7 +338,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                                 placeholder="Grp 1"
                                 value={activeKeypad === 1 ? tempKeypadVal : group1}
                                 onClick={() => handleInputClick(1, group1)}
-                                style={{ ...styles.groupInput, backgroundColor: activeKeypad === 1 ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)', color: theme.onSurface, cursor: 'pointer' }}
+                                style={{ ...styles.groupInput, backgroundColor: activeKeypad === 1 ? 'rgba(255,255,255,0.2)' : theme.surfaceDim || 'rgba(255,255,255,0.1)', color: theme.onSurface, cursor: 'pointer' }}
                             />
                             <div style={{ flexGrow: 1, display: 'flex' }}>{renderGroupFields(group1, groupData[group1])}</div>
                         </div>
@@ -348,7 +351,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                                 placeholder="Grp 2"
                                 value={activeKeypad === 2 ? tempKeypadVal : group2}
                                 onClick={() => handleInputClick(2, group2)}
-                                style={{ ...styles.groupInput, backgroundColor: activeKeypad === 2 ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)', color: theme.onSurface, cursor: 'pointer' }}
+                                style={{ ...styles.groupInput, backgroundColor: activeKeypad === 2 ? 'rgba(255,255,255,0.2)' : theme.surfaceDim || 'rgba(255,255,255,0.1)', color: theme.onSurface, cursor: 'pointer' }}
                             />
                             <div style={{ flexGrow: 1, display: 'flex' }}>{renderGroupFields(group2, groupData[group2])}</div>
                         </div>
@@ -361,7 +364,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                                 placeholder="Grp 3"
                                 value={activeKeypad === 3 ? tempKeypadVal : group3}
                                 onClick={() => handleInputClick(3, group3)}
-                                style={{ ...styles.groupInput, backgroundColor: activeKeypad === 3 ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)', color: theme.onSurface, cursor: 'pointer' }}
+                                style={{ ...styles.groupInput, backgroundColor: activeKeypad === 3 ? 'rgba(255,255,255,0.2)' : theme.surfaceDim || 'rgba(255,255,255,0.1)', color: theme.onSurface, cursor: 'pointer' }}
                             />
                             <div style={{ flexGrow: 1, display: 'flex' }}>{renderGroupFields(group3, groupData[group3])}</div>
                         </div>
@@ -384,7 +387,7 @@ const styles: Record<string, React.CSSProperties> = {
         minWidth: 'min(120px, 20vw)',
     },
     panel: {
-        borderRadius: '8px',
+        borderRadius: '16px',
         padding: '12px',
         display: 'flex',
         flexDirection: 'column',

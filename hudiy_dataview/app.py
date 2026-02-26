@@ -454,6 +454,12 @@ class ZMQWorker:
                 {'value': "OK",                                       'unit': ''}
             ])
 
+            # --- CAN Temps ---
+            self.ingest(0, 0, [
+                {'value': random.randint(85, 115), 'unit': 'C'}, # Oil
+                {'value': random.randint(15, 35),  'unit': 'C'}, # Ambient
+            ])
+
             # Single sleep at the bottom — all groups update at ~1.6 Hz
             socketio.sleep(0.625)
 
@@ -515,10 +521,25 @@ class ZMQWorker:
                                 boost = (payload[3] + payload[4] * 256) * 0.08
                                 oil_temp = payload[7] - 60
                                 # logger.info(f"[CAN] 555 -> Boost: {boost}, Oil: {oil_temp}")
+                                self.ingest(0, 0, [
+                                    {'value': oil_temp, 'unit': 'C'},
+                                    {'value': getattr(self, '_last_ambient', 0), 'unit': 'C'}
+                                ])
                                 
                             if '527' in t_str and len(payload) >= 6:
                                 ambient = (payload[5] * 0.5) - 50
+                                self._last_ambient = ambient
                                 # logger.info(f"[CAN] 527 -> Ambient: {ambient}")
+                                # We can also ingest here to refresh ambient immediately
+                                oil_now = 0
+                                with interpolator._lock:
+                                    msg = interpolator.get_raw(0, 0)
+                                    if msg and len(msg['data']) > 0:
+                                        oil_now = msg['data'][0]['value']
+                                self.ingest(0, 0, [
+                                    {'value': oil_now, 'unit': 'C'},
+                                    {'value': ambient, 'unit': 'C'}
+                                ])
                         except Exception as e:
                             logger.debug(f"Error parsing CAN message {t_str}: {e}")
                             

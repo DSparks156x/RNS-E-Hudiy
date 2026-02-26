@@ -71,11 +71,11 @@ export function EngineTab() {
         <div className="engine-temp-row">
           <div className="temp-item">
             <span className="stat-label">Oil</span>
-            <span className="temp-val"><LiveText groupKey="none" index={0} format={(v) => `${fmtInt(v)} °C`} /></span>
+            <span className="temp-val"><LiveText groupKey="0:0" index={0} format={(v) => `${fmtInt(v)} °C`} /></span>
           </div>
           <div className="temp-item">
             <span className="stat-label">Ambient</span>
-            <span className="temp-val"><LiveText groupKey="none" index={0} format={(v) => `${fmtInt(v)} °C`} /></span>
+            <span className="temp-val"><LiveText groupKey="0:0" index={1} format={(v) => `${fmtInt(v)} °C`} /></span>
           </div>
           <div className="temp-item">
             <span className="stat-label">Intake Air</span>

@@ -52,18 +52,18 @@ export function useSocket(currentTab: TabId) {
 
         console.log = (...args: any[]) => {
             originalLog(...args);
-            socket.emit('client_log', { level: 'info', args });
+            s.emit('client_log', { level: 'info', args });
         };
         console.warn = (...args: any[]) => {
             originalWarn(...args);
-            socket.emit('client_log', { level: 'warn', args });
+            s.emit('client_log', { level: 'warn', args });
         };
         console.error = (...args: any[]) => {
             originalError(...args);
-            socket.emit('client_log', { level: 'error', args });
+            s.emit('client_log', { level: 'error', args });
         };
 
-        socket.on('connect', () => {
+        s.on('connect', () => {
             console.log('Connected to Backend');
             const groups = TAB_CONFIG[currentTabRef.current];
             if (groups) subscribe(s, groups, 'add');
