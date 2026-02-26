@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSocket } from '../hooks/useSocket';
 import { useHudiyTheme } from '../hooks/useHudiyTheme';
 import { Keypad } from '../components/Keypad';
@@ -26,7 +26,9 @@ const KNOWN_MODULES = [
     { name: 'Navigation', id: 0x52 },
 ];
 
-export function DiagnosticsTab() {
+const rememberedDiagnosticsGroups: Record<number, { g1: string, g2: string, g3: string }> = {};
+
+export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
     const theme = useHudiyTheme();
     // Use the socket hook to get the connection. We don't subscribe to fixed groups here.
     const { socket } = useSocket('diagnostics');
@@ -44,6 +46,17 @@ export function DiagnosticsTab() {
     // Keypad State
     const [activeKeypad, setActiveKeypad] = useState<1 | 2 | 3 | null>(null);
     const [tempKeypadVal, setTempKeypadVal] = useState<string>('');
+
+    const activeModuleRef = useRef<number | null>(null);
+    const activeGroupsRef = useRef<{ g1: string, g2: string, g3: string }>({ g1: '', g2: '', g3: '' });
+
+    useEffect(() => {
+        activeModuleRef.current = selectedModule;
+    }, [selectedModule]);
+
+    useEffect(() => {
+        activeGroupsRef.current = { g1: group1, g2: group2, g3: group3 };
+    }, [group1, group2, group3]);
 
     useEffect(() => {
         if (!socket) return;
@@ -81,13 +94,37 @@ export function DiagnosticsTab() {
         };
     }, [socket, selectedModule]);
 
-    // Unsubscribe from old groups when module changes
+    // Unsubscribe from old groups when component unmounts
     useEffect(() => {
         return () => {
-            // We should tell server to drop old subs, but it handles cleanup via the heartbeat? No, toggle_action is explicit.
-            // It's probably better to emit remove commands if we change modules.
+            const mod = activeModuleRef.current;
+            if (mod !== null && socket) {
+                const { g1, g2, g3 } = activeGroupsRef.current;
+                rememberedDiagnosticsGroups[mod] = { g1, g2, g3 };
+
+                if (g1 && !isNaN(parseInt(g1))) socket.emit('toggle_group', { action: 'remove', module: mod, group: parseInt(g1) });
+                if (g2 && !isNaN(parseInt(g2))) socket.emit('toggle_group', { action: 'remove', module: mod, group: parseInt(g2) });
+                if (g3 && !isNaN(parseInt(g3))) socket.emit('toggle_group', { action: 'remove', module: mod, group: parseInt(g3) });
+            }
         };
-    }, [selectedModule]);
+    }, [socket]);
+
+    // Unsubscribe when tab is hidden, re-subscribe when shown
+    useEffect(() => {
+        const mod = activeModuleRef.current;
+        if (socket && mod !== null) {
+            const { g1, g2, g3 } = activeGroupsRef.current;
+            if (isActive) {
+                if (g1 && !isNaN(parseInt(g1))) socket.emit('toggle_group', { action: 'add', module: mod, group: parseInt(g1), priority: 'normal' });
+                if (g2 && !isNaN(parseInt(g2))) socket.emit('toggle_group', { action: 'add', module: mod, group: parseInt(g2), priority: 'normal' });
+                if (g3 && !isNaN(parseInt(g3))) socket.emit('toggle_group', { action: 'add', module: mod, group: parseInt(g3), priority: 'normal' });
+            } else {
+                if (g1 && !isNaN(parseInt(g1))) socket.emit('toggle_group', { action: 'remove', module: mod, group: parseInt(g1) });
+                if (g2 && !isNaN(parseInt(g2))) socket.emit('toggle_group', { action: 'remove', module: mod, group: parseInt(g2) });
+                if (g3 && !isNaN(parseInt(g3))) socket.emit('toggle_group', { action: 'remove', module: mod, group: parseInt(g3) });
+            }
+        }
+    }, [isActive, socket]);
 
     const requestDTCs = () => {
         if (!socket || selectedModule === null) return;
@@ -158,9 +195,16 @@ export function DiagnosticsTab() {
                             style={{ ...styles.moduleBtn, backgroundColor: theme.primary, color: theme.onSurface }}
                             onClick={() => {
                                 setSelectedModule(mod.id);
-                                setGroup1(''); setGroup2(''); setGroup3('');
+                                const saved = rememberedDiagnosticsGroups[mod.id] || { g1: '', g2: '', g3: '' };
+                                setGroup1(saved.g1);
+                                setGroup2(saved.g2);
+                                setGroup3(saved.g3);
                                 setGroupData({});
                                 setDtcs([]);
+
+                                if (saved.g1 && !isNaN(parseInt(saved.g1))) socket?.emit('toggle_group', { action: 'add', module: mod.id, group: parseInt(saved.g1), priority: 'normal' });
+                                if (saved.g2 && !isNaN(parseInt(saved.g2))) socket?.emit('toggle_group', { action: 'add', module: mod.id, group: parseInt(saved.g2), priority: 'normal' });
+                                if (saved.g3 && !isNaN(parseInt(saved.g3))) socket?.emit('toggle_group', { action: 'add', module: mod.id, group: parseInt(saved.g3), priority: 'normal' });
                             }}
                         >
                             <span style={{ fontSize: '1.2rem', fontWeight: 'bold', lineHeight: 1.1, wordBreak: 'break-word' }}>{mod.name}</span>
@@ -178,7 +222,18 @@ export function DiagnosticsTab() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexShrink: 0 }}>
                 <button
                     style={{ ...styles.actionBtn, backgroundColor: 'rgba(0,0,0,0.3)', color: theme.onSurface, border: `1px solid rgba(255,255,255,0.1)` }}
-                    onClick={() => setSelectedModule(null)}
+                    onClick={() => {
+                        if (selectedModule !== null) {
+                            rememberedDiagnosticsGroups[selectedModule] = { g1: group1, g2: group2, g3: group3 };
+                            if (group1 && !isNaN(parseInt(group1))) socket?.emit('toggle_group', { action: 'remove', module: selectedModule, group: parseInt(group1) });
+                            if (group2 && !isNaN(parseInt(group2))) socket?.emit('toggle_group', { action: 'remove', module: selectedModule, group: parseInt(group2) });
+                            if (group3 && !isNaN(parseInt(group3))) socket?.emit('toggle_group', { action: 'remove', module: selectedModule, group: parseInt(group3) });
+                        }
+                        setSelectedModule(null);
+                        setGroup1(''); setGroup2(''); setGroup3('');
+                        setGroupData({});
+                        setDtcs([]);
+                    }}
                 >
                     ← Back
                 </button>

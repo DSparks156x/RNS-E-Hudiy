@@ -434,6 +434,13 @@ class ZMQWorker:
                         topic, msg = self.sub_sock.recv_multipart()
                         if topic == b'HUDIY_DIAG':
                             payload = json.loads(msg)
+                            
+                            if payload.get('type') == 'dtc_report':
+                                socketio.emit('dtc_report', payload, namespace='/')
+                                drained += 1
+                                _recv_count += 1
+                                continue
+                                
                             mod = payload.get('module')
                             grp = payload.get('group')
                             data = payload.get('data')
@@ -458,16 +465,16 @@ class ZMQWorker:
                             if '35B' in t_str and len(payload) >= 4:
                                 rpm = (payload[2] * 256 + payload[1]) / 4.0
                                 coolant = (payload[3] * 0.75) - 64
-                                logger.info(f"[CAN] 35B -> RPM: {rpm}, Coolant: {coolant}")
+                                # logger.info(f"[CAN] 35B -> RPM: {rpm}, Coolant: {coolant}")
                                 
                             if '555' in t_str and len(payload) >= 8:
                                 boost = (payload[3] + payload[4] * 256) * 0.08
                                 oil_temp = payload[7] - 60
-                                logger.info(f"[CAN] 555 -> Boost: {boost}, Oil: {oil_temp}")
+                                # logger.info(f"[CAN] 555 -> Boost: {boost}, Oil: {oil_temp}")
                                 
                             if '527' in t_str and len(payload) >= 6:
                                 ambient = (payload[5] * 0.5) - 50
-                                logger.info(f"[CAN] 527 -> Ambient: {ambient}")
+                                # logger.info(f"[CAN] 527 -> Ambient: {ambient}")
                         except Exception as e:
                             logger.debug(f"Error parsing CAN message {t_str}: {e}")
                             
@@ -592,6 +599,17 @@ def handle_request_dtcs(data):
         emit('command_response', {"status": "ok", "action": "request_dtcs", "module": mod})
     else:
         emit('command_response', {"status": "error", "message": "Missing module"})
+
+@socketio.on('log_theme')
+def handle_log_theme(theme_data):
+    logger.info("=== HUDIY THEME PAYLOAD ===")
+    try:
+        formatted = json.dumps(theme_data, indent=2)
+        for line in formatted.split('\n'):
+            logger.info(line)
+    except Exception as e:
+        logger.error(f"Failed to parse theme data: {theme_data} - {e}")
+    logger.info("===========================")
 
 
 if __name__ == '__main__':

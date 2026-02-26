@@ -1,12 +1,17 @@
 /* Hudiy Data View Styling (800x480) */
 
 :root {
-    --bg-color: #121212;
-    --panel-bg: #1e1e1e;
-    --text-color: #ffffff;
-    --accent-color: var(--primary-color, #ff3b3b);
-    /* Hudiy Red/Orange */
-    --accent-dim: #7f1d1d;
+    --bg-color: var(--background, #121212);
+    --panel-bg: var(--surface, #1e1e1e);
+    --text-color: var(--on-surface, #ffffff);
+    --accent-color: var(--primary, #ff3b3b);
+    /* Hudiy Material Mapping */
+    --accent-dim: var(--primary-container, #7f1d1d);
+    --border-color: var(--outline-variant, #333);
+    --border-highlight: var(--outline, #444);
+    --panel-highlight: var(--surface-variant, #1a1a1a);
+    --text-muted: var(--on-surface-variant, #bbbbbb);
+
     --grid-gap: 5px;
     --tab-height: 35px;
 }
@@ -54,8 +59,23 @@ body {
 .tabs {
     display: flex;
     height: var(--tab-height);
-    background-color: #000;
-    border-bottom: 2px solid #333;
+    background-color: var(--panel-bg);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tab.k-bar.empty {
+    height: 100%;
+    background: transparent;
+}
+
+.k-bar-wrapper .val-box {
+    margin-top: 5px;
+    width: 100%;
+    padding: 2px 0;
+    font-size: 14px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    box-sizing: border-box;
 }
 
 .tab-btn {
@@ -73,7 +93,7 @@ body {
 .tab-btn.active {
     color: var(--accent-color);
     border-bottom: 4px solid var(--accent-color);
-    background-color: #1a1a1a;
+    background-color: var(--panel-highlight);
 }
 
 /* Smoothing toggle pill — lives in the left of the nav bar */
@@ -83,8 +103,8 @@ body {
     align-self: center;
     margin: 0 8px;
     padding: 3px 20px;
-    background: #1a1a1a;
-    border: 1px solid #444;
+    background: var(--panel-highlight);
+    border: 1px solid var(--border-highlight);
     border-radius: 12px;
     color: var(--text-color);
     opacity: 0.6;
@@ -108,7 +128,7 @@ body {
 }
 
 .smooth-toggle.active {
-    background: #2a1a1a;
+    background: var(--panel-bg);
     border-color: var(--accent-color);
     color: var(--accent-color);
 }
@@ -171,14 +191,14 @@ body {
     background-color: var(--panel-bg);
     border-radius: 8px;
     padding: 5px;
-    border: 1px solid #333;
+    border: 1px solid var(--border-color);
 }
 
 .group-box h3 {
     margin-top: 0;
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid var(--border-highlight);
     padding-bottom: 2px;
-    color: #bbb;
+    color: var(--text-muted);
     font-size: 15px;
     margin-bottom: 5px;
 }
@@ -187,7 +207,7 @@ body {
     display: flex;
     justify-content: space-between;
     padding: 5px 0;
-    border-bottom: 1px solid #2a2a2a;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .val-row:last-child {
@@ -226,7 +246,7 @@ body {
     background-color: var(--panel-bg);
     border-radius: 8px;
     padding: 6px;
-    border: 1px solid #333;
+    border: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -302,7 +322,7 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    color: #fff;
+    color: var(--text-color);
     font-weight: bold;
     font-size: clamp(14px, 3.5vw, 22px);
     font-family: monospace;
@@ -321,7 +341,7 @@ body {
 }
 
 .gauge-label-line {
-    color: #888;
+    color: var(--text-muted);
     font-size: clamp(8px, 1.5vw, 12px);
     line-height: 1.3;
 }
@@ -339,7 +359,7 @@ body {
     display: flex;
     justify-content: space-between;
     padding-top: 5px;
-    border-top: 1px solid #333;
+    border-top: 1px solid var(--border-color);
     font-size: 12px;
 }
 
@@ -397,7 +417,7 @@ body {
     width: 25px;
     height: 85%;
     /* Adjust height to leave room for labels */
-    background-color: #333;
+    background-color: var(--panel-highlight);
     border-radius: 6px;
     position: relative;
     overflow: hidden;
@@ -409,10 +429,17 @@ body {
     content: '';
     position: absolute;
     inset: 0;
-    border: 1px solid #444;
+    border: 1px solid var(--border-highlight);
     border-radius: 4px;
     pointer-events: none;
     z-index: 1;
+}
+
+/* Add support for data-theme light forcing specific overrides if needed */
+[data-theme="light"] {
+    /* For light mode we might want stronger borders since contrast works differently */
+    --border-color: #d1d1d1;
+    --border-highlight: #b0b0b0;
 }
 
 /* Centre reference line */
@@ -422,7 +449,7 @@ body {
     left: 0;
     right: 0;
     height: 1px;
-    background-color: #666;
+    background-color: var(--border-highlight);
     transform: translateY(-50%);
 }
 
@@ -469,15 +496,30 @@ body {
 }
 
 .val-box {
-    background: #000;
+    background: var(--panel-highlight);
     padding: 5px 10px;
     border-radius: 4px;
-    border: 1px solid #333;
+    border: 1px solid var(--border-color);
     font-family: monospace;
     font-size: 16px;
     color: var(--accent-color);
     text-align: center;
     min-width: 80px;
+}
+
+.diag-text {
+    font-family: monospace;
+    font-size: 16px;
+    line-height: 1.4;
+    color: var(--text-color);
+    overflow-y: auto;
+    padding-right: 10px;
+    height: 100%;
+}
+
+.diag-error {
+    color: var(--accent-color);
+    font-weight: bold;
 }
 
 .val-label {
@@ -523,7 +565,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-color);
     padding: 3px 0;
 }
 
@@ -549,7 +591,7 @@ body {
     background-color: var(--panel-bg);
     border-radius: 8px;
     padding: 5px;
-    border: 1px solid #333;
+    border: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -573,7 +615,7 @@ body {
     justify-content: space-around;
     background-color: var(--panel-bg);
     border-radius: 8px;
-    border: 1px solid #333;
+    border: 1px solid var(--border-color);
     padding: 0 10px;
     height: 100%;
 }
@@ -594,7 +636,7 @@ body {
     /* Full width */
     margin: 1px auto;
     /* Minimal margin */
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-color);
     padding-bottom: 1px;
 }
 
@@ -788,8 +830,8 @@ body {
     width: 100%;
     flex: 1;
     position: relative;
-    background: #333;
-    border: 1px solid #444;
+    background: var(--panel-highlight);
+    border: 1px solid var(--border-highlight);
     border-radius: 6px;
     overflow: hidden;
 }

@@ -23,7 +23,8 @@ export function App() {
   // Notice we only get the socket instance back now; data state is gone!
   const { socket } = useSocket(currentTab);
 
-  const theme = useHudiyTheme();
+  const themeHook = useHudiyTheme(socket);
+  const theme = themeHook.theme;
 
   // Toggle smoothing on the server — app.py handles the 20Hz interpolation loop
   const toggleSmoothing = useCallback(() => {
@@ -48,13 +49,25 @@ export function App() {
   const tabCount = TABS.length;
   const translatePct = -(currentIndex * (100 / tabCount));
 
+  // Convert theme object to CSS variables dynamically
+  const themeVars = Object.entries(theme).reduce((acc, [key, value]) => {
+    if (typeof value === 'string') {
+      // e.g. primaryContainer -> --primary-container
+      const cssKey = `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+      acc[cssKey] = value;
+    }
+    return acc;
+  }, {} as Record<string, string>);
+
+  // Also include the ones we historically used to not break anything immediately
+  themeVars['--accent-color'] = theme.primary || '#ff3b3b';
+  themeVars['--text-color'] = theme.onSurface || '#ffffff';
+
   return (
     <div
       className="container"
-      style={{
-        '--accent-color': theme.primary,
-        '--text-color': theme.onSurface,
-      } as React.CSSProperties}
+      data-theme={theme.darkThemeEnabled ? 'dark' : 'light'}
+      style={themeVars as React.CSSProperties}
     >
       <nav className="tabs">
         <button
@@ -87,7 +100,7 @@ export function App() {
           <div className="tab-slide"><EngineTab /></div>
           <div className="tab-slide"><TransmissionTab /></div>
           <div className="tab-slide"><AWDTab /></div>
-          <div className="tab-slide"><DiagnosticsTab /></div>
+          <div className="tab-slide"><DiagnosticsTab isActive={currentTab === 'diagnostics'} /></div>
         </div>
       </div>
     </div>

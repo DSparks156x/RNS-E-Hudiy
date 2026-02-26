@@ -1,16 +1,27 @@
 import { useEffect, useState } from 'react';
+import { Socket } from 'socket.io-client';
 
-interface HudiyColorScheme {
+// Hudiy provides a Material You-like color palette
+export interface HudiyColorScheme {
     primary?: string;
     onSurface?: string;
     darkThemeEnabled?: boolean;
+    background?: string;
+    surface?: string;
+    onBackground?: string;
+    primaryContainer?: string;
+    onPrimaryContainer?: string;
+    surfaceVariant?: string;
+    onSurfaceVariant?: string;
+    outline?: string;
+    outlineVariant?: string;
+    [key: string]: any; // Catch-all for any other variables Hudiy sends
 }
 
 interface HudiyObj {
     colorScheme: HudiyColorScheme;
     onColorSchemeChanged?: () => void;
     onAttached?: () => void;
-    // Other callbacks aren't strictly needed for color mapping
 }
 
 declare global {
@@ -19,9 +30,23 @@ declare global {
     }
 }
 
-export function useHudiyTheme() {
-    const [primary, setPrimary] = useState('#ff3b3b'); // Default dev red
-    const [onSurface, setOnSurface] = useState('#ffffff'); // Default dev white
+const DEFAULT_DEV_THEME: HudiyColorScheme = {
+    primary: '#ff3b3b',
+    onSurface: '#ffffff',
+    darkThemeEnabled: true,
+    background: '#121212',
+    surface: '#1e1e1e',
+    onBackground: '#e0e0e0',
+    primaryContainer: '#6b0000',
+    onPrimaryContainer: '#ffdad6',
+    surfaceVariant: '#444444',
+    onSurfaceVariant: '#c4c4c4',
+    outline: '#8c8c8c',
+    outlineVariant: '#444444'
+};
+
+export function useHudiyTheme(socket: Socket | null) {
+    const [theme, setTheme] = useState<HudiyColorScheme>(DEFAULT_DEV_THEME);
 
     useEffect(() => {
         // If not running inside Hudiy host, abort.
@@ -29,11 +54,13 @@ export function useHudiyTheme() {
 
         const h = window.hudiy;
 
-        // We assume h.colorScheme is defined per API spec.
         const updateColors = () => {
             if (h.colorScheme) {
-                if (h.colorScheme.primary) setPrimary(h.colorScheme.primary);
-                if (h.colorScheme.onSurface) setOnSurface(h.colorScheme.onSurface);
+                // Also send it to the backend so it shows up in the python terminal easily
+                if (socket) {
+                    socket.emit('log_theme', h.colorScheme);
+                }
+                setTheme({ ...h.colorScheme });
             }
         };
 
@@ -54,13 +81,11 @@ export function useHudiyTheme() {
         // Run once on mount in case it attached before React rendered
         updateColors();
 
-        // Not much we can do for cleanup since these callbacks are top-level properties on window.hudiy
-        // but we can try reverting to original
         return () => {
             h.onColorSchemeChanged = originalColorChanged;
             h.onAttached = originalAttached;
         };
     }, []);
 
-    return { primary, onSurface };
+    return { theme };
 }
