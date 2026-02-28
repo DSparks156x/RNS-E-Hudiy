@@ -417,6 +417,8 @@ class DisplayEngine:
                         self._send_draw({'command': 'draw_text', 'text': item.get('text', ''), 'x': item.get('x', 0), 'y': item.get('y', 0), 'flags': item.get('flags', 0x06)})
                     elif cmd == 'draw_line':
                         self._send_draw({'command': 'draw_line', 'x': item.get('x', 0), 'y': item.get('y', 0), 'length': item.get('len', 0), 'vertical': item.get('vert', True)})
+                    elif cmd == 'clear_area':
+                        self._send_draw({'command': 'clear_area', 'x': item.get('x', 0), 'y': item.get('y', 0), 'w': item.get('w', 0), 'h': item.get('h', 0)})
                 self._send_draw({'command': 'commit'})
                 
                 self.last_sent['custom_sig'] = current_sig
@@ -445,15 +447,12 @@ class DisplayEngine:
                     must_clear = True
                 
                 # CASE 2: Partial clear for shrinking text to avoid ghosting
-                if prev_txt:
+                if prev_txt and not must_clear:
                     prev_eff = len(prev_txt.rstrip())
                     curr_eff = len(txt.rstrip())
                     if curr_eff < prev_eff:
-                        char_width = 4  # 64 pixels / 16 chars
-                        clear_x = curr_eff * char_width
-                        clear_w = 64 - clear_x
-                        if clear_w > 0:
-                            self._send_draw({'command': 'clear_area', 'x': clear_x, 'y': self.Y[k], 'w': clear_w, 'h': 9})
+                        must_clear = True
+                
                 
                 if must_clear:
                     self._send_draw({'command': 'clear_area', 'x': 0, 'y': self.Y[k], 'w': 64, 'h': 9})
