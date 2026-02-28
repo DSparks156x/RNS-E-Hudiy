@@ -230,7 +230,7 @@ def interpolation_broadcast_loop():
             _emit_count += len(batch)
             now2 = time.monotonic()
             if now2 - _emit_log_time >= 5.0:
-                #logger.info(f"Broadcast loop: emitted {_emit_count} group updates in last 5s")
+                logger.info(f"Broadcast loop: emitted {_emit_count} group updates in last 5s")
                 _emit_count = 0
                 _emit_log_time = now2
 
@@ -501,7 +501,7 @@ class ZMQWorker:
                     if drained > 0:
                         now = time.monotonic()
                         if now - _recv_log_time >= 5.0:
-                            # logger.info(f"ZMQ RX rate: {_recv_count} msgs in last 5s")
+                            logger.info(f"ZMQ RX rate: {_recv_count} msgs in last 5s")
                             _recv_count = 0
                             _recv_log_time = now
                 
