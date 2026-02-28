@@ -19,11 +19,13 @@ try:
     ZMQ_PUB_ADDR = _cfg['zmq'].get('tp2_stream',  _DEFAULT_TP2_STREAM)
     ZMQ_REQ_ADDR = _cfg['zmq'].get('tp2_command', _DEFAULT_TP2_COMMAND)
     ZMQ_CAN_ADDR = _cfg['zmq'].get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc')
+    ZMQ_STATUS_STREAM = _cfg['zmq'].get('status_stream', 'ipc:///run/rnse_control/status_stream.ipc')
 except Exception as _e:
     logging.warning(f"Could not load config.json, using default ZMQ addresses: {_e}")
     ZMQ_PUB_ADDR = _DEFAULT_TP2_STREAM
     ZMQ_REQ_ADDR = _DEFAULT_TP2_COMMAND
     ZMQ_CAN_ADDR = 'ipc:///run/rnse_control/can_stream.ipc'
+    ZMQ_STATUS_STREAM = 'ipc:///run/rnse_control/status_stream.ipc'
 
 # --- Setup Flask & SocketIO ---
 app = Flask(__name__)
@@ -181,7 +183,7 @@ class ZMQWorker:
         self.context = zmq.Context()
         self.running = True
         self.sub_sock = None
-        self.can_sock = None
+        self.status_sock = None
         self._cmd_queue = queue.Queue()
         self._cmd_thread = threading.Thread(target=self._command_loop, daemon=True)
         self._cmd_thread.start()
@@ -222,11 +224,10 @@ class ZMQWorker:
             self.sub_sock.subscribe(b"HUDIY_DIAG")
             logger.info(f"Connected to ZMQ PUB at {ZMQ_PUB_ADDR}")
             
-            self.can_sock = self.context.socket(zmq.SUB)
-            self.can_sock.connect(ZMQ_CAN_ADDR)
-            for t in [b"CAN_35B", b"CAN_0x35B", b"CAN_555", b"CAN_0x555", b"CAN_527", b"CAN_0x527"]:
-                self.can_sock.subscribe(t)
-            logger.info(f"Connected to ZMQ CAN at {ZMQ_CAN_ADDR}")
+            self.status_sock = self.context.socket(zmq.SUB)
+            self.status_sock.connect(ZMQ_STATUS_STREAM)
+            self.status_sock.subscribe(b"HUDIY_DIAG")
+            logger.info(f"Connected to ZMQ STATUS at {ZMQ_STATUS_STREAM}")
             return True
         except Exception as e:
             logger.error(f"ZMQ Connection Failed: {e}")
@@ -259,8 +260,8 @@ class ZMQWorker:
         poller = zmq.Poller()
         if self.sub_sock:
             poller.register(self.sub_sock, zmq.POLLIN)
-        if self.can_sock:
-            poller.register(self.can_sock, zmq.POLLIN)
+        if self.status_sock:
+            poller.register(self.status_sock, zmq.POLLIN)
 
         while self.running:
             try:
@@ -283,84 +284,16 @@ class ZMQWorker:
                             grp = payload.get('group')
                             data = payload.get('data')
                             self.ingest(mod, grp, data)
-                    
-                # if self.can_sock in socks:
-                #     while self.can_sock.poll(0):
-                #         topic, msg = self.can_sock.recv_multipart()
-                #         t_str = topic.decode()
-                        
-                #         try:
-                #             payload = bytes.fromhex(json.loads(msg)['data_hex'])
-                #             if '35B' in t_str and len(payload) >= 4:
-                #                 rpm = (payload[2] * 256 + payload[1]) / 4.0
-                #                 coolant = (payload[3] * 0.75) - 64
-                #                 # logger.info(f"[CAN] 35B -> RPM: {rpm}, Coolant: {coolant}")
-                                
-                #             if '555' in t_str and len(payload) >= 8:
-                #                 boost = (payload[3] + payload[4] * 256) * 0.08
-                #                 oil_temp = payload[7] - 60
-                #                 # logger.info(f"[CAN] 555 -> Boost: {boost}, Oil: {oil_temp}")
-                #                 self.ingest(0, 0, [
-                #                     {'value': oil_temp, 'unit': 'C'},
-                #                     {'value': getattr(self, '_last_ambient', 0), 'unit': 'C'}
-                #                 ])
-                                
-                #             if '527' in t_str and len(payload) >= 6:
-                #                 ambient = (payload[5] * 0.5) - 50
-                #                 self._last_ambient = ambient
-                #                 oil_now = 0
-                #                 with interpolator._lock:
-                #                     msg_obj = interpolator.get_raw(0, 0)
-                #                     if msg_obj and len(msg_obj['data']) > 0:
-                #                         oil_now = msg_obj['data'][0]['value']
-                #                 self.ingest(0, 0, [
-                #                     {'value': oil_now, 'unit': 'C'},
-                #                     {'value': ambient, 'unit': 'C'}
-                #                 ])
-                #         except Exception as e:
-                #             logger.debug(f"Error parsing CAN message {t_str}: {e}")
+                
+                if self.status_sock in socks:
+                    while self.status_sock.poll(0):
+                        topic, msg = self.status_sock.recv_multipart()
+                        payload = json.loads(msg)
+                        mod = payload.get('module')
+                        grp = payload.get('group')
+                        data = payload.get('data')
+                        self.ingest(mod, grp, data)
                             
-                # # Check CAN Socket
-                # if self.can_sock:
-                #     while True:
-                #         try:
-                #             topic, msg = self.can_sock.recv_multipart(flags=zmq.NOBLOCK)
-                #             t_str = topic.decode()
-                            
-                #             try:
-                #                 payload = bytes.fromhex(json.loads(msg)['data_hex'])
-                #                 if '35B' in t_str and len(payload) >= 4:
-                #                     rpm = (payload[2] * 256 + payload[1]) / 4.0
-                #                     coolant = (payload[3] * 0.75) - 64
-                #                     # logger.info(f"[CAN] 35B -> RPM: {rpm}, Coolant: {coolant}")
-                                    
-                #                 if '555' in t_str and len(payload) >= 8:
-                #                     boost = (payload[3] + payload[4] * 256) * 0.08
-                #                     oil_temp = payload[7] - 60
-                #                     # logger.info(f"[CAN] 555 -> Boost: {boost}, Oil: {oil_temp}")
-                #                     self.ingest(0, 0, [
-                #                         {'value': oil_temp, 'unit': 'C'},
-                #                         {'value': getattr(self, '_last_ambient', 0), 'unit': 'C'}
-                #                     ])
-                                
-                #                 if '527' in t_str and len(payload) >= 6:
-                #                     ambient = (payload[5] * 0.5) - 50
-                #                     self._last_ambient = ambient
-                #                     # logger.info(f"[CAN] 527 -> Ambient: {ambient}")
-                #                     oil_now = 0
-                #                     with interpolator._lock:
-                #                         msg = interpolator.get_raw(0, 0)
-                #                         if msg and len(msg['data']) > 0:
-                #                             oil_now = msg['data'][0]['value']
-                #                     self.ingest(0, 0, [
-                #                         {'value': oil_now, 'unit': 'C'},
-                #                         {'value': ambient, 'unit': 'C'}
-                #                     ])
-                #             except Exception as e:
-                #                 logger.debug(f"Error parsing CAN message {t_str}: {e}")
-                #         except zmq.Again:
-                #             break
-                    
                 if drained > 0:
                     now = time.monotonic()
                     if now - _recv_log_time >= 5.0:

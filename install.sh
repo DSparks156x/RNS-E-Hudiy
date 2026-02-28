@@ -316,6 +316,23 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target"
 
+# 1.7 hudiy_status_service (CAN Status Service)
+write_service "hudiy_status_service.service" "[Unit]
+Description=Hudiy CAN Status Service
+After=tp2_worker.service
+
+[Service]
+User=${REAL_USER}
+Group=${REAL_USER}
+WorkingDirectory=${REAL_HOME}/hudiy_dataview
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 ${REAL_HOME}/hudiy_dataview/can_service.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target"
+
 # 2. can_base_function
 write_service "can_base_function.service" "[Unit]
 Description=RNS-E CAN-Bus Base Functionality
@@ -444,7 +461,7 @@ $SYSTEMCTL enable --now systemd-networkd
 echo "   Enabling and Starting Application Services..."
 $SYSTEMCTL enable --now can_handler.service can_base_function.service tp2_worker.service \
                         can_keyboard_control.service dark_mode_api.service hudiy_data_api.service \
-                        hudiy_dataview.service
+                        hudiy_dataview.service hudiy_status_service.service
 
 # Start delayed services non-blocking
 $SYSTEMCTL enable --now --no-block dis_service.service dis_display.service
