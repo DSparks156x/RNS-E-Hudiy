@@ -33,9 +33,9 @@ class TP2Service:
                 self.config = json.load(f)
             
             # ZMQ Addresses
-            self.addr_ignition = self.config['zmq'].get('system_events', 'tcp://localhost:5556')
-            self.addr_pub = self.config['zmq'].get('tp2_stream', 'tcp://*:5557') 
-            self.addr_rep = self.config['zmq'].get('tp2_command', 'tcp://*:5558')
+            self.addr_ignition = self.config['zmq'].get('system_events', 'ipc:///run/rnse_control/base_events.ipc')
+            self.addr_pub = self.config['zmq'].get('tp2_stream', 'ipc:///run/rnse_control/tp2_stream.ipc') 
+            self.addr_rep = self.config['zmq'].get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
 
             self.ignition_sub = self.context.socket(zmq.SUB)
             self.ignition_sub.connect(self.addr_ignition)
@@ -44,8 +44,8 @@ class TP2Service:
         except Exception as e:
             logger.warning(f"Could not load config or connect to ignition bus: {e}. Defaulting to Always Enabled.")
             self.ignition_sub = None
-            self.addr_pub = 'tcp://*:5557'
-            self.addr_rep = 'tcp://*:5558'
+            self.addr_pub = 'ipc:///run/rnse_control/tp2_stream.ipc'
+            self.addr_rep = 'ipc:///run/rnse_control/tp2_cmd.ipc'
 
         # Publisher (Data)
         self.pub = self.context.socket(zmq.PUB)
