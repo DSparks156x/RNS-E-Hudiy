@@ -464,13 +464,20 @@ class ZMQWorker:
             socketio.sleep(0.625)
 
     def run_real(self):
-        logger.info("Starting ZMQ Subscriber Loop...")
+        logger.info(f"Starting ZMQ Subscriber Loop... SUB: {ZMQ_PUB_ADDR}")
         _recv_count = 0
         _recv_log_time = time.monotonic()
+        _heartbeat_time = time.monotonic()
 
         while self.running:
             try:
                 drained = 0
+                now = time.monotonic()
+                
+                # Heartbeat to prove thread is alive and not blocked
+                if now - _heartbeat_time >= 5.0:
+                    logger.info(f"[ZMQ_DEBUG] Loop tick. sub_sock: {self.sub_sock is not None}, can_sock: {self.can_sock is not None}")
+                    _heartbeat_time = now
                 
                 # Check Data Socket
                 if self.sub_sock:
