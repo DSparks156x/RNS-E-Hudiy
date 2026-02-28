@@ -1,3 +1,6 @@
+import gevent.monkey
+gevent.monkey.patch_all()
+
 import os
 import sys
 import json
@@ -5,8 +8,9 @@ import time
 import threading
 import queue
 import logging
-import zmq
-from flask import Flask, render_template, request
+import random
+import zmq.green as zmq
+from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 
 # Configuration — load ZMQ addresses from config.json (same as tp2_worker)
@@ -28,7 +32,7 @@ except Exception as _e:
 # --- Setup Flask & SocketIO ---
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'hudiy_secret'
-socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*',
+socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins='*',
                     ping_interval=60, ping_timeout=120)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] (DataView) %(message)s')
@@ -43,19 +47,64 @@ def add_header(response):
     return response
 
 # --- Global State ---
+MOCK_MODE = False
 SMOOTHING_ENABLED = True  # default on
 
+MOCK_THEME_DATA = None
+
+LIGHT_THEME = {
+    'primaryPaletteKeyColor': '#ad625c', 'secondaryPaletteKeyColor': '#926f6b', 'tertiaryPaletteKeyColor': '#8d7444', 'neutralPaletteKeyColor': '#827472', 'neutralVariantPaletteKeyColor': '#857371',
+    'background': '#fff8f7', 'onBackground': '#231918', 'surface': '#fff8f7', 'surfaceDim': '#d4c3c1', 'surfaceBright': '#fff8f7',
+    'surfaceContainerLowest': '#ffffff', 'surfaceContainerLow': '#fff0ef', 'surfaceContainer': '#f6e4e2', 'surfaceContainerHigh': '#ebd9d7', 'surfaceContainerHighest': '#dfcecc',
+    'onSurface': '#180f0e', 'surfaceVariant': '#f5dddb', 'onSurfaceVariant': '#413331', 'inverseSurface': '#392e2d', 'inverseOnSurface': '#ffedeb',
+    'outline': '#5f4f4d', 'outlineVariant': '#7b6967', 'shadow': '#000000', 'scrim': '#000000', 'surfaceTint': '#904a45',
+    'primary': '#5e2320', 'onPrimary': '#ffffff', 'primaryContainer': '#a15852', 'onPrimaryContainer': '#ffffff', 'inversePrimary': '#ffb3ac',
+    'secondary': '#4b2f2c', 'onSecondary': '#ffffff', 'secondaryContainer': '#876561', 'onSecondaryContainer': '#ffffff',
+    'tertiary': '#463309', 'onTertiary': '#ffffff', 'tertiaryContainer': '#826a3b', 'onTertiaryContainer': '#ffffff',
+    'error': '#740006', 'onError': '#ffffff', 'errorContainer': '#cf2c27', 'onErrorContainer': '#ffffff',
+    'primaryFixed': '#a15852', 'primaryFixedDim': '#84413c', 'onPrimaryFixed': '#ffffff', 'onPrimaryFixedVariant': '#ffffff',
+    'secondaryFixed': '#876561', 'secondaryFixedDim': '#6d4d4a', 'onSecondaryFixed': '#ffffff', 'onSecondaryFixedVariant': '#ffffff',
+    'tertiaryFixed': '#826a3b', 'tertiaryFixedDim': '#675126', 'onTertiaryFixed': '#ffffff', 'onTertiaryFixedVariant': '#ffffff',
+    'darkThemeEnabled': False
+}
+
+DARK_THEME = {
+    'primaryPaletteKeyColor': '#5a77ab', 'secondaryPaletteKeyColor': '#6e778a', 'tertiaryPaletteKeyColor': '#8a6e8f', 'neutralPaletteKeyColor': '#76777d', 'neutralVariantPaletteKeyColor': '#74777f',
+    'background': '#111318', 'onBackground': '#e2e2e9', 'surface': '#111318', 'surfaceDim': '#111318', 'surfaceBright': '#37393e',
+    'surfaceContainerLowest': '#0c0e13', 'surfaceContainerLow': '#191c20', 'surfaceContainer': '#1d2024', 'surfaceContainerHigh': '#282a2f', 'surfaceContainerHighest': '#33353a',
+    'onSurface': '#e2e2e9', 'surfaceVariant': '#44474e', 'onSurfaceVariant': '#c4c6d0', 'inverseSurface': '#e2e2e9', 'inverseOnSurface': '#2e3036',
+    'outline': '#8e9099', 'outlineVariant': '#44474e', 'shadow': '#000000', 'scrim': '#000000', 'surfaceTint': '#aac7ff',
+    'primary': '#aac7ff', 'onPrimary': '#0a305f', 'primaryContainer': '#284777', 'onPrimaryContainer': '#d6e3ff', 'inversePrimary': '#415f91',
+    'secondary': '#bec6dc', 'onSecondary': '#283141', 'secondaryContainer': '#3e4759', 'onSecondaryContainer': '#dae2f9',
+    'tertiary': '#ddbce0', 'onTertiary': '#3f2844', 'tertiaryContainer': '#573e5c', 'onTertiaryContainer': '#fad8fd',
+    'error': '#ffb4ab', 'onError': '#690005', 'errorContainer': '#93000a', 'onErrorContainer': '#ffdad6',
+    'primaryFixed': '#d6e3ff', 'primaryFixedDim': '#aac7ff', 'onPrimaryFixed': '#001b3e', 'onPrimaryFixedVariant': '#284777',
+    'secondaryFixed': '#dae2f9', 'secondaryFixedDim': '#bec6dc', 'onSecondaryFixed': '#131c2b', 'onSecondaryFixedVariant': '#3e4759',
+    'tertiaryFixed': '#fad8fd', 'tertiaryFixedDim': '#ddbce0', 'onTertiaryFixed': '#28132e', 'onTertiaryFixedVariant': '#573e5c',
+    'darkThemeEnabled': True
+}
+
+if '--mock' in sys.argv:
+    MOCK_MODE = True
+    logger.warning("FORCED MOCK MODE (via sys.argv early parse)")
+    if '-l' in sys.argv:
+        MOCK_THEME_DATA = LIGHT_THEME
+        logger.info("Mock Theme: LIGHT")
+    elif '-d' in sys.argv:
+        MOCK_THEME_DATA = DARK_THEME
+        logger.info("Mock Theme: DARK")
+
 # --- Server-Side Interpolator ---
-EMIT_INTERVAL = 0.25    # 4Hz broadcast rate
-EMA_ALPHA     = 0.98    # applied to incoming source values before linear interp
+EMIT_INTERVAL = 0.25    # 4Hz broadcast rate — keeps Pi QtWebEngine socket buffer clear
+EMA_ALPHA     = 0.98     # applied to incoming source values before linear interp (0=frozen, 1=raw)
 
 class Interpolator:
     """
     Receives raw diagnostic messages at low rate (~0.5 Hz).
-    Re-emits linearly interpolated values to all SocketIO clients at ~4 Hz.
+    Re-emits linearly interpolated values to all SocketIO clients at ~20 Hz.
 
     When smoothing is disabled, it just passes raw values through at the
-    natural data rate without the 4Hz loop.
+    natural data rate without the 20Hz loop.
     """
     def __init__(self):
         self._lock = threading.Lock()
@@ -70,7 +119,7 @@ class Interpolator:
         return (module, group, idx)
 
     def update(self, module, group, data):
-        """Called when a new raw message arrives from the TP2 source."""
+        """Called when a new raw message arrives from the TP2 / mock source."""
         now = time.monotonic()
         with self._lock:
             for i, dv in enumerate(data):
@@ -148,15 +197,18 @@ class Interpolator:
 
 interpolator = Interpolator()
 
+
 # Track when each (module, group) last received a real data update so the
 # broadcast loop only fires for groups with fresh data, not stale ones.
 _last_update_time: dict = {}
 _last_update_lock = threading.Lock()
 
 def interpolation_broadcast_loop():
-    """Background task: runs at ~4Hz, emits interpolated data to clients.
+    """Background task: runs at 20Hz, emits interpolated data to clients.
     Batches all fresh group updates into a single emit to minimise WebSocket
-    frame overhead."""
+    frame overhead (N individual emits per cycle was the main Pi bottleneck)."""
+    _emit_count = 0
+    _emit_log_time = time.monotonic()
     while True:
         socketio.sleep(EMIT_INTERVAL)
         if not SMOOTHING_ENABLED:
@@ -172,7 +224,15 @@ def interpolation_broadcast_loop():
             if msg:
                 batch.append(msg)
         if batch:
+            # namespace='/' is required when calling emit from a background task
+            # outside a request context; without it flask_socketio can silently drop it.
             socketio.emit('diagnostic_batch', batch, namespace='/')
+            _emit_count += len(batch)
+            now2 = time.monotonic()
+            if now2 - _emit_log_time >= 5.0:
+                #logger.info(f"Broadcast loop: emitted {_emit_count} group updates in last 5s")
+                _emit_count = 0
+                _emit_log_time = now2
 
 
 # --- ZMQ Worker ---
@@ -185,7 +245,6 @@ class ZMQWorker:
         self._cmd_queue = queue.Queue()
         self._cmd_thread = threading.Thread(target=self._command_loop, daemon=True)
         self._cmd_thread.start()
-        self._last_ambient = 0
 
     def _new_req_sock(self):
         s = self.context.socket(zmq.REQ)
@@ -196,8 +255,13 @@ class ZMQWorker:
 
     def _command_loop(self):
         logger.info("ZMQ command thread started")
+        if MOCK_MODE:
+            # In mock mode send_command() short-circuits before touching the queue,
+            # so this thread has nothing to do. Skip socket creation entirely —
+            # ZMQ IPC is not supported on Windows and would crash here.
+            return
         req_sock = self._new_req_sock()
-        while self.running:
+        while True:
             try:
                 msg, result_q = self._cmd_queue.get(timeout=1.0)
             except queue.Empty:
@@ -235,8 +299,12 @@ class ZMQWorker:
     def send_command(self, cmd, module=None, group=None, fire_and_forget=False, **kwargs):
         """Send a command to tp2_worker.
         fire_and_forget=True: queues the message and returns immediately without
-        waiting for the ZMQ reply.
+        waiting for the ZMQ reply. Use this from SocketIO event handlers so they
+        never block the handler thread on a slow ZMQ round-trip.
         """
+        if MOCK_MODE:
+            logger.info(f"MOCK CMD: {cmd} Mod:{module} Grp:{group}")
+            return {"status": "mock_ok"}
         msg = {"cmd": cmd}
         if module is not None: msg['module'] = module
         if group is not None: msg['group'] = group
@@ -251,11 +319,155 @@ class ZMQWorker:
             return {"status": "error", "message": "Command queue timeout"}
 
     def run(self):
-        if not self.connect():
-            logger.error("Failed to connect ZMQ sockets. Worker stopping.")
-            return
+        global MOCK_MODE
+        if not MOCK_MODE:
+            if not self.connect():
+                logger.warning("Starting in MOCK MODE due to ZMQ failure.")
+                MOCK_MODE = True
 
+        if MOCK_MODE:
+            self.run_mock()
+        else:
+            self.run_real()
+
+    def run_mock(self):
+        """
+        Simulates ~0.5 Hz real sensor data with dramatic state changes so that
+        the difference between smoothing ON and OFF is clearly visible.
+        Each loop iteration picks a random engine 'state' and jumps to it,
+        producing the kind of raw noise the interpolator is designed to hide.
+        """
+        logger.info("Starting MOCK Data Generator (0.5Hz source rate, dramatic jumps)...")
+
+        # Discrete engine states: (rpm, boost_mbar)
+        ENGINE_STATES = [
+            (820,   200),   # idle
+            (1800,  600),   # light cruise
+            (2800,  950),   # steady cruise
+            (4200, 1600),   # spirited
+            (5800, 2100),   # hard pull
+            (6800, 2400),   # WOT
+        ]
+
+        state_rpm, state_boost = ENGINE_STATES[0]
+        clutch_1_active = True   # alternates to simulate DCT clutch handoff
+        clutch_cycle    = 0      # counts iterations; flips clutch every 10
+
+        while self.running:
+            # Jump to a new random state each cycle — creates big abrupt deltas
+            state_rpm, state_boost = random.choice(ENGINE_STATES)
+
+            # Add meaningful per-sample noise on top of the state value
+            rpm       = state_rpm   + random.uniform(-250, 250)
+            boost     = state_boost + random.uniform(-200, 200)
+            maf       = rpm * 0.025 + random.uniform(-8, 8)
+            throttle  = min(100.0, max(0.0, (rpm - 800) / 62.0 + random.uniform(-15, 15)))
+            ign_angle = random.uniform(5, 38)
+
+            # --- Engine ---
+            self.ingest(0x01, 3, [
+                {'value': round(rpm, 1),       'unit': 'RPM'},
+                {'value': round(maf, 2),       'unit': 'g/s'},
+                {'value': round(throttle, 1),  'unit': '%'},
+                {'value': round(ign_angle, 1), 'unit': '°KW'}
+            ])
+
+            # Retard values — jump between 0 and spiky values
+            ret_vals = [round(random.uniform(0, 12), 2) if random.random() > 0.6 else 0.0 for _ in range(4)]
+            self.ingest(0x01, 20, [{'value': v, 'unit': '°KW'} for v in ret_vals])
+
+            # Fuel rail — pressure swings noticeably under load
+            fr_base = 60.0 + (state_rpm / 7000.0) * 45.0
+            fr_spec = fr_base + random.uniform(-12, 12)
+            self.ingest(0x01, 106, [
+                {'value': round(fr_spec, 2),                         'unit': 'bar'},
+                {'value': round(fr_spec + random.uniform(-5, 5), 2), 'unit': 'bar'},
+                {'value': round(random.uniform(30, 100), 1),         'unit': '%'},
+                {'value': round(random.uniform(25, 90), 1),          'unit': 'C'}
+            ])
+
+            self.ingest(0x01, 115, [
+                {'value': round(rpm, 1),                               'unit': 'RPM'},
+                {'value': round(random.uniform(5, 160), 1),            'unit': '%'},
+                {'value': round(boost, 0),                             'unit': 'mbar'},
+                {'value': round(boost + random.uniform(-150, 150), 0), 'unit': 'mbar'}
+            ])
+
+            self.ingest(0x01, 102, [
+                {'value': round(rpm, 1),                    'unit': 'RPM'},
+                {'value': random.randint(75, 110),          'unit': 'C'},
+                {'value': random.randint(25, 70),           'unit': 'C'},
+                {'value': round(random.uniform(0, 6), 2),   'unit': 'ms'}
+            ])
+
+            # --- Transmission ---
+            # Hold each clutch active for 10 cycles (~6 s) before handing off
+            clutch_cycle += 1
+            if clutch_cycle >= 10:
+                clutch_1_active = not clutch_1_active
+                clutch_cycle    = 0
+            ratio    = random.choice([3.5, 2.0, 1.4, 1.0, 0.75])
+            out_rpm  = int(rpm / ratio)
+            out_torq = int(random.uniform(80, 420))
+            idle_rpm = int(rpm / random.choice([3.5, 2.0, 1.4, 1.0, 0.75]))  # next gear pre-selected
+
+            # Active clutch: carrying full load, high current & pressure
+            # Idle clutch:   pre-engaged next gear — low torque, near-zero current
+            self.ingest(0x02, 11, [
+                {'value': out_rpm  if clutch_1_active else idle_rpm,                     'unit': 'RPM'},
+                {'value': out_torq if clutch_1_active else random.randint(0, 20),        'unit': 'Nm'},
+                {'value': round(random.uniform(1.2, 2.0), 2) if clutch_1_active else round(random.uniform(0, 0.15), 2), 'unit': 'A'},
+                {'value': round(random.uniform(12, 25), 1)   if clutch_1_active else round(random.uniform(0, 2), 1),    'unit': 'bar'}
+            ])
+            self.ingest(0x02, 12, [
+                {'value': idle_rpm  if clutch_1_active else out_rpm,                     'unit': 'RPM'},
+                {'value': random.randint(0, 20) if clutch_1_active else out_torq,        'unit': 'Nm'},
+                {'value': round(random.uniform(0, 0.15), 2) if clutch_1_active else round(random.uniform(1.2, 2.0), 2), 'unit': 'A'},
+                {'value': round(random.uniform(0, 2), 1)    if clutch_1_active else round(random.uniform(12, 25), 1),   'unit': 'bar'}
+            ])
+            self.ingest(0x02, 16, [{'value': round(random.uniform(-120, 120), 1), 'unit': 'mm'} for _ in range(4)])
+            self.ingest(0x02, 19, [
+                {'value': random.randint(55, 115),              'unit': 'C'},
+                {'value': random.randint(35, 95),               'unit': 'C'},
+                {'value': random.randint(75, 160),              'unit': 'C'},
+                {'value': "IDLE" if rpm < 1500 else "ACTIVE",   'unit': ''}
+            ])
+
+            # --- AWD ---
+            awd_torq = round(random.uniform(0, 2200), 0)
+            self.ingest(0x0A, 1, [
+                {'value': random.randint(18, 95),               'unit': 'C'},
+                {'value': random.randint(18, 160),              'unit': 'C'},
+                {'value': round(random.uniform(11.8, 14.6), 2), 'unit': 'V'},
+                {'value': 0,                                    'unit': ''}
+            ])
+            self.ingest(0x0A, 3, [
+                {'value': round(random.uniform(0, 70), 1),  'unit': 'bar'},
+                {'value': awd_torq,                         'unit': 'Nm'},
+                {'value': random.randint(0, 100),           'unit': '%'},
+                {'value': round(random.uniform(0, 5.0), 2), 'unit': 'A'}
+            ])
+            self.ingest(0x0A, 5, [
+                {'value': random.randint(0, 255),                    'unit': ''},
+                {'value': "SPORT" if state_rpm > 3000 else "NORMAL", 'unit': ''},
+                {'value': "ACTIVE" if awd_torq > 500 else "IDLE",    'unit': ''},
+                {'value': "OK",                                       'unit': ''}
+            ])
+
+            # --- CAN Temps ---
+            self.ingest(0, 0, [
+                {'value': random.randint(85, 115), 'unit': 'C'}, # Oil
+                {'value': random.randint(15, 35),  'unit': 'C'}, # Ambient
+            ])
+
+            # Single sleep at the bottom — all groups update at ~1.6 Hz
+            socketio.sleep(0.625)
+
+    def run_real(self):
         logger.info("Starting ZMQ Subscriber Loop...")
+        _recv_count = 0
+        _recv_log_time = time.monotonic()
+        
         poller = zmq.Poller()
         if self.sub_sock:
             poller.register(self.sub_sock, zmq.POLLIN)
@@ -267,6 +479,7 @@ class ZMQWorker:
                 socks = dict(poller.poll(100))
                 
                 if self.sub_sock in socks:
+                    drained = 0
                     while self.sub_sock.poll(0):
                         topic, msg = self.sub_sock.recv_multipart()
                         if topic == b'HUDIY_DIAG':
@@ -274,13 +487,24 @@ class ZMQWorker:
                             
                             if payload.get('type') == 'dtc_report':
                                 socketio.emit('dtc_report', payload, namespace='/')
+                                drained += 1
+                                _recv_count += 1
                                 continue
                                 
                             mod = payload.get('module')
                             grp = payload.get('group')
                             data = payload.get('data')
                             self.ingest(mod, grp, data)
+                            drained += 1
+                            _recv_count += 1
                     
+                    if drained > 0:
+                        now = time.monotonic()
+                        if now - _recv_log_time >= 5.0:
+                            # logger.info(f"ZMQ RX rate: {_recv_count} msgs in last 5s")
+                            _recv_count = 0
+                            _recv_log_time = now
+                
                 if self.can_sock in socks:
                     while self.can_sock.poll(0):
                         topic, msg = self.can_sock.recv_multipart()
@@ -305,11 +529,13 @@ class ZMQWorker:
                             if '527' in t_str and len(payload) >= 6:
                                 ambient = (payload[5] * 0.5) - 50
                                 self._last_ambient = ambient
+                                # logger.info(f"[CAN] 527 -> Ambient: {ambient}")
+                                # We can also ingest here to refresh ambient immediately
                                 oil_now = 0
                                 with interpolator._lock:
-                                    msg_obj = interpolator.get_raw(0, 0)
-                                    if msg_obj and len(msg_obj['data']) > 0:
-                                        oil_now = msg_obj['data'][0]['value']
+                                    msg = interpolator.get_raw(0, 0)
+                                    if msg and len(msg['data']) > 0:
+                                        oil_now = msg['data'][0]['value']
                                 self.ingest(0, 0, [
                                     {'value': oil_now, 'unit': 'C'},
                                     {'value': ambient, 'unit': 'C'}
@@ -351,12 +577,13 @@ def sync_subscriptions():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    theme_json = json.dumps(MOCK_THEME_DATA) if MOCK_THEME_DATA else None
+    return render_template('index.html', mock_theme_data=theme_json)
 
 @socketio.on('connect')
 def handle_connect():
     logger.info(f"Client Connected (sid={request.sid})")
-    emit('status', {'mock_mode': False, 'smoothing': SMOOTHING_ENABLED})
+    emit('status', {'mock_mode': MOCK_MODE, 'smoothing': SMOOTHING_ENABLED, 'mock_theme': MOCK_THEME_DATA})
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -386,6 +613,8 @@ def handle_toggle(data):
             current_subscriptions[mod]['normal'].discard(grp)
             current_subscriptions[mod]['low'].discard(grp)
 
+        # Snapshot sets into locals before any async work so concurrent handlers
+        # can't delete the key between our send_command and the empty-check below.
         mod_entry = current_subscriptions.get(mod)
         if mod_entry is None:
             return  # Another thread already cleaned it up
@@ -398,6 +627,8 @@ def handle_toggle(data):
             current_subscriptions.pop(mod, None)  # safe even if already removed
 
         # Snapshot push: immediately send whatever cached data we have for this
+        # group to the subscribing client so it doesn't blank-wait for the next
+        # broadcast cycle (up to 250ms gap, or infinite if data is >5s stale).
         if action == 'add':
             if SMOOTHING_ENABLED:
                 snap = interpolator.get_interpolated(mod, grp)
@@ -416,6 +647,8 @@ def handle_set_smoothing(data):
     emit('status', {'smoothing': SMOOTHING_ENABLED})
 
     if not SMOOTHING_ENABLED:
+        # Immediately push the latest known values so the client doesn't go
+        # dark waiting up to 1.5 s for the next mock/real tick.
         with interpolator._lock:
             keys = list(interpolator._latest_msg.keys())
         for (module, group) in keys:
