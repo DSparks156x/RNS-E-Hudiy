@@ -398,7 +398,7 @@ class DisplayEngine:
                     if cmd == 'draw_bitmap':
                         icon_key = item.get('icon', '')
                         # Fetch icon dimension/data natively so frontend doesn't need to bake icons in
-                        from new_icons_data import BITMAPS
+                        from icons import BITMAPS
                         bmp = BITMAPS.get(icon_key.upper())
                         
                         payload = {

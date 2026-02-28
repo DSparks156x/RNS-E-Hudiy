@@ -15,8 +15,7 @@ Steps per icon:
   7. Snap: every output pixel is exactly black / gray / transparent.
 
 Outputs:
-  googleiconsv2/reduced/         -- RGBA PNGs at 32x38
-  googleiconsv2/preview_grid.png -- zoomed preview on white
+  googleiconsv2/reduced/         -- RGB PNGs at 32x38
 """
 
 import os, re, math, struct, tempfile, subprocess
@@ -31,8 +30,6 @@ import aggdraw
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 INPUT_DIR  = os.path.join(SCRIPT_DIR, 'pngs')
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, 'reduced')
-PREVIEW       = os.path.join(SCRIPT_DIR, 'preview_grid.png')
-PREVIEW_CLEAN = os.path.join(SCRIPT_DIR, 'preview_clean.png')
 POTRACE    = os.path.join(SCRIPT_DIR, 'potrace', 'potrace.exe')
 SVG_DIR    = os.path.join(SCRIPT_DIR, 'svgs')
 
@@ -48,12 +45,6 @@ LUM_BLACK = 100     # luminance < this -> black (else gray)
 # Post-render snap
 SNAP_BLACK = 50
 SNAP_TRANS = 230
-
-# Preview
-PREVIEW_SCALE = 8
-PREVIEW_COLS  = 11
-PREVIEW_PAD   = 4
-LABEL_H       = 12
 
 SVG_NS = 'http://www.w3.org/2000/svg'
 
@@ -276,23 +267,63 @@ def render_layer(svg_path, color_rgb):
 
     return out_hi.resize((TARGET_W, TARGET_H), Image.Resampling.NEAREST)
 
+def process_image_dither(img):
+    """
+    Apply a checkerboard dither directly to the Image object.
+    White pixels stay white (255,255,255).
+    Gray pixels get checkerboarded (alternate Black/White).
+    Black pixels stay black (0,0,0).
+    Returns a newly processed Image in RGB format.
+    """
+    img = img.convert('RGB')
+    new_img = Image.new('RGB', img.size)
+    px_in = img.load()
+    px_out = new_img.load()
+    
+    w, h = img.size
+    for y in range(h):
+        for x in range(w):
+            r, g, b = px_in[x, y]
+            lum = (r + g + b) / 3
+            
+            # Default to black
+            out_val = (0, 0, 0)
+            
+            if lum > 200: # White
+                out_val = (255, 255, 255)
+            elif lum > 50: # Gray
+                # Checkerboard pattern: white if (x + y) is even, otherwise black
+                if (x + y) % 2 == 0:
+                    out_val = (255, 255, 255)
+                    
+            px_out[x, y] = out_val
+            
+    return new_img
+
 def render_and_snap(b_svg, g_svg):
     """
     Zero-antialiasing render by rendering the black and gray layers SEPARATELY.
     This prevents antialiased black edges from passing through the gray luminance
     value and causing false gray pixels.
     """
+    from PIL import ImageOps
+
     # Render gray layer
     gray_img = render_layer(g_svg, (127, 127, 127))
     
     # Render black layer
     black_img = render_layer(b_svg, (0, 0, 0))
 
-    # Composite: gray as base, black on top
-    out = Image.new('RGBA', (TARGET_W, TARGET_H), (0, 0, 0, 0))
+    # Composite: gray as base, black on top, then onto a white background
+    out = Image.new('RGBA', (TARGET_W, TARGET_H), (255, 255, 255, 255))
     out.paste(gray_img, mask=gray_img)
     out.paste(black_img, mask=black_img)
-    return out
+
+    # Convert to RGB and invert
+    out_rgb = out.convert('RGB')
+    inverted = ImageOps.invert(out_rgb)
+
+    return process_image_dither(inverted)
 
 # ---------------------------------------------------------------------------
 # Per-icon pipeline
@@ -302,27 +333,10 @@ def process_icon(path, tmp_dir):
     basename = os.path.basename(path)
     tag = os.path.splitext(basename)[0]
     
-    # If it's a "right" icon, process its "left" sibling and flip it.
-    # This guarantees perfect pixel symmetry.
-    is_flipped = False
-    if tag.endswith('_right'):
-        left_tag = tag[:-6] + '_left'
-        left_path = os.path.join(os.path.dirname(path), left_tag + '.png')
-        if os.path.exists(left_path):
-            path = left_path
-            is_flipped = True
-    elif '_right_' in tag:
-        left_tag = tag.replace('_right_', '_left_')
-        left_path = os.path.join(os.path.dirname(path), left_tag + '.png')
-        if os.path.exists(left_path):
-            path = left_path
-            is_flipped = True
-
     src     = Image.open(path).convert('RGBA')
     cropped = center_crop(src)
     black_m, gray_m = make_masks(cropped)
     
-    # Use the original tag for the temporary files so we don't overwrite the left ones
     b_svg_p = os.path.join(tmp_dir, tag + '_b.svg')
     g_svg_p = os.path.join(tmp_dir, tag + '_g.svg')
     
@@ -334,72 +348,11 @@ def process_icon(path, tmp_dir):
     
     # Save combo for reference (optional now)
     save_merged_svg(tag, b_str, g_str, bp, gp)
-    
-    if is_flipped:
-        rendered = rendered.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
         
     return rendered
 
 # ---------------------------------------------------------------------------
 # Preview grid
-# ---------------------------------------------------------------------------
-
-def build_preview(icons):
-    cols = PREVIEW_COLS
-    rows = math.ceil(len(icons) / cols)
-    cw   = TARGET_W * PREVIEW_SCALE + PREVIEW_PAD * 2
-    ch   = TARGET_H * PREVIEW_SCALE + PREVIEW_PAD * 2 + LABEL_H
-    grid = Image.new('RGB', (cols * cw, rows * ch), (255, 255, 255))
-    draw = ImageDraw.Draw(grid)
-
-    for i, (name, rgba) in enumerate(icons):
-        col = i % cols; row = i // cols
-        x0  = col * cw + PREVIEW_PAD
-        y0  = row * ch + LABEL_H
-
-        bg = Image.new('RGBA', rgba.size, (255, 255, 255, 255))
-        bg.paste(rgba, mask=rgba.split()[3])
-        zoomed = bg.convert('RGB').resize(
-            (TARGET_W * PREVIEW_SCALE, TARGET_H * PREVIEW_SCALE),
-            Image.Resampling.NEAREST)
-        grid.paste(zoomed, (x0, y0))
-
-        for px in range(0, TARGET_W * PREVIEW_SCALE, PREVIEW_SCALE):
-            draw.line([(x0+px, y0), (x0+px, y0+TARGET_H*PREVIEW_SCALE)], fill=(200,200,240))
-        for py in range(0, TARGET_H * PREVIEW_SCALE, PREVIEW_SCALE):
-            draw.line([(x0, y0+py), (x0+TARGET_W*PREVIEW_SCALE, y0+py)], fill=(200,200,240))
-
-        draw.text((x0, row * ch + 1), name.replace('ic_','').replace('_',' ')[:20],
-                  fill=(60, 60, 60))
-    return grid
-
-
-def build_preview_clean(icons):
-    """Same layout as build_preview but without pixel grid lines."""
-    cols = PREVIEW_COLS
-    rows = math.ceil(len(icons) / cols)
-    cw   = TARGET_W * PREVIEW_SCALE + PREVIEW_PAD * 2
-    ch   = TARGET_H * PREVIEW_SCALE + PREVIEW_PAD * 2 + LABEL_H
-    img  = Image.new('RGB', (cols * cw, rows * ch), (255, 255, 255))
-    draw = ImageDraw.Draw(img)
-
-    for i, (name, rgba) in enumerate(icons):
-        col = i % cols; row = i // cols
-        x0  = col * cw + PREVIEW_PAD
-        y0  = row * ch + LABEL_H
-
-        bg = Image.new('RGBA', rgba.size, (255, 255, 255, 255))
-        bg.paste(rgba, mask=rgba.split()[3])
-        zoomed = bg.convert('RGB').resize(
-            (TARGET_W * PREVIEW_SCALE, TARGET_H * PREVIEW_SCALE),
-            Image.Resampling.NEAREST)
-        img.paste(zoomed, (x0, y0))
-        draw.text((x0, row * ch + 1), name.replace('ic_','').replace('_',' ')[:20],
-                  fill=(60, 60, 60))
-    return img
-
-# ---------------------------------------------------------------------------
-# Main
 # ---------------------------------------------------------------------------
 
 def main():
@@ -411,10 +364,29 @@ def main():
     icons = []
     with tempfile.TemporaryDirectory() as tmp:
         for fname in files:
+            # Skip generating the mirrored forms here, we handle in mirrorandconvert.py
+            if fname.endswith('_right.png') or '_right_' in fname:
+                try:
+                    # check if the "left" counterpart exists.
+                    is_right = False
+                    if fname.endswith('_right.png'):
+                        left_tag = fname[:-10] + '_left.png'
+                        if os.path.exists(os.path.join(INPUT_DIR, left_tag)):
+                            is_right = True
+                    elif '_right_' in fname:
+                        left_tag = fname.replace('_right_', '_left_')
+                        if os.path.exists(os.path.join(INPUT_DIR, left_tag)):
+                            is_right = True
+
+                    if is_right:
+                        continue # Let the mirror stage do this
+                except:
+                    pass
+
             try:
-                rgba = process_icon(os.path.join(INPUT_DIR, fname), tmp)
-                rgba.save(os.path.join(OUTPUT_DIR, fname))
-                icons.append((os.path.splitext(fname)[0], rgba))
+                rgb = process_icon(os.path.join(INPUT_DIR, fname), tmp)
+                rgb.save(os.path.join(OUTPUT_DIR, fname))
+                icons.append((os.path.splitext(fname)[0], rgb))
                 print(f'  OK  {fname}')
             except Exception as e:
                 import traceback
@@ -422,13 +394,7 @@ def main():
                 traceback.print_exc()
 
     if icons:
-        grid  = build_preview(icons)
-        clean = build_preview_clean(icons)
-        grid.save(PREVIEW)
-        clean.save(PREVIEW_CLEAN)
-        print(f'\nSaved {len(icons)} icons -> {OUTPUT_DIR}')
-        print(f'Grid preview  -> {PREVIEW}  ({grid.width}x{grid.height})')
-        print(f'Clean preview -> {PREVIEW_CLEAN}  ({clean.width}x{clean.height})')
+        print(f'\nSaved {len(icons)} base icons -> {OUTPUT_DIR}')
 
 if __name__ == '__main__':
     main()

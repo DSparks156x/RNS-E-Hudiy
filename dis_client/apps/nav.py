@@ -18,6 +18,17 @@ class NavApp(BaseApp):
         
         # Cache previous state to prevent flickering logic if needed
         self.last_maneuver = -1
+        
+        self.road_side = "right"
+        try:
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            config_path = os.path.join(base_dir, 'config.json')
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    cfg = json.load(f)
+                    self.road_side = cfg.get('features', {}).get('road_side', 'right')
+        except Exception as e:
+            logger.error(f"Failed to load config for road_side: {e}")
 
     def on_enter(self):
         super().on_enter()
@@ -59,8 +70,11 @@ class NavApp(BaseApp):
         # Helper strings
         side_suffix = "LEFT" if side == 1 else "RIGHT"
         
-        # Roundabout Direction: Left=CCW, Right=CW. Default to CCW (RHT)
-        cw_ccw = "CLOCKWISE" if side == 2 else "COUNTERCLOCKWISE"
+        # Roundabout Direction: Counterclockwise if road_side is right, clockwise if road_side is left
+        if getattr(self, 'road_side', 'right') == 'left':
+            cw_ccw = "CLOCKWISE"
+        else:
+            cw_ccw = "COUNTERCLOCKWISE"
 
         # --- MAPPING LOGIC ---
         
@@ -198,11 +212,11 @@ class NavApp(BaseApp):
         # 'clear_on_update': False prevents the engine from sending 'clear_payload', avoid flicker
         commands = [{'type': 'nav_graphic_v2', 'clear_on_update': False}]
 
-        # 1. Big arrow — moved UP to Y=1
+        # 1. Big arrow — moved UP to Y=1, and RIGHT to X=4
         commands.append({
             'cmd': 'draw_bitmap',
             'icon': icon_key,
-            'x': 0,
+            'x': 4,
             'y': 1   # Moved up to maximize vertical space
         })
 
@@ -210,14 +224,14 @@ class NavApp(BaseApp):
         # Clear the distance area first (expanded to prevent proportional font ghosting)
         commands.append({
             'cmd': 'clear_area',
-            'x': 28, 'y': 8, 'w': 36, 'h': 12 
+            'x': 38, 'y': 0, 'w': 28, 'h': 12 
         })
         if dist_clean:
             commands.append({
                 'cmd': 'draw_text',
                 'text': dist_clean,
-                'x': 34,
-                'y': 10,
+                'x': 40,
+                'y': 2,
                 'flags': 0x06 # Compact Font
             })
 
