@@ -267,6 +267,8 @@ class ZMQWorker:
                 drained = 0
                 now = time.monotonic()
                 
+                socks = dict(poller.poll(10))
+                
                 if self.sub_sock in socks:
                     while self.sub_sock.poll(0):
                         topic, msg = self.sub_sock.recv_multipart()
