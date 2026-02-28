@@ -173,15 +173,6 @@ def interpolation_broadcast_loop():
                 batch.append(msg)
         if batch:
             socketio.emit('diagnostic_batch', batch, namespace='/')
-<<<<<<< HEAD
-=======
-            _emit_count += len(batch)
-            now2 = time.monotonic()
-            if now2 - _emit_log_time >= 5.0:
-                logger.info(f"Broadcast loop: emitted {_emit_count} group updates in last 5s")
-                _emit_count = 0
-                _emit_log_time = now2
->>>>>>> ba873d37b6a2ac32c43f27cbd3ba4888dde4c53c
 
 
 # --- ZMQ Worker ---
@@ -264,165 +255,18 @@ class ZMQWorker:
             logger.error("Failed to connect ZMQ sockets. Worker stopping.")
             return
 
-<<<<<<< HEAD
         logger.info("Starting ZMQ Subscriber Loop...")
         poller = zmq.Poller()
         if self.sub_sock:
             poller.register(self.sub_sock, zmq.POLLIN)
         if self.can_sock:
             poller.register(self.can_sock, zmq.POLLIN)
-=======
-        if MOCK_MODE:
-            self.run_mock()
-        else:
-            self.run_real()
-
-    def run_mock(self):
-        """
-        Simulates ~0.5 Hz real sensor data with dramatic state changes so that
-        the difference between smoothing ON and OFF is clearly visible.
-        Each loop iteration picks a random engine 'state' and jumps to it,
-        producing the kind of raw noise the interpolator is designed to hide.
-        """
-        logger.info("Starting MOCK Data Generator (0.5Hz source rate, dramatic jumps)...")
-
-        # Discrete engine states: (rpm, boost_mbar)
-        ENGINE_STATES = [
-            (820,   200),   # idle
-            (1800,  600),   # light cruise
-            (2800,  950),   # steady cruise
-            (4200, 1600),   # spirited
-            (5800, 2100),   # hard pull
-            (6800, 2400),   # WOT
-        ]
-
-        state_rpm, state_boost = ENGINE_STATES[0]
-        clutch_1_active = True   # alternates to simulate DCT clutch handoff
-        clutch_cycle    = 0      # counts iterations; flips clutch every 10
-
-        while self.running:
-            # Jump to a new random state each cycle — creates big abrupt deltas
-            state_rpm, state_boost = random.choice(ENGINE_STATES)
-
-            # Add meaningful per-sample noise on top of the state value
-            rpm       = state_rpm   + random.uniform(-250, 250)
-            boost     = state_boost + random.uniform(-200, 200)
-            maf       = rpm * 0.025 + random.uniform(-8, 8)
-            throttle  = min(100.0, max(0.0, (rpm - 800) / 62.0 + random.uniform(-15, 15)))
-            ign_angle = random.uniform(5, 38)
-
-            # --- Engine ---
-            self.ingest(0x01, 3, [
-                {'value': round(rpm, 1),       'unit': 'RPM'},
-                {'value': round(maf, 2),       'unit': 'g/s'},
-                {'value': round(throttle, 1),  'unit': '%'},
-                {'value': round(ign_angle, 1), 'unit': '°KW'}
-            ])
-
-            # Retard values — jump between 0 and spiky values
-            ret_vals = [round(random.uniform(0, 12), 2) if random.random() > 0.6 else 0.0 for _ in range(4)]
-            self.ingest(0x01, 20, [{'value': v, 'unit': '°KW'} for v in ret_vals])
-
-            # Fuel rail — pressure swings noticeably under load
-            fr_base = 60.0 + (state_rpm / 7000.0) * 45.0
-            fr_spec = fr_base + random.uniform(-12, 12)
-            self.ingest(0x01, 106, [
-                {'value': round(fr_spec, 2),                         'unit': 'bar'},
-                {'value': round(fr_spec + random.uniform(-5, 5), 2), 'unit': 'bar'},
-                {'value': round(random.uniform(30, 100), 1),         'unit': '%'},
-                {'value': round(random.uniform(25, 90), 1),          'unit': 'C'}
-            ])
-
-            self.ingest(0x01, 115, [
-                {'value': round(rpm, 1),                               'unit': 'RPM'},
-                {'value': round(random.uniform(5, 160), 1),            'unit': '%'},
-                {'value': round(boost, 0),                             'unit': 'mbar'},
-                {'value': round(boost + random.uniform(-150, 150), 0), 'unit': 'mbar'}
-            ])
-
-            self.ingest(0x01, 102, [
-                {'value': round(rpm, 1),                    'unit': 'RPM'},
-                {'value': random.randint(75, 110),          'unit': 'C'},
-                {'value': random.randint(25, 70),           'unit': 'C'},
-                {'value': round(random.uniform(0, 6), 2),   'unit': 'ms'}
-            ])
-
-            # --- Transmission ---
-            # Hold each clutch active for 10 cycles (~6 s) before handing off
-            clutch_cycle += 1
-            if clutch_cycle >= 10:
-                clutch_1_active = not clutch_1_active
-                clutch_cycle    = 0
-            ratio    = random.choice([3.5, 2.0, 1.4, 1.0, 0.75])
-            out_rpm  = int(rpm / ratio)
-            out_torq = int(random.uniform(80, 420))
-            idle_rpm = int(rpm / random.choice([3.5, 2.0, 1.4, 1.0, 0.75]))  # next gear pre-selected
-
-            # Active clutch: carrying full load, high current & pressure
-            # Idle clutch:   pre-engaged next gear — low torque, near-zero current
-            self.ingest(0x02, 11, [
-                {'value': out_rpm  if clutch_1_active else idle_rpm,                     'unit': 'RPM'},
-                {'value': out_torq if clutch_1_active else random.randint(0, 20),        'unit': 'Nm'},
-                {'value': round(random.uniform(1.2, 2.0), 2) if clutch_1_active else round(random.uniform(0, 0.15), 2), 'unit': 'A'},
-                {'value': round(random.uniform(12, 25), 1)   if clutch_1_active else round(random.uniform(0, 2), 1),    'unit': 'bar'}
-            ])
-            self.ingest(0x02, 12, [
-                {'value': idle_rpm  if clutch_1_active else out_rpm,                     'unit': 'RPM'},
-                {'value': random.randint(0, 20) if clutch_1_active else out_torq,        'unit': 'Nm'},
-                {'value': round(random.uniform(0, 0.15), 2) if clutch_1_active else round(random.uniform(1.2, 2.0), 2), 'unit': 'A'},
-                {'value': round(random.uniform(0, 2), 1)    if clutch_1_active else round(random.uniform(12, 25), 1),   'unit': 'bar'}
-            ])
-            self.ingest(0x02, 16, [{'value': round(random.uniform(-120, 120), 1), 'unit': 'mm'} for _ in range(4)])
-            self.ingest(0x02, 19, [
-                {'value': random.randint(55, 115),              'unit': 'C'},
-                {'value': random.randint(35, 95),               'unit': 'C'},
-                {'value': random.randint(75, 160),              'unit': 'C'},
-                {'value': "IDLE" if rpm < 1500 else "ACTIVE",   'unit': ''}
-            ])
-
-            # --- AWD ---
-            awd_torq = round(random.uniform(0, 2200), 0)
-            self.ingest(0x0A, 1, [
-                {'value': random.randint(18, 95),               'unit': 'C'},
-                {'value': random.randint(18, 160),              'unit': 'C'},
-                {'value': round(random.uniform(11.8, 14.6), 2), 'unit': 'V'},
-                {'value': 0,                                    'unit': ''}
-            ])
-            self.ingest(0x0A, 3, [
-                {'value': round(random.uniform(0, 70), 1),  'unit': 'bar'},
-                {'value': awd_torq,                         'unit': 'Nm'},
-                {'value': random.randint(0, 100),           'unit': '%'},
-                {'value': round(random.uniform(0, 5.0), 2), 'unit': 'A'}
-            ])
-            self.ingest(0x0A, 5, [
-                {'value': random.randint(0, 255),                    'unit': ''},
-                {'value': "SPORT" if state_rpm > 3000 else "NORMAL", 'unit': ''},
-                {'value': "ACTIVE" if awd_torq > 500 else "IDLE",    'unit': ''},
-                {'value': "OK",                                       'unit': ''}
-            ])
-
-            # --- CAN Temps ---
-            self.ingest(0, 0, [
-                {'value': random.randint(85, 115), 'unit': 'C'}, # Oil
-                {'value': random.randint(15, 35),  'unit': 'C'}, # Ambient
-            ])
-
-            # Single sleep at the bottom — all groups update at ~1.6 Hz
-            socketio.sleep(0.625)
-
-    def run_real(self):
-        logger.info(f"Starting ZMQ Subscriber Loop... SUB: {ZMQ_PUB_ADDR}")
-        _recv_count = 0
-        _recv_log_time = time.monotonic()
-        _heartbeat_time = time.monotonic()
->>>>>>> ba873d37b6a2ac32c43f27cbd3ba4888dde4c53c
 
         while self.running:
             try:
                 drained = 0
                 now = time.monotonic()
                 
-<<<<<<< HEAD
                 if self.sub_sock in socks:
                     while self.sub_sock.poll(0):
                         topic, msg = self.sub_sock.recv_multipart()
@@ -473,35 +317,6 @@ class ZMQWorker:
                                 ])
                         except Exception as e:
                             logger.debug(f"Error parsing CAN message {t_str}: {e}")
-=======
-                # Heartbeat to prove thread is alive and not blocked
-                if now - _heartbeat_time >= 5.0:
-                    logger.info(f"[ZMQ_DEBUG] Loop tick. sub_sock: {self.sub_sock is not None}, can_sock: {self.can_sock is not None}")
-                    _heartbeat_time = now
-                
-                # Check Data Socket
-                if self.sub_sock:
-                    while True:
-                        try:
-                            topic, msg = self.sub_sock.recv_multipart(flags=zmq.NOBLOCK)
-                            if topic == b'HUDIY_DIAG':
-                                payload = json.loads(msg)
-                                
-                                if payload.get('type') == 'dtc_report':
-                                    socketio.emit('dtc_report', payload, namespace='/')
-                                    drained += 1
-                                    _recv_count += 1
-                                    continue
-                                    
-                                mod = payload.get('module')
-                                grp = payload.get('group')
-                                data = payload.get('data')
-                                self.ingest(mod, grp, data)
-                                drained += 1
-                                _recv_count += 1
-                        except zmq.Again:
-                            break
->>>>>>> ba873d37b6a2ac32c43f27cbd3ba4888dde4c53c
                             
                 # Check CAN Socket
                 if self.can_sock:
