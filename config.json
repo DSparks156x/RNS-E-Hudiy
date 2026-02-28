@@ -57,6 +57,10 @@
     "system_actions": true,
     "light_sensor_installed": true,
     "car_time_zone": "America/Denver",
+    "road_side": "right",
+    "speed_units": "imperial",
+    "temp_units": "metric",
+    "ambient_temp_units": "imperial",
     "debug_mode": false
   },
   "thresholds": {

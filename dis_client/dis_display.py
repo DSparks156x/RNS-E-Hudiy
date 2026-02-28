@@ -20,7 +20,7 @@ SETTINGS_FILE = '/home/pi/dis_settings.json'
 class DisplayEngine:
     Y = {'line1': 1, 'line2': 11, 'line3': 21, 'line4': 31, 'line5': 41}
 
-    def __init__(self, config_path='/home/pi/config.json'):
+    def __init__(self, config_path='/home/pi/config.json', mock=False):
         with open(config_path) as f: self.cfg = json.load(f)
         self.settings = self.load_settings()
         
@@ -39,32 +39,69 @@ class DisplayEngine:
 
         self.zmq_ctx = zmq.Context()
         self.sub = self.zmq_ctx.socket(zmq.SUB)
-        self.sub.connect(self.cfg['zmq']['can_raw_stream'])
+        self.can_connected = False
+        try:
+            if mock:
+                self.sub.connect("tcp://127.0.0.1:5558")
+                self.can_connected = True
+                logger.info("MOCK MODE: Connected to Emulator CAN Publisher on TCP 5558")
+            else:
+                self.sub.connect(self.cfg['zmq']['can_raw_stream'])
+                self.can_connected = True
+        except Exception as e:
+            logger.warning(f"Mock Mode/Windows: Could not connect to CAN stream: {e}")
+            
         self.t_btn = self._topics('steering_module', '0x2C1')
         
         # We need to subscribe to radio topics for the header/footer even without RadioApp active
-        self.sub.subscribe(b"CAN_0x363") # fis_line1
-        self.sub.subscribe(b"CAN_0x365") # fis_line2
+        if self.can_connected:
+            self.sub.subscribe(b"CAN_0x363") # fis_line1
+            self.sub.subscribe(b"CAN_0x365") # fis_line2
         
         self.t_car = set()
         for key in ['oil_temp', 'battery', 'fuel_level']:
              self.t_car.update(self._topics(key, '0x000'))
         
         # Subscriptions
-        for t in self.t_btn | self.t_car:
-            self.sub.subscribe(t.encode())
+        if self.can_connected:
+            for t in self.t_btn | self.t_car:
+                self.sub.subscribe(t.encode())
         
         self.sub_hudiy = self.zmq_ctx.socket(zmq.SUB)
-        self.sub_hudiy.connect(self.cfg['zmq']['metric_stream'])
-        for t in [b'HUDIY_MEDIA', b'HUDIY_NAV', b'HUDIY_PHONE', b'HUDIY_NAV_STATUS']: 
-            self.sub_hudiy.subscribe(t)
+        self.hudiy_connected = False
+        try:
+            if mock:
+                self.sub_hudiy.connect("tcp://127.0.0.1:5559")
+                self.hudiy_connected = True
+                logger.info("MOCK MODE: Connected to Emulator Hudiy Publisher on TCP 5559")
+                
+                # Mock Log push channel 
+                self.log_push = self.zmq_ctx.socket(zmq.PUSH)
+                self.log_push.connect("tcp://127.0.0.1:5560")
+                self.log_push.send_string("dis_display connected to Emulator Log Pipe")
+            else:
+                self.sub_hudiy.connect(self.cfg['zmq']['metric_stream'])
+                self.hudiy_connected = True
+        except Exception as e:
+            logger.warning(f"Mock Mode/Windows: Could not connect to metric_stream: {e}")
+            
+        if self.hudiy_connected:
+            for t in [b'HUDIY_MEDIA', b'HUDIY_NAV', b'HUDIY_PHONE', b'HUDIY_NAV_STATUS']: 
+                self.sub_hudiy.subscribe(t)
 
         self.draw = self.zmq_ctx.socket(zmq.PUSH)
         self.draw.setsockopt(zmq.SNDHWM, 50) # Prevent long backlogs if service freezes
-        self.draw.connect(self.cfg['zmq']['dis_draw'])
+        if mock:
+            logger.info("MOCK MODE: Connecting to Emulator on TCP 5557")
+            self.draw.connect("tcp://127.0.0.1:5557")
+        else:
+            self.draw.connect(self.cfg['zmq']['dis_draw'])
+            
         self.poller = zmq.Poller()
-        self.poller.register(self.sub, zmq.POLLIN)
-        self.poller.register(self.sub_hudiy, zmq.POLLIN)
+        if self.can_connected:
+            self.poller.register(self.sub, zmq.POLLIN)
+        if self.hudiy_connected:
+            self.poller.register(self.sub_hudiy, zmq.POLLIN)
 
         self.nav_active = False # Default inactive
 
@@ -89,6 +126,11 @@ class DisplayEngine:
         self.last_sent['custom_sig'] = None 
         self.last_sent_flags = {k: 0 for k in self.Y} 
         self.btn = {'up': {'p':False, 's':0, 'l':0}, 'down': {'p':False, 's':0, 'l':0}}
+
+        # --- Advanced Nav Auto-Switching ---
+        self.pre_nav_app_name = None
+        self.auto_switch_back_at = 0
+        self.last_maneuver_id = None
 
     def load_settings(self):
         default = {'startup_app': 'app_media_player', 'remember_last': False, 'last_app': 'app_media_player'}
@@ -169,8 +211,10 @@ class DisplayEngine:
         # Holds are passed to app (but currently User requested ignores)
         
         if action == 'tap_up':
+            self.auto_switch_back_at = 0 # Cancel auto-switch back if user interacts
             self.switch_page(-1) # Previous
         elif action == 'tap_down':
+            self.auto_switch_back_at = 0 # Cancel auto-switch back if user interacts
             self.switch_page(1)  # Next
         else:
             # Pass holds or other events to app if needed
@@ -223,6 +267,9 @@ class DisplayEngine:
                                 try:
                                     data = json.loads(msg)
                                     
+                                    if hasattr(self, 'log_push'):
+                                        self.log_push.send_string(f"RX: {topic.decode('utf-8')} -> {data}")
+                                        
                                     if topic == b'HUDIY_NAV_STATUS':
                                         active = data.get('active', False)
                                         if active != self.nav_active:
@@ -237,6 +284,31 @@ class DisplayEngine:
                                                 current_name = self.pages[self.current_page_idx]
                                                 if current_name == 'app_nav':
                                                     self.switch_to_app('app_media_player')
+                                            
+                                            # Reset auto-switch state when nav status changes
+                                            self.auto_switch_back_at = 0
+                                            self.last_maneuver_id = None
+
+                                    # Update NavApp even if not current, for distance monitoring
+                                    # We skip if it's HUDIY_NAV_STATUS as NavApp doesn't use it
+                                    if topic.startswith(b'HUDIY_NAV') and topic != b'HUDIY_NAV_STATUS':
+                                        nav_app = self.apps['app_nav']
+                                        
+                                        # Only update if it's NOT the current app (to avoid double update)
+                                        if self.current_app != nav_app:
+                                            nav_app.update_hudiy(topic, data)
+                                        
+                                        # Distance-based Auto-Switch Logic
+                                        if self.nav_active and self.pages[self.current_page_idx] != 'app_nav':
+                                            meters = nav_app.parse_distance(nav_app.distance_label)
+                                            if 0 <= meters <= 200:
+                                                man_id = f"{nav_app.description}_{nav_app.maneuver_type}"
+                                                if man_id != self.last_maneuver_id:
+                                                    self.last_maneuver_id = man_id
+                                                    self.pre_nav_app_name = self.pages[self.current_page_idx]
+                                                    self.auto_switch_back_at = time.time() + 5.0
+                                                    logger.info(f"Distance Alert: {meters}m. Switching to Nav for 5s.")
+                                                    self.switch_to_app('app_nav')
 
                                     self.current_app.update_hudiy(topic, data)
                                 except json.JSONDecodeError: pass
@@ -245,6 +317,14 @@ class DisplayEngine:
                 if self.sub in socks: self._handle_can(skip_processing=is_stale)
                 if is_stale:
                     logger.warning(f"Engine lag detected ({loop_delta:.2f}s), drained stale inputs")
+                
+                # Handle Auto-Switch Back Timer
+                if self.auto_switch_back_at > 0 and now > self.auto_switch_back_at:
+                    self.auto_switch_back_at = 0
+                    if self.pages[self.current_page_idx] == 'app_nav' and self.pre_nav_app_name:
+                        logger.info(f"Auto-switching back to {self.pre_nav_app_name}")
+                        self.switch_to_app(self.pre_nav_app_name)
+
                 self._check_buttons()
                 self._draw()
                 time.sleep(0.01)
@@ -316,7 +396,23 @@ class DisplayEngine:
                     if 'type' in item: continue
                     cmd = item.get('cmd')
                     if cmd == 'draw_bitmap':
-                        self._send_draw({'command': 'draw_bitmap', 'icon_name': item.get('icon'), 'x': item.get('x', 0), 'y': item.get('y', 0)})
+                        icon_key = item.get('icon', '')
+                        # Fetch icon dimension/data natively so frontend doesn't need to bake icons in
+                        from new_icons_data import BITMAPS
+                        bmp = BITMAPS.get(icon_key.upper())
+                        
+                        payload = {
+                            'command': 'draw_bitmap', 
+                            'icon_name': icon_key, 
+                            'x': item.get('x', 0), 
+                            'y': item.get('y', 0)
+                        }
+                        if bmp:
+                            payload['w'] = bmp['w']
+                            payload['h'] = bmp['h']
+                            payload['data'] = bmp['data']
+                            
+                        self._send_draw(payload)
                     elif cmd == 'draw_text':
                         self._send_draw({'command': 'draw_text', 'text': item.get('text', ''), 'x': item.get('x', 0), 'y': item.get('y', 0), 'flags': item.get('flags', 0x06)})
                     elif cmd == 'draw_line':
@@ -371,4 +467,11 @@ class DisplayEngine:
             self._send_draw({'command':'commit'})
 
 if __name__ == "__main__":
-    DisplayEngine().run()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mock', action='store_true', help='Connect to DIS Emulator (TCP 5557)')
+    args = parser.parse_args()
+    
+    config_path = '../config.json' if os.path.exists('../config.json') else '/home/pi/config.json'
+    DisplayEngine(config_path=config_path, mock=args.mock).run()
+

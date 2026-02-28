@@ -1,6 +1,8 @@
 import json, os
+from .base import BaseApp
 
 class PhoneApp(BaseApp):
+
     def __init__(self):
         super().__init__()
         self.state = "IDLE"

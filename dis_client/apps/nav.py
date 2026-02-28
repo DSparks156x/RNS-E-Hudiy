@@ -133,14 +133,15 @@ class NavApp(BaseApp):
         # Internal Fallback
         return "STRAIGHT"
 
-    def _get_progress_height(self) -> int:
-        """Convert distance string to bar height (0..36 px, 300 m = full)"""
-        if not self.distance_label:
-            return 0
+    @staticmethod
+    def parse_distance(label: str) -> float:
+        """Parses distance string (e.g., '200 m', '1.2 km') into meters."""
+        if not label:
+            return -1.0
         try:
-            s = self.distance_label.lower().replace(',', '.')
+            s = label.lower().replace(',', '.')
             if 'now' in s or 'arrived' in s:
-                return 36
+                return 0.0
             
             val = 0.0
             if 'km' in s:
@@ -152,19 +153,25 @@ class NavApp(BaseApp):
             elif 'm' in s:
                 val = float(s.split('m')[0].strip())
             else:
-                return 36 # Unknown unit, show full bar
-            
-            # "Approach Bar" Logic:
-            # >300m: Empty (0px)
-            # 300m -> 0m: Fills up (0px -> 36px)
-            if val > 300: return 0
-            
-            # Calculate fill ratio
-            ratio = (300.0 - val) / 300.0
-            return int(ratio * 36)
-            
+                return -1.0 # Unknown unit
+            return val
         except:
-            return 36
+            return -1.0
+
+    def _get_progress_height(self) -> int:
+        """Convert distance string to bar height (0..36 px, 300 m = full)"""
+        val = self.parse_distance(self.distance_label)
+        if val < 0:
+            return 36 if self.distance_label else 0
+        
+        # "Approach Bar" Logic:
+        # >200m: Empty (0px)
+        # 200m -> 0m: Fills up (0px -> 36px)
+        if val > 200: return 0
+        
+        # Calculate fill ratio
+        ratio = (200.0 - val) / 200.0
+        return int(ratio * 36)
 
     def get_view(self) -> List[Dict]:
         # If no route, show text fallback
@@ -200,10 +207,10 @@ class NavApp(BaseApp):
         })
 
         # 2. Distance (top-right) — only draw if we have real data
-        # Clear the distance area first (approx width of 5-6 chars)
+        # Clear the distance area first (expanded to prevent proportional font ghosting)
         commands.append({
             'cmd': 'clear_area',
-            'x': 34, 'y': 10, 'w': 30, 'h': 10 
+            'x': 28, 'y': 8, 'w': 36, 'h': 12 
         })
         if dist_clean:
             commands.append({

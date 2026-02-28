@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audi DIS Emulator</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="/static/font_data.js?v=2"></script>
+    <style>
+        :root {
+            --dis-bg: #000000;
+            --dis-red: #ff3300;
+            --dis-white: #ffffff;
+            --panel-bg: #1a1a1a;
+            --panel-border: #333;
+        }
+
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .emulator-container {
+            background-color: var(--panel-bg);
+            border: 2px solid var(--panel-border);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 40px;
+        }
+
+        .screen-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .controls-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 400px;
+        }
+
+        .control-group {
+            background: #222;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+
+        .control-group h3 {
+            margin-top: 0;
+            color: var(--dis-red);
+            font-size: 14px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .btn-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn {
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 12px;
+            transition: all 0.1s;
+        }
+
+        .btn:hover {
+            background-color: #444;
+        }
+
+        .btn:active {
+            background-color: var(--dis-red);
+            color: #000;
+            border-color: var(--dis-red);
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            background: #111;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 6px;
+            border-radius: 4px;
+            width: 100%;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+
+        .dis-screen-frame {
+            background-color: #050505;
+            padding: 15px;
+            border-radius: 8px;
+            border: 4px solid #222;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 1);
+            margin-bottom: 20px;
+        }
+
+        canvas {
+            image-rendering: pixelated;
+            display: block;
+            background-color: var(--dis-bg);
+        }
+
+        .status-bar {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #666;
+            margin-top: 20px;
+            font-family: monospace;
+        }
+
+        h1 {
+            font-size: 18px;
+            margin-bottom: 30px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .log-container {
+            width: 320px;
+            height: 100px;
+            background: #000;
+            border: 1px solid #333;
+            margin-top: 20px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 10px;
+            overflow-y: auto;
+            color: #0f0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="emulator-container">
+        <!-- Left Side: DIS Screen and Logs -->
+        <div class="screen-column" style="width: 420px; overflow: hidden; flex-shrink: 0;">
+            <h1>Audi DIS Emulator</h1>
+
+            <div class="dis-screen-frame">
+                <!-- DIS is 64x88. Scaling by 6x for 384x528 display -->
+                <canvas id="disCanvas" width="64" height="88" style="width: 384px; height: 528px;"></canvas>
+            </div>
+
+            <div class="status-bar">
+                <span id="connStatus">DISCONNECTED</span>
+                <span id="lastAction" style="text-align: right;">IDLE</span>
+            </div>
+
+            <div class="log-container" id="log">
+                Connecting to bridge...
+            </div>
+        </div>
+
+        <!-- Right Side: Developer Controls -->
+        <div class="controls-column" style="width: 400px; flex-shrink: 0;">
+            <div class="control-group">
+                <h3>Emulator Settings</h3>
+                <div class="btn-row">
+                    <button class="btn" onclick="toggleDisTheme()">Toggle Red/White DIS</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Stalk Controls</h3>
+                <div class="btn-row">
+                    <button class="btn" onmousedown="emitInput('up', 'pressed')" onmouseup="emitInput('up', 'released')"
+                        onmouseleave="emitInput('up', 'released')">▲ UP</button>
+                    <button class="btn" onmousedown="emitInput('down', 'pressed')"
+                        onmouseup="emitInput('down', 'released')" onmouseleave="emitInput('down', 'released')">▼
+                        DOWN</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Hudiy: Media</h3>
+                <input type="text" id="mock-media-title" placeholder="Song Title" value="Lateralus">
+                <input type="text" id="mock-media-artist" placeholder="Artist" value="TOOL">
+                <input type="text" id="mock-media-album" placeholder="Album" value="Lateralus">
+                <input type="text" id="mock-media-time" placeholder="Time (e.g. 1:23 / 4:56)" value="1:23 / 4:56">
+                <div class="btn-row">
+                    <button class="btn" onclick="emitMockMedia(true)">Playing</button>
+                    <button class="btn" onclick="emitMockMedia(false)">Paused</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Hudiy: Navigation Route</h3>
+                <div class="btn-row">
+                    <button class="btn" onclick="emitHudiy('HUDIY_NAV_STATUS', {active: true})">Start Route</button>
+                    <button class="btn" onclick="emitHudiy('HUDIY_NAV_STATUS', {active: false})">Stop Route</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Hudiy: Nav Maneuver</h3>
+                <select id="mock-nav-type"
+                    style="width: 100%; margin-bottom: 10px; background: #111; color: white; padding: 6px; border: 1px solid #444; border-radius: 4px;">
+                    <option value="0">0 - Unknown</option>
+                    <option value="1">1 - Depart</option>
+                    <option value="2">2 - Name Change</option>
+                    <option value="3">3 - Slight Turn</option>
+                    <option value="4" selected>4 - Turn</option>
+                    <option value="5">5 - Sharp Turn</option>
+                    <option value="6">6 - U-Turn</option>
+                    <option value="7">7 - On Ramp</option>
+                    <option value="8">8 - Off Ramp</option>
+                    <option value="9">9 - Fork</option>
+                    <option value="10">10 - Merge</option>
+                    <option value="11">11 - Roundabout Enter</option>
+                    <option value="12">12 - Roundabout Exit</option>
+                    <option value="13">13 - Roundabout Enter & Exit</option>
+                    <option value="14">14 - Straight</option>
+                    <option value="16">16 - Ferry Boat</option>
+                    <option value="17">17 - Ferry Train</option>
+                    <option value="19">19 - Destination</option>
+                </select>
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <select id="mock-nav-side"
+                        style="flex: 1; background: #111; color: white; padding: 6px; border: 1px solid #444; border-radius: 4px;">
+                        <option value="1">Side: 1 (Left)</option>
+                        <option value="2" selected>Side: 2 (Right)</option>
+                        <option value="3">Side: 3 (Unspec)</option>
+                    </select>
+                    <input type="number" id="mock-nav-angle" placeholder="Angle" value="90"
+                        style="flex: 1; margin-bottom: 0;">
+                </div>
+                <input type="text" id="mock-nav-desc" placeholder="Street Name" value="Main St">
+                <div class="btn-row" style="align-items: center;">
+                    <input type="number" id="mock-nav-dist" placeholder="Dist M" value="500"
+                        style="width: 80px; margin-bottom: 0;">
+                    <button class="btn" onclick="emitMockNav()" style="flex: 1;">Send Update</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('disCanvas');
+        const ctx = canvas.getContext('2d');
+        const log = document.getElementById('log');
+        const connStatus = document.getElementById('connStatus');
+        const lastAction = document.getElementById('lastAction');
+
+        // State
+        let socket = null;
+
+        function emitInput(btn, state) {
+            if (socket && socket.connected) {
+                socket.emit('mock_input', { btn: btn, state: state });
+            }
+        }
+
+        function emitHudiy(topic, payload) {
+            if (socket && socket.connected) {
+                socket.emit('mock_hudiy', { topic: topic, payload: payload });
+            }
+        }
+
+        function emitMockMedia(isPlaying) {
+            let timeStr = document.getElementById('mock-media-time').value || "0:00 / 0:00";
+            let parts = timeStr.split('/');
+            let pos = parts[0] ? parts[0].trim() : "0:00";
+            let dur = parts[1] ? parts[1].trim() : "0:00";
+
+            emitHudiy('HUDIY_MEDIA', {
+                title: document.getElementById('mock-media-title').value,
+                artist: document.getElementById('mock-media-artist').value,
+                album: document.getElementById('mock-media-album').value,
+                position: pos,
+                duration: dur,
+                playing: isPlaying
+            });
+        }
+
+        function emitMockNav() {
+            emitHudiy('HUDIY_NAV', {
+                maneuver_type: parseInt(document.getElementById('mock-nav-type').value) || 0,
+                maneuver_side: parseInt(document.getElementById('mock-nav-side').value) || 3,
+                maneuver_angle: parseInt(document.getElementById('mock-nav-angle').value) || 0,
+                distance: document.getElementById('mock-nav-dist').value + ' m',
+                description: document.getElementById('mock-nav-desc').value
+            });
+        }
+
+        // AUDSCII Translation Table (from icons.py)
+        const AUDSCII = [
+            0x00, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x2F, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+            0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x1C, 0x20, 0x20, 0x20,
+            0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F,
+            0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
+            0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F,
+            0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5A, 0x5B, 0x5C, 0x5D, 0x5E, 0x66,
+            0x20, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+            0x10, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x20,
+            0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+            0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+            0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0xA2, 0xA0, 0x20, 0x20, 0x2D, 0x20, 0x7E,
+            0x6B, 0xB4, 0xB2, 0xB3, 0x20, 0xB8, 0x20, 0x20, 0x20, 0xB1, 0xB0, 0x20, 0x20, 0x20, 0x20, 0xB9,
+            0xC1, 0xC0, 0xD0, 0xE0, 0x5F, 0xE1, 0xE2, 0x8B, 0xC3, 0xC2, 0xD2, 0xD3, 0xC5, 0xC4, 0xD4, 0xD5,
+            0xCE, 0x8A, 0xC7, 0xC6, 0xD6, 0xE6, 0x60, 0x20, 0xE7, 0xC9, 0xC8, 0xD8, 0x61, 0xE5, 0xE8, 0x8D,
+            0x81, 0x80, 0x90, 0xF0, 0x91, 0xF1, 0xF2, 0x9B, 0x83, 0x82, 0x92, 0x93, 0x85, 0x84, 0x94, 0x95,
+            0xEF, 0x9A, 0x87, 0x86, 0x96, 0xF6, 0x97, 0xBA, 0xF7, 0x89, 0x88, 0x98, 0x99, 0xF5, 0xF8, 0x20
+        ];
+
+        // Native HUDIY bitmaps are now pushed directly over Socket.IO from the backend
+
+        function addLog(msg) {
+            const div = document.createElement('div');
+            div.innerText = `> ${msg}`;
+            log.appendChild(div);
+            while (log.childNodes.length > 20) log.removeChild(log.firstChild);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function initEmulator() {
+            socket = io();
+            socket.on('connect', () => {
+                connStatus.innerText = "CONNECTED";
+                addLog("Connected to Bridge");
+            });
+            socket.on('disconnect', () => {
+                connStatus.innerText = "DISCONNECTED";
+                addLog("Disconnected from Bridge");
+            });
+            socket.on('dis_command', (cmd) => {
+                handleCommand(cmd);
+            });
+            addLog("Emulator Initialized");
+        }
+
+        // --- Rendering Logic ---
+        const backBuffer = document.createElement('canvas');
+        backBuffer.width = 64;
+        backBuffer.height = 88;
+        const bCtx = backBuffer.getContext('2d');
+
+        // DIS Navigation/Data Region starts at Y=27
+        const REG_Y = 27;
+
+        function handleCommand(cmd) {
+            lastAction.innerText = cmd.command.toUpperCase();
+
+            switch (cmd.command) {
+                case 'clear':
+                    bCtx.fillStyle = 'black';
+                    bCtx.fillRect(0, 0, 64, 88);
+                    break;
+                case 'clear_area':
+                    bCtx.fillStyle = 'black';
+                    bCtx.fillRect(cmd.x || 0, (cmd.y || 0) + REG_Y, cmd.w || 64, cmd.h || 9);
+                    break;
+                case 'draw_text':
+                    drawText(cmd.text, cmd.x || 0, (cmd.y || 0) + REG_Y, cmd.flags || 0x06);
+                    break;
+                case 'draw_bitmap':
+                    // We pass the whole cmd object so we have w, h, and data
+                    drawBitmap(cmd, cmd.x || 0, (cmd.y || 0) + REG_Y);
+                    break;
+                case 'draw_line':
+                    drawLine(cmd.x || 0, (cmd.y || 0) + REG_Y, cmd.length || 0, cmd.vertical !== false);
+                    break;
+                case 'commit':
+                    ctx.drawImage(backBuffer, 0, 0);
+                    break;
+                case 'debug_log':
+                    const div = document.createElement('div');
+                    div.innerText = `[DEV] ${cmd.text}`;
+                    div.style.color = '#ffaa00';
+                    log.appendChild(div);
+                    while (log.childNodes.length > 30) log.removeChild(log.firstChild);
+                    log.scrollTop = log.scrollHeight;
+                    break;
+            }
+        }
+
+        // App Theme State
+        let currentDisColor = '#ff3300';
+        function toggleDisTheme() {
+            currentDisColor = currentDisColor === '#ff3300' ? '#ffffff' : '#ff3300';
+            document.documentElement.style.setProperty('--dis-red', currentDisColor);
+            // Redraw everything with the new color when new frames arrive
+        }
+
+        function drawText(text, x, y, flags) {
+            const isInverted = (flags & 0x80) !== 0;
+            const fgHex = isInverted ? 'black' : currentDisColor;
+            const bgHex = isInverted ? currentDisColor : 'black';
+
+            // Characters are laid out within a 6x9 block on the actual screen natively
+            const CHAR_MAX_W = 6;
+            const CHAR_H = 9;
+
+            let currentX = x;
+
+            for (let i = 0; i < text.length; i++) {
+                const charCode = text.charCodeAt(i);
+                const audsciiIndex = charCode < 256 ? AUDSCII[charCode] : 0x20;
+                const charData = typeof FONT_DATA !== 'undefined' ? FONT_DATA[audsciiIndex] : null;
+
+                // Determine character width
+                // For proportional fonts, charData[0] is the width (1 to 6)
+                // For old fixed fonts, charData[0] is the first row of bits, so width was fixed 6
+                let charW = CHAR_MAX_W;
+                let rowsOffset = 0;
+                if (charData && charData.length === 8) { // Our new proportional array format is 8 elements
+                    charW = charData[0];
+                    rowsOffset = 1;
+                }
+
+                // Clear the character's bounding block first so subsequent updates don't smear
+                bCtx.fillStyle = bgHex;
+                bCtx.fillRect(currentX, y, charW, CHAR_H);
+
+                if (charData) {
+                    bCtx.fillStyle = fgHex;
+                    // Draw the 6x7 pixel grid. Offset Y by 1 to roughly center it in the 9px row height.
+                    for (let row = 0; row < 7; row++) {
+                        const rowVal = charData[row + rowsOffset];
+                        for (let col = 0; col < charW; col++) {
+                            // If bit is 1, draw the foreground
+                            if ((rowVal >> (5 - col)) & 1) {
+                                bCtx.fillRect(currentX + col, y + 1 + row, 1, 1);
+                            }
+                        }
+                    }
+                }
+
+                // Advance cursor by the character's exact physical bounding width,
+                // which natively includes exactly 1 pixel of cell padding from the gray bounds.
+                currentX += charW;
+            }
+        }
+
+        function drawBitmap(cmd, x, y) {
+            // Check if the payload contains raw bitmap data
+            const name = cmd.icon_name || "UNKNOWN";
+            if (!cmd.data || !cmd.w || !cmd.h) {
+                addLog(`MISSING BMP: ${name}`);
+                bCtx.strokeStyle = 'white';
+                bCtx.strokeRect(x, y, 31, 37);
+                return;
+            }
+
+            const w = cmd.w;
+            const h = cmd.h;
+            const data = cmd.data;
+            const bytesPerRow = Math.ceil(w / 8);
+
+            // Clear the bitmap area first to prevent ghosting
+            bCtx.fillStyle = 'black';
+            bCtx.fillRect(x, y, w, h);
+
+            bCtx.fillStyle = currentDisColor; // DIS Theme Color
+            let byteIdx = 0;
+            for (let i = 0; i < h; i++) {
+                let currentX = 0;
+                for (let b = 0; b < bytesPerRow; b++) {
+                    if (byteIdx >= data.length) break;
+                    const byteVal = data[byteIdx++];
+                    // MSB first
+                    for (let bit = 7; bit >= 0; bit--) {
+                        if (currentX >= w) break;
+                        if ((byteVal >> bit) & 1) {
+                            bCtx.fillRect(x + currentX, y + i, 1, 1);
+                        }
+                        currentX++;
+                    }
+                }
+            }
+        }
+
+        function drawLine(x, y, len, vert) {
+            bCtx.fillStyle = currentDisColor;
+            if (vert) {
+                bCtx.fillRect(x, y, 1, len);
+            } else {
+                bCtx.fillRect(x, y, len, 1);
+            }
+        }
+
+        window.onload = () => {
+            initEmulator();
+        };
+    </script>
+</body>
+
+</html>
