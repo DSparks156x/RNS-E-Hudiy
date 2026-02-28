@@ -284,82 +284,82 @@ class ZMQWorker:
                             data = payload.get('data')
                             self.ingest(mod, grp, data)
                     
-                if self.can_sock in socks:
-                    while self.can_sock.poll(0):
-                        topic, msg = self.can_sock.recv_multipart()
-                        t_str = topic.decode()
+                # if self.can_sock in socks:
+                #     while self.can_sock.poll(0):
+                #         topic, msg = self.can_sock.recv_multipart()
+                #         t_str = topic.decode()
                         
-                        try:
-                            payload = bytes.fromhex(json.loads(msg)['data_hex'])
-                            if '35B' in t_str and len(payload) >= 4:
-                                rpm = (payload[2] * 256 + payload[1]) / 4.0
-                                coolant = (payload[3] * 0.75) - 64
-                                # logger.info(f"[CAN] 35B -> RPM: {rpm}, Coolant: {coolant}")
+                #         try:
+                #             payload = bytes.fromhex(json.loads(msg)['data_hex'])
+                #             if '35B' in t_str and len(payload) >= 4:
+                #                 rpm = (payload[2] * 256 + payload[1]) / 4.0
+                #                 coolant = (payload[3] * 0.75) - 64
+                #                 # logger.info(f"[CAN] 35B -> RPM: {rpm}, Coolant: {coolant}")
                                 
-                            if '555' in t_str and len(payload) >= 8:
-                                boost = (payload[3] + payload[4] * 256) * 0.08
-                                oil_temp = payload[7] - 60
-                                # logger.info(f"[CAN] 555 -> Boost: {boost}, Oil: {oil_temp}")
-                                self.ingest(0, 0, [
-                                    {'value': oil_temp, 'unit': 'C'},
-                                    {'value': getattr(self, '_last_ambient', 0), 'unit': 'C'}
-                                ])
+                #             if '555' in t_str and len(payload) >= 8:
+                #                 boost = (payload[3] + payload[4] * 256) * 0.08
+                #                 oil_temp = payload[7] - 60
+                #                 # logger.info(f"[CAN] 555 -> Boost: {boost}, Oil: {oil_temp}")
+                #                 self.ingest(0, 0, [
+                #                     {'value': oil_temp, 'unit': 'C'},
+                #                     {'value': getattr(self, '_last_ambient', 0), 'unit': 'C'}
+                #                 ])
                                 
-                            if '527' in t_str and len(payload) >= 6:
-                                ambient = (payload[5] * 0.5) - 50
-                                self._last_ambient = ambient
-                                oil_now = 0
-                                with interpolator._lock:
-                                    msg_obj = interpolator.get_raw(0, 0)
-                                    if msg_obj and len(msg_obj['data']) > 0:
-                                        oil_now = msg_obj['data'][0]['value']
-                                self.ingest(0, 0, [
-                                    {'value': oil_now, 'unit': 'C'},
-                                    {'value': ambient, 'unit': 'C'}
-                                ])
-                        except Exception as e:
-                            logger.debug(f"Error parsing CAN message {t_str}: {e}")
+                #             if '527' in t_str and len(payload) >= 6:
+                #                 ambient = (payload[5] * 0.5) - 50
+                #                 self._last_ambient = ambient
+                #                 oil_now = 0
+                #                 with interpolator._lock:
+                #                     msg_obj = interpolator.get_raw(0, 0)
+                #                     if msg_obj and len(msg_obj['data']) > 0:
+                #                         oil_now = msg_obj['data'][0]['value']
+                #                 self.ingest(0, 0, [
+                #                     {'value': oil_now, 'unit': 'C'},
+                #                     {'value': ambient, 'unit': 'C'}
+                #                 ])
+                #         except Exception as e:
+                #             logger.debug(f"Error parsing CAN message {t_str}: {e}")
                             
-                # Check CAN Socket
-                if self.can_sock:
-                    while True:
-                        try:
-                            topic, msg = self.can_sock.recv_multipart(flags=zmq.NOBLOCK)
-                            t_str = topic.decode()
+                # # Check CAN Socket
+                # if self.can_sock:
+                #     while True:
+                #         try:
+                #             topic, msg = self.can_sock.recv_multipart(flags=zmq.NOBLOCK)
+                #             t_str = topic.decode()
                             
-                            try:
-                                payload = bytes.fromhex(json.loads(msg)['data_hex'])
-                                if '35B' in t_str and len(payload) >= 4:
-                                    rpm = (payload[2] * 256 + payload[1]) / 4.0
-                                    coolant = (payload[3] * 0.75) - 64
-                                    # logger.info(f"[CAN] 35B -> RPM: {rpm}, Coolant: {coolant}")
+                #             try:
+                #                 payload = bytes.fromhex(json.loads(msg)['data_hex'])
+                #                 if '35B' in t_str and len(payload) >= 4:
+                #                     rpm = (payload[2] * 256 + payload[1]) / 4.0
+                #                     coolant = (payload[3] * 0.75) - 64
+                #                     # logger.info(f"[CAN] 35B -> RPM: {rpm}, Coolant: {coolant}")
                                     
-                                if '555' in t_str and len(payload) >= 8:
-                                    boost = (payload[3] + payload[4] * 256) * 0.08
-                                    oil_temp = payload[7] - 60
-                                    # logger.info(f"[CAN] 555 -> Boost: {boost}, Oil: {oil_temp}")
-                                    self.ingest(0, 0, [
-                                        {'value': oil_temp, 'unit': 'C'},
-                                        {'value': getattr(self, '_last_ambient', 0), 'unit': 'C'}
-                                    ])
+                #                 if '555' in t_str and len(payload) >= 8:
+                #                     boost = (payload[3] + payload[4] * 256) * 0.08
+                #                     oil_temp = payload[7] - 60
+                #                     # logger.info(f"[CAN] 555 -> Boost: {boost}, Oil: {oil_temp}")
+                #                     self.ingest(0, 0, [
+                #                         {'value': oil_temp, 'unit': 'C'},
+                #                         {'value': getattr(self, '_last_ambient', 0), 'unit': 'C'}
+                #                     ])
                                 
-                                if '527' in t_str and len(payload) >= 6:
-                                    ambient = (payload[5] * 0.5) - 50
-                                    self._last_ambient = ambient
-                                    # logger.info(f"[CAN] 527 -> Ambient: {ambient}")
-                                    oil_now = 0
-                                    with interpolator._lock:
-                                        msg = interpolator.get_raw(0, 0)
-                                        if msg and len(msg['data']) > 0:
-                                            oil_now = msg['data'][0]['value']
-                                    self.ingest(0, 0, [
-                                        {'value': oil_now, 'unit': 'C'},
-                                        {'value': ambient, 'unit': 'C'}
-                                    ])
-                            except Exception as e:
-                                logger.debug(f"Error parsing CAN message {t_str}: {e}")
-                        except zmq.Again:
-                            break
+                #                 if '527' in t_str and len(payload) >= 6:
+                #                     ambient = (payload[5] * 0.5) - 50
+                #                     self._last_ambient = ambient
+                #                     # logger.info(f"[CAN] 527 -> Ambient: {ambient}")
+                #                     oil_now = 0
+                #                     with interpolator._lock:
+                #                         msg = interpolator.get_raw(0, 0)
+                #                         if msg and len(msg['data']) > 0:
+                #                             oil_now = msg['data'][0]['value']
+                #                     self.ingest(0, 0, [
+                #                         {'value': oil_now, 'unit': 'C'},
+                #                         {'value': ambient, 'unit': 'C'}
+                #                     ])
+                #             except Exception as e:
+                #                 logger.debug(f"Error parsing CAN message {t_str}: {e}")
+                #         except zmq.Again:
+                #             break
                     
                 if drained > 0:
                     now = time.monotonic()
