@@ -35,11 +35,12 @@ release should be ~stable/functional, beta may have things that dont work as int
 Im not responsible for thermonuclear war, divorce, timing chain tensioners failing etc etc caused by these scripts. 
 
 Feel free to open an issue or message me on forums if you have any questions/suggestions. 
+
 ---
 
 ## Installation
 
-1.  Clone the repository:
+1.  Download the script:
     ```bash
     ... acquire update_rnse.sh from hudiy_client folder.
     ```
@@ -48,7 +49,8 @@ Feel free to open an issue or message me on forums if you have any questions/sug
     sudo ./update_rnse.sh -i
     ```
     *   **Note**: `update_rnse.sh -i` replaces Hudiy config files. `config.json` is only replaced if it doesn't exist.
-
+3. Configure your CAN interface
+    The script will bring up CAN0, but your can interface must be configured, ie your mcp2515 in config.txt etc. 
 ---
 
 ## Configuration
