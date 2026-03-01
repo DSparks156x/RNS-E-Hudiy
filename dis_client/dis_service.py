@@ -359,12 +359,11 @@ class DisService:
                             
                             self.last_draw_time = time.time()
 
-                            # If we had a clear, or we got more than a few commands (a burst), 
-                            # just do a full redraw.
-                            if had_clear or len(cmds) > 5 or last_was_commit:
+                            # Optimization: Only do a full redraw if a clear was requested.
+                            # Small updates (scrolling text) are processed individually to avoid flicker.
+                            if had_clear:
                                 self.handle_redraw()
                             else:
-                                # Process small updates individually as before
                                 for cmd in cmds:
                                     c = cmd.get('command')
                                     if c == 'draw_text':

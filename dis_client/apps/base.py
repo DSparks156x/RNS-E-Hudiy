@@ -66,7 +66,7 @@ class BaseApp:
         
         if now < state['pause_until']:
             offset = state['offset']
-            return text[offset : offset + max_len]
+            return text[offset : offset + max_len].ljust(max_len)
 
         if now - state['last_tick'] > speed_ms:
             state['last_tick'] = now
@@ -77,4 +77,4 @@ class BaseApp:
                 state['pause_until'] = now + 1000
             
         offset = state['offset']
-        return text[offset : offset + max_len]
+        return text[offset : offset + max_len].ljust(max_len)
