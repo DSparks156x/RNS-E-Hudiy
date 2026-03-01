@@ -28,17 +28,21 @@ class CANService:
         self.can_addr, self.pub_addr = load_config()
         self.running = True
 
-        self._last_ambient = 0
-        self._last_oil = 0
-        
-        # State tracking for rate limiting (e.g 4 Hz)
         self._last_publish = 0
         self._publish_interval = 0.25 
         
         self.latest_data = {
             'rpm': None,
             'coolant': None,
-            'boost': None
+            'boost': None,
+            'oil': None,
+            'ambient': None,
+            'fuel': None,
+            'battery': None,
+            'load_actual': None,
+            'load_spec': None,
+            'iat': None,
+            'speed': None
         }
 
     def connect(self):
@@ -46,7 +50,7 @@ class CANService:
             # Subscribe to RAW CAN bus mapped by tp2_worker/dis_service
             self.can_sock = self.context.socket(zmq.SUB)
             self.can_sock.connect(self.can_addr)
-            for t in [b"CAN_35B", b"CAN_0x35B", b"CAN_555", b"CAN_0x555", b"CAN_527", b"CAN_0x527"]:
+            for t in [b"CAN_35B", b"CAN_0x35B", b"CAN_555", b"CAN_0x555", b"CAN_527", b"CAN_0x527", b"CAN_571", b"CAN_0x571", b"CAN_351", b"CAN_0x351"]:
                 self.can_sock.subscribe(t)
             logger.info(f"Connected to RAW CAN at {self.can_addr}")
 
@@ -66,17 +70,43 @@ class CANService:
 
         self._last_publish = now
         
-        # We model this exactly after the legacy code so it mimics tp2 format
-        if self._last_oil != 0 or self._last_ambient != 0:
-            payload = {
-                'module': 0,
-                'group': 0,
+        # Group 0: Temperatures
+        if any(self.latest_data[k] is not None for k in ['oil', 'ambient', 'coolant', 'iat']):
+            payload0 = {
+                'module': 0, 'group': 0,
                 'data': [
-                     {'value': self._last_oil, 'unit': 'C'},
-                     {'value': self._last_ambient, 'unit': 'C'}
+                     {'value': self.latest_data['oil'] if self.latest_data['oil'] is not None else 0, 'unit': 'C'},
+                     {'value': self.latest_data['ambient'] if self.latest_data['ambient'] is not None else 0, 'unit': 'C'},
+                     {'value': int(self.latest_data['coolant']) if self.latest_data['coolant'] is not None else 0, 'unit': 'C'},
+                     {'value': int(self.latest_data['iat']) if self.latest_data['iat'] is not None else 0, 'unit': 'C'}
                 ]
             }
-            self.pub_sock.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
+            self.pub_sock.send_multipart([b'HUDIY_DIAG', json.dumps(payload0).encode()])
+
+        # Group 1: Performance
+        if any(self.latest_data[k] is not None for k in ['rpm', 'boost', 'load_spec', 'load_actual']):
+            payload1 = {
+                'module': 0, 'group': 1,
+                'data': [
+                     {'value': int(self.latest_data['rpm']) if self.latest_data['rpm'] is not None else 0, 'unit': 'RPM'},
+                     {'value': round(self.latest_data['boost'], 2) if self.latest_data['boost'] is not None else 0, 'unit': 'mbar'},
+                     {'value': round(self.latest_data['load_spec'], 1) if self.latest_data['load_spec'] is not None else 0, 'unit': '%'},
+                     {'value': round(self.latest_data['load_actual'], 1) if self.latest_data['load_actual'] is not None else 0, 'unit': '%'}
+                ]
+            }
+            self.pub_sock.send_multipart([b'HUDIY_DIAG', json.dumps(payload1).encode()])
+
+        # Group 2: Electrical & Fuel & Speed
+        if any(self.latest_data[k] is not None for k in ['battery', 'fuel', 'speed']):
+            payload2 = {
+                'module': 0, 'group': 2,
+                'data': [
+                     {'value': round(self.latest_data['battery'], 1) if self.latest_data['battery'] is not None else 0, 'unit': 'V'},
+                     {'value': int(self.latest_data['fuel']) if self.latest_data['fuel'] is not None else 0, 'unit': 'L'},
+                     {'value': int(self.latest_data['speed']) if self.latest_data['speed'] is not None else 0, 'unit': 'km/h'}
+                ]
+            }
+            self.pub_sock.send_multipart([b'HUDIY_DIAG', json.dumps(payload2).encode()])
 
     def run(self):
         if not self.connect():
@@ -98,16 +128,30 @@ class CANService:
                         
                         try:
                             payload = bytes.fromhex(json.loads(msg)['data_hex'])
-                            if '35B' in t_str and len(payload) >= 4:
+                            if '35B' in t_str and len(payload) >= 6:
                                 self.latest_data['rpm'] = (payload[2] * 256 + payload[1]) / 4.0
                                 self.latest_data['coolant'] = (payload[3] * 0.75) - 64
+                                self.latest_data['fuel'] = payload[5]
                                 
                             if '555' in t_str and len(payload) >= 8:
+                                # Load Actual at B0, IAT at B1, Load Spec at B2
+                                self.latest_data['load_actual'] = payload[0] * 0.1
+                                self.latest_data['iat'] = (payload[1] * 0.75) - 64
+                                self.latest_data['load_spec'] = payload[2] * 0.1
+
                                 self.latest_data['boost'] = (payload[3] + payload[4] * 256) * 0.08
-                                self._last_oil = payload[7] - 60
+                                self.latest_data['oil'] = payload[7] - 60
                                 
                             if '527' in t_str and len(payload) >= 6:
-                                self._last_ambient = (payload[5] * 0.5) - 50
+                                self.latest_data['ambient'] = (payload[5] * 0.5) - 50
+
+                            if '571' in t_str and len(payload) >= 1:
+                                # Battery Voltage: (((byte0)/2)+50)/10
+                                self.latest_data['battery'] = (((payload[0]) / 2.0) + 50) / 10.0
+
+                            if '351' in t_str and len(payload) >= 3:
+                                # Speed: (byte2 << 8 | byte1) / 200 (km/h)
+                                self.latest_data['speed'] = (payload[2] * 256 + payload[1]) / 200.0
                         except Exception as e:
                             logger.debug(f"Error parsing CAN message {t_str}: {e}")
                 
