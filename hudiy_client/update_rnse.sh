@@ -8,6 +8,15 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # Let the API send responses and clean up Hudiy UI
 sleep 3
 
+# --- Flag Parsing ---
+INSTALL_MODE=false
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        -i|--install) INSTALL_MODE=true; shift ;;
+        *) shift ;;
+    esac
+done
+
 echo "Waiting for Wi-Fi connection..."
 # Loop until we have internet connectivity (e.g. connected to Hotspot)
 while true; do
@@ -72,11 +81,11 @@ def find_latest_ref(prefix):
     return latest_ref, latest_date
 
 # 1. Load config
-config_branch = "main"
+config_branch = "release" # Default to release
 if os.path.exists("$CONFIG_FILE"):
     try:
         with open("$CONFIG_FILE", 'r') as f:
-            config_branch = json.load(f).get('branch', 'main')
+            config_branch = json.load(f).get('branch', 'release')
     except: pass
 
 # 2. Handle "testing" (always main)
@@ -121,8 +130,14 @@ echo "Fetching installer from: $URL"
 wget -q -O install_update.sh "$URL"
 chmod +x install_update.sh
 
-# Run install script, passing the branch name as an argument
-echo "n" | sudo ./install_update.sh "$BRANCH"
+# Build install command
+INSTALL_CMD="sudo ./install_update.sh \"$BRANCH\""
+if [ "$INSTALL_MODE" = false ]; then
+    INSTALL_CMD="$INSTALL_CMD -u"
+fi
+
+# Run install script
+echo "n" | eval $INSTALL_CMD
 
 #rebooting immediately causes reboot to take forever, something is taking its time. 
 

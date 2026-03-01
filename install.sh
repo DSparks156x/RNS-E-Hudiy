@@ -32,16 +32,26 @@ fi
 
 REPO_URL="https://github.com/DSparks156x/RNS-E-Hudiy.git"
 BRANCH="main"
+UPDATE_MODE=false
 
-# Override branch from command line argument ($1)
-if [ ! -z "$1" ]; then
-    BRANCH="$1"
-    # Special case for "testing" to map to "main"
-    if [ "$BRANCH" == "testing" ]; then
-        BRANCH="main"
-    fi
-    echo "   Branch override: $BRANCH"
-fi
+# Simple argument parser
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        -u|--update) UPDATE_MODE=true; shift ;;
+        -*) echo "Unknown option: $1"; shift ;;
+        *)  # Assume first positional argument is the branch
+            BRANCH="$1"
+            # Special case for "testing" to map to "main"
+            if [ "$BRANCH" == "testing" ]; then
+                BRANCH="main"
+            fi
+            shift
+            ;;
+    esac
+done
+
+echo "   Install Branch: $BRANCH"
+echo "   Update Mode: $UPDATE_MODE"
 
 # Define Config Paths
 CONFIG_TXT="/boot/firmware/config.txt"
@@ -116,18 +126,22 @@ else
 fi
 
 # 2.1 Deploy Hudiy Configuration
-echo "? Step 2.1: Deploying Hudiy Configuration..."
-HUDIY_CONFIG_DIR="/home/${REAL_USER}/.hudiy/share/config"
-mkdir -p "$HUDIY_CONFIG_DIR"
+if [ "$UPDATE_MODE" = false ]; then
+    echo "? Step 2.1: Deploying Hudiy Configuration..."
+    HUDIY_CONFIG_DIR="/home/${REAL_USER}/.hudiy/share/config"
+    mkdir -p "$HUDIY_CONFIG_DIR"
 
-# Copy verified config files if they exist in the repo (relative to script)
-if [ -d "${TEMP_DIR}/config/hudiy" ]; then
-    echo "   Copying configuration from ${TEMP_DIR}/config/hudiy/..."
-    cp -v "${TEMP_DIR}/config/hudiy/"*.json "$HUDIY_CONFIG_DIR/"
-    chown -R ${REAL_USER}:${REAL_USER} "/home/${REAL_USER}/.hudiy"
-    echo "   ? Hudiy config updated."
+    # Copy verified config files if they exist in the repo (relative to script)
+    if [ -d "${TEMP_DIR}/config/hudiy" ]; then
+        echo "   Copying configuration from ${TEMP_DIR}/config/hudiy/..."
+        cp -v "${TEMP_DIR}/config/hudiy/"*.json "$HUDIY_CONFIG_DIR/"
+        chown -R ${REAL_USER}:${REAL_USER} "/home/${REAL_USER}/.hudiy"
+        echo "   ? Hudiy config updated."
+    else
+        echo "   ⚠ No local config/hudiy directory found at ${TEMP_DIR}/config/hudiy. Skipping."
+    fi
 else
-    echo "   ⚠ No local config/hudiy directory found at ${TEMP_DIR}/config/hudiy. Skipping."
+    echo "? Skipping Step 2.1 (Update Mode Active)"
 fi
 
 # Cleanup
