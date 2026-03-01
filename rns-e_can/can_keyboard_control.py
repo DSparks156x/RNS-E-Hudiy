@@ -102,6 +102,7 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
             'tv_mode_id': int(source_data['tv_mode_identifier'], 16),
             'play_key': parse_key(source_data['play_key']),
             'pause_key': parse_key(source_data['pause_key']),
+            'source_pause': source_data.get('source_pause', False),
             'cooldown': thresholds['cooldown_period'],
             'long_press_count': thresholds['long_press_message_count'],
             'extended_press_count': thresholds.get('extended_long_press_message_count', 30),
@@ -280,10 +281,13 @@ def handle_source_message(msg, state):
 
     if is_pi_active != state.is_pi_source_active:
         state.is_pi_source_active = is_pi_active
-        key_to_press = CONFIG['play_key'] if is_pi_active else CONFIG['pause_key']
-        action = "PLAY" if is_pi_active else "PAUSE"
-        logger.info(f"Source switched. Simulating {action}.")
-        press_key(key_to_press)
+        if not CONFIG.get('source_pause', False):
+            key_to_press = CONFIG['play_key'] if is_pi_active else CONFIG['pause_key']
+            action = "PLAY" if is_pi_active else "PAUSE"
+            logger.info(f"Source switched. Simulating {action}.")
+            press_key(key_to_press)
+        else:
+            logger.info("Source switched. source_pause is enabled, skipping key simulation.")
 
 # --- Signal Handling and Main Loop ---
 def setup_signal_handlers():

@@ -60,7 +60,6 @@
     "car_time_zone": "America/Denver",
     "road_side": "right",
     "speed_units": "imperial",
-    "temp_units": "metric",
     "ambient_temp_units": "imperial",
     "debug_mode": false
   },
@@ -130,6 +129,7 @@
   "source_data": {
     "tv_mode_identifier": "0x37",
     "play_key": "KEY_X",
-    "pause_key": "KEY_C"
+    "pause_key": "KEY_C",
+    "source_pause": false
   }
 }
