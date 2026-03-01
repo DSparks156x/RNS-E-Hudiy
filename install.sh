@@ -33,6 +33,16 @@ fi
 REPO_URL="https://github.com/DSparks156x/RNS-E-Hudiy.git"
 BRANCH="main"
 
+# Override branch from command line argument ($1)
+if [ ! -z "$1" ]; then
+    BRANCH="$1"
+    # Special case for "testing" to map to "main"
+    if [ "$BRANCH" == "testing" ]; then
+        BRANCH="main"
+    fi
+    echo "   Branch override: $BRANCH"
+fi
+
 # Define Config Paths
 CONFIG_TXT="/boot/firmware/config.txt"
 [ ! -f "$CONFIG_TXT" ] && CONFIG_TXT="/boot/config.txt"

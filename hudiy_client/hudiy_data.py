@@ -417,11 +417,18 @@ class TP2BridgeHandler(ClientEventHandler):
             req_quit.action = "quit_hudiy"
             client.send(hudiy_api.MESSAGE_DISPATCH_ACTION, 0, req_quit.SerializeToString())
             
-            # Launch bash script
-            logger.info("Executing updater bash script...")
+            # Launch bash script in a visible terminal
+            logger.info("Executing updater bash script in terminal...")
             script_dir = os.path.dirname(os.path.abspath(__file__))
             updater_script = os.path.join(script_dir, "update_rnse.sh")
-            subprocess.Popen(["sudo", "bash", updater_script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            # Ensure DISPLAY is set for X11 apps like lxterminal
+            env = os.environ.copy()
+            if "DISPLAY" not in env:
+                env["DISPLAY"] = ":0"
+            
+            # Using -e to execute the script in the terminal
+            subprocess.Popen(["lxterminal", "--fullscreen", "-e", f"bash {updater_script}"], env=env)
 
     def send_command(self, cmd):
         with self.lock:

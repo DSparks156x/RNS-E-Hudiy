@@ -1,4 +1,5 @@
 {
+  "branch": "testing",
   "dis_type": "",
   "can_interface": "can0",
   "zmq": {
