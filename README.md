@@ -30,7 +30,7 @@ A fork of Korni92's RNS-E-Hudiy with new features and tweaks to my own preferenc
 
 release should be ~stable/functional, beta may have things that dont work as intended, testing will pull latest main, which could be completely broken. Don't count on my releases or any other channel not being broken or not messing up your setup. I am not thoroughly testing every release/setup combination.. If it worked fine on my setup its good to go. Default configs reflect my setup (see more info on that below).
 
-Back up your current setup, scripts, config files etc, or even use a new SD card/drive and fresh install before installing this. 
+**Back up your current setup, scripts, config files etc, or even use a new SD card/drive and fresh install before installing this.**
 
 Im not responsible for thermonuclear war, divorce, timing chain tensioners failing etc etc caused by these scripts. 
 
