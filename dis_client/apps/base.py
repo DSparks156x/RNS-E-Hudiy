@@ -41,7 +41,7 @@ class BaseApp:
         # Returns Dict (Text Lines) or List (Draw Commands)
         return {}
 
-    def _scroll_text(self, text, key, max_len=16, speed_ms=200):
+    def _scroll_text(self, text, key, max_len=16, speed_ms=200, align='left'):
         """
         Returns a window of text that scrolls if longer than max_len.
         """
@@ -51,7 +51,10 @@ class BaseApp:
         if len(text) <= max_len:
             # If it fits, remove state so it resets if it grows later
             if key in self._scroll_state: del self._scroll_state[key]
-            return text.ljust(max_len)[:max_len]
+            
+            if align == 'center':
+                return text.center(max_len)
+            return text # No padding for static left-aligned text
 
         now = time.time() * 1000
         

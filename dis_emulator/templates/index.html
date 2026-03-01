@@ -255,8 +255,15 @@
                 </div>
                 <input type="text" id="mock-nav-desc" placeholder="Street Name" value="Main St">
                 <div class="btn-row" style="align-items: center;">
-                    <input type="number" id="mock-nav-dist" placeholder="Dist M" value="500"
-                        style="width: 80px; margin-bottom: 0;">
+                    <input type="number" id="mock-nav-dist" placeholder="Dist" value="500"
+                        style="width: 70px; margin-bottom: 0;">
+                    <select id="mock-nav-unit"
+                        style="width: 60px; background: #111; color: white; padding: 6px; border: 1px solid #444; border-radius: 4px; margin-right: 5px;">
+                        <option value="m" selected>m</option>
+                        <option value="km">km</option>
+                        <option value="mi">mi</option>
+                        <option value="ft">ft</option>
+                    </select>
                     <button class="btn" onclick="emitMockNav()" style="flex: 1;">Send Update</button>
                 </div>
             </div>
@@ -306,7 +313,7 @@
                 maneuver_type: parseInt(document.getElementById('mock-nav-type').value) || 0,
                 maneuver_side: parseInt(document.getElementById('mock-nav-side').value) || 3,
                 maneuver_angle: parseInt(document.getElementById('mock-nav-angle').value) || 0,
-                distance: document.getElementById('mock-nav-dist').value + ' m',
+                distance: document.getElementById('mock-nav-dist').value + ' ' + document.getElementById('mock-nav-unit').value,
                 description: document.getElementById('mock-nav-desc').value
             });
         }

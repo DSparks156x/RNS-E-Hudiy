@@ -172,6 +172,16 @@ class NavApp(BaseApp):
         except:
             return -1.0
 
+    def _split_distance(self, label: str):
+        """Splits distance string into (value, units) e.g. ('500', 'm')."""
+        if not label: return "", ""
+        import re
+        # Capture numeric part and unit part
+        m = re.search(r'([\d.,/]+)\s*([a-zA-Z]+)', label)
+        if m:
+            return m.group(1), m.group(2)
+        return label, ""
+
     def _get_progress_height(self) -> int:
         """Convert distance string to bar height (0..36 px, 300 m = full)"""
         val = self.parse_distance(self.distance_label)
@@ -185,7 +195,7 @@ class NavApp(BaseApp):
         
         # Calculate fill ratio
         ratio = (200.0 - val) / 200.0
-        return int(ratio * 36)
+        return int(ratio * 47)
 
     def get_view(self) -> List[Dict]:
         # If no route, show text fallback
@@ -221,19 +231,38 @@ class NavApp(BaseApp):
         })
 
         # 2. Distance (top-right) — only draw if we have real data
-        # Clear the distance area first (expanded to prevent proportional font ghosting)
-        commands.append({
-            'cmd': 'clear_area',
-            'x': 38, 'y': 0, 'w': 28, 'h': 12 
-        })
-        if dist_clean:
+        val_str, unit_str = self._split_distance(self.distance_label)
+        
+        if val_str:
+            # Configurable horizontal center for the right-side informational area
+            # Average character width approx 5px (including spacing)
+            center_x = 49 
+
+            # Clear the distance area first (centered around center_x)
+            commands.append({
+                'cmd': 'clear_area',
+                'x': center_x - 14, 'y': 0, 'w': 28, 'h': 28 
+            })
+
+            # Draw numeric value on top
+            val_x = center_x - (len(val_str) * 5 // 2)
             commands.append({
                 'cmd': 'draw_text',
-                'text': dist_clean,
-                'x': 40,
-                'y': 2,
+                'text': val_str,
+                'x': val_x,
+                'y': 10,
                 'flags': 0x06 # Compact Font
             })
+            # Draw units below if present
+            if unit_str:
+                unit_x = center_x - (len(unit_str) * 5 // 2)
+                commands.append({
+                    'cmd': 'draw_text',
+                    'text': unit_str,
+                    'x': unit_x,
+                    'y': 19,
+                    'flags': 0x06
+                })
 
         # 3. Street name (bottom, centered)
         # Extract just the street name if possible
@@ -253,8 +282,8 @@ class NavApp(BaseApp):
             street = street[:15] + "..."
         
         # Scroll the street name if it's too long (limit to 14 chars as requested)
-        # Use a unique key for the scroll state
-        street_display = self._scroll_text(street, 'nav_street', 14, 200)
+        # Use a unique key for the scroll state, explicitly set alignment to 'center'
+        street_display = self._scroll_text(street, 'nav_street', 14, 200, align='center')
 
         # Clear street area (although center(18) might cover it, explicit clear is safer for variable fonts)
         # Using clear_area for the text line
@@ -276,7 +305,7 @@ class NavApp(BaseApp):
         # Clear the entire bar track to avoid artifacts when bar shrinks
         commands.append({
             'cmd': 'clear_area',
-            'x': 61, 'y': 12, 'w': 3, 'h': 36
+            'x': 61, 'y': 12, 'w': 3, 'h': 48
         })
 
         if bar_h > 0:
