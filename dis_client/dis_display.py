@@ -90,7 +90,7 @@ class DisplayEngine:
                 self.sub_hudiy.subscribe(t)
 
         self.draw = self.zmq_ctx.socket(zmq.PUSH)
-        self.draw.setsockopt(zmq.SNDHWM, 50) # Prevent long backlogs if service freezes
+        self.draw.setsockopt(zmq.SNDHWM, 20) # Prevent long backlogs if service freezes
         if mock:
             logger.info("MOCK MODE: Connecting to Emulator on TCP 5557")
             self.draw.connect("tcp://127.0.0.1:5557")
@@ -211,10 +211,12 @@ class DisplayEngine:
         # Holds are passed to app (but currently User requested ignores)
         
         if action == 'tap_up':
-            self.auto_switch_back_at = 0 # Cancel auto-switch back if user interacts
+            self.auto_switch_back_at = 0 
+            self.pre_nav_app_name = None
             self.switch_page(-1) # Previous
         elif action == 'tap_down':
-            self.auto_switch_back_at = 0 # Cancel auto-switch back if user interacts
+            self.auto_switch_back_at = 0 
+            self.pre_nav_app_name = None
             self.switch_page(1)  # Next
         else:
             # Pass holds or other events to app if needed
@@ -288,6 +290,7 @@ class DisplayEngine:
                                             # Reset auto-switch state when nav status changes
                                             self.auto_switch_back_at = 0
                                             self.last_maneuver_id = None
+                                            self.pre_nav_app_name = None
 
                                     # Update NavApp even if not current, for distance monitoring
                                     # We skip if it's HUDIY_NAV_STATUS as NavApp doesn't use it
@@ -299,16 +302,32 @@ class DisplayEngine:
                                             nav_app.update_hudiy(topic, data)
                                         
                                         # Distance-based Auto-Switch Logic
-                                        if self.nav_active and self.pages[self.current_page_idx] != 'app_nav':
+                                        if self.nav_active:
+                                            man_id = f"{nav_app.description}_{nav_app.maneuver_type}"
                                             meters = nav_app.parse_distance(nav_app.distance_label)
-                                            if 0 <= meters <= 200:
-                                                man_id = f"{nav_app.description}_{nav_app.maneuver_type}"
-                                                if man_id != self.last_maneuver_id:
+                                            current_name = self.pages[self.current_page_idx]
+
+                                            if current_name != 'app_nav':
+                                                if 0 <= meters <= 200 and man_id != self.last_maneuver_id:
+                                                    logger.info(f"Maneuver Alert: {meters}m. Switching to Nav.")
+                                                    self.pre_nav_app_name = current_name
                                                     self.last_maneuver_id = man_id
-                                                    self.pre_nav_app_name = self.pages[self.current_page_idx]
-                                                    self.auto_switch_back_at = time.time() + 5.0
-                                                    logger.info(f"Distance Alert: {meters}m. Switching to Nav for 5s.")
+                                                    self.auto_switch_back_at = 0
                                                     self.switch_to_app('app_nav')
+                                            elif self.pre_nav_app_name:
+                                                # Currently on Nav via auto-switch, check for switch back
+                                                if man_id != self.last_maneuver_id:
+                                                    if meters > 1000:
+                                                        if self.auto_switch_back_at == 0:
+                                                            logger.info(f"Maneuver finished, next ({meters}m) > 1000m. Switching back in 5s.")
+                                                            self.auto_switch_back_at = time.time() + 5.0
+                                                    elif 0 <= meters <= 1000:
+                                                        # Next maneuver is close, stay on nav and update tracker
+                                                        self.last_maneuver_id = man_id
+                                                        self.auto_switch_back_at = 0
+                                                elif 0 <= meters <= 1000:
+                                                    # Keep timer reset if we stay/get close
+                                                    self.auto_switch_back_at = 0
 
                                     self.current_app.update_hudiy(topic, data)
                                 except json.JSONDecodeError: pass
@@ -324,6 +343,7 @@ class DisplayEngine:
                     if self.pages[self.current_page_idx] == 'app_nav' and self.pre_nav_app_name:
                         logger.info(f"Auto-switching back to {self.pre_nav_app_name}")
                         self.switch_to_app(self.pre_nav_app_name)
+                        self.pre_nav_app_name = None
 
                 self._check_buttons()
                 self._draw()

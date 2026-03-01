@@ -105,6 +105,21 @@ else
     echo "   - config.json exists, keeping your version."
 fi
 
+# 2.1 Deploy Hudiy Configuration
+echo "? Step 2.1: Deploying Hudiy Configuration..."
+HUDIY_CONFIG_DIR="/home/${REAL_USER}/.hudiy/share/config"
+mkdir -p "$HUDIY_CONFIG_DIR"
+
+# Copy verified config files if they exist in the repo (relative to script)
+if [ -d "${TEMP_DIR}/config/hudiy" ]; then
+    echo "   Copying configuration from ${TEMP_DIR}/config/hudiy/..."
+    cp -v "${TEMP_DIR}/config/hudiy/"*.json "$HUDIY_CONFIG_DIR/"
+    chown -R ${REAL_USER}:${REAL_USER} "/home/${REAL_USER}/.hudiy"
+    echo "   ? Hudiy config updated."
+else
+    echo "   ⚠ No local config/hudiy directory found at ${TEMP_DIR}/config/hudiy. Skipping."
+fi
+
 # Cleanup
 echo "   Removing temporary files..."
 rm -rf "$TEMP_DIR"
@@ -468,23 +483,6 @@ $SYSTEMCTL enable --now --no-block dis_service.service dis_display.service
 
 echo "? Services installed, network configured, and started."
 
-
-# ------------------------------------------------------------------------------
-# 7.5 Deploy Hudiy Configuration
-# ------------------------------------------------------------------------------
-echo "? Step 7.5: Deploying Hudiy Configuration..."
-HUDIY_CONFIG_DIR="/home/${REAL_USER}/.hudiy/share/config"
-mkdir -p "$HUDIY_CONFIG_DIR"
-
-# Copy verified config files if they exist in the repo (relative to script)
-if [ -d "${SCRIPT_DIR}/config/hudiy" ]; then
-    echo "   Copying configuration from ${SCRIPT_DIR}/config/hudiy/..."
-    cp -v "${SCRIPT_DIR}/config/hudiy/"*.json "$HUDIY_CONFIG_DIR/"
-    chown -R ${REAL_USER}:${REAL_USER} "/home/${REAL_USER}/.hudiy"
-    echo "   ? Hudiy config updated."
-else
-    echo "   ⚠ No local config/hudiy directory found at ${SCRIPT_DIR}/config/hudiy. Skipping."
-fi
 
 # # ------------------------------------------------------------------------------
 # # 8. Configure Composite Video (Optional)

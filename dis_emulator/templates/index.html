@@ -416,11 +416,12 @@
         function drawDividers() {
             // Region dividers
             // Top: 0,0,64,26 (0-25 is top)
-            // Center: 0,27,64,48 (27-74 is center)
-            // Bottom: 0,76,64,12 (76-87 is bottom)
-            // Dividers should be at Y=26 and Y=75
+            // Center: 0,27,64,50 (27-76 is center)
+            // Bottom: 0,78,64,10 (78-87 is bottom)
+            // Dividers should be at Y=26 and Y=77
             drawLine(0, 26, 64, false);
-            drawLine(0, 75, 64, false);
+            drawLine(0, 77, 64, false);
+            drawText("D", 29, 79, 0x06);
         }
 
         function drawText(text, x, y, flags) {

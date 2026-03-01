@@ -333,39 +333,50 @@ class DisService:
                              self.handle_redraw()
                     socks = dict(self.poller.poll(5))
                     if self.draw_socket in socks:
-                        while True:
-                            try:
-                                cmd = self.draw_socket.recv_json(flags=zmq.NOBLOCK)
-                                if not self.screen_is_active:
-                                    if not self.claim_nav_screen():
-                                        logger.error("Failed to claim screen.")
-                                        break 
-                                self.last_draw_time = time.time()
+                        cmds = []
+                        try:
+                            while True:
+                                cmds.append(self.draw_socket.recv_json(flags=zmq.NOBLOCK))
+                        except zmq.Again: pass
+
+                        if cmds:
+                            last_was_commit = (cmds[-1].get('command') == 'commit')
+                            had_clear = False
+                            
+                            for cmd in cmds:
                                 c = cmd.get('command')
-                                if c == 'clear':
+                                if c in ['clear', 'clear_payload']:
                                     self.command_cache = {}
-                                    self.clear_screen()
-                                elif c == 'clear_area':
-                                    self.clear_area(cmd.get('x',0), cmd.get('y',0), cmd.get('w',64), cmd.get('h',9))
-                                elif c == 'clear_payload':
-                                    self.command_cache = {}
-                                    self.clear_screen_payload()
-                                elif c == 'draw_text':
-                                    k = ('draw_text', cmd.get('y', 0), cmd.get('x', 0))
+                                    had_clear = True
+                                elif c in ['draw_text', 'draw_bitmap', 'draw_line']:
+                                    k = (c, cmd.get('y', 0), cmd.get('x', 0))
                                     self.command_cache[k] = cmd
-                                    self.write_text(cmd.get('text', ''), cmd.get('x', 0), cmd.get('y', 0), cmd.get('flags', 0x06))
-                                elif c == 'draw_bitmap':
-                                    k = ('draw_bitmap', cmd.get('y', 0), cmd.get('x', 0))
-                                    self.command_cache[k] = cmd
-                                    self.draw_bitmap(cmd.get('x', 0), cmd.get('y', 0), cmd.get('icon_name'))
-                                elif c == 'draw_line':
-                                    k = ('draw_line', cmd.get('y', 0), cmd.get('x', 0))
-                                    self.command_cache[k] = cmd
-                                    self.draw_line(cmd.get('x', 0), cmd.get('y', 0), cmd.get('length', 0), cmd.get('vertical', True))
-                                elif c == 'commit':
-                                    self.commit_frame()
-                            except zmq.Again:
-                                break 
+                            
+                            if not self.screen_is_active:
+                                if not self.claim_nav_screen():
+                                    logger.error("Failed to claim screen.")
+                                    continue
+                            
+                            self.last_draw_time = time.time()
+
+                            # If we had a clear, or we got more than a few commands (a burst), 
+                            # just do a full redraw.
+                            if had_clear or len(cmds) > 5 or last_was_commit:
+                                self.handle_redraw()
+                            else:
+                                # Process small updates individually as before
+                                for cmd in cmds:
+                                    c = cmd.get('command')
+                                    if c == 'draw_text':
+                                        self.write_text(cmd.get('text',''), cmd.get('x',0), cmd.get('y',0), cmd.get('flags', 0x06))
+                                    elif c == 'draw_bitmap':
+                                        self.draw_bitmap(cmd.get('x',0), cmd.get('y',0), cmd.get('icon_name'))
+                                    elif c == 'draw_line':
+                                        self.draw_line(cmd.get('x',0), cmd.get('y',0), cmd.get('length',0), cmd.get('vertical', True))
+                                    elif c == 'commit':
+                                        self.commit_frame()
+                                    elif c == 'clear_area':
+                                        self.clear_area(cmd.get('x',0), cmd.get('y',0), cmd.get('w',64), cmd.get('h',9))
                     if (self.ENABLE_INACTIVITY_RELEASE
                         and self.screen_is_active
                         and (time.time() - self.last_draw_time > self.inactivity_timeout_sec)):
