@@ -92,11 +92,11 @@ sudo ./hudiy_client/update_rnse.sh
 ## Architecture
 
 Managed via `systemd` services:
-*   `can_handler`: Central gateway to CAN hardware.
+*   `can_handler`: provides a zmq stream of raw can messages to and from infotainment bus.
 *   `can_base_function`: TV tuner simulation and time sync.
 *   `can_keyboard_control`: Translates CAN signals to virtual keyboard inputs.
 *   `dis_service` & `dis_display`: DIS rendering and logic.
-*   `tp2_worker`: TP2.0 diagnostic communication.
+*   `tp2_worker`: Diagnostics over TP2. currently not over the can handler. 
 *   `hudiy_dataview`: Provides Hudiy Dataview app
 *   `hudiy_status_service`: Decodes some of the status messages on the infotainment bus that contain various pieces of data (RPM/Boost/Coolant/Oil/Ambient/Bat Voltage)
 ---

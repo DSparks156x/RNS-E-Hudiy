@@ -1,1 +1,1 @@
-These are various pieces of reference code and documentation about the DIS display, HUDIY, and tp2/kwp2000 to help my robotic developer along.
+These are various pieces of reference code and documentation about the DIS display, HUDIY, and tp2/kwp2000 to help my robotic developer along. they really should be git ignored, but its convient having them in the repo when i move to my car and try to debug from my laptop. 
