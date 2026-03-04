@@ -99,12 +99,25 @@ class DisService:
             logger.warning("Cannot claim screen, session not READY.")
             return False
         
-        payload_claim = [0x52, 0x05, 0x82, 0x00, self.region_y_offset, 0x40, self.region_height]
-        payload_busy  = [0x53, 0x84]
-        payload_free  = [0x53, 0x05]
+        if self.region_name in ['full', 'top_centre']:
+            claim_y = 0x00
+            claim_h = 0x58
+        else:
+            claim_y = 0x1B
+            claim_h = self.region_height # usually 0x30 or 0x3D
+            
+        if self.region_name in ['full', 'top_centre', 'centre_lower']:
+            payload_busy  = [0x53, 0x88]
+            payload_free  = [0x53, 0x0A]
+            payload_ok    = [0x53, 0x8A]
+        else:
+            payload_busy  = [0x53, 0x84]
+            payload_free  = [0x53, 0x05]
+            payload_ok    = [0x53, 0x85]
+            
+        payload_claim = [0x52, 0x05, 0x82, 0x00, claim_y, 0x40, claim_h]
         payload_ready = [0x2E]
         payload_clear = [0x2F]
-        payload_ok    = [0x53, 0x85]
             
         if self.ddp.dis_mode == DisMode.RED:
             try:
