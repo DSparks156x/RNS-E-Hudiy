@@ -104,6 +104,18 @@ class DisplayEngine:
         if self.hudiy_connected:
             self.poller.register(self.sub_hudiy, zmq.POLLIN)
 
+        self.service_ready = False
+        self.sub_status = self.zmq_ctx.socket(zmq.SUB)
+        try:
+            if mock:
+                 self.service_ready = True
+            else:
+                 self.sub_status.connect(self.cfg['zmq'].get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc'))
+                 self.sub_status.subscribe(b"DIS_STATE")
+                 self.poller.register(self.sub_status, zmq.POLLIN)
+        except Exception as e:
+            logger.warning(f"Could not connect to dis_status: {e}")
+
         self.nav_active = False # Default inactive
 
         # --- Startup Logic ---
@@ -245,8 +257,8 @@ class DisplayEngine:
 
     def force_redraw(self, send_clear=False):
         self.last_sent = {k: None for k in self.Y}
-        self.last_sent['custom_sig'] = None
-        if send_clear:
+        self.last_sent['groups'] = {}
+        if send_clear and getattr(self, 'service_ready', True):
             self._send_draw({'command': 'clear'})
             self._send_draw({'command': 'commit'})
             self.last_sent_flags = {k: 0 for k in self.Y}
@@ -314,6 +326,20 @@ class DisplayEngine:
 
                                     self.current_app.update_hudiy(topic, data)
                                 except json.JSONDecodeError: pass
+                    except zmq.Again: pass
+
+                if getattr(self, 'sub_status', None) and self.sub_status in socks:
+                    try:
+                        while True:
+                            msg = self.sub_status.recv_string(flags=zmq.NOBLOCK)
+                            if msg.startswith("DIS_STATE"):
+                                state = msg.split(" ")[1]
+                                is_ready = (state == "READY")
+                                if self.service_ready != is_ready:
+                                    self.service_ready = is_ready
+                                    logger.info(f"DIS Service State Changed to: {state}. Ready={self.service_ready}")
+                                    if self.service_ready:
+                                        self.force_redraw(send_clear=True)
                     except zmq.Again: pass
 
                 if self.sub in socks: self._handle_can()
@@ -426,56 +452,68 @@ class DisplayEngine:
                 elif (now - b['s'] > 5.0): b['p'] = False
 
     def _draw(self):
+        if not getattr(self, 'service_ready', True):
+            return
+
         view = self.current_app.get_view()
         
         if isinstance(view, list):
-            current_sig = str(view)
-            if self.last_sent.get('custom_sig') != current_sig:
-                # smart clear: check if type is stable
-                current_type = view[0].get('type') if view else None
-                prev_type = self.last_sent.get('last_type')
+            current_type = view[0].get('type') if view else None
+            prev_type = self.last_sent.get('last_type')
+            
+            full_redraw = (current_type != prev_type)
+            if full_redraw:
+                if view and view[0].get('clear_on_update', True) and prev_type:
+                    self._send_draw({'command': 'clear_payload'})
+                else:    
+                    self._send_draw({'command': 'clear'})
                 
-                if current_type and current_type == prev_type:
-                    if view[0].get('clear_on_update', True):
-                        self._send_draw({'command': 'clear_payload'}) # Only clear cache, keep pixels
-                else:
-                    self._send_draw({'command': 'clear'}) # Full wipe
+                self.last_sent['groups'] = {}
+                self.last_sent['last_type'] = current_type
+
+            # Grouping Logic for smart delta updates
+            groups_current = {}
+            for item in view:
+                if 'type' in item: continue
+                # Unique random ID if not provided so it's guaranteed to render
+                g = item.get('group') or str(id(item))
+                if g not in groups_current:
+                    groups_current[g] = []
+                groups_current[g].append(item)
                 
-                for item in view:
-                    if 'type' in item: continue
-                    cmd = item.get('cmd')
-                    if cmd == 'draw_bitmap':
-                        icon_key = item.get('icon', '')
-                        # Fetch icon dimension/data natively so frontend doesn't need to bake icons in
-                        from icons import BITMAPS
-                        bmp = BITMAPS.get(icon_key.upper())
-                        
-                        payload = {
-                            'command': 'draw_bitmap', 
-                            'icon_name': icon_key, 
-                            'x': item.get('x', 0), 
-                            'y': item.get('y', 0)
-                        }
-                        if bmp:
-                            payload['w'] = bmp['w']
-                            payload['h'] = bmp['h']
-                            payload['data'] = bmp['data']
-                            
-                        self._send_draw(payload)
-                    elif cmd == 'draw_text':
-                        self._send_draw({'command': 'draw_text', 'text': item.get('text', ''), 'x': item.get('x', 0), 'y': item.get('y', 0), 'flags': item.get('flags', 0x06)})
-                    elif cmd == 'draw_line':
-                        self._send_draw({'command': 'draw_line', 'x': item.get('x', 0), 'y': item.get('y', 0), 'length': item.get('len', 0), 'vertical': item.get('vert', True)})
-                    elif cmd == 'clear_area':
-                        self._send_draw({'command': 'clear_area', 'x': item.get('x', 0), 'y': item.get('y', 0), 'w': item.get('w', 0), 'h': item.get('h', 0)})
+            last_groups = self.last_sent.get('groups', {})
+            
+            changed = False
+            for g, items in groups_current.items():
+                items_str = str(items)
+                if full_redraw or last_groups.get(g) != items_str:
+                    for item in items:
+                        cmd = item.get('cmd')
+                        if cmd == 'draw_bitmap':
+                            icon_key = item.get('icon', '')
+                            from icons import BITMAPS
+                            bmp = BITMAPS.get(icon_key.upper())
+                            payload = {'command': 'draw_bitmap', 'icon_name': icon_key, 'x': item.get('x', 0), 'y': item.get('y', 0)}
+                            if bmp:
+                                payload.update({'w': bmp['w'], 'h': bmp['h'], 'data': bmp['data']})
+                            self._send_draw(payload)
+                        elif cmd == 'draw_text':
+                            self._send_draw({'command': 'draw_text', 'text': item.get('text', ''), 'x': item.get('x', 0), 'y': item.get('y', 0), 'flags': item.get('flags', 0x06)})
+                        elif cmd == 'draw_line':
+                            self._send_draw({'command': 'draw_line', 'x': item.get('x', 0), 'y': item.get('y', 0), 'length': item.get('len', 0), 'vertical': item.get('vert', True)})
+                        elif cmd == 'clear_area':
+                            self._send_draw({'command': 'clear_area', 'x': item.get('x', 0), 'y': item.get('y', 0), 'w': item.get('w', 0), 'h': item.get('h', 0)})
+                    changed = True
+                    last_groups[g] = items_str
+            
+            if changed:
                 self._send_draw({'command': 'commit'})
                 
-                self.last_sent['custom_sig'] = current_sig
-                self.last_sent['last_type'] = current_type
-                for k in self.Y: self.last_sent[k] = None
+            self.last_sent['groups'] = last_groups
+            for k in self.Y: self.last_sent[k] = None
             return
 
-        if self.last_sent.get('custom_sig'):
+        if self.last_sent.get('groups') is not None:
              self.draw.send_json({'command': 'clear'})
              self.last_sent['custom_sig'] = None
              for k in self.Y: self.last_sent[k] = None

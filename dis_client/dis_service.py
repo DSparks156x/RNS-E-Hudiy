@@ -56,11 +56,36 @@ class DisService:
         self.poller = zmq.Poller()
         self.poller.register(self.draw_socket, zmq.POLLIN)
 
+        self.status_pub = self.context.socket(zmq.PUB)
+        try:
+            self.status_pub.bind(self.config['zmq'].get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc'))
+            logger.info("ZMQ status pub socket bound.")
+        except Exception as e:
+            logger.warning(f"Could not bind status pub socket: {e}")
+
         self.last_draw_time = 0.0
-        self.screen_is_active = False
+        self._screen_is_active = False
         self.inactivity_timeout_sec = 30.0 
         self.command_cache = {} 
         self.ENABLE_INACTIVITY_RELEASE = False
+
+    @property
+    def screen_is_active(self):
+        return self._screen_is_active
+
+    @screen_is_active.setter
+    def screen_is_active(self, value):
+        if self._screen_is_active != value:
+            self._screen_is_active = value
+            try:
+                state_str = "READY" if value else "PAUSED"
+                # If we are completely disconnected, we'll force 'DISCONNECTED' later
+                if self.ddp.state == DDPState.DISCONNECTED:
+                    state_str = "DISCONNECTED"
+                self.status_pub.send_string(f"DIS_STATE {state_str}", flags=zmq.NOBLOCK)
+                logger.info(f"Broadcasted DIS_STATE {state_str}")
+            except Exception as e:
+                pass
 
         if not self.ENABLE_INACTIVITY_RELEASE:
             logger.info("Inactivity auto-release is DISABLED (screen will stay claimed forever)")
@@ -285,6 +310,9 @@ class DisService:
                                         if hasattr(self, 'ddp'):
                                             self.ddp._set_state(DDPState.DISCONNECTED)
                                         self.screen_is_active = False
+                                        try:
+                                            self.status_pub.send_string("DIS_STATE DISCONNECTED", flags=zmq.NOBLOCK)
+                                        except: pass
                     except zmq.Again: pass
                     except Exception as e: logger.error(f"Ignition check error: {e}")
 
@@ -389,6 +417,10 @@ class DisService:
                 logger.error(f"Main loop error: {e}", exc_info=True)
                 if hasattr(self, 'ddp'):
                     self.ddp._set_state(DDPState.DISCONNECTED)
+                self.screen_is_active = False
+                try: 
+                    self.status_pub.send_string("DIS_STATE DISCONNECTED", flags=zmq.NOBLOCK)
+                except: pass
                 time.sleep(3)
 
 if __name__ == "__main__":

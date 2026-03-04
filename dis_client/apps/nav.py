@@ -224,6 +224,7 @@ class NavApp(BaseApp):
 
         # 1. Big arrow — moved UP to Y=1, and RIGHT to X=4
         commands.append({
+            'group': 'arrow',
             'cmd': 'draw_bitmap',
             'icon': icon_key,
             'x': 4,
@@ -240,6 +241,7 @@ class NavApp(BaseApp):
 
             # Clear the distance area first (centered around center_x)
             commands.append({
+                'group': 'dist',
                 'cmd': 'clear_area',
                 'x': center_x - 14, 'y': 0, 'w': 28, 'h': 28 
             })
@@ -247,6 +249,7 @@ class NavApp(BaseApp):
             # Draw numeric value on top
             val_x = center_x - (len(val_str) * 5 // 2)
             commands.append({
+                'group': 'dist',
                 'cmd': 'draw_text',
                 'text': val_str,
                 'x': val_x,
@@ -257,12 +260,20 @@ class NavApp(BaseApp):
             if unit_str:
                 unit_x = center_x - (len(unit_str) * 5 // 2)
                 commands.append({
+                    'group': 'dist',
                     'cmd': 'draw_text',
                     'text': unit_str,
                     'x': unit_x,
                     'y': 19,
                     'flags': 0x06
                 })
+        else:
+            # Always ensure the distance area is conceptually cleared if there is no data
+            commands.append({
+                'group': 'dist',
+                'cmd': 'clear_area',
+                'x': 35, 'y': 0, 'w': 28, 'h': 28 
+            })
 
         # 3. Street name (bottom, centered)
         # Extract just the street name if possible
@@ -285,13 +296,15 @@ class NavApp(BaseApp):
         # Use a unique key for the scroll state, explicitly set alignment to 'center'
         street_display = self._scroll_text(street, 'nav_street', 14, 200, align='center')
 
-        # Clear street area (although center(18) might cover it, explicit clear is safer for variable fonts)
+        # Clear street area (max width 60 so we don't wipe the progress bar at X=61)
         # Using clear_area for the text line
         commands.append({
+            'group': 'street',
             'cmd': 'clear_area',
-            'x': 0, 'y': 39, 'w': 64, 'h': 9
+            'x': 0, 'y': 39, 'w': 60, 'h': 9
         })
         commands.append({
+            'group': 'street',
             'cmd': 'draw_text',
             # Center the 14-char window in the 18-char capable slot (approx)
             # 14 chars * ~4px = 56px. 64px width. (64-56)/2 = 4px offset.
@@ -304,8 +317,9 @@ class NavApp(BaseApp):
         # 4. Red: Progress bar (Right Edge)
         # Clear the entire bar track to avoid artifacts when bar shrinks
         commands.append({
+            'group': 'bar',
             'cmd': 'clear_area',
-            'x': 61, 'y': 12, 'w': 3, 'h': 48
+            'x': 61, 'y': 0, 'w': 3, 'h': 48
         })
 
         if bar_h > 0:
@@ -313,9 +327,9 @@ class NavApp(BaseApp):
             
             # Draw 3 vertical lines for a thick bar
             commands += [
-                {'cmd': 'draw_line', 'x': 61, 'y': start_y, 'len': bar_h, 'vert': True},
-                {'cmd': 'draw_line', 'x': 62, 'y': start_y, 'len': bar_h, 'vert': True},
-                {'cmd': 'draw_line', 'x': 63, 'y': start_y, 'len': bar_h, 'vert': True},
+                {'group': 'bar', 'cmd': 'draw_line', 'x': 61, 'y': start_y, 'len': bar_h, 'vert': True},
+                {'group': 'bar', 'cmd': 'draw_line', 'x': 62, 'y': start_y, 'len': bar_h, 'vert': True},
+                {'group': 'bar', 'cmd': 'draw_line', 'x': 63, 'y': start_y, 'len': bar_h, 'vert': True},
             ]
 
         return commands
