@@ -87,6 +87,7 @@ def run_test():
     parser.add_argument('--mock', action='store_true', help='Connect to DIS Emulator (TCP 5557)')
     parser.add_argument('--file', type=str, default='polish_cow.gif', help='Path to the GIF file to play')
     parser.add_argument('--invert', action='store_true', help='Invert the colors of the GIF')
+    parser.add_argument('--fps', type=float, default=5.0, help='Playback framerate (default: 5)')
     args = parser.parse_args()
 
     # Load config to get the IPC address, or default to standard location
@@ -120,7 +121,7 @@ def run_test():
     print(f"Loading and processing {gif_path}...")
     img = Image.open(gif_path)
     
-    target_size = (64, 88)
+    target_size = (64, 48)
     
     frames_dithered = []
     
@@ -152,8 +153,8 @@ def run_test():
         
     print(f"Computed {len(delta_frames)} delta frames. Starting playback on DIS...")
 
-    draw.send_json({'command': 'set_region', 'region': 'full'})
-    draw.send_json({'command': 'clear_area', 'x': 0, 'y': 0, 'w': 64, 'h': 88})
+    draw.send_json({'command': 'set_region', 'region': 'central'})
+    draw.send_json({'command': 'clear_area', 'x': 0, 'y': 0, 'w': 64, 'h': 48})
     draw.send_json({'command': 'commit'})
     time.sleep(1)
 
@@ -202,12 +203,11 @@ def run_test():
                     })
                     
                 draw.send_json({'command': 'commit'})
-                time.sleep(0.1) 
+                time.sleep(1.0 / args.fps)
     except KeyboardInterrupt:
         pass
         
-    print("\nRestoring central screen layout...")
-    draw.send_json({'command': 'set_region', 'region': 'central'})
+    print("\nClearing central screen...")
     draw.send_json({'command': 'clear'})
     draw.send_json({'command': 'commit'})
 
