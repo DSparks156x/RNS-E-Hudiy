@@ -39,6 +39,7 @@ class TP2Protocol:
         self.seq_tx = 0        # TX Sequence Number (0..F)
         self.seq_rx = 0        # RX Sequence Number (0..F)
         self.connected = False
+        self.last_kwp_req = 0.0
 
     def open(self):
         """Opens the CAN Bus interface."""
@@ -167,6 +168,8 @@ class TP2Protocol:
         Handles segmentation (TX) and reassembly (RX).
         """
         if not self.connected: raise TP2Error("Not connected")
+        
+        self.last_kwp_req = time.time()
         
         # Drain any late/stale packets from previous interactions
         self._clear_rx_buffer()

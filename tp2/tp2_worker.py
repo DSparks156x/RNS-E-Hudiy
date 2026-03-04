@@ -396,6 +396,8 @@ class TP2Service:
                         # Keep Alive Only
                         if session['connected']:
                              try:
+                                 if time.time() - session['protocol'].last_kwp_req > 2.0:
+                                     session['protocol'].send_kvp_request([0x3E])
                                  session['protocol'].send_keep_alive()
                              except:
                                  session['connected'] = False
@@ -562,6 +564,8 @@ class TP2Service:
                         # Continue to normal polling
                         if not active_list:
                             try:
+                                if time.time() - session['protocol'].last_kwp_req > 2.0:
+                                     session['protocol'].send_kvp_request([0x3E])
                                 session['protocol'].send_keep_alive()
                             except:
                                 session['connected'] = False
@@ -587,6 +591,8 @@ class TP2Service:
                         # All groups in cooldown. Keep session alive but do nothing else.
                         if session['connected']:
                              try:
+                                 if time.time() - session['protocol'].last_kwp_req > 2.0:
+                                     session['protocol'].send_kvp_request([0x3E])
                                  session['protocol'].send_keep_alive()
                              except:
                                  session['connected'] = False
