@@ -77,17 +77,8 @@ class DisService:
     def screen_is_active(self, value):
         if self._screen_is_active != value:
             self._screen_is_active = value
-            try:
-                state_str = "READY" if value else "PAUSED"
-                # If we are completely disconnected, we'll force 'DISCONNECTED' later
-                if self.ddp.state == DDPState.DISCONNECTED:
-                    state_str = "DISCONNECTED"
-                self.status_pub.send_string(f"DIS_STATE {state_str}", flags=zmq.NOBLOCK)
-                logger.info(f"Broadcasted DIS_STATE {state_str}")
-            except Exception as e:
-                pass
 
-        if not self.ENABLE_INACTIVITY_RELEASE:
+        if not self.ENABLE_INACTIVITY_RELEASE and value:
             logger.info("Inactivity auto-release is DISABLED (screen will stay claimed forever)")
 
     def parse_time(self, t: str) -> int:
@@ -412,13 +403,24 @@ class DisService:
                         else:
                             self.screen_is_active = False
                 
-                # Periodically broadcast state to ensure clients sync up even if they join late
+                # Broadcast true service state instead of just screen_is_active
+                # dis_display uses READY to know when it can send commands. DDPState.READY is the true indicator.
                 now_time = time.time()
-                if now_time - getattr(self, 'last_status_cast', 0) > 1.0:
+                current_state = getattr(self.ddp, 'state', None)
+                if current_state != getattr(self, 'last_pub_state', None) or (now_time - getattr(self, 'last_status_cast', 0) > 1.0):
+                    if current_state != getattr(self, 'last_pub_state', None):
+                        logger.info(f"DDPState Broadcasting new state: {current_state}")
+                    self.last_pub_state = current_state
                     self.last_status_cast = now_time
-                    state_str = "READY" if self._screen_is_active else "PAUSED"
-                    if getattr(self, 'ddp', None) and self.ddp.state == DDPState.DISCONNECTED:
-                        state_str = "DISCONNECTED"
+                    
+                    state_str = "DISCONNECTED"
+                    if current_state == DDPState.READY:
+                        state_str = "READY"
+                    elif current_state == DDPState.PAUSED:
+                        state_str = "PAUSED"
+                    elif current_state == DDPState.SESSION_ACTIVE:
+                        state_str = "INITIALIZING"
+                    
                     try:
                         self.status_pub.send_string(f"DIS_STATE {state_str}", flags=zmq.NOBLOCK)
                     except: pass
