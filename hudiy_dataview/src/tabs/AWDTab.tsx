@@ -12,7 +12,7 @@ export function AWDTab() {
       <div className="awd-layout">
         {/* Group 3: Performance */}
         <div className="panel awd-main">
-          <h3>Haldex Performance (Grp 3)</h3>
+          <h3>Haldex Engagement</h3>
           <div className="gauges-row">
             <div className="gauge-wrapper">
               <Gauge id="gauge_awd_pres" groupKey="10:3" index={0} min={0} max={60} label={['Bar', 'Oil Pressure']} sizeClass="gauge-md" />
@@ -30,7 +30,7 @@ export function AWDTab() {
             </div>
             <div className="col">
               <div className="val-row-sm">
-                <span className="label">Current (N273):</span>
+                <span className="label">Current:</span>
                 <span><LiveText groupKey="10:3" index={3} format={(v) => fmtVal(v, 'mA')} /></span>
               </div>
             </div>
@@ -39,10 +39,10 @@ export function AWDTab() {
 
         {/* Group 1: Status */}
         <div className="panel awd-status">
-          <h3>System Status (Grp 1)</h3>
+          <h3>System Status</h3>
           <div className="val-list">
             <div className="val-row">
-              <span className="label">Haldex Oil Temp</span>
+              <span className="label">Oil Temp</span>
               <span className="value"><LiveText groupKey="10:1" index={0} format={(v) => fmtVal(v, '°C')} /></span>
             </div>
             <div className="val-row">
@@ -58,7 +58,7 @@ export function AWDTab() {
 
         {/* Group 5: Modes */}
         <div className="panel awd-modes">
-          <h3>Modes (Grp 5)</h3>
+          <h3>Modes</h3>
           <div className="val-list">
             <div className="val-row">
               <span className="label">CAN Output</span>

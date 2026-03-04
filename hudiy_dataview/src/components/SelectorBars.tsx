@@ -27,14 +27,14 @@ function SelectorBar({
 
   const posHeight = useTransform(mv, (val) => {
     const v = typeof val === 'number' ? val : (isNaN(parseFloat(val)) ? 0 : parseFloat(val));
-    const clamped = Math.max(-9, Math.min(9, v));
-    return clamped >= 0 ? `${(Math.abs(clamped) / 9) * 50}%` : '0%';
+    const clamped = Math.max(-8, Math.min(8, v));
+    return clamped >= 0 ? `${(Math.abs(clamped) / 8) * 50}%` : '0%';
   });
 
   const negHeight = useTransform(mv, (val) => {
     const v = typeof val === 'number' ? val : (isNaN(parseFloat(val)) ? 0 : parseFloat(val));
-    const clamped = Math.max(-9, Math.min(9, v));
-    return clamped < 0 ? `${(Math.abs(clamped) / 9) * 50}%` : '0%';
+    const clamped = Math.max(-8, Math.min(8, v));
+    return clamped < 0 ? `${(Math.abs(clamped) / 8) * 50}%` : '0%';
   });
 
   return (

@@ -341,12 +341,12 @@ class ZMQWorker:
 
         # Discrete engine states: (rpm, boost_mbar)
         ENGINE_STATES = [
-            (820,   200),   # idle
-            (1800,  600),   # light cruise
-            (2800,  950),   # steady cruise
+            (820,   800),   # idle
+            (1800,  1000),   # light cruise
+            (2800,  1100),   # steady cruise
             (4200, 1600),   # spirited
-            (5800, 2100),   # hard pull
-            (6800, 2400),   # WOT
+            (5800, 1800),   # hard pull
+            (6800, 2100),   # WOT
         ]
 
         state_rpm, state_boost = ENGINE_STATES[0]
@@ -390,7 +390,7 @@ class ZMQWorker:
                 {'value': round(rpm, 1),                               'unit': 'RPM'},
                 {'value': round(random.uniform(5, 160), 1),            'unit': '%'},
                 {'value': round(boost, 0),                             'unit': 'mbar'},
-                {'value': round(boost + random.uniform(-150, 150), 0), 'unit': 'mbar'}
+                {'value': round(boost + random.uniform(-600, 600), 0), 'unit': 'mbar'}
             ])
 
             self.ingest(0x01, 102, [

@@ -36,6 +36,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
     const [selectedModule, setSelectedModule] = useState<number | null>(null);
     const [dtcs, setDtcs] = useState<DTC[]>([]);
     const [loadingDTCs, setLoadingDTCs] = useState(false);
+    const [dtcError, setDtcError] = useState<string | null>(null);
 
     // Group Subscriptions
     const [group1, setGroup1] = useState<string>('');
@@ -63,7 +64,12 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
 
         const onDtcReport = (data: any) => {
             if (selectedModule !== null && data.module === selectedModule && data.type === 'dtc_report') {
-                setDtcs(data.dtcs || []);
+                if (data.error) {
+                    setDtcError(data.error);
+                } else {
+                    setDtcs(data.dtcs || []);
+                    setDtcError(null);
+                }
                 setLoadingDTCs(false);
             }
         };
@@ -130,6 +136,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
         if (!socket || selectedModule === null) return;
         setLoadingDTCs(true);
         setDtcs([]);
+        setDtcError(null);
         socket.emit('request_dtcs', { module: selectedModule });
     };
 
@@ -137,6 +144,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
         if (!socket || selectedModule === null) return;
         setLoadingDTCs(true);
         setDtcs([]);
+        setDtcError(null);
         socket.emit('clear_dtcs', { module: selectedModule });
     };
 
@@ -208,6 +216,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                                 setGroup3(saved.g3);
                                 setGroupData({});
                                 setDtcs([]);
+                                setDtcError(null);
 
                                 if (saved.g1 && !isNaN(parseInt(saved.g1))) socket?.emit('toggle_group', { action: 'add', module: mod.id, group: parseInt(saved.g1), priority: 'normal' });
                                 if (saved.g2 && !isNaN(parseInt(saved.g2))) socket?.emit('toggle_group', { action: 'add', module: mod.id, group: parseInt(saved.g2), priority: 'normal' });
@@ -240,6 +249,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                         setGroup1(''); setGroup2(''); setGroup3('');
                         setGroupData({});
                         setDtcs([]);
+                        setDtcError(null);
                     }}
                 >
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -282,8 +292,9 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                 <div style={{ ...styles.panel, backgroundColor: theme.surfaceContainer || 'rgba(0,0,0,0.3)', flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', boxSizing: 'border-box', position: 'relative' }}>
                     <h3 style={{ marginTop: 0, borderBottom: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}`, paddingBottom: '8px', flexShrink: 0 }}>Fault Codes</h3>
                     <div style={{ overflowY: 'auto', flexGrow: 1, minHeight: 0 }}>
-                        {dtcs.length === 0 && !loadingDTCs && <div style={{ padding: '10px', opacity: 0.7 }}>No fault codes found.</div>}
+                        {dtcs.length === 0 && !loadingDTCs && !dtcError && <div style={{ padding: '10px', opacity: 0.7 }}>No fault codes found.</div>}
                         {loadingDTCs && <div style={{ padding: '10px', opacity: 0.7 }}>Querying module...</div>}
+                        {dtcError && <div style={{ padding: '10px', color: 'rgba(255, 60, 60, 0.9)' }}>Error: {dtcError}</div>}
                         {dtcs.map((dtc, i) => (
                             <div key={i} style={{ padding: '10px', borderBottom: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}`, display: 'flex', flexDirection: 'column' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>

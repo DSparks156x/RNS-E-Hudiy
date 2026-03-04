@@ -470,8 +470,22 @@ class TP2Service:
                                 
                             if not resp:
                                 logger.error(f"Mod 0x{mod_id:02X} No response for DTC request.")
+                                payload = {
+                                    'module': mod_id,
+                                    'type': 'dtc_report',
+                                    'dtcs': [],
+                                    'error': 'No response for DTC request'
+                                }
+                                self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
                             elif resp[0] == 0x7F:
                                 logger.warning(f"Mod 0x{mod_id:02X} DTC Request Rejected (NRC): {resp}")
+                                payload = {
+                                    'module': mod_id,
+                                    'type': 'dtc_report',
+                                    'dtcs': [],
+                                    'error': f'Request Rejected (NRC {resp[2]:02X})' if len(resp) > 2 else 'Request Rejected'
+                                }
+                                self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
                             elif resp[0] in [0x58, 0x53]:
                                 count = resp[1]
                                 dtc_data = resp[2:]
@@ -521,9 +535,25 @@ class TP2Service:
                                 }
                                 self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
                                 logger.info(f"Published Mod 0x{mod_id:02X} DTCs: {dtc_list}")
+                            else:
+                                logger.warning(f"Mod 0x{mod_id:02X} Unexpected DTC response: {resp}")
+                                payload = {
+                                    'module': mod_id,
+                                    'type': 'dtc_report',
+                                    'dtcs': [],
+                                    'error': f'Unexpected response: {resp[0]:02X}'
+                                }
+                                self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
                             
                         except Exception as e:
                             logger.error(f"Mod 0x{mod_id:02X} DTC Error: {e}")
+                            payload = {
+                                'module': mod_id,
+                                'type': 'dtc_report',
+                                'dtcs': [],
+                                'error': f'Error reading DTCs: {str(e)}'
+                            }
+                            self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
                             
                         # Clear flag and set a cooldown so we don't spam requests if the UI bugs out
                         session['pending_dtc_req'] = False

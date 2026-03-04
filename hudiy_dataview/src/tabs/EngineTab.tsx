@@ -24,26 +24,20 @@ export function EngineTab() {
         {/* Left Column: Air & Boost */}
         <div className="engine-col">
           <div className="gauge-title">Mass Air Flow</div>
-          <Gauge id="gauge_maf" groupKey="1:3" index={1} min={0} max={400} label={['g/s', '']} sizeClass="gauge-sm" />
+          <Gauge id="gauge_maf" groupKey="1:3" index={1} min={0} max={400} label={['g/s', '']} sizeClass="gauge-md" />
           <div className="gauge-title">Boost</div>
-          <Gauge id="gauge_boost" groupKey="1:115" index={3} min={0} max={3000} label={['mbar', 'Actual']} sizeClass="gauge-sm" />
-          <div className="stat-list">
-            <div className="stat-row">
-              <span className="stat-label">Request</span>
-              <span className="stat-value"><LiveText groupKey="1:115" index={2} format={(v) => `${fmtInt(v)} mbar`} /></span>
-            </div>
-          </div>
+          <Gauge id="gauge_boost" groupKey="1:115" index={3} min={0} max={3000} label={['mbar', <div style={{ display: 'flex', justifyContent: 'center', width: '120px', margin: '0 auto' }}><span style={{ flex: 1, textAlign: 'right', color: 'var(--on-surface)', fontWeight: 'bold' }}>Actual</span><span style={{ margin: '0 6px', opacity: 0.5 }}>|</span><span style={{ flex: 1, textAlign: 'left', color: 'var(--primary)', fontWeight: 'normal' }}>Specified</span></div>]} sizeClass="gauge-md" decimals={0} markerGroupKey="1:115" markerIndex={2} markerDecimals={0} />
         </div>
 
         {/* Center Column: Performance */}
         <div className="engine-col perf-col">
           <div className="perf-top">
             <div className="rpm-display">
-              <div className="stat-label">Engine Speed</div>
+              <div className="gauge-title">Engine Speed</div>
               <span className="value-md"><LiveText groupKey="1:3" index={0} format={(v) => `${fmtInt(v)} /min`} /></span>
             </div>
             <div className="ign-display">
-              <div className="stat-label">Ignition</div>
+              <div className="gauge-title">Timing Advance</div>
               <span className="stat-value-lg"><LiveText groupKey="1:3" index={3} format={fmtIgn} /></span>
             </div>
           </div>

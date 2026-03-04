@@ -9,8 +9,8 @@ interface InjectionBarProps {
 export function InjectionBar({ groupKey, index }: InjectionBarProps) {
   const mv = useLiveValue(groupKey, index, 0);
 
-  // Typical injection time at idle is ~1-3ms, WOT might be 15-20ms. Max 25ms.
-  const maxTime = 25.0;
+  // Typical injection time at idle is ~1-3ms
+  const maxTime = 10.0;
 
   const pctString = useTransform(mv, (val) => {
     const v = typeof val === 'number' ? val : (isNaN(parseFloat(val)) ? 0 : parseFloat(val));
