@@ -422,10 +422,12 @@ class TP2BridgeHandler(ClientEventHandler):
             script_dir = os.path.dirname(os.path.abspath(__file__))
             updater_script = os.path.join(script_dir, "update_rnse.sh")
             
-            # Ensure DISPLAY is set for X11 apps like lxterminal
+            # Ensure Wayland environment variables are set for foot
             env = os.environ.copy()
-            if "DISPLAY" not in env:
-                env["DISPLAY"] = ":0"
+            if "WAYLAND_DISPLAY" not in env:
+                env["WAYLAND_DISPLAY"] = "wayland-1"
+            if "XDG_RUNTIME_DIR" not in env:
+                env["XDG_RUNTIME_DIR"] = "/run/user/1000"
             
             # Execute the script in the terminal
             subprocess.Popen(["foot", "--fullscreen", "bash", updater_script], env=env)
