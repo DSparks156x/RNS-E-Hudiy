@@ -295,9 +295,10 @@ class NavApp(BaseApp):
         street_display = self._scroll_text(street, 'nav_street', 14, 400, align='center')
 
         # Clear street area (max width 60 so we don't wipe the progress bar at X=61)
-        # Using clear_area for the text line
+        # Using clear_area for the text line, but ONLY trigger when the actual street string changes!
         commands.append({
-            'group': 'street',
+            'group': 'street_clear',
+            '_ref': street,
             'cmd': 'clear_area',
             'x': 0, 'y': 39, 'w': 60, 'h': 9
         })
