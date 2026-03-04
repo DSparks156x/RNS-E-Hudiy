@@ -6,20 +6,27 @@ import os
 import sys
 
 def run_test():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mock', action='store_true', help='Connect to DIS Emulator (TCP 5557)')
+    args = parser.parse_args()
+
     # Load config to get the IPC address, or default to standard location
     config_path = '/home/pi/config.json'
     # Fallback to local config if present (e.g., ran from project root)
     if not os.path.exists(config_path) and os.path.exists('./config.json'):
         config_path = './config.json'
 
-    try:
-        with open(config_path) as f:
-            config = json.load(f)
-        config_addr = config['zmq']['dis_draw']
-    except Exception as e:
-        print(f"Failed to load config from {config_path}: {e}")
-        config_addr = "ipc:///run/rnse_control/dis_draw.ipc"
-        print(f"Falling back to default addr: {config_addr}")
+    if args.mock:
+        config_addr = "tcp://127.0.0.1:5557"
+    else:
+        try:
+            with open(config_path) as f:
+                config = json.load(f)
+            config_addr = config['zmq']['dis_draw']
+        except Exception as e:
+            config_addr = "tcp://127.0.0.1:5557"
+            print(f"Assuming mock/emulator mode: {config_addr}")
 
     print(f"Connecting to {config_addr}...")
     context = zmq.Context()
@@ -35,7 +42,9 @@ def run_test():
     
     # 1. Full wipe to start clean
     print("Full clear...")
-    draw.send_json({'command': 'clear'})
+    # 'clear' operates on the back buffer, clear_area bypasses directly to LCD
+    # Central area: x=0, y=0, w=64, h=48
+    draw.send_json({'command': 'clear_area', 'x': 0, 'y': 0, 'w': 64, 'h': 48})
     draw.send_json({'command': 'commit'})
     time.sleep(1)
 

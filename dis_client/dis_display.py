@@ -495,6 +495,8 @@ class DisplayEngine:
                             from icons import BITMAPS
                             bmp = BITMAPS.get(icon_key.upper())
                             payload = {'command': 'draw_bitmap', 'icon_name': icon_key, 'x': item.get('x', 0), 'y': item.get('y', 0)}
+                            if 'mode_flag' in item:
+                                payload['mode_flag'] = item['mode_flag']
                             if bmp:
                                 payload.update({'w': bmp['w'], 'h': bmp['h'], 'data': bmp['data']})
                             self._send_draw(payload)

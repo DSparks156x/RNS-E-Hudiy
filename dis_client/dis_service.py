@@ -69,6 +69,11 @@ class DisService:
         self.command_cache = {} 
         self.ENABLE_INACTIVITY_RELEASE = False
 
+        # Default region: 'central'
+        self.region_name = 'central'
+        self.region_y_offset = 0x1B
+        self.region_height = 0x30
+
     @property
     def screen_is_active(self):
         return self._screen_is_active
@@ -94,7 +99,7 @@ class DisService:
             logger.warning("Cannot claim screen, session not READY.")
             return False
         
-        payload_claim = [0x52, 0x05, 0x82, 0x00, 0x1B, 0x40, 0x30]
+        payload_claim = [0x52, 0x05, 0x82, 0x00, self.region_y_offset, 0x40, self.region_height]
         payload_busy  = [0x53, 0x84]
         payload_free  = [0x53, 0x05]
         payload_ready = [0x2E]
@@ -135,14 +140,14 @@ class DisService:
                 logger.error(f"Failed to claim screen (WHITE path): {e}")
                 return False
             
-        logger.info("Region Claim handshake successful. Screen is active.")
+        logger.info(f"Region Claim '{self.region_name}' handshake successful. Screen is active.")
         self.screen_is_active = True
         self.last_draw_time = time.time()
         return True
 
     def clear_screen_payload(self):
-        logger.info("Queueing Region Clear")
-        payload = [0x52, 0x05, 0x02, 0x00, 0x1B, 0x40, 0x30]
+        logger.info(f"Queueing Region Clear for {self.region_name}")
+        payload = [0x52, 0x05, 0x02, 0x00, self.region_y_offset, 0x40, self.region_height]
         if not self.ddp.send_ddp_frame(payload):
             logger.error("Failed to send clear payload.")
 
@@ -151,13 +156,13 @@ class DisService:
         Explicitly clears a specific rectangle to BLACK.
         Used to erase artifacts or Red Highlights.
         """
-        abs_y = y + 0x1B
+        abs_y = y + self.region_y_offset
         # Flag 0x02: Clear(Bit 7=0), Clear(Bit 1=1), Black(Bit 0=0)
         payload = [0x52, 0x05, 0x02, x, abs_y, w, h]
         self.ddp.send_ddp_frame(payload)
         
         # Reset Window
-        payload_reset = [0x52, 0x05, 0x00, 0x00, 0x1B, 0x40, 0x30]
+        payload_reset = [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
         self.ddp.send_ddp_frame(payload_reset)
 
     def write_text(self, text: str, x: int, y: int, flags: int = 0x06):
@@ -168,7 +173,7 @@ class DisService:
         
         if is_inverted:
             # INVERTED MODE (Red Background)
-            abs_y = y + 0x1B
+            abs_y = y + self.region_y_offset
             width = 64
             height = 9
             
@@ -184,7 +189,7 @@ class DisService:
             self.ddp.send_ddp_frame(payload_text)
             
             # 3. Reset Window
-            payload_reset = [0x52, 0x05, 0x00, 0x00, 0x1B, 0x40, 0x30]
+            payload_reset = [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
             self.ddp.send_ddp_frame(payload_reset)
             
         else:
@@ -198,7 +203,7 @@ class DisService:
             payload = [0x57, len(chars) + 3, final_text_flags, x, y] + chars
             self.ddp.send_ddp_frame(payload)
 
-    def draw_bitmap(self, x: int, y: int, icon_name: str):
+    def draw_bitmap(self, x: int, y: int, icon_name: str, mode_flag: int = 0x02):
         if not icon_name or icon_name not in BITMAPS:
             logger.error(f"Bitmap icon '{icon_name}' not found.")
             return
@@ -207,7 +212,7 @@ class DisService:
         w = icon['w']
         h = icon['h']
         data = icon['data']
-        abs_y = y + 0x1B
+        abs_y = y + self.region_y_offset
 
         payload_clip = [0x52, 0x05, 0x00, x, abs_y, w, h]
         if not self.ddp.send_ddp_frame(payload_clip): return
@@ -222,12 +227,12 @@ class DisService:
             end_byte = start_byte + (rows_to_send * bytes_per_row)
             chunk_data = data[start_byte:end_byte]
             chunk_y = i 
-            payload_bmp = [0x55, len(chunk_data) + 3, 0x02, 0x00, chunk_y] + chunk_data
+            payload_bmp = [0x55, len(chunk_data) + 3, mode_flag, 0x00, chunk_y] + chunk_data
             if not self.ddp.send_ddp_frame(payload_bmp): return
 
-        payload_reset = [0x52, 0x05, 0x00, 0x00, 0x1B, 0x40, 0x30]
+        payload_reset = [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
         self.ddp.send_ddp_frame(payload_reset)
-        logger.info(f"Bitmap '{icon_name}' drawn at Abs({x},{abs_y})")
+        logger.info(f"Bitmap '{icon_name}' drawn at Abs({x},{abs_y}) with flag {mode_flag:#04x}")
 
     def draw_line(self, x: int, y: int, length: int, vertical: bool = True):
         orientation = 0x10 if vertical else 0x20
@@ -242,7 +247,7 @@ class DisService:
 
     def clear_screen(self):
         logger.info("Executing full clear_screen command...")
-        payload_clear = [0x52, 0x05, 0x02, 0x00, 0x1B, 0x40, 0x30]
+        payload_clear = [0x52, 0x05, 0x02, 0x00, self.region_y_offset, 0x40, self.region_height]
         payload_commit = [0x39]
         if not self.ddp.send_ddp_frame(payload_clear + payload_commit):
             logger.error("clear_screen: Failed to send frame.")
@@ -366,6 +371,30 @@ class DisService:
                                 if c in ['clear', 'clear_payload']:
                                     self.command_cache = {}
                                     had_clear = True
+                                elif c == 'set_region':
+                                    r = cmd.get('region', 'central')
+                                    if r == 'full':
+                                        self.region_name = 'full'
+                                        self.region_y_offset = 0x00
+                                        self.region_height = 0x58
+                                    elif r == 'centre_lower':
+                                        self.region_name = 'centre_lower'
+                                        self.region_y_offset = 0x1B
+                                        self.region_height = 0x3D
+                                    elif r == 'top_centre':
+                                        self.region_name = 'top_centre'
+                                        self.region_y_offset = 0x00
+                                        self.region_height = 75 # 0x4B (27 + 48)
+                                    else:
+                                        self.region_name = 'central'
+                                        self.region_y_offset = 0x1B
+                                        self.region_height = 0x30
+                                    
+                                    # Force a re-claim with new boundaries
+                                    if self.screen_is_active:
+                                        self.screen_is_active = False
+                                    self.command_cache = {}
+                                    had_clear = True
                                 elif c in ['draw_text', 'draw_bitmap', 'draw_line']:
                                     k = (c, cmd.get('y', 0), cmd.get('x', 0))
                                     self.command_cache[k] = cmd
@@ -388,6 +417,35 @@ class DisService:
                                         self.write_text(cmd.get('text',''), cmd.get('x',0), cmd.get('y',0), cmd.get('flags', 0x06))
                                     elif c == 'draw_bitmap':
                                         self.draw_bitmap(cmd.get('x',0), cmd.get('y',0), cmd.get('icon_name'))
+                                    elif c == 'draw_raw_bitmap':
+                                        try:
+                                            raw_bytes = bytes.fromhex(cmd.get('data_hex', ''))
+                                            w = cmd.get('w', 64)
+                                            h = cmd.get('h', 88)
+                                            x = cmd.get('x', 0)
+                                            y = cmd.get('y', 0)
+                                            mode_flag = cmd.get('mode_flag', 0x02)
+                                            
+                                            abs_y = y + self.region_y_offset
+                                            payload_clip = [0x52, 0x05, 0x00, x, abs_y, w, h]
+                                            if self.ddp.send_ddp_frame(payload_clip):
+                                                bytes_per_row = (w + 7) // 8
+                                                rows_per_chunk = 37 // bytes_per_row
+                                                if rows_per_chunk < 1: rows_per_chunk = 1
+                                                
+                                                for i in range(0, h, rows_per_chunk):
+                                                    start_byte = i * bytes_per_row
+                                                    rows_to_send = min(rows_per_chunk, h - i)
+                                                    end_byte = start_byte + (rows_to_send * bytes_per_row)
+                                                    chunk_data = list(raw_bytes[start_byte:end_byte])
+                                                    chunk_y = i 
+                                                    payload_bmp = [0x55, len(chunk_data) + 3, mode_flag, 0x00, chunk_y] + chunk_data
+                                                    if not self.ddp.send_ddp_frame(payload_bmp): break
+
+                                                payload_reset = [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
+                                                self.ddp.send_ddp_frame(payload_reset)
+                                        except Exception as e:
+                                            logger.error(f"Failed drawing raw bitmap: {e}")
                                     elif c == 'draw_line':
                                         self.draw_line(cmd.get('x',0), cmd.get('y',0), cmd.get('length',0), cmd.get('vertical', True))
                                     elif c == 'commit':

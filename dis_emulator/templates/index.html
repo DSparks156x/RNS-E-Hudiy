@@ -187,6 +187,7 @@
                 <h3>Emulator Settings</h3>
                 <div class="btn-row">
                     <button class="btn" onclick="toggleDisTheme()">Toggle Red/White DIS</button>
+                    <button class="btn" onclick="clearScreen()">Clear Screen</button>
                 </div>
             </div>
 
@@ -373,7 +374,8 @@
         const bCtx = backBuffer.getContext('2d');
 
         // DIS Navigation/Data Region starts at Y=27
-        const REG_Y = 27;
+        let REG_Y = 27;
+        let currentRegion = 'central';
 
         let fpsCount = 0;
         let currentFps = 0;
@@ -388,6 +390,19 @@
             lastAction.innerText = cmd.command.toUpperCase();
 
             switch (cmd.command) {
+                case 'set_region':
+                    currentRegion = cmd.region || 'central';
+                    if (currentRegion === 'full') {
+                        REG_Y = 0;
+                    } else if (currentRegion === 'centre_lower') {
+                        REG_Y = 27;
+                    } else if (currentRegion === 'top_centre') {
+                        REG_Y = 0;
+                    } else {
+                        REG_Y = 27; // central
+                    }
+                    addLog(`Region set to ${currentRegion}`);
+                    break;
                 case 'clear':
                     bCtx.fillStyle = 'black';
                     bCtx.fillRect(0, 0, 64, 88);
@@ -400,6 +415,7 @@
                     drawText(cmd.text, cmd.x || 0, (cmd.y || 0) + REG_Y, cmd.flags || 0x06);
                     break;
                 case 'draw_bitmap':
+                case 'draw_raw_bitmap':
                     // We pass the whole cmd object so we have w, h, and data
                     drawBitmap(cmd, cmd.x || 0, (cmd.y || 0) + REG_Y);
                     break;
@@ -432,15 +448,26 @@
             ctx.drawImage(backBuffer, 0, 0);
         }
 
+        function clearScreen() {
+            handleCommand({ command: 'clear' });
+            handleCommand({ command: 'commit' });
+            addLog("Manual screen clear triggered");
+        }
+
         function drawDividers() {
             // Region dividers
             // Top: 0,0,64,26 (0-25 is top)
             // Center: 0,27,64,50 (27-76 is center)
             // Bottom: 0,78,64,10 (78-87 is bottom)
             // Dividers should be at Y=26 and Y=77
-            drawLine(0, 26, 64, false);
-            drawLine(0, 77, 64, false);
-            drawText("D", 29, 79, 0x06);
+
+            if (currentRegion === 'central' || currentRegion === 'centre_lower') {
+                drawLine(0, 26, 64, false); // top divider
+            }
+            if (currentRegion === 'central' || currentRegion === 'top_centre') {
+                drawLine(0, 77, 64, false); // bottom divider
+                drawText("D", 29, 79, 0x06);
+            }
         }
 
         function drawText(text, x, y, flags) {
@@ -513,9 +540,14 @@
         }
 
         function drawBitmap(cmd, x, y) {
-            // Check if the payload contains raw bitmap data
+            let data = cmd.data;
+            if (!data && cmd.data_hex) {
+                // If it's a raw bitmap payload in hex format
+                data = new Uint8Array(cmd.data_hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+            }
+
             const name = cmd.icon_name || "UNKNOWN";
-            if (!cmd.data || !cmd.w || !cmd.h) {
+            if (!data || !cmd.w || !cmd.h) {
                 addLog(`MISSING BMP: ${name}`);
                 bCtx.strokeStyle = 'white';
                 bCtx.strokeRect(x, y, 31, 37);
@@ -524,14 +556,15 @@
 
             const w = cmd.w;
             const h = cmd.h;
-            const data = cmd.data;
             const bytesPerRow = Math.ceil(w / 8);
+            const mode = cmd.mode_flag !== undefined ? cmd.mode_flag : 0x02;
 
-            // Clear the bitmap area first to prevent ghosting
-            bCtx.fillStyle = 'black';
-            bCtx.fillRect(x, y, w, h);
+            // Mode 0x02 is the only mode that implicitly clears the entire bounding box first natively
+            if (mode === 0x02) {
+                bCtx.fillStyle = 'black';
+                bCtx.fillRect(x, y, w, h);
+            }
 
-            bCtx.fillStyle = currentDisColor; // DIS Theme Color
             let byteIdx = 0;
             for (let i = 0; i < h; i++) {
                 let currentX = 0;
@@ -541,9 +574,27 @@
                     // MSB first
                     for (let bit = 7; bit >= 0; bit--) {
                         if (currentX >= w) break;
-                        if ((byteVal >> bit) & 1) {
-                            bCtx.fillRect(x + currentX, y + i, 1, 1);
+                        const bitVal = (byteVal >> bit) & 1;
+
+                        if (mode === 0x00) { // Erase 
+                            if (bitVal) {
+                                bCtx.fillStyle = 'black';
+                                bCtx.fillRect(x + currentX, y + i, 1, 1);
+                            }
+                        } else if (mode === 0x01) { // Invert (Not implemented inside canvas loop easily)
+                            // Skipping inversion implementation for now
+                        } else if (mode === 0x02) { // Draw
+                            if (bitVal) {
+                                bCtx.fillStyle = currentDisColor;
+                                bCtx.fillRect(x + currentX, y + i, 1, 1);
+                            }
+                        } else if (mode === 0x03) { // Set
+                            if (bitVal) {
+                                bCtx.fillStyle = currentDisColor;
+                                bCtx.fillRect(x + currentX, y + i, 1, 1);
+                            }
                         }
+
                         currentX++;
                     }
                 }
