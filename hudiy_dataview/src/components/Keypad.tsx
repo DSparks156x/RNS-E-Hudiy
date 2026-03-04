@@ -79,7 +79,7 @@ export function Keypad({ value, onChange, onClose, onSubmit }: KeypadProps) {
                 <button onClick={() => handleKey('1')} style={btnBaseStyle}>1</button>
                 <button onClick={() => handleKey('2')} style={btnBaseStyle}>2</button>
                 <button onClick={() => handleKey('3')} style={btnBaseStyle}>3</button>
-                <button onClick={() => handleIncrement(1)} style={{ ...btnBaseStyle, gridRow: 'span 2', backgroundColor: theme.secondaryFixed || '#3a3a3a', color: theme.onSecondaryContainer || '#000' }}>
+                <button onClick={() => handleIncrement(1)} style={{ ...btnBaseStyle, gridRow: 'span 2', backgroundColor: theme.secondary || '#3a3a3a', color: theme.onSecondary || '#fff' }}>
                     <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="18 15 12 9 6 15"></polyline>
                     </svg>
@@ -94,7 +94,7 @@ export function Keypad({ value, onChange, onClose, onSubmit }: KeypadProps) {
                 <button onClick={() => handleKey('7')} style={btnBaseStyle}>7</button>
                 <button onClick={() => handleKey('8')} style={btnBaseStyle}>8</button>
                 <button onClick={() => handleKey('9')} style={btnBaseStyle}>9</button>
-                <button onClick={() => handleIncrement(-1)} style={{ ...btnBaseStyle, gridRow: 'span 2', backgroundColor: theme.secondaryFixed || '#3a3a3a', color: theme.onSecondaryContainer || '#000' }}>
+                <button onClick={() => handleIncrement(-1)} style={{ ...btnBaseStyle, gridRow: 'span 2', backgroundColor: theme.secondary || '#3a3a3a', color: theme.onSecondary || '#fff' }}>
                     <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="6 9 12 15 18 9"></polyline>
                     </svg>

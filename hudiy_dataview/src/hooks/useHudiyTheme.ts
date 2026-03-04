@@ -58,7 +58,12 @@ const DEFAULT_DEV_THEME: HudiyColorScheme = {
 };
 
 export function useHudiyTheme(socket: Socket | null) {
-    const [theme, setTheme] = useState<HudiyColorScheme>(DEFAULT_DEV_THEME);
+    const [theme, setTheme] = useState<HudiyColorScheme>(() => {
+        if (typeof window !== 'undefined' && window.hudiy?.colorScheme) {
+            return window.hudiy.colorScheme;
+        }
+        return DEFAULT_DEV_THEME;
+    });
 
     // Listen for mock themes emitted from the server (especially useful in Vite dev mode
     // where window.hudiy wasn't injected natively or by Jinja)

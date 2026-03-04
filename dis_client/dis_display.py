@@ -260,12 +260,7 @@ class DisplayEngine:
         while True:
             try:
                 now = time.time()
-                loop_delta = now - self.last_loop
                 self.last_loop = now
-
-                # If loop was frozen for > 1.5s, we might have a backlog of stale inputs.
-                # Signal _handle_can to drain rather than process if it senses a burst.
-                is_stale = loop_delta > 1.5
 
                 socks = dict(self.poller.poll(30))
                 if self.sub_hudiy in socks:
@@ -321,9 +316,7 @@ class DisplayEngine:
                                 except json.JSONDecodeError: pass
                     except zmq.Again: pass
 
-                if self.sub in socks: self._handle_can(skip_processing=is_stale)
-                if is_stale:
-                    logger.warning(f"Engine lag detected ({loop_delta:.2f}s), drained stale inputs")
+                if self.sub in socks: self._handle_can()
                 
                 # Handle Auto-Switch Back Timer
                 if self.auto_switch_back_at > 0 and now > self.auto_switch_back_at:
@@ -391,19 +384,15 @@ class DisplayEngine:
                     self.switch_to_app(self.pre_phone_app_name)
                 self.pre_phone_app_name = None
 
-    def _handle_can(self, skip_processing=False):
+    def _handle_can(self):
         try:
             m_count = 0
-            # If we are skip_processing (draining), we want to wipe the queue completely
-            # Otherwise we limit intake per loop to keep the UI fluid
-            limit = 1000 if skip_processing else 50
+            limit = 50
             
             while m_count < limit:
                 parts = self.sub.recv_multipart(flags=zmq.NOBLOCK)
                 m_count += 1
                 if len(parts) == 2:
-                    if skip_processing: continue
-
                     topic, msg = parts
                     t_str = topic.decode()
                     payload = bytes.fromhex(json.loads(msg)['data_hex'])

@@ -266,7 +266,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                         Clear DTCs
                     </button>
                     <button
-                        style={{ ...styles.actionBtn, backgroundColor: loadingDTCs ? theme.surfaceVariant : theme.primary }}
+                        style={{ ...styles.actionBtn, backgroundColor: loadingDTCs ? theme.surfaceVariant : theme.primaryContainer, color: theme.onPrimaryContainer }}
                         onClick={requestDTCs}
                         disabled={loadingDTCs}
                     >

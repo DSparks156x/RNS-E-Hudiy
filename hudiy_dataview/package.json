@@ -4,10 +4,10 @@
   "type": "module",
   "version": "1.0.0",
   "scripts": {
-    "start": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app.py --mock -d\" \"vite\"",
-    "startl": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app.py --mock -l\" \"vite\"",
+    "start": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app_mock.py --mock -d\" \"vite\"",
+    "startl": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app_mock.py --mock -l\" \"vite\"",
     "build": "vite build",
-    "dev": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app.py --mock\" \"vite\"",
+    "dev": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app_mock.py --mock\" \"vite\"",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
