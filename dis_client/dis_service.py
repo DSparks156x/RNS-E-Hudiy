@@ -411,6 +411,18 @@ class DisService:
                             self.screen_is_active = False
                         else:
                             self.screen_is_active = False
+                
+                # Periodically broadcast state to ensure clients sync up even if they join late
+                now_time = time.time()
+                if now_time - getattr(self, 'last_status_cast', 0) > 1.0:
+                    self.last_status_cast = now_time
+                    state_str = "READY" if self._screen_is_active else "PAUSED"
+                    if getattr(self, 'ddp', None) and self.ddp.state == DDPState.DISCONNECTED:
+                        state_str = "DISCONNECTED"
+                    try:
+                        self.status_pub.send_string(f"DIS_STATE {state_str}", flags=zmq.NOBLOCK)
+                    except: pass
+
                 time.sleep(0.01)
             except Exception as e:
                 logger.error(f"Main loop error: {e}", exc_info=True)
