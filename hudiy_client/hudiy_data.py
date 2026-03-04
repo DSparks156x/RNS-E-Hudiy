@@ -427,8 +427,8 @@ class TP2BridgeHandler(ClientEventHandler):
             if "DISPLAY" not in env:
                 env["DISPLAY"] = ":0"
             
-            # Using -e to execute the script in the terminal
-            subprocess.Popen(["lxterminal", "--fullscreen", "-e", f"bash {updater_script}"], env=env)
+            # Execute the script in the terminal
+            subprocess.Popen(["foot", "--fullscreen", "bash", updater_script], env=env)
 
     def send_command(self, cmd):
         with self.lock:
