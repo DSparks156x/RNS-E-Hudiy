@@ -82,8 +82,11 @@ def extract_deltas(prev_img: Image.Image, curr_img: Image.Image):
 
 def run_test():
     import argparse
+    from PIL import ImageOps
     parser = argparse.ArgumentParser()
     parser.add_argument('--mock', action='store_true', help='Connect to DIS Emulator (TCP 5557)')
+    parser.add_argument('--file', type=str, default='polish_cow.gif', help='Path to the GIF file to play')
+    parser.add_argument('--invert', action='store_true', help='Invert the colors of the GIF')
     args = parser.parse_args()
 
     # Load config to get the IPC address, or default to standard location
@@ -109,7 +112,7 @@ def run_test():
     draw.connect(config_addr)
     time.sleep(1)
     
-    gif_path = "polish-cow-cow.gif"
+    gif_path = args.file
     if not os.path.exists(gif_path):
         print(f"Error: {gif_path} not found.")
         return
@@ -119,9 +122,7 @@ def run_test():
     
     target_size = (64, 88)
     
-    # Store tuples of (Set_Payload, Erase_Payload)
-    delta_frames = []
-    prev_dithered = None
+    frames_dithered = []
     
     for f_idx in range(img.n_frames):
         img.seek(f_idx)
@@ -133,16 +134,21 @@ def run_test():
         offset_y = (target_size[1] - frame.size[1]) // 2
         canvas.paste(frame, (offset_x, offset_y))
         
+        if args.invert:
+            canvas = ImageOps.invert(canvas)
+        
         curr_dithered = canvas.convert('1')
+        frames_dithered.append(curr_dithered)
         
-        # If it's the very first frame, compare against a black canvas
-        if prev_dithered is None:
-            prev_dithered = Image.new('1', target_size, 0)
-            
-        set_payload, erase_payload = extract_deltas(prev_dithered, curr_dithered)
+    delta_frames = []
+    for f_idx in range(len(frames_dithered)):
+        prev_idx = f_idx - 1 if f_idx > 0 else len(frames_dithered) - 1
+        set_payload, erase_payload = extract_deltas(frames_dithered[prev_idx], frames_dithered[f_idx])
         delta_frames.append((set_payload, erase_payload))
-        
-        prev_dithered = curr_dithered
+
+    # To initialize the physical screen before the loop, we need a payload connecting a blank black screen to Frame 0
+    black_canvas = Image.new('1', target_size, 0)
+    prime_set, prime_erase = extract_deltas(black_canvas, frames_dithered[0])
         
     print(f"Computed {len(delta_frames)} delta frames. Starting playback on DIS...")
 
@@ -150,6 +156,24 @@ def run_test():
     draw.send_json({'command': 'clear_area', 'x': 0, 'y': 0, 'w': 64, 'h': 88})
     draw.send_json({'command': 'commit'})
     time.sleep(1)
+
+    print("Priming first frame layout...")
+    if prime_erase:
+        draw.send_json({
+            'command': 'draw_raw_bitmap',
+            'data_hex': prime_erase['data'].hex(),
+            'w': 64, 'h': prime_erase['h'], 'x': 0, 'y': prime_erase['y'],
+            'mode_flag': 0x00
+        })
+    if prime_set:
+        draw.send_json({
+            'command': 'draw_raw_bitmap',
+            'data_hex': prime_set['data'].hex(),
+            'w': 64, 'h': prime_set['h'], 'x': 0, 'y': prime_set['y'],
+            'mode_flag': 0x03
+        })
+    draw.send_json({'command': 'commit'})
+    time.sleep(0.5)
 
     print("Playing optimized deltas (Ctrl+C to stop)...")
     try:
