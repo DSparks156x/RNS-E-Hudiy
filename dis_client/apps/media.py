@@ -54,7 +54,6 @@ class MediaApp(BaseApp):
         lines['line3'] = (album_scroll, self.FLAG_ITEM)
         
         # Standard static fields
-        def fmt(text): return (str(text) if text else "").ljust(16)[:16]
-        lines['line4'] = (fmt(self.time_str), self.FLAG_ITEM)
+        lines['line4'] = (str(self.time_str)[:16], self.FLAG_ITEM)
 
         return lines

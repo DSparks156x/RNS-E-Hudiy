@@ -248,7 +248,6 @@ class DisService:
         payload = [0x39]
         if not self.ddp.send_ddp_frame(payload):
              logger.error("Failed to send commit packet.")
-        time.sleep(0.10)
 
     def clear_screen(self):
         logger.info("Executing full clear_screen command...")

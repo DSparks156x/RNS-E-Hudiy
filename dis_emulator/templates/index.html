@@ -172,6 +172,7 @@
 
             <div class="status-bar">
                 <span id="connStatus">DISCONNECTED</span>
+                <span id="fpsCount" style="text-align: center; color: var(--dis-red); font-weight: bold;">0 FPS</span>
                 <span id="lastAction" style="text-align: right;">IDLE</span>
             </div>
 
@@ -276,6 +277,7 @@
         const log = document.getElementById('log');
         const connStatus = document.getElementById('connStatus');
         const lastAction = document.getElementById('lastAction');
+        const fpsDisplay = document.getElementById('fpsCount');
 
         // State
         let socket = null;
@@ -373,6 +375,15 @@
         // DIS Navigation/Data Region starts at Y=27
         const REG_Y = 27;
 
+        let fpsCount = 0;
+        let currentFps = 0;
+
+        setInterval(() => {
+            currentFps = fpsCount;
+            fpsCount = 0;
+            if (fpsDisplay) fpsDisplay.innerText = currentFps + " FPS";
+        }, 1000);
+
         function handleCommand(cmd) {
             lastAction.innerText = cmd.command.toUpperCase();
 
@@ -396,6 +407,7 @@
                     drawLine(cmd.x || 0, (cmd.y || 0) + REG_Y, cmd.length || 0, cmd.vertical !== false);
                     break;
                 case 'commit':
+                    fpsCount++;
                     drawDividers();
                     ctx.drawImage(backBuffer, 0, 0);
                     break;
@@ -433,6 +445,7 @@
 
         function drawText(text, x, y, flags) {
             const isInverted = (flags & 0x80) !== 0;
+            const isCentered = (flags & 0x20) !== 0; // Native DIS Center Flag
             const fgHex = isInverted ? 'black' : currentDisColor;
             const bgHex = isInverted ? currentDisColor : 'black';
 
@@ -441,6 +454,24 @@
             const CHAR_H = 9;
 
             let currentX = x;
+
+            // Pre-calculate full proportional width if centering is requested
+            if (isCentered) {
+                let totalWidth = 0;
+                for (let i = 0; i < text.length; i++) {
+                    const charCode = text.charCodeAt(i);
+                    const audsciiIndex = charCode < 256 ? AUDSCII[charCode] : 0x20;
+                    const charData = typeof FONT_DATA !== 'undefined' ? FONT_DATA[audsciiIndex] : null;
+                    let charW = CHAR_MAX_W;
+                    if (charData && charData.length === 8) {
+                        charW = charData[0];
+                    }
+                    totalWidth += charW;
+                }
+                // Center it on the 64px wide screen
+                currentX = Math.floor((64 - totalWidth) / 2);
+                if (currentX < 0) currentX = 0;
+            }
 
             for (let i = 0; i < text.length; i++) {
                 const charCode = text.charCodeAt(i);

@@ -476,7 +476,8 @@ class DisplayEngine:
             for item in view:
                 if 'type' in item: continue
                 # Unique random ID if not provided so it's guaranteed to render
-                g = item.get('group') or str(id(item))
+                # Hash the item contents instead of memory id() so identical dictionaries deduplicate
+                g = item.get('group') or str(sorted((k, v) for k, v in item.items() if k != 'group'))
                 if g not in groups_current:
                     groups_current[g] = []
                 groups_current[g].append(item)
@@ -515,6 +516,7 @@ class DisplayEngine:
 
         if self.last_sent.get('groups') is not None:
              self.draw.send_json({'command': 'clear'})
+             self.last_sent['groups'] = None
              self.last_sent['custom_sig'] = None
              for k in self.Y: self.last_sent[k] = None
 

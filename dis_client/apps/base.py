@@ -42,7 +42,7 @@ class BaseApp:
         # Returns Dict (Text Lines) or List (Draw Commands)
         return {}
 
-    def _scroll_text(self, text, key, max_len=14, speed_ms=200, align='left'):
+    def _scroll_text(self, text, key, max_len=14, speed_ms=300, align='left', start_pause_ms=1000, end_pause_ms=250):
         """
         Returns a window of text that scrolls if longer than max_len.
         """
@@ -63,22 +63,24 @@ class BaseApp:
             self._scroll_state[key] = {
                 'offset': 0, 
                 'last_tick': now, 
-                'pause_until': now + 1000
+                'pause_until': now + start_pause_ms
             }
             
         state = self._scroll_state[key]
         
         if now < state['pause_until']:
             offset = state['offset']
-            return text[offset : offset + max_len].ljust(max_len)
+            return text[offset : offset + max_len]
 
         if now - state['last_tick'] > speed_ms:
             state['last_tick'] = now
             state['offset'] += 1
             
-            if state['offset'] + max_len > len(text):
+            if state['offset'] + max_len == len(text):
+                state['pause_until'] = now + speed_ms + end_pause_ms
+            elif state['offset'] + max_len > len(text):
                 state['offset'] = 0
-                state['pause_until'] = now + 1000
+                state['pause_until'] = now + start_pause_ms
             
         offset = state['offset']
-        return text[offset : offset + max_len].ljust(max_len)
+        return text[offset : offset + max_len]

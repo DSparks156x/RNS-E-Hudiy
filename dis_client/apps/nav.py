@@ -288,13 +288,11 @@ class NavApp(BaseApp):
                 street = street.lower().split(p.lower(), 1)[-1]
                 break
         
-        street = street.strip(" .,;").strip()
-        if len(street) > 18:
-            street = street[:15] + "..."
-        
+        # (Removed hardcoded truncation so _scroll_text can actually scroll it)
+        pass
         # Scroll the street name if it's too long (limit to 14 chars as requested)
         # Use a unique key for the scroll state, explicitly set alignment to 'center'
-        street_display = self._scroll_text(street, 'nav_street', 14, 200, align='center')
+        street_display = self._scroll_text(street, 'nav_street', 14, 400, align='center')
 
         # Clear street area (max width 60 so we don't wipe the progress bar at X=61)
         # Using clear_area for the text line
