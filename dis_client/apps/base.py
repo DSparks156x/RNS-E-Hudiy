@@ -5,6 +5,7 @@ class BaseApp:
     FLAG_HEADER = 0x22 # Fixed Width + Protocol Center
     FLAG_WIPE   = 0x02 # Fixed Width + Manual Center (Wipes ghosts)
     FLAG_ITEM   = 0x06 # Compact Font + Left Align
+    FLAG_ITEM_CENTERED = 0x26 # Compact Font + Protocol Center
 
     def __init__(self):
         self.active = False
@@ -41,7 +42,7 @@ class BaseApp:
         # Returns Dict (Text Lines) or List (Draw Commands)
         return {}
 
-    def _scroll_text(self, text, key, max_len=16, speed_ms=200, align='left'):
+    def _scroll_text(self, text, key, max_len=14, speed_ms=200, align='left'):
         """
         Returns a window of text that scrolls if longer than max_len.
         """
@@ -53,7 +54,7 @@ class BaseApp:
             if key in self._scroll_state: del self._scroll_state[key]
             
             if align == 'center':
-                return text.center(max_len)
+                return text.strip() # Return naked string; DIS protocol will center it
             return text # No padding for static left-aligned text
 
         now = time.time() * 1000

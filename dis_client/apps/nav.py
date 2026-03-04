@@ -306,12 +306,10 @@ class NavApp(BaseApp):
         commands.append({
             'group': 'street',
             'cmd': 'draw_text',
-            # Center the 14-char window in the 18-char capable slot (approx)
-            # 14 chars * ~4px = 56px. 64px width. (64-56)/2 = 4px offset.
             'text': street_display, 
-            'x': 4,
+            'x': 0, # X=0 lets DIS automatically center the whole string across the line
             'y': 39, 
-            'flags': 0x06
+            'flags': self.FLAG_ITEM_CENTERED
         })
 
         # 4. Red: Progress bar (Right Edge)
