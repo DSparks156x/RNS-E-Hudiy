@@ -528,26 +528,32 @@ class DisplayEngine:
             prev_flag = self.last_sent_flags.get(k, 0)
             
             if prev_txt != txt or prev_flag != flag:
+                padded_txt = txt
                 
-                must_clear = False
-                
-                # CASE 1: Invert -> Normal transition
+                # Check for inversion transition
                 if (prev_flag & 0x80) and not (flag & 0x80):
-                    must_clear = True
+                    # We must fully clear the line. Use a standard safe width like 15 chars.
+                    target_len = max(len(prev_txt) if prev_txt else 0, 15)
+                else:
+                    # Normal case, check if shrinking
+                    target_len = len(prev_txt) if prev_txt else len(txt)
                 
-                # CASE 2: Partial clear for shrinking text to avoid ghosting
-                if prev_txt and not must_clear:
-                    prev_eff = len(prev_txt.rstrip())
-                    curr_eff = len(txt.rstrip())
-                    if curr_eff < prev_eff:
-                        must_clear = True
+                # If the string shrank or we need a full clear
+                if len(txt) < target_len:
+                    blanks_needed = target_len - len(txt)
+                    blank_char = chr(0x65) # The AUDSCII 'Full Width Space' character mapping
+                    
+                    if flag & 0x20:
+                        # Center Aligned: Pad Symmetrically
+                        left_pad = blanks_needed // 2
+                        right_pad = blanks_needed - left_pad
+                        padded_txt = (blank_char * left_pad) + txt + (blank_char * right_pad)
+                    else:
+                        # Left Aligned: Pad Right
+                        padded_txt = txt + (blank_char * blanks_needed)
                 
-                
-                if must_clear:
-                    self._send_draw({'command': 'clear_area', 'x': 0, 'y': self.Y[k], 'w': 64, 'h': 9})
-                
-                self._send_draw({'command':'draw_text', 'text':txt, 'y':self.Y[k], 'flags':flag})
-                self.last_sent[k] = txt
+                self._send_draw({'command':'draw_text', 'text':padded_txt, 'y':self.Y[k], 'flags':flag})
+                self.last_sent[k] = txt # Store original raw text for comparison
                 self.last_sent_flags[k] = flag
                 changed = True
         
