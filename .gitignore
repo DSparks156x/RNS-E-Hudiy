@@ -1,4 +1,10 @@
+#Node modules
 node_modules/
 
 # Hudiy Dataview React App Build Output
 /hudiy_dataview/static/js/main.js
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
