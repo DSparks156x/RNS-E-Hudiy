@@ -302,14 +302,15 @@ class NavApp(BaseApp):
         pass
         # Scroll the street name if it's too long (limit to 14 chars as requested)
         # Use a unique key for the scroll state, explicitly set alignment to 'center'
-        street_display = self._scroll_text(street, 'nav_street', 14, 400, align='center')
+        street_display = self._scroll_text(street, 'nav_street', 13, 400, align='center')
 
         # To prevent ghosting during scrolling of proportional font characters without 
         # flickering the screen using clear_area (which wipes the bg and causes flicker),
         # we surround the text with the full-width space character (0x65).
         # This implicitly clears the edges as the scrolling text shifts its physical width.
         blank_char = chr(0x1F)
-        street_padded = f"{blank_char*2}{street_display}{blank_char*2}"
+        # Pad to exactly 17 wide (13 max + 2 padding each side) symmetrically 
+        street_padded = street_display.center(17, blank_char)
 
         # No clear_area needed because the blank chars will sweep the edges!
         commands.append({
