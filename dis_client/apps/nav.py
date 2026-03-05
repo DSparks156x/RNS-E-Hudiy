@@ -239,8 +239,8 @@ class NavApp(BaseApp):
             # Average character width approx 5px (including spacing)
             center_x = 49 
             
-            # Use chr(0x65) which is the full width space in AUDSCII, effectively wiping the background
-            blank_char = chr(0x65)
+            # Use chr(0x1F) which is the full width space in AUDSCII, effectively wiping the background
+            blank_char = chr(0x1F)
             val_padded = val_str.center(5, blank_char)
             val_x = center_x - (len(val_padded) * 5 // 2)
 
