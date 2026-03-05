@@ -304,40 +304,53 @@ class NavApp(BaseApp):
         # Use a unique key for the scroll state, explicitly set alignment to 'center'
         street_display = self._scroll_text(street, 'nav_street', 13, 400, align='center')
 
-        # To prevent ghosting during scrolling of proportional font characters without 
-        # flickering the screen using clear_area (which wipes the bg and causes flicker),
-        # we surround the text with the full-width space character (0x65).
-        # This implicitly clears the edges as the scrolling text shifts its physical width.
         blank_char = chr(0x1F)
-        # Pad to exactly 17 wide (13 max + 2 padding each side) symmetrically 
-        street_padded = street_display.center(17, blank_char)
+        
+        # First write a full-width blank block to wipe any previous ghosting artifacts 
+        commands.append({
+            'group': 'street_clear',
+            'cmd': 'draw_text',
+            'text': blank_char * 17, 
+            'x': 0,
+            'y': 39,
+            'flags': self.FLAG_ITEM_CENTERED
+        })
 
-        # No clear_area needed because the blank chars will sweep the edges!
+        # Then draw the actual centered text on top of the blank wiped area
         commands.append({
             'group': 'street',
             'cmd': 'draw_text',
-            'text': street_padded, 
-            'x': 0, # X=0 lets DIS automatically center the whole string across the line
+            'text': street_display, 
+            'x': 0, 
             'y': 39, 
             'flags': self.FLAG_ITEM_CENTERED
         })
 
         # 4. Red: Progress bar (Right Edge)
-        # Clear the entire bar track to avoid artifacts when bar shrinks
-        commands.append({
-            'group': 'bar',
-            'cmd': 'clear_area',
-            'x': 61, 'y': 0, 'w': 3, 'h': 48
-        })
+        # To ensure the bar is drawn ON TOP of the text padding wipe, we group it with 'street'
+        # so whenever the street updates (every tick due to scrolling), the bar is refreshed.
+        
+        last_bar_h = getattr(self, 'last_bar_h', 0)
+        
+        # If the bar SHRINKS (meaning distance increased, e.g. a new maneuver started)
+        # We must clear the old pixels from the top.
+        if bar_h < last_bar_h:
+            commands.append({
+                'group': 'street',
+                'cmd': 'clear_area',
+                'x': 61, 'y': 0, 'w': 3, 'h': 48
+            })
+            
+        self.last_bar_h = bar_h
 
         if bar_h > 0:
             start_y = 48 - bar_h # Anchor to bottom (Y=48)
             
             # Draw 3 vertical lines for a thick bar
             commands += [
-                {'group': 'bar', 'cmd': 'draw_line', 'x': 61, 'y': start_y, 'len': bar_h, 'vert': True},
-                {'group': 'bar', 'cmd': 'draw_line', 'x': 62, 'y': start_y, 'len': bar_h, 'vert': True},
-                {'group': 'bar', 'cmd': 'draw_line', 'x': 63, 'y': start_y, 'len': bar_h, 'vert': True},
+                {'group': 'street', 'cmd': 'draw_line', 'x': 61, 'y': start_y, 'len': bar_h, 'vert': True},
+                {'group': 'street', 'cmd': 'draw_line', 'x': 62, 'y': start_y, 'len': bar_h, 'vert': True},
+                {'group': 'street', 'cmd': 'draw_line', 'x': 63, 'y': start_y, 'len': bar_h, 'vert': True},
             ]
 
         return commands

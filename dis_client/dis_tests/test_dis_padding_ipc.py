@@ -65,14 +65,6 @@ def run_test():
         else:
             print("WARNING: No character maps to 0x65 in audscii_trans!")
             
-        # Look for any index that maps to 0xD7
-        mapped_indices_D7 = [i for i, x in enumerate(audscii_trans) if x == 0xD7]
-        if mapped_indices_D7:
-            char_after_map_D7 = chr(mapped_indices_D7[0])
-            print(f"Found char mapped TO 0xD7: chr({mapped_indices_D7[0]}) (0x{mapped_indices_D7[0]:02X})")
-        else:
-            print("WARNING: No character maps to 0xD7 in audscii_trans!")
-            
     except ImportError as e:
         print(f"Could not load icons.py: {e}")
 
@@ -109,32 +101,7 @@ def run_test():
             sys.stdout.write(f"\rCycle {i+1}/10 sent   ")
             sys.stdout.flush()
             time.sleep(0.5)
-        print()
-    else:
-        print("\n--- Test 2: (SKIPPED) ---")
-        print("No index in audscii_trans outputs 0x65. Cannot send 0x65 to display via standard map.")
 
-    # TEST 3
-    print("\n--- Test 3: Clear line with char mapped to 0xD7 ---")
-    print("This alternates between drawing a FULL WIDTH string and sending a single character that maps to 0xD7.")
-    print("If it works, the line should completely vanish and reappear without a clear_area command.")
-    
-    if char_after_map_D7:
-        for i in range(6):
-            if i % 2 == 0:
-                text = "ABCDEFGHIJ"
-            else:
-                text = char_after_map_D7
-                
-            draw.send_json({'command': 'draw_text', 'text': text, 'x': 0, 'y': 31, 'flags': 0x06})
-            draw.send_json({'command': 'commit'})
-            
-            sys.stdout.write(f"\rCycle {i+1}/6 sent   ")
-            sys.stdout.flush()
-            time.sleep(1.5)
-        print()
-    else:
-        print("Skipping Test 3: No mapping for 0xD7 found.")
 
     print("\nTest complete. Clearing in 2 seconds...")
     time.sleep(2)
