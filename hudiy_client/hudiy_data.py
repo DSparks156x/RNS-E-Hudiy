@@ -424,10 +424,17 @@ class TP2BridgeHandler(ClientEventHandler):
             
             # Ensure Wayland environment variables are set for foot
             env = os.environ.copy()
-            if "WAYLAND_DISPLAY" not in env:
-                env["WAYLAND_DISPLAY"] = "wayland-1"
             if "XDG_RUNTIME_DIR" not in env:
                 env["XDG_RUNTIME_DIR"] = "/run/user/1000"
+
+            if "WAYLAND_DISPLAY" not in env:
+                import glob
+                w_sock = glob.glob(os.path.join(env["XDG_RUNTIME_DIR"], "wayland-*"))
+                w_sock = [s for s in w_sock if not s.endswith(".lock")]
+                if w_sock:
+                    env["WAYLAND_DISPLAY"] = os.path.basename(w_sock[0])
+                else:
+                    env["WAYLAND_DISPLAY"] = "wayland-1"
             
             # Execute the script in the terminal
             subprocess.Popen(["foot", "--fullscreen", "bash", updater_script], env=env)

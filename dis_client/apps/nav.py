@@ -267,7 +267,7 @@ class NavApp(BaseApp):
                 })
         else:
             # Just push empty padded spaces to clear the old distance cleanly
-            blank_char = chr(0x65)
+            blank_char = chr(0x1F)
             commands.append({
                 'group': 'dist',
                 'cmd': 'draw_text',
@@ -308,7 +308,7 @@ class NavApp(BaseApp):
         # flickering the screen using clear_area (which wipes the bg and causes flicker),
         # we surround the text with the full-width space character (0x65).
         # This implicitly clears the edges as the scrolling text shifts its physical width.
-        blank_char = chr(0x65)
+        blank_char = chr(0x1F)
         street_padded = f"{blank_char*2}{street_display}{blank_char*2}"
 
         # No clear_area needed because the blank chars will sweep the edges!
