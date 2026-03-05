@@ -310,10 +310,10 @@ class NavApp(BaseApp):
         commands.append({
             'group': 'street_clear',
             'cmd': 'draw_text',
-            'text': blank_char * 17, 
+            'text': blank_char * 11, 
             'x': 0,
             'y': 39,
-            'flags': self.FLAG_ITEM_CENTERED
+            'flags': self.FLAG_ITEM
         })
 
         # Then draw the actual centered text on top of the blank wiped area
