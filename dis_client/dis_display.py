@@ -543,7 +543,7 @@ class DisplayEngine:
                 # If the string shrank or we need a full clear
                 if len(txt) < target_len:
                     blanks_needed = target_len - len(txt)
-                    blank_char = chr(0x65) # The AUDSCII 'Full Width Space' character mapping
+                    blank_char = chr(0x1F) # The AUDSCII 'Full Width Space' character mapping
                     
                     if flag & 0x20:
                         # Center Aligned: Pad Symmetrically

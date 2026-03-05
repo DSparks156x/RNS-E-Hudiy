@@ -50,19 +50,29 @@ def run_test():
     time.sleep(1)
 
     char_before_map = chr(0x65)
-    char_after_map = None
+    char_after_map_65 = None
+    char_after_map_D7 = None
 
     try:
         sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
         from icons import audscii_trans
         
         # Look for any index that maps to 0x65
-        mapped_indices = [i for i, x in enumerate(audscii_trans) if x == 0x65]
-        if mapped_indices:
-            char_after_map = chr(mapped_indices[0])
-            print(f"Found char mapped TO 0x65: chr({mapped_indices[0]})")
+        mapped_indices_65 = [i for i, x in enumerate(audscii_trans) if x == 0x65]
+        if mapped_indices_65:
+            char_after_map_65 = chr(mapped_indices_65[0])
+            print(f"Found char mapped TO 0x65: chr({mapped_indices_65[0]}) (0x{mapped_indices_65[0]:02X})")
         else:
             print("WARNING: No character maps to 0x65 in audscii_trans!")
+            
+        # Look for any index that maps to 0xD7
+        mapped_indices_D7 = [i for i, x in enumerate(audscii_trans) if x == 0xD7]
+        if mapped_indices_D7:
+            char_after_map_D7 = chr(mapped_indices_D7[0])
+            print(f"Found char mapped TO 0xD7: chr({mapped_indices_D7[0]}) (0x{mapped_indices_D7[0]:02X})")
+        else:
+            print("WARNING: No character maps to 0xD7 in audscii_trans!")
+            
     except ImportError as e:
         print(f"Could not load icons.py: {e}")
 
@@ -73,25 +83,25 @@ def run_test():
     draw.send_json({'command': 'commit'})
     time.sleep(2)
     
-    print("Step B: Drawing a FULL LINE (11 chars) of chr(0x65) to see if it clears.")
+    print("Step B: Drawing a FULL LINE (11 chars) of the char mapped to 0x65 to see if it clears.")
     print("If it works, the entire string should disappear without flickering.")
     
-    # Send a string of 11 0x65 characters (66px total width, clears the 64px screen)
-    clear_string = char_before_map * 11
+    # Send a string of 11 characters that map to 0x65 on the display
+    clear_string = char_after_map_65 * 11 if char_after_map_65 else chr(0x65) * 11
     
     draw.send_json({'command': 'draw_text', 'text': clear_string, 'x': 0, 'y': 11, 'flags': 0x06})
     draw.send_json({'command': 'commit'})
     time.sleep(3)
     
     # TEST 2
-    if char_after_map:
+    if char_after_map_65:
         print("\n--- Test 2: Padding with char mapped to 0x65 (After Translation Map) ---")
         print(f"This ensures the physical payload to the DIS receives the literal byte 0x65.")
         for i in range(10):
             text = f"T2CK {i}" if i % 2 == 0 else f"T2CK {i} PADDING"
             target_len = 11
             pad_len = max(0, target_len - len(text))
-            padded_text = text + (char_after_map * pad_len)
+            padded_text = text + (char_after_map_65 * pad_len)
             
             draw.send_json({'command': 'draw_text', 'text': padded_text, 'x': 0, 'y': 21, 'flags': 0x06})
             draw.send_json({'command': 'commit'})
@@ -105,22 +115,26 @@ def run_test():
         print("No index in audscii_trans outputs 0x65. Cannot send 0x65 to display via standard map.")
 
     # TEST 3
-    print("\n--- Test 3: Clear line with single chr(0xD7) ---")
-    print("This alternates between drawing a FULL WIDTH string and sending a single chr(0xD7).")
+    print("\n--- Test 3: Clear line with char mapped to 0xD7 ---")
+    print("This alternates between drawing a FULL WIDTH string and sending a single character that maps to 0xD7.")
     print("If it works, the line should completely vanish and reappear without a clear_area command.")
-    for i in range(6):
-        if i % 2 == 0:
-            text = "ABCDEFGHIJ"
-        else:
-            text = chr(0xD7)
+    
+    if char_after_map_D7:
+        for i in range(6):
+            if i % 2 == 0:
+                text = "ABCDEFGHIJ"
+            else:
+                text = char_after_map_D7
+                
+            draw.send_json({'command': 'draw_text', 'text': text, 'x': 0, 'y': 31, 'flags': 0x06})
+            draw.send_json({'command': 'commit'})
             
-        draw.send_json({'command': 'draw_text', 'text': text, 'x': 0, 'y': 31, 'flags': 0x06})
-        draw.send_json({'command': 'commit'})
-        
-        sys.stdout.write(f"\rCycle {i+1}/6 sent   ")
-        sys.stdout.flush()
-        time.sleep(1.5)
-    print()
+            sys.stdout.write(f"\rCycle {i+1}/6 sent   ")
+            sys.stdout.flush()
+            time.sleep(1.5)
+        print()
+    else:
+        print("Skipping Test 3: No mapping for 0xD7 found.")
 
     print("\nTest complete. Clearing in 2 seconds...")
     time.sleep(2)
