@@ -238,41 +238,51 @@ class NavApp(BaseApp):
             # Configurable horizontal center for the right-side informational area
             # Average character width approx 5px (including spacing)
             center_x = 49 
-
-            # Clear the distance area first (centered around center_x)
-            commands.append({
-                'group': 'dist',
-                'cmd': 'clear_area',
-                'x': center_x - 14, 'y': 0, 'w': 28, 'h': 28 
-            })
+            
+            # Use chr(0x65) which is the full width space in AUDSCII, effectively wiping the background
+            blank_char = chr(0x65)
+            val_padded = val_str.center(5, blank_char)
+            val_x = center_x - (len(val_padded) * 5 // 2)
 
             # Draw numeric value on top
-            val_x = center_x - (len(val_str) * 5 // 2)
             commands.append({
                 'group': 'dist',
                 'cmd': 'draw_text',
-                'text': val_str,
+                'text': val_padded,
                 'x': val_x,
                 'y': 10,
                 'flags': 0x06 # Compact Font
             })
             # Draw units below if present
             if unit_str:
-                unit_x = center_x - (len(unit_str) * 5 // 2)
+                unit_padded = unit_str.center(4, blank_char)
+                unit_x = center_x - (len(unit_padded) * 5 // 2)
                 commands.append({
                     'group': 'dist',
                     'cmd': 'draw_text',
-                    'text': unit_str,
+                    'text': unit_padded,
                     'x': unit_x,
                     'y': 19,
                     'flags': 0x06
                 })
         else:
-            # Always ensure the distance area is conceptually cleared if there is no data
+            # Just push empty padded spaces to clear the old distance cleanly
+            blank_char = chr(0x65)
             commands.append({
                 'group': 'dist',
-                'cmd': 'clear_area',
-                'x': 35, 'y': 0, 'w': 28, 'h': 28 
+                'cmd': 'draw_text',
+                'text': blank_char * 5,
+                'x': 49 - (5 * 5 // 2),
+                'y': 10,
+                'flags': 0x06
+            })
+            commands.append({
+                'group': 'dist',
+                'cmd': 'draw_text',
+                'text': blank_char * 4,
+                'x': 49 - (4 * 5 // 2),
+                'y': 19,
+                'flags': 0x06
             })
 
         # 3. Street name (bottom, centered)
@@ -294,18 +304,18 @@ class NavApp(BaseApp):
         # Use a unique key for the scroll state, explicitly set alignment to 'center'
         street_display = self._scroll_text(street, 'nav_street', 14, 400, align='center')
 
-        # Clear street area (max width 60 so we don't wipe the progress bar at X=61)
-        # Using clear_area for the text line, but ONLY trigger when the actual street string changes!
-        commands.append({
-            'group': 'street_clear',
-            '_ref': street,
-            'cmd': 'clear_area',
-            'x': 0, 'y': 39, 'w': 60, 'h': 9
-        })
+        # To prevent ghosting during scrolling of proportional font characters without 
+        # flickering the screen using clear_area (which wipes the bg and causes flicker),
+        # we surround the text with the full-width space character (0x65).
+        # This implicitly clears the edges as the scrolling text shifts its physical width.
+        blank_char = chr(0x65)
+        street_padded = f"{blank_char*2}{street_display}{blank_char*2}"
+
+        # No clear_area needed because the blank chars will sweep the edges!
         commands.append({
             'group': 'street',
             'cmd': 'draw_text',
-            'text': street_display, 
+            'text': street_padded, 
             'x': 0, # X=0 lets DIS automatically center the whole string across the line
             'y': 39, 
             'flags': self.FLAG_ITEM_CENTERED
