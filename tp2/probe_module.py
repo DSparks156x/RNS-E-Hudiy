@@ -30,7 +30,15 @@ def probe_connect(module_id: int) -> TP2Protocol | None:
     Attempt TP2.0 connection with verbose output.
     Returns connected protocol or None on failure.
     """
-    proto = TP2Protocol(channel='can0')
+    import os, json
+    can_channel = 'can0'
+    try:
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.json')) as f:
+            can_channel = json.load(f).get('can_interfaces', {}).get('diagnostic', 'can0')
+    except Exception:
+        pass
+
+    proto = TP2Protocol(channel=can_channel)
     print(f"\n{'='*60}")
     print(f"  PROBE: Module 0x{module_id:02X}")
     print(f"{'='*60}")

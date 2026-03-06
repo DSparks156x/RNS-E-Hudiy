@@ -36,6 +36,7 @@ class TP2Service:
             self.addr_ignition = self.config['zmq'].get('system_events', 'ipc:///run/rnse_control/base_events.ipc')
             self.addr_pub = self.config['zmq'].get('tp2_stream', 'ipc:///run/rnse_control/tp2_stream.ipc') 
             self.addr_rep = self.config['zmq'].get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
+            self.can_interface = self.config.get('can_interfaces', {}).get('diagnostic', 'can0')
 
             self.ignition_sub = self.context.socket(zmq.SUB)
             self.ignition_sub.connect(self.addr_ignition)
@@ -46,6 +47,7 @@ class TP2Service:
             self.ignition_sub = None
             self.addr_pub = 'ipc:///run/rnse_control/tp2_stream.ipc'
             self.addr_rep = 'ipc:///run/rnse_control/tp2_cmd.ipc'
+            self.can_interface = 'can0'
 
         # Publisher (Data)
         self.pub = self.context.socket(zmq.PUB)
@@ -80,7 +82,7 @@ class TP2Service:
         logger.info(f"Creating new session for Module 0x{module_id:02X} (TesterID: 0x{tester_id:X})")
         
         # Protocol creation (Lightweight, actual open happens in Main Thread)
-        proto = TP2Protocol(channel='can0', tester_id=tester_id)
+        proto = TP2Protocol(channel=self.can_interface, tester_id=tester_id)
             
         session = {
             'protocol': proto,

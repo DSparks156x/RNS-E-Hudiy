@@ -8,8 +8,16 @@ from dtc_lookup import lookup_dtc
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
-def read_dtcs():
-    protocol = TP2Protocol(channel='can0')
+def main():
+    import os, json
+    can_channel = 'can0'
+    try:
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.json')) as f:
+            can_channel = json.load(f).get('can_interfaces', {}).get('diagnostic', 'can0')
+    except Exception:
+        pass
+
+    protocol = TP2Protocol(channel=can_channel)
     logger.info("Connecting to Engine (0x01) to read DTCs...")
     
     try:

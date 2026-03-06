@@ -7,7 +7,15 @@ logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
 def identify_module(mod_id):
-    protocol = TP2Protocol(channel='can0')
+    import os, json
+    can_channel = 'can0'
+    try:
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.json')) as f:
+            can_channel = json.load(f).get('can_interfaces', {}).get('diagnostic', 'can0')
+    except Exception:
+        pass
+
+    protocol = TP2Protocol(channel=can_channel)
     try:
         protocol.open()
         if not protocol.connect(mod_id):

@@ -1,7 +1,10 @@
 {
   "branch": "testing",
   "dis_type": "",
-  "can_interface": "can0",
+  "can_interfaces": {
+    "infotainment": "can0",
+    "diagnostic": "can0"
+  },
   "zmq": {
     "can_raw_stream": "ipc:///run/rnse_control/can_stream.ipc",
     "send_address": "ipc:///run/rnse_control/can_send.ipc",

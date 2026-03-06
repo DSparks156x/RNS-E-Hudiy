@@ -56,7 +56,7 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
 
         # MODIFIED: Added ZMQ send address to config
         CONFIG = {
-            'can_interface': config_data['can_interface'],
+            'infotainment_can_interface': config_data.get('can_interfaces', {}).get('infotainment', 'can0'),
             'zmq_publish_address': config_data['zmq']['can_raw_stream'],
             'zmq_send_address': config_data['zmq']['send_address']
         }
@@ -73,9 +73,9 @@ def initialize_can_bus(retries=5, delay=5):
     global CAN_BUS
     for attempt in range(1, retries + 1):
         try:
-            logger.info(f"Attempting to connect to CAN bus '{CONFIG['can_interface']}'...")
+            logger.info(f"Attempting to connect to CAN bus '{CONFIG['infotainment_can_interface']}'...")
             CAN_BUS = can.interface.Bus(
-                channel=CONFIG['can_interface'],
+                channel=CONFIG['infotainment_can_interface'],
                 bustype='socketcan',
                 receive_own_messages=False
             )

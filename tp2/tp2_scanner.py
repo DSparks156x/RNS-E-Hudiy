@@ -7,7 +7,15 @@ from tp2_protocol import TP2Protocol
 logging.getLogger("tp2_protocol").setLevel(logging.WARNING)
 
 def scan_tp2():
-    protocol = TP2Protocol(channel='can0')
+    import os, json
+    can_channel = 'can0'
+    try:
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.json')) as f:
+            can_channel = json.load(f).get('can_interfaces', {}).get('diagnostic', 'can0')
+    except Exception:
+        pass
+
+    protocol = TP2Protocol(channel=can_channel)
     protocol.open()
     
     print("Starting TP2.0 Module Scan (0x01 - 0x7F)...")
