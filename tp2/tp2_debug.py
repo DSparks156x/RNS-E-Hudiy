@@ -4,8 +4,18 @@ import argparse
 import sys
 
 def main():
+    default_addr = "ipc:///run/rnse_control/tp2_cmd.ipc"
+    try:
+        import os
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(base_dir, 'config.json')) as f:
+            cfg = json.load(f)
+        default_addr = cfg['zmq'].get('tp2_command', default_addr)
+    except Exception:
+        pass
+
     parser = argparse.ArgumentParser(description="TP2 Worker Debugger")
-    parser.add_argument("--addr", type=str, default="ipc:///run/rnse_control/tp2_cmd.ipc", help="TP2 Command Address (default: ipc:///run/rnse_control/tp2_cmd.ipc)")
+    parser.add_argument("--addr", type=str, default=default_addr, help=f"TP2 Command Address (default: {default_addr})")
     args = parser.parse_args()
 
     context = zmq.Context()

@@ -18,6 +18,16 @@ def main():
     
     # Connect to the raw CAN stream from your base function
     ipc_path = "ipc:///run/rnse_control/can_stream.ipc"
+    import os
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(base_dir, 'config.json')) as f:
+            cfg = json.load(f)
+        if 'zmq' in cfg:
+            ipc_path = cfg['zmq'].get('can_raw_stream', ipc_path)
+    except Exception:
+        pass
+
     print(f"Connecting to {ipc_path}...")
     
     try:

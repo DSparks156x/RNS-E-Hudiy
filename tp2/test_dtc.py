@@ -5,9 +5,20 @@ import time
 import sys
 import threading
 
+import os
 # Default IPC addresses based on config.json
 TP2_STREAM_ADDR = "ipc:///run/rnse_control/tp2_stream.ipc"
 TP2_CMD_ADDR = "ipc:///run/rnse_control/tp2_cmd.ipc"
+
+try:
+    _base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(_base_dir, 'config.json')) as _f:
+        _cfg = json.load(_f)
+    if 'zmq' in _cfg:
+        TP2_STREAM_ADDR = _cfg['zmq'].get('tp2_stream', TP2_STREAM_ADDR)
+        TP2_CMD_ADDR = _cfg['zmq'].get('tp2_command', TP2_CMD_ADDR)
+except Exception:
+    pass
 
 def listen_for_dtc():
     context = zmq.Context.instance()

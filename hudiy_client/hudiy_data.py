@@ -488,10 +488,11 @@ class TP2BridgeHandler(ClientEventHandler):
 class HudiyData:
     def __init__(self, config_path='/home/pi/config.json'):
         # --- Load ZMQ Config ---
+        config = None
         try:
             with open(config_path, 'r') as f:
                 config = json.load(f)
-            zmq_addr = config['zmq']['metric_stream']
+            zmq_addr = config['zmq'].get('metric_stream', "ipc:///run/rnse_control/hudiy_stream.ipc")
         except Exception as e:
             logger.warning(f"Config Error: {e}. Using default ZMQ address.")
             zmq_addr = "ipc:///run/rnse_control/hudiy_stream.ipc"
@@ -503,10 +504,9 @@ class HudiyData:
         self.nav_client = None
         
         # TP2 Bridge
-        try:
-            self.tp2_zmq_addr = config['zmq'].get('tp2_command', 'tcp://localhost:5558')
-        except:
-            self.tp2_zmq_addr = 'tcp://localhost:5558'
+        self.tp2_zmq_addr = 'tcp://localhost:5558'
+        if config and 'zmq' in config:
+            self.tp2_zmq_addr = config['zmq'].get('tp2_command', self.tp2_zmq_addr)
             
         self.tp2_handler = TP2BridgeHandler(self.tp2_zmq_addr)
         self.tp2_client = None
