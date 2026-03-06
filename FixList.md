@@ -1,3 +1,13 @@
+## Power management stuff
+* GPIO sleep delay
+    * Currently no delay. Results in the pi getting stuck shutdown if the radio sleeps then wakes before it finishes shutting down. Ie, you unlock the car, dont end up getting in/otherwise doing something to reset the radio sleep time, it begins shutdown, then you open the door or otherwise wake it before it finishes shutting down.
+    * Would be configurable, but ideal delay is another question. 
+* CAN listen only mode
+    * The can0 interface is put into listen only mode when ignition is off. The TP2 worker and DIS Service also pause themselves when ignition is off, but listen only ensures nothing else causes a problem.
+    * Should this have delays? should this be done based on key-in-ignition vs key on? 
+    * Its not really a problem, Diagnostics and DIS start and initalize plenty quick, plus the DIS displays some full screen messages on ignition on (press brake etc) that delay the DIS service regardless. 
+    * Messages being sent causes the radio to remain awake, the TV active message is always sent.  Listen only delay would manipulate how long the radio stays awake. Unsure if it causes wierd issues if bus is kept awake abnormally long by us, or if it could be beneficial. 
+
 ## DIS Stuff
 * Nav Screen Fixes
     * Nav Screen description scroll clearing needs to be fixed. (causes ghost text)
@@ -29,7 +39,7 @@
 
 ## Diagnostic/TP2 Backend stuff.
 * DTC functionality only works on some modules (ECU, transmission), others reject/fail. (ABS, HVAC). They likely need a dif protocol or something. 
-* May generally be possible to make a bit faster
+* May generally be possible to make group reads a bit faster
 * Configurable CAN interface would be nice.. Currently don't see a reason not to just use infotainment can, but maybe possible to pull a bit faster? could be other undiscovered restrictions. 10 read/s with test script feels like a module hard limit though.
 * Poorly named hudiy_status_service / can_service.py is currently responsible for handling the few powertrain status messages on infotainment bus.  It could be expanded to handle powertrain status messages on the powertrain bus if an interface were added. I currently have no need for this, but it would be a useful feature to have.
 * Generally need to fix the decode of the current status messages/add more. Boost works, but formula is slightly off. Load/IAT are wrong. Coolant temp is either a wierd sensor or wrong. 
