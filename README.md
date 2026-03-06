@@ -36,6 +36,7 @@ Im not responsible for thermonuclear war, divorce, timing chain tensioners faili
 
 Feel free to open an issue or message me on forums if you have any questions/suggestions. 
 
+* Known issues can be found in the [Fixlist.md](FixList.md) file, along with roadmap.
 
 ---
 
