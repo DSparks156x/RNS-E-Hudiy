@@ -415,9 +415,9 @@ async def listen_for_can_messages_task(state: AppState):
             sub_stream.transport.subscribe(time_topic.encode('utf-8'))
             logger.info(f"Subscribing to time sync topic: {time_topic}")
             
-        if FEATURES.get('auto_shutdown', {}).get('enabled', False) or FEATURES.get('listen_only_mode', {}).get('enabled', False):
-            sub_stream.transport.subscribe(power_topic.encode('utf-8'))
-            logger.info(f"Subscribing to power status topic: {power_topic}")
+        # Always subscribe to power status (Ignition/Key) because other services (e.g., dis_service, tp2_worker) rely on POWER_STATUS
+        sub_stream.transport.subscribe(power_topic.encode('utf-8'))
+        logger.info(f"Subscribing to power status topic: {power_topic}")
 
         while RUNNING:
             msg = await sub_stream.read()
