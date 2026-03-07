@@ -3,8 +3,8 @@ from .base import BaseApp
 import time
 
 class CarInfoApp(BaseApp):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, config=None):
+        super().__init__(config)
         # Data Store
         self.data = {
             'boost': '--',

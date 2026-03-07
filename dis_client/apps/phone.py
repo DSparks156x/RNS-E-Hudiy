@@ -3,8 +3,8 @@ from .base import BaseApp
 
 class PhoneApp(BaseApp):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, config=None):
+        super().__init__(config)
         self.state = "IDLE"
         self.caller = ""
         self.battery = 0

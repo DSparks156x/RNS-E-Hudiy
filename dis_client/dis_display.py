@@ -26,10 +26,10 @@ class DisplayEngine:
         
         # --- Apps Definition (No Menu) ---
         self.apps = {}
-        self.apps['app_nav']          = NavApp()
-        self.apps['app_media_player'] = MediaApp()
-        self.apps['app_phone']        = PhoneApp()
-        self.apps['app_car']          = CarInfoApp()
+        self.apps['app_nav']          = NavApp(self.cfg)
+        self.apps['app_media_player'] = MediaApp(self.cfg)
+        self.apps['app_phone']        = PhoneApp(self.cfg)
+        self.apps['app_car']          = CarInfoApp(self.cfg)
         # Settings still exists if needed, but not in cycle
         self.apps['app_settings']     = SettingsApp(self) 
 

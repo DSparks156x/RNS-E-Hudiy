@@ -2,8 +2,8 @@
 from .base import BaseApp
 
 class MenuApp(BaseApp):
-    def __init__(self, title, items):
-        super().__init__()
+    def __init__(self, title, items, config=None):
+        super().__init__(config)
         self.title = title
         self.items = items
         self.sel = 0

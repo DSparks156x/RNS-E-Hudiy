@@ -22,6 +22,12 @@
     "units": {
       "speed": "imperial",
       "ambient_temp": "imperial"
+    },
+    "text_scrolling": {
+      "continuous": true,
+      "speed_ms": 400,
+      "start_delay": 0,
+      "end_delay": 0
     }
   },
   "features": {

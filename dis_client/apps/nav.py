@@ -7,8 +7,8 @@ import os
 logger = logging.getLogger(__name__)
 
 class NavApp(BaseApp):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, config=None):
+        super().__init__(config)
         self.maneuver_type = 0      # NavigationManeuverType
         self.maneuver_side = 3      # UNSPECIFIED
         self.maneuver_angle = 0     # 0-360 degrees
@@ -302,7 +302,7 @@ class NavApp(BaseApp):
         pass
         # Scroll the street name if it's too long (limit to 14 chars as requested)
         # Use a unique key for the scroll state, explicitly set alignment to 'center'
-        street_display = self._scroll_text(street, 'nav_street', 13, 400, align='center')
+        street_display = self._scroll_text(street, 'nav_street', 13, align='center')
 
         blank_char = chr(0x1F)
         

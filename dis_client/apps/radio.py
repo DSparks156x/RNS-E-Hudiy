@@ -2,8 +2,8 @@ import sys
 from .base import BaseApp
 
 class RadioApp(BaseApp):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, config=None):
+        super().__init__(config)
         self.top = "Radio"
         self.bot = ""
         self.topics_top = set()

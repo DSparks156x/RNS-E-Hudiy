@@ -4,7 +4,7 @@ import os
 
 class SettingsApp(BaseApp):
     def __init__(self, engine):
-        super().__init__()
+        super().__init__(engine.cfg)
         self.engine = engine
         self.header = "Settings"
         self.items = [
