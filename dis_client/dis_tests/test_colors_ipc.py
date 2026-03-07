@@ -21,7 +21,13 @@ def run_test():
         try:
             with open(config_path) as f:
                 config = json.load(f)
-            config_addr = config['zmq']['dis_draw']
+            
+            # Check new structure first, then legacy
+            zmq_cfg = config.get('interfaces', {}).get('zmq', {})
+            if not zmq_cfg:
+                zmq_cfg = config.get('zmq', {})
+            
+            config_addr = zmq_cfg.get('dis_draw', "tcp://127.0.0.1:5557")
         except Exception as e:
             config_addr = "tcp://127.0.0.1:5557"
             print(f"Assuming mock/emulator mode: {config_addr}")
