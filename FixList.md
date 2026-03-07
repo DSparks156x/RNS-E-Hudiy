@@ -1,3 +1,8 @@
+## Update Stuff
+* Updater Script Config Handling
+   * Make the update/install script back up all configs if they are different, and replace them. rather than leaving them untouched and making you manually update them.
+   * Would back up into a folder with the date - number increment in that folder - config.json/hudiy config folder 
+
 ## Power management stuff
 * GPIO sleep delay
     * Delay added. What is ideal time?
