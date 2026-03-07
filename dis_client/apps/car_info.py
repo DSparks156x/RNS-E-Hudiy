@@ -34,7 +34,11 @@ class CarInfoApp(BaseApp):
                 if len(data) > 0: self.data['oil'] = f"{data[0]['value']}{data[0]['unit']}"
                 if len(data) > 3: self.data['iat'] = f"{data[3]['value']}{data[3]['unit']}"
             elif group == 1: # Performance
-                if len(data) > 1: self.data['boost'] = f"{data[1]['value']}{data[1]['unit']}"
+                if len(data) > 1: 
+                    try:
+                        self.data['boost'] = f"{int(float(data[1]['value']))}mb"
+                    except (ValueError, TypeError):
+                        self.data['boost'] = f"{data[1]['value']}mb"
                 if len(data) > 3: self.data['load'] = f"{data[3]['value']}{data[3]['unit']}"
 
     def get_view(self):
