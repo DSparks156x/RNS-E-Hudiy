@@ -258,22 +258,24 @@ class DisplayEngine:
             self.current_app.handle_input(action)
 
     def _send_draw(self, payload):
-        """Send a JSON command to the DIS service without blocking."""
+        """Send a JSON command to the DIS service without blocking. Returns True if sent."""
         try:
             self.draw.send_json(payload, flags=zmq.NOBLOCK)
+            return True
         except zmq.Again:
             # If the service is stuck, we drop frames rather than backlogging them
-            pass
+            # logger.debug("Draw socket full, dropping frame")
+            return False
         except Exception as e:
             logger.error(f"Draw socket error: {e}")
+            return False
 
     def force_redraw(self, send_clear=False):
-        self.last_sent = {k: None for k in self.Y}
-        self.last_sent['groups'] = {}
-        if send_clear and getattr(self, 'service_ready', True):
+        self.last_sent = {}
+        self.last_sent_flags = {}
+        if send_clear:
             self._send_draw({'command': 'clear'})
             self._send_draw({'command': 'commit'})
-            self.last_sent_flags = {k: 0 for k in self.Y}
 
     def run(self):
         logger.info("DIS Engine V5.8 Running")
@@ -379,7 +381,8 @@ class DisplayEngine:
         current_name = self.pages[self.current_page_idx]
 
         if current_name != 'app_nav':
-            if 0 <= meters <= 200 and man_id != self.last_maneuver_id:
+            # Threshold to switch TO Nav: 200m
+            if 0 <= meters <= 500 and man_id != self.last_maneuver_id:
                 logger.info(f"Maneuver Alert: {meters}m. Switching to Nav.")
                 self.pre_nav_app_name = current_name
                 self.last_maneuver_id = man_id
@@ -388,17 +391,22 @@ class DisplayEngine:
         elif self.pre_nav_app_name:
             # Currently on Nav via auto-switch, check for switch back
             if man_id != self.last_maneuver_id:
+                # Direction changed!
                 if meters > 1000:
+                    # New maneuver is far away, trigger auto-return timer
                     if self.auto_switch_back_at == 0:
-                        logger.info(f"Maneuver finished, next ({meters}m) > 1000m. Switching back in 5s.")
-                        self.auto_switch_back_at = time.time() + 5.0
-                elif 0 <= meters <= 1000:
-                    # Next maneuver is close, stay on nav and update tracker
-                    self.last_maneuver_id = man_id
+                        logger.info(f"Maneuver finished, next ({meters}m) > 1000m. Returning to {self.pre_nav_app_name} in 10s.")
+                        self.auto_switch_back_at = time.time() + 6.0
+                else:
+                    # New maneuver is close, stay on nav and reset timer
                     self.auto_switch_back_at = 0
-            elif 0 <= meters <= 1000:
-                # Keep timer reset if we stay/get close
-                self.auto_switch_back_at = 0
+                
+                # Update tracker so we don't spam timer/logs
+                self.last_maneuver_id = man_id
+            else:
+                # Same maneuver, keep timer reset if we stay/get close
+                if 0 <= meters <= 1000:
+                    self.auto_switch_back_at = 0
 
     def _handle_phone_status(self, data):
         state = data.get('state', 'IDLE')
@@ -486,6 +494,9 @@ class DisplayEngine:
             # Grouping Logic for smart delta updates
             groups_current = {}
             for item in view:
+                if not isinstance(item, dict): # Safety check: ensure item is a dictionary
+                    logger.warning(f"Skipping non-dictionary item in view: {item}")
+                    continue
                 if 'type' in item: continue
                 # Unique random ID if not provided so it's guaranteed to render
                 # Hash the item contents instead of memory id() so identical dictionaries deduplicate
@@ -497,10 +508,13 @@ class DisplayEngine:
             last_groups = self.last_sent.get('groups', {})
             
             changed = False
+            changed = False
             for g, items in groups_current.items():
                 items_str = str(items)
                 if full_redraw or last_groups.get(g) != items_str:
+                    all_sent = True
                     for item in items:
+                        success = False
                         cmd = item.get('cmd')
                         if cmd == 'draw_bitmap':
                             icon_key = item.get('icon', '')
@@ -511,15 +525,20 @@ class DisplayEngine:
                                 payload['mode_flag'] = item['mode_flag']
                             if bmp:
                                 payload.update({'w': bmp['w'], 'h': bmp['h'], 'data': bmp['data']})
-                            self._send_draw(payload)
+                            success = self._send_draw(payload)
                         elif cmd == 'draw_text':
-                            self._send_draw({'command': 'draw_text', 'text': item.get('text', ''), 'x': item.get('x', 0), 'y': item.get('y', 0), 'flags': item.get('flags', 0x06)})
+                            success = self._send_draw({'command': 'draw_text', 'text': item.get('text', ''), 'x': item.get('x', 0), 'y': item.get('y', 0), 'flags': item.get('flags', 0x06)})
                         elif cmd == 'draw_line':
-                            self._send_draw({'command': 'draw_line', 'x': item.get('x', 0), 'y': item.get('y', 0), 'length': item.get('len', 0), 'vertical': item.get('vert', True)})
+                            success = self._send_draw({'command': 'draw_line', 'x': item.get('x', 0), 'y': item.get('y', 0), 'length': item.get('len', 0), 'vertical': item.get('vert', True)})
                         elif cmd == 'clear_area':
-                            self._send_draw({'command': 'clear_area', 'x': item.get('x', 0), 'y': item.get('y', 0), 'w': item.get('w', 0), 'h': item.get('h', 0)})
-                    changed = True
-                    last_groups[g] = items_str
+                            success = self._send_draw({'command': 'clear_area', 'x': item.get('x', 0), 'y': item.get('y', 0), 'w': item.get('w', 0), 'h': item.get('h', 0)})
+                        
+                        if not success:
+                            all_sent = False
+                    
+                    if all_sent:
+                        changed = True
+                        last_groups[g] = items_str
             
             if changed:
                 self._send_draw({'command': 'commit'})
@@ -529,14 +548,18 @@ class DisplayEngine:
             return
 
         if self.last_sent.get('groups') is not None:
-             self.draw.send_json({'command': 'clear'})
+             self._send_draw({'command': 'clear'})
+             self._send_draw({'command': 'commit'})
              self.last_sent['groups'] = None
              self.last_sent['custom_sig'] = None
              for k in self.Y: self.last_sent[k] = None
 
         changed = False
         for k, (txt, flag) in view.items():
-            if k == 'type': continue
+            if k == 'type' or k not in self.Y: continue
+            
+            # Ensure text is stringy
+            txt = str(txt)
             
             prev_txt = self.last_sent.get(k)
             prev_flag = self.last_sent_flags.get(k, 0)
@@ -566,10 +589,20 @@ class DisplayEngine:
                         # Left Aligned: Pad Right
                         padded_txt = txt + (blank_char * blanks_needed)
                 
-                self._send_draw({'command':'draw_text', 'text':padded_txt, 'y':self.Y[k], 'flags':flag})
-                self.last_sent[k] = txt # Store original raw text for comparison
-                self.last_sent_flags[k] = flag
-                changed = True
+                # --- PRE-CLEAR FOR CENTERED TEXT ---
+                # If centering is enabled in config and this text is centered (0x20),
+                # send a full blank line (0x1F chars) first to wipe ghosting.
+                center_enabled = self.cfg.get('display', {}).get('text_centering', False)
+                if center_enabled and (flag & 0x20):
+                    blank_char = chr(0x1F)
+                    # Use a standard length (11 for narrow, 15/16 for wide) to wipe artifacts
+                    wipe_len = 11 if k in ['line2', 'line3', 'line4'] else 16
+                    self._send_draw({'command':'draw_text', 'text': blank_char * wipe_len, 'y':self.Y[k], 'flags': 0x06})
+
+                if self._send_draw({'command':'draw_text', 'text':padded_txt, 'y':self.Y[k], 'flags':flag}):
+                    self.last_sent[k] = txt # Store original raw text for comparison
+                    self.last_sent_flags[k] = flag
+                    changed = True
         
         if changed: 
             self._send_draw({'command':'commit'})

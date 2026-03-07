@@ -17,6 +17,11 @@ class CarInfoApp(BaseApp):
         self.update_interval = 0.5 # 500ms (2 FPS max)
         self.cached_view = {}
 
+    def on_enter(self):
+        super().on_enter()
+        self.last_update_time = 0 # Force immediate refresh
+        self.cached_view = {}
+
     def update_can(self, topic, payload):
         # Legacy CAN ID handling removed.
         pass
@@ -38,17 +43,20 @@ class CarInfoApp(BaseApp):
         if (now - self.last_update_time) < self.update_interval and self.cached_view:
             return self.cached_view
 
+        centering = self.config.get('display', {}).get('text_centering', False)
+        flag = self.FLAG_ITEM_CENTERED if centering else self.FLAG_ITEM
+
         lines = {}
         # Line 1: Boost
-        lines['line1'] = (f"Boost: {self.data['boost']}".ljust(16)[:16], self.FLAG_ITEM)
+        lines['line1'] = (f"Boost: {self.data['boost']}", flag)
         # Line 2: Oil Temp
-        lines['line2'] = (f"Oil:   {self.data['oil']}".ljust(16)[:16], self.FLAG_ITEM)
+        lines['line2'] = (f"Oil:   {self.data['oil']}", flag)
         # Line 3: Load Actual
-        lines['line3'] = (f"Load:  {self.data['load']}".ljust(16)[:16], self.FLAG_ITEM)
+        lines['line3'] = (f"Load:  {self.data['load']}", flag)
         # Line 4: IAT
-        lines['line4'] = (f"IAT:   {self.data['iat']}".ljust(16)[:16], self.FLAG_ITEM)
+        lines['line4'] = (f"IAT:   {self.data['iat']}", flag)
         # Line 5: Status/Free
-        lines['line5'] = ("".ljust(16)[:16], self.FLAG_ITEM)
+        lines['line5'] = ("", flag)
 
         # Update Cache
         self.cached_view = lines

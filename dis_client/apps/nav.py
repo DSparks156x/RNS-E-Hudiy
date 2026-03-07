@@ -191,10 +191,10 @@ class NavApp(BaseApp):
         # "Approach Bar" Logic:
         # >200m: Empty (0px)
         # 200m -> 0m: Fills up (0px -> 36px)
-        if val > 200: return 0
+        if val > 300: return 0
         
         # Calculate fill ratio
-        ratio = (200.0 - val) / 200.0
+        ratio = (300.0 - val) / 300.0
         return int(ratio * 47)
 
     def get_view(self) -> List[Dict]:

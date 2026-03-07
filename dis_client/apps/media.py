@@ -41,19 +41,19 @@ class MediaApp(BaseApp):
     def get_view(self):
         lines = {}
         
-        # Use _scroll_text helper from BaseApp
-        # Speed: 200ms per character update
-        # Key: Unique identifier for the scroll state (e.g. 'media_title')
+        centering = self.config.get('display', {}).get('text_centering', False)
+        align = 'center' if centering else 'left'
+        flag = self.FLAG_ITEM_CENTERED if centering else self.FLAG_ITEM
         
-        title_scroll = self._scroll_text(self.title, 'media_title', 16)
-        artist_scroll = self._scroll_text(self.artist, 'media_artist', 16)
-        album_scroll = self._scroll_text(self.album, 'media_album', 16)
+        title_scroll = self._scroll_text(self.title, 'media_title', 16, align=align)
+        artist_scroll = self._scroll_text(self.artist, 'media_artist', 16, align=align)
+        album_scroll = self._scroll_text(self.album, 'media_album', 16, align=align)
 
-        lines['line1'] = (title_scroll, self.FLAG_ITEM)
-        lines['line2'] = (artist_scroll, self.FLAG_ITEM)
-        lines['line3'] = (album_scroll, self.FLAG_ITEM)
+        lines['line1'] = (title_scroll, flag)
+        lines['line2'] = (artist_scroll, flag)
+        lines['line3'] = (album_scroll, flag)
         
         # Standard static fields
-        lines['line4'] = (str(self.time_str)[:16], self.FLAG_ITEM)
+        lines['line4'] = (str(self.time_str)[:16], flag)
 
         return lines

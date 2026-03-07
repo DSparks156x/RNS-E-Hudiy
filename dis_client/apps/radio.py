@@ -63,24 +63,28 @@ class RadioApp(BaseApp):
         t_top = str(self.top) if self.top else ""
         t_bot = str(self.bot) if self.bot else ""
 
+        centering = self.config.get('display', {}).get('text_centering', False)
+        flag = self.FLAG_ITEM_CENTERED if centering else self.FLAG_ITEM
+        wipe_flag = 0xA6 if centering else self.FLAG_WIPE # 0x86 (Invert) | 0x20 (Center) -> Wait, FLAG_WIPE is 0x02
+
         # --- FIX FOR ARTIFACTS AND CENTERING ---
-        # We use .ljust(LENGTH) to pad the string with spaces.
-        # This ensures "FM" becomes "FM        ", overwriting any old text like "TV/VIDEO".
-        
-        # Line 3 (Top Station): Limit 10 chars, Pad to 10
-        # If t_top is "  FM" (4 chars), it becomes "  FM      " (10 chars).
-        # This preserves the leading spaces (centering) AND clears the end (artifacts).
         if not t_top.strip():
              # If completely empty, send full blank line to wipe
             lines['line3'] = (" " * 10, self.FLAG_WIPE)
         else:
-            lines['line3'] = (t_top[:10].ljust(10), self.FLAG_WIPE)
+            if centering:
+                lines['line3'] = (t_top.strip()[:10], self.FLAG_ITEM_CENTERED)
+            else:
+                lines['line3'] = (t_top[:10].ljust(10), self.FLAG_WIPE)
 
         # Line 4 (Info): Limit 16 chars, Pad to 16
         if not t_bot.strip():
             lines['line4'] = (" " * 16, self.FLAG_ITEM)
         else:
-            lines['line4'] = (t_bot[:16].ljust(16), self.FLAG_ITEM)
+            if centering:
+                lines['line4'] = (t_bot.strip()[:16], self.FLAG_ITEM_CENTERED)
+            else:
+                lines['line4'] = (t_bot[:16].ljust(16), self.FLAG_ITEM)
 
         lines['line2'] = (" " * 16, self.FLAG_ITEM)
         lines['line5'] = (" " * 16, self.FLAG_ITEM)

@@ -249,8 +249,9 @@
                 <input type="text" id="mock-media-album" placeholder="Album" value="Lateralus">
                 <input type="text" id="mock-media-time" placeholder="Time (e.g. 1:23 / 4:56)" value="1:23 / 4:56">
                 <div class="btn-row">
-                    <button class="btn" onclick="emitMockMedia(true)">Playing</button>
-                    <button class="btn" onclick="emitMockMedia(false)">Paused</button>
+                    <button class="btn" id="playPauseBtn" onclick="togglePlayback()"
+                        style="background-color: #222; border-color: #0f0; color: #0f0; flex: 1;">▶ PLAY</button>
+                    <button class="btn" onclick="emitMockMedia(true)">Sync</button>
                 </div>
             </div>
 
@@ -326,6 +327,8 @@
         let socket = null;
         let isPaused = false;
         let currentCommandSet = [];
+        let playbackActive = false;
+        let playbackTimer = null;
 
         function emitInput(btn, state) {
             if (socket && socket.connected) {
@@ -337,6 +340,76 @@
             if (socket && socket.connected) {
                 socket.emit('mock_hudiy', { topic: topic, payload: payload });
             }
+        }
+
+        function togglePlayback() {
+            playbackActive = !playbackActive;
+            const btn = document.getElementById('playPauseBtn');
+
+            if (playbackActive) {
+                btn.innerText = "⏸ PAUSE";
+                btn.style.borderColor = "#ff3300";
+                btn.style.color = "#ff3300";
+                startPlaybackTimer();
+            } else {
+                btn.innerText = "▶ PLAY";
+                btn.style.borderColor = "#0f0";
+                btn.style.color = "#0f0";
+                stopPlaybackTimer();
+            }
+            emitMockMedia(playbackActive);
+        }
+
+        function startPlaybackTimer() {
+            if (playbackTimer) clearInterval(playbackTimer);
+            playbackTimer = setInterval(() => {
+                const timeInput = document.getElementById('mock-media-time');
+                const val = timeInput.value || "0:00 / 0:00";
+                const parts = val.split('/');
+                if (parts.length < 2) return;
+
+                const posStr = parts[0].trim();
+                const durStr = parts[1].trim();
+
+                const posSec = timeToSeconds(posStr);
+                const durSec = timeToSeconds(durStr);
+
+                let nextSec = posSec + 1;
+                if (durSec > 0 && nextSec > durSec) {
+                    nextSec = 0;
+                }
+
+                const nextTimeStr = `${secondsToTime(nextSec)} / ${durStr}`;
+                timeInput.value = nextTimeStr;
+                emitMockMedia(true);
+            }, 1000);
+        }
+
+        function stopPlaybackTimer() {
+            if (playbackTimer) {
+                clearInterval(playbackTimer);
+                playbackTimer = null;
+            }
+        }
+
+        function timeToSeconds(str) {
+            const p = str.split(':');
+            let s = 0, m = 1;
+            while (p.length > 0) {
+                s += m * parseInt(p.pop(), 10) || 0;
+                m *= 60;
+            }
+            return s;
+        }
+
+        function secondsToTime(s) {
+            const hrs = Math.floor(s / 3600);
+            const mins = Math.floor((s % 3600) / 60);
+            const secs = s % 60;
+            let res = "";
+            if (hrs > 0) res += hrs + ":" + (mins < 10 ? "0" : "");
+            res += mins + ":" + (secs < 10 ? "0" : "") + secs;
+            return res;
         }
 
         function emitMockMedia(isPlaying) {

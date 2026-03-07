@@ -36,19 +36,22 @@ class PhoneApp(BaseApp):
         lines = {}
         lines['line1'] = ("Phone", self.FLAG_HEADER)
 
+        centering = self.config.get('display', {}).get('text_centering', False)
+        flag = self.FLAG_ITEM_CENTERED if centering else self.FLAG_ITEM
+
         if self.state in ['INCOMING', 'ACTIVE', 'ALERTING', 'DIALING']:
             lbl = self.state[:10].center(10)
             lines['line3'] = (lbl, self.FLAG_WIPE)
             name = self.caller.ljust(16)[:16]
-            lines['line4'] = (name, self.FLAG_ITEM)
+            lines['line4'] = (name, flag)
 
         elif self.conn_state == 'CONNECTED':
             lines['line3'] = ("Connected".center(10), self.FLAG_WIPE)
             stats = f"Bat:{self.battery} Sig:{self.signal}%"
-            lines['line4'] = (stats.ljust(16)[:16], self.FLAG_ITEM)
+            lines['line4'] = (stats.ljust(16)[:16], flag)
 
         else:
             lines['line3'] = ("No Phone".center(10), self.FLAG_WIPE)
-            lines['line4'] = (" " * 16, self.FLAG_ITEM)
+            lines['line4'] = (" " * 16, flag)
 
         return lines

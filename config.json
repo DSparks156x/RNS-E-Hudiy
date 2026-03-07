@@ -28,7 +28,8 @@
       "speed_ms": 400,
       "start_delay": 0,
       "end_delay": 0
-    }
+    },
+    "text_centering": true
   },
   "features": {
     "day_night_mode": true,
