@@ -1,7 +1,5 @@
 {
-  "system": {
-    "branch": "testing"
-  },
+  "branch": "testing",
   "interfaces": {
     "can": {
       "infotainment": "can0",
