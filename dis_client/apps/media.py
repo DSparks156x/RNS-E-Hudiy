@@ -53,7 +53,7 @@ class MediaApp(BaseApp):
         lines['line2'] = (artist_scroll, flag)
         lines['line3'] = (album_scroll, flag)
         
-        # Standard static fields
+        # Standard non scroll fields
         lines['line4'] = (str(self.time_str)[:16], flag)
 
         return lines

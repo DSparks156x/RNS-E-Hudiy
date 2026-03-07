@@ -45,7 +45,7 @@
       },
       "listen_only_mode": {
         "enabled": true,
-        "delay_seconds": 30
+        "delay_seconds": 10
       },
       "gpio_shutdown": {
         "enabled": true,
