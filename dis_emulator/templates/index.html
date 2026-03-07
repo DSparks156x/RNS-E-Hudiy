@@ -144,16 +144,36 @@
         }
 
         .log-container {
-            width: 320px;
+            width: 100%;
             height: 100px;
             background: #000;
             border: 1px solid #333;
-            margin-top: 20px;
+            margin-top: 10px;
             padding: 10px;
             font-family: monospace;
             font-size: 10px;
             overflow-y: auto;
             color: #0f0;
+            box-sizing: border-box;
+        }
+
+        .command-entry {
+            border-bottom: 1px solid #222;
+            padding: 2px 0;
+        }
+
+        .command-entry .cmd-name {
+            color: var(--dis-red);
+            font-weight: bold;
+        }
+
+        .command-entry .cmd-args {
+            color: #888;
+        }
+
+        .paused {
+            opacity: 0.6;
+            border-color: #f00 !important;
         }
     </style>
 </head>
@@ -199,6 +219,26 @@
                     <button class="btn" onmousedown="emitInput('down', 'pressed')"
                         onmouseup="emitInput('down', 'released')" onmouseleave="emitInput('down', 'released')">▼
                         DOWN</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                    Commands Log
+                    <button class="btn" id="pauseLogBtn" onclick="toggleLogPause()"
+                        style="padding: 2px 8px;">Pause</button>
+                </h3>
+                <div class="log-container" id="commandsLog"
+                    style="height: 150px; color: #fff; background: #111; margin-top: 0;">
+                    Waiting for commands...
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Last Command Set</h3>
+                <div class="log-container" id="lastCommandSet"
+                    style="height: 120px; color: #aaa; background: #080808; margin-top: 0;">
+                    (Empty)
                 </div>
             </div>
 
@@ -276,12 +316,16 @@
         const canvas = document.getElementById('disCanvas');
         const ctx = canvas.getContext('2d');
         const log = document.getElementById('log');
+        const commandsLog = document.getElementById('commandsLog');
+        const lastCommandSet = document.getElementById('lastCommandSet');
         const connStatus = document.getElementById('connStatus');
         const lastAction = document.getElementById('lastAction');
         const fpsDisplay = document.getElementById('fpsCount');
 
         // State
         let socket = null;
+        let isPaused = false;
+        let currentCommandSet = [];
 
         function emitInput(btn, state) {
             if (socket && socket.connected) {
@@ -351,6 +395,77 @@
             log.scrollTop = log.scrollHeight;
         }
 
+        function toggleLogPause() {
+            isPaused = !isPaused;
+            const btn = document.getElementById('pauseLogBtn');
+            btn.innerText = isPaused ? "Resume" : "Pause";
+            btn.style.backgroundColor = isPaused ? "#ff3300" : "#333";
+            commandsLog.classList.toggle('paused', isPaused);
+        }
+
+        function addCommandLog(cmd) {
+            if (isPaused) return;
+
+            // Clear placeholder
+            if (commandsLog.innerText === "Waiting for commands...") {
+                commandsLog.innerText = "";
+            }
+
+            const div = document.createElement('div');
+            div.className = 'command-entry';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'cmd-name';
+            nameSpan.innerText = cmd.command;
+            div.appendChild(nameSpan);
+
+            const argsSpan = document.createElement('span');
+            argsSpan.className = 'cmd-args';
+            // Exclude large data blobs like 'data' or 'data_hex' from the main log view to keep it readable
+            const args = { ...cmd };
+            delete args.command;
+            if (args.data) args.data = `[${args.data.length} bytes]`;
+            if (args.data_hex) args.data_hex = `[${args.data_hex.length / 2} bytes]`;
+
+            argsSpan.innerText = " " + JSON.stringify(args);
+            div.appendChild(argsSpan);
+
+            commandsLog.appendChild(div);
+            while (commandsLog.childNodes.length > 50) commandsLog.removeChild(commandsLog.firstChild);
+            commandsLog.scrollTop = commandsLog.scrollHeight;
+        }
+
+        function updateLastCommandSet(set) {
+            lastCommandSet.innerHTML = "";
+            if (set.length === 0) {
+                lastCommandSet.innerText = "(Empty)";
+                return;
+            }
+
+            set.forEach(cmd => {
+                const div = document.createElement('div');
+                div.className = 'command-entry';
+                div.style.fontSize = '9px';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'cmd-name';
+                nameSpan.innerText = cmd.command;
+                div.appendChild(nameSpan);
+
+                const argsSpan = document.createElement('span');
+                argsSpan.className = 'cmd-args';
+                const args = { ...cmd };
+                delete args.command;
+                if (args.data) args.data = "...";
+                if (args.data_hex) args.data_hex = "...";
+                argsSpan.innerText = " " + JSON.stringify(args);
+                div.appendChild(argsSpan);
+
+                lastCommandSet.appendChild(div);
+            });
+            lastCommandSet.scrollTop = 0;
+        }
+
         function initEmulator() {
             socket = io();
             socket.on('connect', () => {
@@ -389,6 +504,16 @@
         function handleCommand(cmd) {
             lastAction.innerText = cmd.command.toUpperCase();
 
+            // Add to command log
+            if (cmd.command !== 'debug_log') {
+                addCommandLog(cmd);
+
+                // Add to current set (anything except commit or debug_log moves into a set)
+                if (cmd.command !== 'commit' && cmd.command !== 'clear_area') {
+                    currentCommandSet.push(JSON.parse(JSON.stringify(cmd))); // Deep copy
+                }
+            }
+
             switch (cmd.command) {
                 case 'set_region':
                     currentRegion = cmd.region || 'central';
@@ -410,6 +535,9 @@
                 case 'clear_area':
                     bCtx.fillStyle = 'black';
                     bCtx.fillRect(cmd.x || 0, (cmd.y || 0) + REG_Y, cmd.w || 64, cmd.h || 9);
+                    // Commit immediate as requested for clear_area
+                    drawDividers();
+                    ctx.drawImage(backBuffer, 0, 0);
                     break;
                 case 'draw_text':
                     drawText(cmd.text, cmd.x || 0, (cmd.y || 0) + REG_Y, cmd.flags || 0x06);
@@ -426,6 +554,10 @@
                     fpsCount++;
                     drawDividers();
                     ctx.drawImage(backBuffer, 0, 0);
+
+                    // Transfer current set to "Last Command Set" and reset
+                    updateLastCommandSet(currentCommandSet);
+                    currentCommandSet = [];
                     break;
                 case 'debug_log':
                     const div = document.createElement('div');
