@@ -71,8 +71,9 @@ class AppState:
     def check_shutdown_condition(self) -> bool:
         """Check if shutdown delay has been reached and execute shutdown."""
         if self.shutdown_pending and self.shutdown_trigger_timestamp:
-            if time.time() - self.shutdown_trigger_timestamp >= CONFIG.get('shutdown_delay', 300):
-                logger.info("Shutdown delay reached. Shutting down system NOW.")
+            delay = getattr(self, '_current_shutdown_delay', CONFIG.get('shutdown_delay', 300))
+            if time.time() - self.shutdown_trigger_timestamp >= delay:
+                logger.info(f"Shutdown delay ({delay}s) reached. Shutting down system NOW.")
                 shutdown_command = ["sudo", "shutdown", "-h", "now"]
                 if execute_system_command(shutdown_command):
                     logger.info("Shutdown command executed successfully.")
@@ -93,18 +94,29 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
         logger.critical(f"FATAL: Could not load or parse {config_path}: {e}"); return False
 
     try:
+        # System Settings
+        system_cfg = cfg.get('system', {})
+        CONFIG['car_time_zone'] = system_cfg.get('car_time_zone', 'UTC')
+        debug_mode = system_cfg.get('debug_mode', False)
+
+        # Features & Power Management
         FEATURES = cfg.setdefault('features', {})
+        pw_mgmt = FEATURES.get('power_management', {})
+        
+        # Initialize default sections if missing
         FEATURES.setdefault('tv_simulation', {'enabled': False})
         FEATURES.setdefault('time_sync', {'enabled': False, 'data_format': 'new_logic'})
-        FEATURES.setdefault('auto_shutdown', {'enabled': False, 'trigger': 'ignition_off'})
-        FEATURES.setdefault('listen_only_mode', {'enabled': False})
-        FEATURES.setdefault('gpio_shutdown', {'enabled': False, 'pin': 26, 'active_low': True})
+        
+        pw_mgmt.setdefault('auto_shutdown', {'enabled': False, 'trigger': 'ignition_off'})
+        pw_mgmt.setdefault('listen_only_mode', {'enabled': False, 'delay_seconds': 0})
+        pw_mgmt.setdefault('gpio_shutdown', {'enabled': False, 'pin': 26, 'active_low': True, 'delay_seconds': 0})
 
-        zmq_config = cfg.get('zmq', {})
+        interfaces_cfg = cfg.get('interfaces', {})
+        zmq_config = interfaces_cfg.get('zmq', {})
         can_ids = cfg.get('can_ids', {})
         thresholds = cfg.get('thresholds', {})
         
-        CONFIG = {
+        CONFIG.update({
             'zmq_publish_address': zmq_config.get('can_raw_stream'),
             'zmq_send_address': zmq_config.get('send_address'),
             'zmq_base_publish_address': zmq_config.get('system_events'),
@@ -114,15 +126,17 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
                 'ignition_status': int(can_ids.get('ignition_status', '0x2C3'), 16),
             },
             'time_data_format': FEATURES['time_sync']['data_format'],
-            'car_time_zone': FEATURES.get('car_time_zone', 'UTC'),
             'time_sync_threshold_seconds': thresholds.get('time_sync_threshold_minutes', 1.0) * 60,
             'shutdown_delay': thresholds.get('shutdown_delay_ignition_off_seconds', 300),
-        }
+        })
         
-        if not CONFIG['zmq_send_address'] or not CONFIG['zmq_publish_address'] or not CONFIG['zmq_base_publish_address']:
-            raise KeyError("'send_address' or 'can_raw_stream' or 'system_events' not found in 'zmq' section")
+        # Add power management to FEATURES for consistency in handlers
+        FEATURES['power_management'] = pw_mgmt
 
-        log_level = logging.DEBUG if FEATURES.get('debug_mode', False) else logging.INFO
+        if not CONFIG['zmq_send_address'] or not CONFIG['zmq_publish_address'] or not CONFIG['zmq_base_publish_address']:
+            raise KeyError("'send_address' or 'can_raw_stream' or 'system_events' not found in 'interfaces.zmq' section")
+
+        log_level = logging.DEBUG if debug_mode else logging.INFO
         logger.setLevel(log_level)
             
         logger.info("Configuration for base functions loaded successfully.")
@@ -237,9 +251,13 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
         state.last_kls_status = kls_status
         state.last_kl15_status = kl15_status
 
+        # Power Management Logic
+        pw_mgmt = FEATURES.get('power_management', {})
+
         # Auto-Shutdown Logic
-        if FEATURES.get('auto_shutdown', {}).get('enabled', False):
-            trigger_config = FEATURES['auto_shutdown'].get('trigger', 'ignition_off')
+        if pw_mgmt.get('auto_shutdown', {}).get('enabled', False):
+            auto_shutdown = pw_mgmt['auto_shutdown']
+            trigger_config = auto_shutdown.get('trigger', 'ignition_off')
             trigger_event = False
             
             # Check for trigger conditions
@@ -251,9 +269,12 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
                 logger.info("Key PULLED detected (or initial state). Starting shutdown timer.")
 
             if trigger_event and not state.shutdown_pending:
-                logger.info(f"Starting {CONFIG['shutdown_delay']}s shutdown timer due to '{trigger_config}' trigger.")
+                delay = auto_shutdown.get('delay_seconds', CONFIG['shutdown_delay'])
+                logger.info(f"Starting {delay}s shutdown timer due to '{trigger_config}' trigger.")
                 state.shutdown_pending = True
                 state.shutdown_trigger_timestamp = time.time()
+                # Store the current delay in the state to allow individual feature delays
+                state._current_shutdown_delay = delay
                 
             # Cancel shutdown if ignition/key comes back ON/IN
             elif state.shutdown_pending:
@@ -276,10 +297,12 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
                 logger.error(f"Failed to publish POWER_STATUS: {e}")
 
         # Listen-Only Mode Logic
-        if FEATURES.get('listen_only_mode', {}).get('enabled', False):
+        if pw_mgmt.get('listen_only_mode', {}).get('enabled', False):
             if kl15_changed:
                 if kl15_status == 0: # Ignition OFF
                      logger.info("Ignition OFF detected (or initial state). Switching to listen-only mode.")
+                     # Note: listen_only delay logic would require a separate timer thread/task.
+                     # For now, we implement it as an immediate switch but leave the config field for parity.
                      if CanInterfaceManager.set_listen_only(True):
                          state.can_listen_only = True
                 elif kl15_status == 1: # Ignition ON
@@ -403,10 +426,12 @@ async def shutdown_monitor_task(state: AppState):
     gpio_monitor = None
     gpio_monitor = None
     try:
-        if FEATURES.get('gpio_shutdown', {}).get('enabled', False):
+        pw_mgmt = FEATURES.get('power_management', {})
+        if pw_mgmt.get('gpio_shutdown', {}).get('enabled', False):
+             gpio_shutdown = pw_mgmt['gpio_shutdown']
              gpio_monitor = GpioShutdownMonitor(
-                 FEATURES['gpio_shutdown'].get('pin', 26),
-                 FEATURES['gpio_shutdown'].get('active_low', True)
+                 gpio_shutdown.get('pin', 26),
+                 gpio_shutdown.get('active_low', True)
              )
     except Exception as e:
         logger.error(f"Failed to initialize GPIO Shutdown Monitor: {e}", exc_info=True)

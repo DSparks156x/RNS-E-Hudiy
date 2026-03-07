@@ -17,9 +17,10 @@ def load_config():
     try:
          with open(config_path) as _f:
              cfg = json.load(_f)
-         can_raw = cfg['zmq'].get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc')
-         tp2_stream = cfg['zmq'].get('tp2_stream', 'ipc:///run/rnse_control/tp2_stream.ipc')
-         tp2_cmd = cfg['zmq'].get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
+         _zmq = cfg.get('interfaces', {}).get('zmq', {})
+         can_raw = _zmq.get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc')
+         tp2_stream = _zmq.get('tp2_stream', 'ipc:///run/rnse_control/tp2_stream.ipc')
+         tp2_cmd = _zmq.get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
          return can_raw, tp2_stream, tp2_cmd
     except Exception as e:
          logger.warning(f"Could not read config.json: {e}")

@@ -33,10 +33,14 @@ class TP2Service:
                 self.config = json.load(f)
             
             # ZMQ Addresses
-            self.addr_ignition = self.config['zmq'].get('system_events', 'ipc:///run/rnse_control/base_events.ipc')
-            self.addr_pub = self.config['zmq'].get('tp2_stream', 'ipc:///run/rnse_control/tp2_stream.ipc') 
-            self.addr_rep = self.config['zmq'].get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
-            self.can_interface = self.config.get('can_interfaces', {}).get('diagnostic', 'can0')
+            _interfaces = self.config.get('interfaces', {})
+            _zmq = _interfaces.get('zmq', {})
+            _can = _interfaces.get('can', {})
+
+            self.addr_ignition = _zmq.get('system_events', 'ipc:///run/rnse_control/base_events.ipc')
+            self.addr_pub = _zmq.get('tp2_stream', 'ipc:///run/rnse_control/tp2_stream.ipc') 
+            self.addr_rep = _zmq.get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
+            self.can_interface = _can.get('diagnostic', 'can0')
 
             self.ignition_sub = self.context.socket(zmq.SUB)
             self.ignition_sub.connect(self.addr_ignition)

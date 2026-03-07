@@ -45,9 +45,10 @@ class DisService:
 
         self.context = zmq.Context()
         self.draw_socket = self.context.socket(zmq.PULL)
+        _zmq = self.config.get('interfaces', {}).get('zmq', {})
         try:
-            self.draw_socket.bind(self.config['zmq']['dis_draw'])
-            logger.info(f"ZMQ command socket bound to {self.config['zmq']['dis_draw']}")
+            self.draw_socket.bind(_zmq.get('dis_draw', 'ipc:///run/rnse_control/dis_draw.ipc'))
+            logger.info(f"ZMQ command socket bound to {_zmq.get('dis_draw')}")
         except Exception as e:
             logger.critical(f"FATAL: Could not bind ZMQ socket: {e}")
             logger.critical("This often means the service is already running (Address already in use).")
@@ -56,9 +57,10 @@ class DisService:
         self.poller = zmq.Poller()
         self.poller.register(self.draw_socket, zmq.POLLIN)
 
+        _zmq = self.config.get('interfaces', {}).get('zmq', {})
         self.status_pub = self.context.socket(zmq.PUB)
         try:
-            self.status_pub.bind(self.config['zmq'].get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc'))
+            self.status_pub.bind(_zmq.get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc'))
             logger.info("ZMQ status pub socket bound.")
         except Exception as e:
             logger.warning(f"Could not bind status pub socket: {e}")
@@ -290,7 +292,8 @@ class DisService:
         # --- LISTEN FOR IGNITION STATUS ---
         self.ignition_sub = self.context.socket(zmq.SUB)
         # Connect to Base Function publisher for Ignition status
-        ignition_addr = self.config['zmq'].get('system_events', self.config['zmq']['can_raw_stream'])
+        _zmq = self.config.get('interfaces', {}).get('zmq', {})
+        ignition_addr = _zmq.get('system_events', _zmq.get('can_raw_stream'))
         self.ignition_sub.connect(ignition_addr)
         self.ignition_sub.subscribe(b"POWER_STATUS")
         self.poller.register(self.ignition_sub, zmq.POLLIN)

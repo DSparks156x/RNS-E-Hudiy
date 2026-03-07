@@ -54,11 +54,15 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
         with open(config_path, 'r') as f:
             config_data = json.load(f)
 
-        # MODIFIED: Added ZMQ send address to config
+        # Interfaces Settings
+        interfaces_cfg = config_data.get('interfaces', {})
+        zmq_cfg = interfaces_cfg.get('zmq', {})
+        can_cfg = interfaces_cfg.get('can', {})
+
         CONFIG = {
-            'infotainment_can_interface': config_data.get('can_interfaces', {}).get('infotainment', 'can0'),
-            'zmq_publish_address': config_data['zmq']['can_raw_stream'],
-            'zmq_send_address': config_data['zmq']['send_address']
+            'infotainment_can_interface': can_cfg.get('infotainment', 'can0'),
+            'zmq_publish_address': zmq_cfg.get('can_raw_stream'),
+            'zmq_send_address': zmq_cfg.get('send_address')
         }
         logger.info("Configuration loaded successfully.")
         return True

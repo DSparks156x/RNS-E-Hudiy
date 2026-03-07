@@ -84,15 +84,33 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
         return False
 
     try:
-        FEATURES = cfg['features']
-        key_maps = cfg['key_mappings']
-        thresholds = cfg['thresholds']
-        source_data = cfg['source_data']
+        # System Settings
+        system_cfg = cfg.get('system', {})
+        
+        # Interfaces Settings
+        interfaces_cfg = cfg.get('interfaces', {})
+        zmq_cfg = interfaces_cfg.get('zmq', {})
+
+        # Display Settings
+        display_cfg = cfg.get('display', {})
+        units_cfg = display_cfg.get('units', {})
+
+        # Features Settings
+        FEATURES = cfg.get('features', {})
+        pw_mgmt = FEATURES.get('power_management', {})
+
+        # Input Mappings
+        input_cfg = cfg.get('input_mappings', {})
+        key_maps = input_cfg.get('key_mappings', {})
+        source_data = input_cfg.get('source_data', {})
+        
+        # Thresholds
+        thresholds = cfg.get('thresholds', {})
         
         CONFIG = {
-            'zmq_address': cfg['zmq']['can_raw_stream'],
+            'zmq_address': zmq_cfg.get('can_raw_stream'),
             'can_ids': {k: int(v, 16) for k, v in cfg['can_ids'].items()},
-            'mmi_scroll_cmds': {tuple(map(int, k.split(','))) for k in cfg['mmi_scroll_commands']},
+            'mmi_scroll_cmds': {tuple(map(int, k.split(','))) for k in input_cfg['mmi_scroll_commands']},
             'mmi_short_map': {tuple(map(int, k.split(','))): parse_key(v) for k, v in key_maps['mmi_short'].items()},
             'mmi_long_map': {tuple(map(int, k.split(','))): parse_key(v) for k, v in key_maps['mmi_long'].items()},
             'mmi_extended_map': {tuple(map(int, k.split(','))): v for k, v in key_maps['mmi_extended'].items()},

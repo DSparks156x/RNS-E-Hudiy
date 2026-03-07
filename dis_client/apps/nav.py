@@ -26,7 +26,7 @@ class NavApp(BaseApp):
             if os.path.exists(config_path):
                 with open(config_path, 'r') as f:
                     cfg = json.load(f)
-                    self.road_side = cfg.get('features', {}).get('road_side', 'right')
+                    self.road_side = cfg.get('display', {}).get('road_side', 'right')
         except Exception as e:
             logger.error(f"Failed to load config for road_side: {e}")
 

@@ -124,13 +124,17 @@ def load_config(config_path='/home/pi/config.json'):
         with open(config_path, 'r') as f:
             config_data = json.load(f)
         
+        _interfaces = config_data.get('interfaces', {})
+        _zmq = _interfaces.get('zmq', {})
+        _can_ids = config_data.get('can_ids', {})
+        _features = config_data.get('features', {})
+        
         config = {
-            'zmq_publish_address': config_data.get('zmq', {}).get('can_raw_stream'),
-            'light_status_can_id': config_data.get('can_ids', {}).get('light_status'),
-            'day_night_mode': config_data.get('features', {}).get('day_night_mode', False),
-            'initial_mode': config_data.get('features', {}).get('initial_mode', 'night'),
-            # Restored: Defaults to False to preserve "Common" setting in Hudiy
-            'sync_android_auto': config_data.get('features', {}).get('sync_android_auto', False) 
+            'zmq_publish_address': _zmq.get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc'),
+            'light_status_can_id': _can_ids.get('light_status', '0x271'),
+            'day_night_mode': _features.get('day_night_mode', False),
+            'initial_mode': _features.get('initial_mode', 'night'),
+            'sync_android_auto': _features.get('sync_android_auto', False) 
         }
 
         if not config['zmq_publish_address']:

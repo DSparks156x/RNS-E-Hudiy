@@ -16,10 +16,11 @@ try:
     _base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     with open(os.path.join(_base_dir, 'config.json')) as _f:
         _cfg = json.load(_f)
-    ZMQ_PUB_ADDR = _cfg['zmq'].get('tp2_stream',  _DEFAULT_TP2_STREAM)
-    ZMQ_REQ_ADDR = _cfg['zmq'].get('tp2_command', _DEFAULT_TP2_COMMAND)
-    ZMQ_CAN_ADDR = _cfg['zmq'].get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc')
-    ZMQ_STATUS_STREAM = _cfg['zmq'].get('status_stream', 'ipc:///run/rnse_control/status_stream.ipc')
+    _zmq = _cfg.get('interfaces', {}).get('zmq', {})
+    ZMQ_PUB_ADDR = _zmq.get('tp2_stream',  _DEFAULT_TP2_STREAM)
+    ZMQ_REQ_ADDR = _zmq.get('tp2_command', _DEFAULT_TP2_COMMAND)
+    ZMQ_CAN_ADDR = _zmq.get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc')
+    ZMQ_STATUS_STREAM = _zmq.get('status_stream', 'ipc:///run/rnse_control/status_stream.ipc')
 except Exception as _e:
     logging.warning(f"Could not load config.json, using default ZMQ addresses: {_e}")
     ZMQ_PUB_ADDR = _DEFAULT_TP2_STREAM

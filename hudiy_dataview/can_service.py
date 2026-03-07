@@ -14,9 +14,10 @@ def load_config():
     try:
          with open(os.path.join(_base_dir, 'config.json')) as _f:
              cfg = json.load(_f)
-         can_raw = cfg['zmq'].get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc')
+         _zmq = cfg.get('interfaces', {}).get('zmq', {})
+         can_raw = _zmq.get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc')
          # Create a separate ipc file that app.py will subscribe to alongside tp2
-         pub_stream = cfg['zmq'].get('status_stream', 'ipc:///run/rnse_control/status_stream.ipc')
+         pub_stream = _zmq.get('status_stream', 'ipc:///run/rnse_control/status_stream.ipc')
          return can_raw, pub_stream
     except Exception as e:
          logger.warning(f"Could not read config.json: {e}")

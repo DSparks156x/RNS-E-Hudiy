@@ -46,7 +46,8 @@ class DisplayEngine:
                 self.can_connected = True
                 logger.info("MOCK MODE: Connected to Emulator CAN Publisher on TCP 5558")
             else:
-                self.sub.connect(self.cfg['zmq']['can_raw_stream'])
+                _zmq = self.cfg.get('interfaces', {}).get('zmq', {})
+                self.sub.connect(_zmq.get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc'))
                 self.can_connected = True
         except Exception as e:
             logger.warning(f"Mock Mode/Windows: Could not connect to CAN stream: {e}")
@@ -80,8 +81,9 @@ class DisplayEngine:
                 self.log_push.connect("tcp://127.0.0.1:5560")
                 self.log_push.send_string("dis_display connected to Emulator Log Pipe")
             else:
-                self.sub_hudiy.connect(self.cfg['zmq']['metric_stream'])
-                self.sub_hudiy.connect(self.cfg['zmq'].get('status_stream', 'ipc:///run/rnse_control/status_stream.ipc'))
+                _zmq = self.cfg.get('interfaces', {}).get('zmq', {})
+                self.sub_hudiy.connect(_zmq.get('metric_stream', 'ipc:///run/rnse_control/hudiy_stream.ipc'))
+                self.sub_hudiy.connect(_zmq.get('status_stream', 'ipc:///run/rnse_control/status_stream.ipc'))
                 self.hudiy_connected = True
         except Exception as e:
             logger.warning(f"Mock Mode/Windows: Could not connect to metric_stream: {e}")
@@ -96,7 +98,8 @@ class DisplayEngine:
             logger.info("MOCK MODE: Connecting to Emulator on TCP 5557")
             self.draw.connect("tcp://127.0.0.1:5557")
         else:
-            self.draw.connect(self.cfg['zmq']['dis_draw'])
+            _zmq = self.cfg.get('interfaces', {}).get('zmq', {})
+            self.draw.connect(_zmq.get('dis_draw', 'ipc:///run/rnse_control/dis_draw.ipc'))
             
         self.poller = zmq.Poller()
         if self.can_connected:
@@ -110,7 +113,8 @@ class DisplayEngine:
             if mock:
                  self.service_ready = True
             else:
-                 self.sub_status.connect(self.cfg['zmq'].get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc'))
+                 _zmq = self.cfg.get('interfaces', {}).get('zmq', {})
+                 self.sub_status.connect(_zmq.get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc'))
                  self.sub_status.subscribe(b"DIS_STATE")
                  self.poller.register(self.sub_status, zmq.POLLIN)
         except Exception as e:
