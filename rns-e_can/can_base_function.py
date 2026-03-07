@@ -65,7 +65,16 @@ class AppState:
         self.last_kls_status: Optional[int] = None   # Key in lock sensor status (1=IN, 0=PULLED, None=Unknown)
         self.shutdown_trigger_timestamp: Optional[float] = None
         self.shutdown_pending: bool = False
+        
+        # Listen-only state
         self.can_listen_only: bool = False
+        self.listen_only_pending: bool = False
+        self.listen_only_trigger_timestamp: Optional[float] = None
+        
+        # GPIO shutdown state
+        self.gpio_shutdown_pending: bool = False
+        self.gpio_shutdown_trigger_timestamp: Optional[float] = None
+        
         self.zmq_pub = None # ZMQ Publisher socket
 
     def check_shutdown_condition(self) -> bool:
@@ -298,17 +307,33 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
 
         # Listen-Only Mode Logic
         if pw_mgmt.get('listen_only_mode', {}).get('enabled', False):
+            listen_only_cfg = pw_mgmt['listen_only_mode']
+            delay = listen_only_cfg.get('delay_seconds', 0)
+            
             if kl15_changed:
                 if kl15_status == 0: # Ignition OFF
-                     logger.info("Ignition OFF detected (or initial state). Switching to listen-only mode.")
-                     # Note: listen_only delay logic would require a separate timer thread/task.
-                     # For now, we implement it as an immediate switch but leave the config field for parity.
-                     if CanInterfaceManager.set_listen_only(True):
-                         state.can_listen_only = True
+                    if delay > 0:
+                        if not state.listen_only_pending and not state.can_listen_only:
+                            logger.info(f"Ignition OFF detected (or initial state). Starting {delay}s listen-only delay.")
+                            state.listen_only_pending = True
+                            state.listen_only_trigger_timestamp = time.time()
+                    else:
+                        logger.info("Ignition OFF detected. Switching to listen-only mode immediately (delay=0).")
+                        if CanInterfaceManager.set_listen_only(True):
+                            state.can_listen_only = True
+                            state.listen_only_pending = False
+                            state.listen_only_trigger_timestamp = None
+                            
                 elif kl15_status == 1: # Ignition ON
-                     logger.info("Ignition ON detected (or initial state). Switching to normal mode.")
-                     if CanInterfaceManager.set_listen_only(False):
-                         state.can_listen_only = False
+                    if state.listen_only_pending:
+                        logger.info("Ignition ON detected. Cancelling pending listen-only transition.")
+                        state.listen_only_pending = False
+                        state.listen_only_trigger_timestamp = None
+                    
+                    if state.can_listen_only:
+                        logger.info("Ignition ON detected. Switching back to normal mode.")
+                        if CanInterfaceManager.set_listen_only(False):
+                            state.can_listen_only = False
                 
     except (IndexError, ValueError) as e:
         logger.warning(f"Could not parse power status message (data_hex: {msg.get('data_hex', 'N/A')}): {e}")
@@ -344,7 +369,12 @@ class GpioShutdownMonitor:
         else:
             logger.error("CRITICAL: gpiozero library not found but gpio_shutdown is ENABLED. Feature will NOT work.")
 
+    def is_pressed(self):
+        if not self.button: return False
+        return self.button.is_pressed
+
     def check(self):
+        """Original check logic for immediate triggers (legacy/compatibility)."""
         if not self.button or self.shutdown_triggered: return False
         
         if self.button.is_pressed:
@@ -438,17 +468,54 @@ async def shutdown_monitor_task(state: AppState):
 
     while RUNNING:
         try:
-            # Check existing auto_shutdown logic
+            pw_mgmt = FEATURES.get('power_management', {})
+            now = time.time()
+            
+            # 1. Check existing auto_shutdown logic
             if state.check_shutdown_condition():
                 RUNNING = False
                 break
             
-            # Check GPIO shutdown
-            if gpio_monitor and gpio_monitor.check():
-                logger.info("GPIO Shutdown triggered. Shutting down system NOW.")
-                if execute_system_command(["sudo", "shutdown", "-h", "now"]):
-                    RUNNING = False
-                    break
+            # 2. Check Listen-Only delay countdown
+            if state.listen_only_pending and state.listen_only_trigger_timestamp:
+                delay = pw_mgmt.get('listen_only_mode', {}).get('delay_seconds', 0)
+                if now - state.listen_only_trigger_timestamp >= delay:
+                    logger.info(f"Listen-only delay ({delay}s) reached. Switching to listen-only mode.")
+                    if CanInterfaceManager.set_listen_only(True):
+                        state.can_listen_only = True
+                        state.listen_only_pending = False
+                        state.listen_only_trigger_timestamp = None
+            
+            # 3. Check GPIO shutdown (with delay and cancellation)
+            if gpio_monitor:
+                gpio_cfg = pw_mgmt.get('gpio_shutdown', {})
+                delay = gpio_cfg.get('delay_seconds', 0)
+                is_pressed = gpio_monitor.is_pressed()
+                
+                if is_pressed:
+                    if not state.gpio_shutdown_pending:
+                        if delay > 0:
+                            logger.info(f"GPIO Shutdown trigger detected. Starting {delay}s delay.")
+                            state.gpio_shutdown_pending = True
+                            state.gpio_shutdown_trigger_timestamp = now
+                        else:
+                            logger.info("GPIO Shutdown trigger detected. Shutting down system NOW (delay=0).")
+                            if execute_system_command(["sudo", "shutdown", "-h", "now"]):
+                                RUNNING = False
+                                break
+                    else:
+                        # Pending - check if time reached
+                        if state.gpio_shutdown_trigger_timestamp and (now - state.gpio_shutdown_trigger_timestamp >= delay):
+                            logger.info(f"GPIO Shutdown delay ({delay}s) reached. Shutting down system NOW.")
+                            if execute_system_command(["sudo", "shutdown", "-h", "now"]):
+                                RUNNING = False
+                                break
+                else:
+                    # Not pressed - cancel pending if any
+                    if state.gpio_shutdown_pending:
+                        logger.info("GPIO button released. Cancelling pending GPIO shutdown.")
+                        state.gpio_shutdown_pending = False
+                        state.gpio_shutdown_trigger_timestamp = None
 
             await asyncio.sleep(1.0)
         except Exception as e:
