@@ -308,7 +308,7 @@ class NavApp(BaseApp):
         
         # First write a full-width blank block to wipe any previous ghosting artifacts 
         commands.append({
-            'group': 'street_clear',
+            'group': 'street',
             'cmd': 'draw_text',
             'text': blank_char * 11, 
             'x': 0,
