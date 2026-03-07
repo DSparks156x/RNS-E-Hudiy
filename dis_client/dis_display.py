@@ -47,6 +47,8 @@ class DisplayEngine:
                 logger.info("MOCK MODE: Connected to Emulator CAN Publisher on TCP 5558")
             else:
                 _zmq = self.cfg.get('interfaces', {}).get('zmq', {})
+                if not _zmq:
+                    _zmq = self.cfg.get('zmq', {})
                 self.sub.connect(_zmq.get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc'))
                 self.can_connected = True
         except Exception as e:
@@ -82,6 +84,8 @@ class DisplayEngine:
                 self.log_push.send_string("dis_display connected to Emulator Log Pipe")
             else:
                 _zmq = self.cfg.get('interfaces', {}).get('zmq', {})
+                if not _zmq:
+                    _zmq = self.cfg.get('zmq', {})
                 self.sub_hudiy.connect(_zmq.get('metric_stream', 'ipc:///run/rnse_control/hudiy_stream.ipc'))
                 self.sub_hudiy.connect(_zmq.get('status_stream', 'ipc:///run/rnse_control/status_stream.ipc'))
                 self.hudiy_connected = True
@@ -99,6 +103,8 @@ class DisplayEngine:
             self.draw.connect("tcp://127.0.0.1:5557")
         else:
             _zmq = self.cfg.get('interfaces', {}).get('zmq', {})
+            if not _zmq:
+                _zmq = self.cfg.get('zmq', {})
             self.draw.connect(_zmq.get('dis_draw', 'ipc:///run/rnse_control/dis_draw.ipc'))
             
         self.poller = zmq.Poller()
@@ -114,6 +120,8 @@ class DisplayEngine:
                  self.service_ready = True
             else:
                  _zmq = self.cfg.get('interfaces', {}).get('zmq', {})
+                 if not _zmq:
+                     _zmq = self.cfg.get('zmq', {})
                  self.sub_status.connect(_zmq.get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc'))
                  self.sub_status.subscribe(b"DIS_STATE")
                  self.poller.register(self.sub_status, zmq.POLLIN)

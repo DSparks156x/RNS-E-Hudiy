@@ -14,7 +14,12 @@ def load_config():
     try:
          with open(os.path.join(_base_dir, 'config.json')) as _f:
              cfg = json.load(_f)
+         
+         # Check new structure first, then legacy
          _zmq = cfg.get('interfaces', {}).get('zmq', {})
+         if not _zmq:
+             _zmq = cfg.get('zmq', {})
+             
          can_raw = _zmq.get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc')
          # Create a separate ipc file that app.py will subscribe to alongside tp2
          pub_stream = _zmq.get('status_stream', 'ipc:///run/rnse_control/status_stream.ipc')

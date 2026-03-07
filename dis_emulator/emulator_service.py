@@ -54,13 +54,21 @@ class EmulatorBridge:
             
         self.context = zmq.Context()
         self.draw_socket = self.context.socket(zmq.PULL)
+        
         # Try configured address
+        addr = None
         try:
-            addr = self.config['zmq']['dis_draw']
-            self.draw_socket.bind(addr)
-            logger.info(f"ZMQ Listener bound to {addr}")
+            # Check new structure: interfaces.zmq.dis_draw
+            addr = self.config.get('interfaces', {}).get('zmq', {}).get('dis_draw')
+            # Check old structure if new one is missing
+            if not addr:
+                addr = self.config.get('zmq', {}).get('dis_draw')
+            
+            if addr:
+                self.draw_socket.bind(addr)
+                logger.info(f"ZMQ Listener bound to {addr}")
         except Exception as e:
-            logger.warning(f"Could not bind to {addr}: {e}")
+            logger.warning(f"Could not bind to configured address ({addr}): {e}")
 
         # Always try to bind TCP 5557 for emulator convenience
         try:

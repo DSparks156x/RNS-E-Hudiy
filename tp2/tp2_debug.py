@@ -10,7 +10,13 @@ def main():
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         with open(os.path.join(base_dir, 'config.json')) as f:
             cfg = json.load(f)
-        default_addr = cfg['zmq'].get('tp2_command', default_addr)
+        
+        # Check new structure first, then legacy
+        zmq_cfg = cfg.get('interfaces', {}).get('zmq', {})
+        if not zmq_cfg:
+            zmq_cfg = cfg.get('zmq', {})
+            
+        default_addr = zmq_cfg.get('tp2_command', default_addr)
     except Exception:
         pass
 

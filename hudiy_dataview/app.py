@@ -17,6 +17,9 @@ try:
     with open(os.path.join(_base_dir, 'config.json')) as _f:
         _cfg = json.load(_f)
     _zmq = _cfg.get('interfaces', {}).get('zmq', {})
+    if not _zmq:
+        _zmq = _cfg.get('zmq', {})
+        
     ZMQ_PUB_ADDR = _zmq.get('tp2_stream',  _DEFAULT_TP2_STREAM)
     ZMQ_REQ_ADDR = _zmq.get('tp2_command', _DEFAULT_TP2_COMMAND)
     ZMQ_CAN_ADDR = _zmq.get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc')

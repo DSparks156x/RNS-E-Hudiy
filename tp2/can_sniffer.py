@@ -23,8 +23,14 @@ def main():
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         with open(os.path.join(base_dir, 'config.json')) as f:
             cfg = json.load(f)
-        if 'zmq' in cfg:
-            ipc_path = cfg['zmq'].get('can_raw_stream', ipc_path)
+        
+        # Check new structure first, then legacy
+        zmq_cfg = cfg.get('interfaces', {}).get('zmq', {})
+        if not zmq_cfg:
+            zmq_cfg = cfg.get('zmq', {})
+
+        if zmq_cfg:
+            ipc_path = zmq_cfg.get('can_raw_stream', ipc_path)
     except Exception:
         pass
 

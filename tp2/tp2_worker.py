@@ -35,6 +35,8 @@ class TP2Service:
             # ZMQ Addresses
             _interfaces = self.config.get('interfaces', {})
             _zmq = _interfaces.get('zmq', {})
+            if not _zmq:
+                _zmq = self.config.get('zmq', {})
             _can = _interfaces.get('can', {})
 
             self.addr_ignition = _zmq.get('system_events', 'ipc:///run/rnse_control/base_events.ipc')
