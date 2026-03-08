@@ -180,85 +180,69 @@ class DisService:
         payload_reset = [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
         self.ddp.send_ddp_frame(payload_reset)
 
-    def write_text(self, text: str, x: int, y: int, flags: int = 0x06):
+    def get_text_payload(self, text: str, x: int, y: int, flags: int = 0x06) -> List[int]:
         chars = self.translate_to_audscii(text) 
-        
         is_inverted = (flags & 0x80) != 0
         protocol_flags = flags & 0x7C 
         
         if is_inverted:
-            # INVERTED MODE (Red Background)
             abs_y = y + self.region_y_offset
-            width = 64
-            height = 9
-            
-            # 1. Clear Red
-            payload_bg = [0x52, 0x05, 0x03, x, abs_y, width, height]
-            self.ddp.send_ddp_frame(payload_bg)
-            
-            # 2. Draw Text (XOR)
+            width, height = 64, 9
+            payload = [0x52, 0x05, 0x03, x, abs_y, width, height]
             text_mode_bits = 0x00 
             final_text_flags = protocol_flags | text_mode_bits
-            
-            payload_text = [0x57, len(chars) + 3, final_text_flags, 0, 0] + chars
-            self.ddp.send_ddp_frame(payload_text)
-            
-            # 3. Reset Window
-            payload_reset = [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
-            self.ddp.send_ddp_frame(payload_reset)
-            
+            payload += [0x57, len(chars) + 3, final_text_flags, 0, 0] + chars
+            payload += [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
+            return payload
         else:
-            # NORMAL MODE (Black Background)
-            # Optimization: We rely on DisplayEngine to call 'clear_area' if we are
-            # transitioning from Red->Black to remove ghosting. 
-            # Otherwise, we just draw over existing pixels.
-            
             text_mode_bits = 0x02 # Opaque + Normal
             final_text_flags = protocol_flags | text_mode_bits
-            payload = [0x57, len(chars) + 3, final_text_flags, x, y] + chars
-            self.ddp.send_ddp_frame(payload)
+            return [0x57, len(chars) + 3, final_text_flags, x, y] + chars
 
-    def draw_bitmap(self, x: int, y: int, icon_name: str, mode_flag: int = 0x02):
+    def write_text(self, text: str, x: int, y: int, flags: int = 0x06):
+        payload = self.get_text_payload(text, x, y, flags)
+        self.ddp.send_ddp_frame(payload)
+
+    def get_bitmap_payload(self, x: int, y: int, icon_name: str, mode_flag: int = 0x02) -> List[int]:
         if not icon_name or icon_name not in BITMAPS:
-            logger.error(f"Bitmap icon '{icon_name}' not found.")
-            return
-
+            return []
         icon = BITMAPS[icon_name]
-        w = icon['w']
-        h = icon['h']
-        data = icon['data']
+        w, h, data = icon['w'], icon['h'], icon['data']
         abs_y = y + self.region_y_offset
-
-        payload_clip = [0x52, 0x05, 0x00, x, abs_y, w, h]
-        if not self.ddp.send_ddp_frame(payload_clip): return
-
+        payload = [0x52, 0x05, 0x00, x, abs_y, w, h]
         bytes_per_row = (w + 7) // 8
         rows_per_chunk = 37 // bytes_per_row
         if rows_per_chunk < 1: rows_per_chunk = 1
-        
         for i in range(0, h, rows_per_chunk):
             start_byte = i * bytes_per_row
             rows_to_send = min(rows_per_chunk, h - i)
-            end_byte = start_byte + (rows_to_send * bytes_per_row)
-            chunk_data = data[start_byte:end_byte]
-            chunk_y = i 
-            payload_bmp = [0x55, len(chunk_data) + 3, mode_flag, 0x00, chunk_y] + chunk_data
-            if not self.ddp.send_ddp_frame(payload_bmp): return
+            chunk_data = data[start_byte:start_byte + (rows_to_send * bytes_per_row)]
+            payload += [0x55, len(chunk_data) + 3, mode_flag, 0x00, i] + chunk_data
+        payload += [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
+        return payload
 
-        payload_reset = [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
-        self.ddp.send_ddp_frame(payload_reset)
-        logger.info(f"Bitmap '{icon_name}' drawn at Abs({x},{abs_y}) with flag {mode_flag:#04x}")
+    def draw_bitmap(self, x: int, y: int, icon_name: str, mode_flag: int = 0x02):
+        payload = self.get_bitmap_payload(x, y, icon_name, mode_flag)
+        if payload:
+            self.ddp.send_ddp_frame(payload)
+
+    def get_line_payload(self, x: int, y: int, length: int, vertical: bool = True) -> List[int]:
+        orientation = 0x10 if vertical else 0x20
+        return [0x63, 0x04, orientation, x, y, length]
 
     def draw_line(self, x: int, y: int, length: int, vertical: bool = True):
-        orientation = 0x10 if vertical else 0x20
-        payload = [0x63, 0x04, orientation, x, y, length]
-        if not self.ddp.send_ddp_frame(payload):
-            logger.error("Failed to send line payload.")
+        payload = self.get_line_payload(x, y, length, vertical)
+        self.ddp.send_ddp_frame(payload)
 
-    def commit_frame(self):
-        payload = [0x39]
-        if not self.ddp.send_ddp_frame(payload):
-             logger.error("Failed to send commit packet.")
+    def get_clear_area_payload(self, x: int, y: int, w: int, h: int) -> List[int]:
+        abs_y = y + self.region_y_offset
+        payload = [0x52, 0x05, 0x02, x, abs_y, w, h]
+        payload += [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
+        return payload
+
+    def clear_area(self, x, y, w, h):
+        payload = self.get_clear_area_payload(x, y, w, h)
+        self.ddp.send_ddp_frame(payload)
 
     def clear_screen(self):
         logger.info("Executing full clear_screen command...")
@@ -422,52 +406,36 @@ class DisService:
                             
                             self.last_draw_time = time.time()
 
-                            # Optimization: Only do a full redraw if a clear was requested.
-                            # Small updates (scrolling text) are processed individually to avoid flicker.
+                            # BATCHING LOGIC: Collect drawing payloads and send in one DDP frame
                             if had_clear:
                                 self.handle_redraw()
                             else:
+                                current_payload = []
                                 for cmd in cmds:
                                     c = cmd.get('command')
+                                    p = []
                                     if c == 'draw_text':
-                                        self.write_text(cmd.get('text',''), cmd.get('x',0), cmd.get('y',0), cmd.get('flags', 0x06))
+                                        p = self.get_text_payload(cmd.get('text',''), cmd.get('x',0), cmd.get('y',0), cmd.get('flags', 0x06))
                                     elif c == 'draw_bitmap':
-                                        self.draw_bitmap(cmd.get('x',0), cmd.get('y',0), cmd.get('icon_name'))
-                                    elif c == 'draw_raw_bitmap':
-                                        try:
-                                            raw_bytes = bytes.fromhex(cmd.get('data_hex', ''))
-                                            w = cmd.get('w', 64)
-                                            h = cmd.get('h', 88)
-                                            x = cmd.get('x', 0)
-                                            y = cmd.get('y', 0)
-                                            mode_flag = cmd.get('mode_flag', 0x02)
-                                            
-                                            abs_y = y + self.region_y_offset
-                                            payload_clip = [0x52, 0x05, 0x00, x, abs_y, w, h]
-                                            if self.ddp.send_ddp_frame(payload_clip):
-                                                bytes_per_row = (w + 7) // 8
-                                                rows_per_chunk = 37 // bytes_per_row
-                                                if rows_per_chunk < 1: rows_per_chunk = 1
-                                                
-                                                for i in range(0, h, rows_per_chunk):
-                                                    start_byte = i * bytes_per_row
-                                                    rows_to_send = min(rows_per_chunk, h - i)
-                                                    end_byte = start_byte + (rows_to_send * bytes_per_row)
-                                                    chunk_data = list(raw_bytes[start_byte:end_byte])
-                                                    chunk_y = i 
-                                                    payload_bmp = [0x55, len(chunk_data) + 3, mode_flag, 0x00, chunk_y] + chunk_data
-                                                    if not self.ddp.send_ddp_frame(payload_bmp): break
-
-                                                payload_reset = [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
-                                                self.ddp.send_ddp_frame(payload_reset)
-                                        except Exception as e:
-                                            logger.error(f"Failed drawing raw bitmap: {e}")
+                                        p = self.get_bitmap_payload(cmd.get('x',0), cmd.get('y',0), cmd.get('icon_name'))
                                     elif c == 'draw_line':
-                                        self.draw_line(cmd.get('x',0), cmd.get('y',0), cmd.get('length',0), cmd.get('vertical', True))
-                                    elif c == 'commit':
-                                        self.commit_frame()
+                                        p = self.get_line_payload(cmd.get('x',0), cmd.get('y',0), cmd.get('length',0), cmd.get('vertical', True))
                                     elif c == 'clear_area':
-                                        self.clear_area(cmd.get('x',0), cmd.get('y',0), cmd.get('w',64), cmd.get('h',9))
+                                        p = self.get_clear_area_payload(cmd.get('x',0), cmd.get('y',0), cmd.get('w',64), cmd.get('h',9))
+                                    elif c == 'commit':
+                                        # flush current batch before commit
+                                        if current_payload:
+                                            self.ddp.send_ddp_frame(current_payload)
+                                            current_payload = []
+                                        self.commit_frame()
+                                        continue
+                                    
+                                    if p:
+                                        current_payload += p
+                                
+                                # flush any remaining drawing payload
+                                if current_payload:
+                                    self.ddp.send_ddp_frame(current_payload)
                     if (self.ENABLE_INACTIVITY_RELEASE
                         and self.screen_is_active
                         and (time.time() - self.last_draw_time > self.inactivity_timeout_sec)):

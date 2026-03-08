@@ -578,25 +578,20 @@ class DisplayEngine:
                 # If the string shrank or we need a full clear
                 if len(txt) < target_len:
                     blanks_needed = target_len - len(txt)
-                    blank_char = chr(0x1F) # The AUDSCII 'Full Width Space' character mapping
+                    blank_char = chr(0x1F)
                     
-                    if flag & 0x20:
-                        # Center Aligned: Pad Symmetrically
-                        left_pad = blanks_needed // 2
-                        right_pad = blanks_needed - left_pad
-                        padded_txt = (blank_char * left_pad) + txt + (blank_char * right_pad)
-                    else:
-                        # Left Aligned: Pad Right
-                        padded_txt = txt + (blank_char * blanks_needed)
+                    # Pad Right: Always use simple padding to clear trailing characters
+                    # Center-aligned text is wiped separately via PRE-CLEAR.
+                    padded_txt = txt + (blank_char * blanks_needed)
                 
                 # --- PRE-CLEAR FOR CENTERED TEXT ---
                 # If centering is enabled in config and this text is centered (0x20),
                 # send a full blank line (0x1F chars) first to wipe ghosting.
+                # Crucial: Wipe is LEFT-ALIGNED (0x06) to cover the full width reliably.
                 center_enabled = self.cfg.get('display', {}).get('text_centering', False)
                 if center_enabled and (flag & 0x20):
                     blank_char = chr(0x1F)
-                    # Use a standard length (11 for narrow, 15/16 for wide) to wipe artifacts
-                    wipe_len = 11 if k in ['line2', 'line3', 'line4'] else 16
+                    wipe_len = 16 # Full width
                     self._send_draw({'command':'draw_text', 'text': blank_char * wipe_len, 'y':self.Y[k], 'flags': 0x06})
 
                 if self._send_draw({'command':'draw_text', 'text':padded_txt, 'y':self.Y[k], 'flags':flag}):

@@ -308,7 +308,7 @@ class NavApp(BaseApp):
         commands.append({
             'group': 'street',
             'cmd': 'draw_text',
-            'text': blank_char * 11, 
+            'text': blank_char * 16, 
             'x': 0,
             'y': 39,
             'flags': self.FLAG_ITEM
