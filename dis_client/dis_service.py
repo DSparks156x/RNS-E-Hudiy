@@ -166,19 +166,11 @@ class DisService:
         if not self.ddp.send_ddp_frame(payload):
             logger.error("Failed to send clear payload.")
 
-    def clear_area(self, x, y, w, h):
-        """
-        Explicitly clears a specific rectangle to BLACK.
-        Used to erase artifacts or Red Highlights.
-        """
-        abs_y = y + self.region_y_offset
-        # Flag 0x02: Clear(Bit 7=0), Clear(Bit 1=1), Black(Bit 0=0)
-        payload = [0x52, 0x05, 0x02, x, abs_y, w, h]
-        self.ddp.send_ddp_frame(payload)
-        
-        # Reset Window
-        payload_reset = [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
-        self.ddp.send_ddp_frame(payload_reset)
+    def commit_frame(self):
+        """Sends a COMMIT command (0x39) to the cluster to update the display."""
+        payload = [0x39]
+        if not self.ddp.send_ddp_frame(payload):
+            logger.error("commit_frame: Failed to send commit payload.")
 
     def get_text_payload(self, text: str, x: int, y: int, flags: int = 0x06) -> List[int]:
         chars = self.translate_to_audscii(text) 
