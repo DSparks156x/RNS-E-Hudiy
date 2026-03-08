@@ -33,8 +33,10 @@ echo "Pulling latest installer..."
 cd ~
 
 # --- Smart Branch/Tag Logic ---
-CONFIG_FILE="/home/pi/config.json"
-REPO="DSparks156x/RNS-E-Hudiy"
+CONFIG_FILE="$HOME/config.json"
+# Detect Repo from config if available
+REPO=$(python3 -c "import json, os; f=os.path.expanduser('$CONFIG_FILE'); print(json.load(open(f)).get('repo', 'DSparks156x/RNS-E-Hudiy')) if os.path.exists(f) else print('DSparks156x/RNS-E-Hudiy')" 2>/dev/null || echo "DSparks156x/RNS-E-Hudiy")
+echo "   Using Repository: $REPO"
 
 # Use Python to handle JSON, GitHub API tag listing, and date comparisons
 BRANCH=$(python3 <<EOF

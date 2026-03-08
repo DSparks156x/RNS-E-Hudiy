@@ -31,6 +31,19 @@ else
 fi
 
 REPO_URL="https://github.com/DSparks156x/RNS-E-Hudiy.git"
+# Detect Repo from existing config if available
+if [ -f "$REAL_HOME/config.json" ]; then
+    DETECTED_REPO=$(python3 -c "import json, sys; print(json.load(open('$REAL_HOME/config.json')).get('repo', ''))" 2>/dev/null)
+    if [ ! -z "$DETECTED_REPO" ]; then
+        if [[ "$DETECTED_REPO" == http* ]]; then
+            REPO_URL="$DETECTED_REPO"
+        else
+            REPO_URL="https://github.com/$DETECTED_REPO.git"
+        fi
+        echo "   Detected Repo from config.json: $REPO_URL"
+    fi
+fi
+
 BRANCH="main"
 UPDATE_MODE=false
 
@@ -133,19 +146,67 @@ install_config() {
         return
     fi
 
-    # Check if files are different
-    if ! cmp -s "$SRC" "$DEST"; then
-        echo "   - Config changed, creating backup: $(basename "$DEST")"
+    local NEEDS_UPDATE=false
+    local TEMP_FINAL=$(mktemp)
+
+    if [[ "$DEST" == *.json ]]; then
+        # Smart Merge for JSON: adds missing keys, preserves existing values
+        python3 -c "
+import json, sys
+def deep_merge(target, source):
+    updated = False
+    for key, value in source.items():
+        if isinstance(value, dict) and key in target and isinstance(target[key], dict):
+            if deep_merge(target[key], value): updated = True
+        elif key not in target:
+            target[key] = value
+            updated = True
+    return updated
+try:
+    with open(sys.argv[1], 'r') as f: target = json.load(f)
+    with open(sys.argv[2], 'r') as f: source = json.load(f)
+    if deep_merge(target, source):
+        with open(sys.argv[3], 'w') as f: json.dump(target, f, indent=4)
+        sys.exit(0) # Updated
+    else:
+        sys.exit(2) # No change
+except Exception:
+    sys.exit(1) # Error
+" "$DEST" "$SRC" "$TEMP_FINAL"
+        
+        RET=$?
+        if [ $RET -eq 0 ]; then
+            NEEDS_UPDATE=true
+        elif [ $RET -eq 2 ]; then
+            NEEDS_UPDATE=false
+            rm "$TEMP_FINAL"
+        else
+            # Error or not JSON, fallback to cmp
+            if ! cmp -s "$SRC" "$DEST"; then
+                NEEDS_UPDATE=true
+                cp "$SRC" "$TEMP_FINAL"
+            else
+                NEEDS_UPDATE=false
+                rm "$TEMP_FINAL"
+            fi
+        fi
+    else
+        # Standard comparison for non-JSON
+        if ! cmp -s "$SRC" "$DEST"; then
+            NEEDS_UPDATE=true
+            cp "$SRC" "$TEMP_FINAL"
+        else
+            NEEDS_UPDATE=false
+            rm "$TEMP_FINAL"
+        fi
+    fi
+
+    if [ "$NEEDS_UPDATE" = true ]; then
+        echo "   - Config $(basename "$DEST") changed, creating backup..."
         
         # Find next increment folder
         local INCREMENT=1
         while [ -d "$BACKUP_BASE/$INCREMENT" ]; do
-            # Check if this specific file is already in this increment
-            # (In case multiple configs are being updated, we keep them in the same increment)
-            # Actually, the user's request implies "several updates in a day", 
-            # so let's check if the folder was created in THIS script run.
-            # For simplicity, we'll use a session-based approach if possible, 
-            # or just find the first increment that doesn't have this file.
             if [ ! -f "$BACKUP_BASE/$INCREMENT/$(basename "$DEST")" ]; then
                 break
             fi
@@ -154,7 +215,7 @@ install_config() {
 
         mkdir -p "$BACKUP_BASE/$INCREMENT"
         cp "$DEST" "$BACKUP_BASE/$INCREMENT/"
-        cp "$SRC" "$DEST"
+        mv "$TEMP_FINAL" "$DEST"
         chown $REAL_USER:$REAL_USER "$DEST"
         chown -R $REAL_USER:$REAL_USER "$REAL_HOME/confbackup"
     else
