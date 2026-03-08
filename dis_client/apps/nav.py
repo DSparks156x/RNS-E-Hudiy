@@ -235,44 +235,42 @@ class NavApp(BaseApp):
         val_str, unit_str = self._split_distance(self.distance_label)
         
         if val_str:
-            # Configurable horizontal center for the right-side informational area
-            # Average character width approx 5px (including spacing)
-            center_x = 49 
-            
-            # Use chr(0x1F) which is the full width space in AUDSCII, effectively wiping the background
+            x_pos = 42
             blank_char = chr(0x1F)
-            val_padded = val_str.center(5, blank_char)
-            val_x = center_x - (len(val_padded) * 5 // 2)
+            
+            # Left align and pad to wipe any previous longer data
+            # Distance usually fits in 5 chars (e.g. "123.4"), units in 4 (e.g. "feet")
+            val_padded = val_str.ljust(5, blank_char)
 
             # Draw numeric value on top
             commands.append({
                 'group': 'dist',
                 'cmd': 'draw_text',
                 'text': val_padded,
-                'x': val_x,
-                'y': 10,
+                'x': x_pos,
+                'y': 8,
                 'flags': 0x06 # Compact Font
             })
             # Draw units below if present
             if unit_str:
-                unit_padded = unit_str.center(4, blank_char)
-                unit_x = center_x - (len(unit_padded) * 5 // 2)
+                unit_padded = unit_str.ljust(4, blank_char)
                 commands.append({
                     'group': 'dist',
                     'cmd': 'draw_text',
                     'text': unit_padded,
-                    'x': unit_x,
-                    'y': 19,
+                    'x': x_pos,
+                    'y': 17,
                     'flags': 0x06
                 })
         else:
-            # Just push empty padded spaces to clear the old distance cleanly
+            # Just push empty padded spaces to clear the old distance cleanly at x=49
+            x_pos = 49
             blank_char = chr(0x1F)
             commands.append({
                 'group': 'dist',
                 'cmd': 'draw_text',
                 'text': blank_char * 5,
-                'x': 49 - (5 * 5 // 2),
+                'x': x_pos,
                 'y': 10,
                 'flags': 0x06
             })
@@ -280,7 +278,7 @@ class NavApp(BaseApp):
                 'group': 'dist',
                 'cmd': 'draw_text',
                 'text': blank_char * 4,
-                'x': 49 - (4 * 5 // 2),
+                'x': x_pos,
                 'y': 19,
                 'flags': 0x06
             })
