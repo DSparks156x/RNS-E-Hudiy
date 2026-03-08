@@ -118,31 +118,70 @@ install_folder "dis_client"
 install_folder "tp2"
 install_folder "hudiy_dataview"
 
-# Install Config (Only if missing)
-if [ ! -f "$REAL_HOME/config.json" ]; then
-    echo "   - Installing default config.json..."
-    cp "$TEMP_DIR/config.json" "$REAL_HOME/"
-else
-    echo "   - config.json exists, keeping your version."
-fi
+# Helper to install or update config files with backups
+install_config() {
+    local SRC="$1"
+    local DEST="$2"
+    local DATE_DIR=$(date +%Y-%m-%d)
+    local BACKUP_BASE="$REAL_HOME/confbackup/$DATE_DIR"
+
+    # If destination doesn't exist, just copy
+    if [ ! -f "$DEST" ]; then
+        echo "   - Installing new config: $(basename "$DEST")"
+        cp "$SRC" "$DEST"
+        chown $REAL_USER:$REAL_USER "$DEST"
+        return
+    fi
+
+    # Check if files are different
+    if ! cmp -s "$SRC" "$DEST"; then
+        echo "   - Config changed, creating backup: $(basename "$DEST")"
+        
+        # Find next increment folder
+        local INCREMENT=1
+        while [ -d "$BACKUP_BASE/$INCREMENT" ]; do
+            # Check if this specific file is already in this increment
+            # (In case multiple configs are being updated, we keep them in the same increment)
+            # Actually, the user's request implies "several updates in a day", 
+            # so let's check if the folder was created in THIS script run.
+            # For simplicity, we'll use a session-based approach if possible, 
+            # or just find the first increment that doesn't have this file.
+            if [ ! -f "$BACKUP_BASE/$INCREMENT/$(basename "$DEST")" ]; then
+                break
+            fi
+            INCREMENT=$((INCREMENT + 1))
+        done
+
+        mkdir -p "$BACKUP_BASE/$INCREMENT"
+        cp "$DEST" "$BACKUP_BASE/$INCREMENT/"
+        cp "$SRC" "$DEST"
+        chown $REAL_USER:$REAL_USER "$DEST"
+        chown -R $REAL_USER:$REAL_USER "$REAL_HOME/confbackup"
+    else
+        echo "   - Config $(basename "$DEST") is up to date."
+    fi
+}
+
+# Install Config
+install_config "$TEMP_DIR/config.json" "$REAL_HOME/config.json"
 
 # 2.1 Deploy Hudiy Configuration
-if [ "$UPDATE_MODE" = false ]; then
-    echo "? Step 2.1: Deploying Hudiy Configuration..."
-    HUDIY_CONFIG_DIR="/home/${REAL_USER}/.hudiy/share/config"
-    mkdir -p "$HUDIY_CONFIG_DIR"
+echo "? Step 2.1: Deploying Hudiy Configuration..."
+HUDIY_CONFIG_DIR="/home/${REAL_USER}/.hudiy/share/config"
+mkdir -p "$HUDIY_CONFIG_DIR"
 
-    # Copy verified config files if they exist in the repo (relative to script)
-    if [ -d "${TEMP_DIR}/config/hudiy" ]; then
-        echo "   Copying configuration from ${TEMP_DIR}/config/hudiy/..."
-        cp -v "${TEMP_DIR}/config/hudiy/"*.json "$HUDIY_CONFIG_DIR/"
-        chown -R ${REAL_USER}:${REAL_USER} "/home/${REAL_USER}/.hudiy"
-        echo "   ? Hudiy config updated."
-    else
-        echo "   ⚠ No local config/hudiy directory found at ${TEMP_DIR}/config/hudiy. Skipping."
-    fi
+# Copy verified config files if they exist in the repo (relative to script)
+if [ -d "${TEMP_DIR}/config/hudiy" ]; then
+    echo "   Updating Hudiy configurations from ${TEMP_DIR}/config/hudiy/..."
+    for f in "${TEMP_DIR}/config/hudiy/"*.json; do
+        if [ -f "$f" ]; then
+            install_config "$f" "$HUDIY_CONFIG_DIR/$(basename "$f")"
+        fi
+    done
+    chown -R ${REAL_USER}:${REAL_USER} "/home/${REAL_USER}/.hudiy"
+    echo "   ? Hudiy configs processed."
 else
-    echo "? Skipping Step 2.1 (Update Mode Active)"
+    echo "   ⚠ No local config/hudiy directory found at ${TEMP_DIR}/config/hudiy. Skipping."
 fi
 
 # Cleanup
