@@ -33,13 +33,9 @@ fi
 REPO_URL="https://github.com/DSparks156x/RNS-E-Hudiy.git"
 # Detect Repo from existing config if available
 if [ -f "$REAL_HOME/config.json" ]; then
-    DETECTED_REPO=$(python3 -c "import json, sys; print(json.load(open('$REAL_HOME/config.json')).get('repo', ''))" 2>/dev/null)
+    DETECTED_REPO=$(python3 -c "import json, sys; r=json.load(open('$REAL_HOME/config.json')).get('repo', ''); print(r.replace('https://github.com/', '').replace('.git', ''))" 2>/dev/null)
     if [ ! -z "$DETECTED_REPO" ]; then
-        if [[ "$DETECTED_REPO" == http* ]]; then
-            REPO_URL="$DETECTED_REPO"
-        else
-            REPO_URL="https://github.com/$DETECTED_REPO.git"
-        fi
+        REPO_URL="https://github.com/$DETECTED_REPO.git"
         echo "   Detected Repo from config.json: $REPO_URL"
     fi
 fi

@@ -35,7 +35,7 @@ cd ~
 # --- Smart Branch/Tag Logic ---
 CONFIG_FILE="$HOME/config.json"
 # Detect Repo from config if available
-REPO=$(python3 -c "import json, os; f=os.path.expanduser('$CONFIG_FILE'); print(json.load(open(f)).get('repo', 'DSparks156x/RNS-E-Hudiy')) if os.path.exists(f) else print('DSparks156x/RNS-E-Hudiy')" 2>/dev/null || echo "DSparks156x/RNS-E-Hudiy")
+REPO=$(python3 -c "import json, os; f=os.path.expanduser('$CONFIG_FILE'); r=json.load(open(f)).get('repo', 'DSparks156x/RNS-E-Hudiy') if os.path.exists(f) else 'DSparks156x/RNS-E-Hudiy'; print(r.replace('https://github.com/', '').replace('.git', ''))" 2>/dev/null || echo "DSparks156x/RNS-E-Hudiy")
 echo "   Using Repository: $REPO"
 
 # Use Python to handle JSON, GitHub API tag listing, and date comparisons
