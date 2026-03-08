@@ -99,30 +99,51 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
         FEATURES = cfg.get('features', {})
         pw_mgmt = FEATURES.get('power_management', {})
 
-        # Input Mappings
+        # Input Mappings (New Nested Format)
         input_cfg = cfg.get('input_mappings', {})
-        key_maps = input_cfg.get('key_mappings', {})
-        source_data = input_cfg.get('source_data', {})
+        
+        # MMI Mappings
+        mmi_cfg = input_cfg.get('mmi', {})
+        mmi_scroll_cmds = mmi_cfg.get('scroll_commands', [])
+        mmi_short_press = mmi_cfg.get('short_press', {})
+        mmi_long_press = mmi_cfg.get('long_press', {})
+        mmi_extended_press = mmi_cfg.get('extended_press', {})
+
+        # MFSW Mappings
+        mfsw_cfg = input_cfg.get('mfsw', {})
+        mfsw_cmds_cfg = mfsw_cfg.get('commands', {})
+        mfsw_short_press = mfsw_cfg.get('short_press', {})
+        mfsw_long_press = mfsw_cfg.get('long_press', {})
+
+        # Source Mappings
+        source_data = input_cfg.get('source', {})
         
         # Thresholds
         thresholds = cfg.get('thresholds', {})
         
         CONFIG = {
             'zmq_address': zmq_cfg.get('can_raw_stream'),
-            'can_ids': {k: int(v, 16) for k, v in cfg['can_ids'].items()},
-            'mmi_scroll_cmds': {tuple(map(int, k.split(','))) for k in input_cfg['mmi_scroll_commands']},
-            'mmi_short_map': {tuple(map(int, k.split(','))): parse_key(v) for k, v in key_maps['mmi_short'].items()},
-            'mmi_long_map': {tuple(map(int, k.split(','))): parse_key(v) for k, v in key_maps['mmi_long'].items()},
-            'mmi_extended_map': {tuple(map(int, k.split(','))): v for k, v in key_maps['mmi_extended'].items()},
-            'mfsw_cmds': {k: int(v, 16) for k, v in key_maps['mfsw_commands'].items() if isinstance(v, str)},
-            'mfsw_release_cmds': [int(v, 16) for v in key_maps['mfsw_commands']['release']],
-            'mfsw_map': {k: parse_key(v) for k, v in key_maps['mfsw'].items()},
-            'tv_mode_id': int(source_data['tv_mode_identifier'], 16),
-            'play_key': parse_key(source_data['play_key']),
-            'pause_key': parse_key(source_data['pause_key']),
+            'can_ids': {k: int(v, 16) for k, v in cfg.get('can_ids', {}).items()},
+            'mmi_scroll_cmds': {tuple(map(int, k.split(','))) for k in mmi_scroll_cmds},
+            'mmi_short_map': {tuple(map(int, k.split(','))): parse_key(v) for k, v in mmi_short_press.items()},
+            'mmi_long_map': {tuple(map(int, k.split(','))): parse_key(v) for k, v in mmi_long_press.items()},
+            'mmi_extended_map': {tuple(map(int, k.split(','))): v for k, v in mmi_extended_press.items()},
+            
+            'mfsw_cmds': {k: int(v, 16) for k, v in mfsw_cmds_cfg.items() if isinstance(v, str) and k != 'release'},
+            'mfsw_release_cmds': [int(v, 16) for v in mfsw_cmds_cfg.get('release', [])],
+            'mfsw_map': {
+                'scroll_up': parse_key(mfsw_short_press.get('scroll_up')),
+                'scroll_down': parse_key(mfsw_short_press.get('scroll_down')),
+                'mode_short': parse_key(mfsw_short_press.get('mode')),
+                'mode_long': parse_key(mfsw_long_press.get('mode'))
+            },
+            
+            'tv_mode_id': int(source_data.get('tv_mode_identifier', '0x00'), 16),
+            'play_key': parse_key(source_data.get('play_key')),
+            'pause_key': parse_key(source_data.get('pause_key')),
             'source_pause': source_data.get('source_pause', False),
-            'cooldown': thresholds['cooldown_period'],
-            'long_press_count': thresholds['long_press_message_count'],
+            'cooldown': thresholds.get('cooldown_period', 0.2),
+            'long_press_count': thresholds.get('long_press_message_count', 5),
             'extended_press_count': thresholds.get('extended_long_press_message_count', 30),
         }
         logger.info("Configuration loaded and processed successfully.")
