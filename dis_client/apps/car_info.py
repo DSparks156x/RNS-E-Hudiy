@@ -10,7 +10,8 @@ class CarInfoApp(BaseApp):
             'boost': '--',
             'oil': '--',
             'load': '--',
-            'iat': '--'
+            'iat': '--',
+            'coolant': '--'
         }
         # Rate Limiting
         self.last_update_time = 0
@@ -32,6 +33,7 @@ class CarInfoApp(BaseApp):
             data = payload.get('data', [])
             if group == 0: # Temperatures
                 if len(data) > 0: self.data['oil'] = f"{data[0]['value']}{data[0]['unit']}"
+                if len(data) > 2: self.data['coolant'] = f"{data[2]['value']}{data[2]['unit']}"
                 if len(data) > 3: self.data['iat'] = f"{data[3]['value']}{data[3]['unit']}"
             elif group == 1: # Performance
                 if len(data) > 1: 
@@ -59,6 +61,8 @@ class CarInfoApp(BaseApp):
         lines['line3'] = (f"Load:  {self.data['load']}", flag)
         # Line 4: IAT
         lines['line4'] = (f"IAT:   {self.data['iat']}", flag)
+        # Line 5: Coolant
+        lines['line5'] = (f"Coolant: {self.data['coolant']}", flag)
         # Update Cache
         self.cached_view = lines
         self.last_update_time = now
