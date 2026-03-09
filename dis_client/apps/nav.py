@@ -346,9 +346,9 @@ class NavApp(BaseApp):
             
             # Draw 3 vertical lines for a thick bar
             commands += [
-                {'group': 'street', 'cmd': 'draw_line', 'x': 61, 'y': start_y, 'len': bar_h, 'vert': True},
-                {'group': 'street', 'cmd': 'draw_line', 'x': 62, 'y': start_y, 'len': bar_h, 'vert': True},
-                {'group': 'street', 'cmd': 'draw_line', 'x': 63, 'y': start_y, 'len': bar_h, 'vert': True},
+                {'group': 'street', 'cmd': 'draw_line', 'x': 61, 'y': start_y, 'length': bar_h, 'vertical': True},
+                {'group': 'street', 'cmd': 'draw_line', 'x': 62, 'y': start_y, 'length': bar_h, 'vertical': True},
+                {'group': 'street', 'cmd': 'draw_line', 'x': 63, 'y': start_y, 'length': bar_h, 'vertical': True},
             ]
 
         return commands

@@ -245,6 +245,11 @@ class DDPProtocol:
 
         # --- Type 0x0_, 0x1_, 0x2_ (Data) ---
         if msg_type_prefix in [0x00, self.PKT_TYPE_DATA_END, self.PKT_TYPE_DATA_BODY]:
+            # Check for benign Graphics ACKs starting with 0x0B or 0x1B
+            payload = data[1:]
+            if payload == DDPMessages.STAT_GRAPHIC_ACK_WHITE or payload == DDPMessages.STAT_GRAPHIC_ACK_RED:
+                logger.debug(f"<- Swallowing background Graphics ACK {payload}")
+                return True
             return False # Not handled, it's data for the caller
 
         logger.warning(f"Unknown unhandled packet type {data[0]:02X}")
@@ -655,11 +660,6 @@ class DDPProtocol:
         self._set_state(DDPState.INITIALIZING)
         self.send_seq_num = 0
 
-        if not self.i_am_opener:
-            logger.error("This handshake is for ACTIVE (Pi opens) mode only.")
-            self._set_state(DDPState.DISCONNECTED)
-            return False
-            
         if self.dis_mode == DisMode.UNKNOWN:
              logger.error("DIS mode is unknown. Cannot perform initialization.")
              self._set_state(DDPState.DISCONNECTED)

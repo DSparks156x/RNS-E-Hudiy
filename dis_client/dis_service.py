@@ -435,6 +435,9 @@ class DisService:
                                         if current_payload:
                                             self.ddp.send_ddp_frame(current_payload)
                                             current_payload = []
+                                            # Poll after drawing to keep session alive during burst
+                                            self.ddp.poll_bus_events()
+                                            self.ddp.send_keepalive_if_needed()
                                         self.commit_frame()
                                         continue
                                     elif c == 'draw_raw_bitmap':
@@ -466,11 +469,16 @@ class DisService:
                                         if current_payload and (len(current_payload) + len(p) > 42):
                                             self.ddp.send_ddp_frame(current_payload)
                                             current_payload = p
+                                            # Poll after drawing to keep session alive during burst
+                                            self.ddp.poll_bus_events()
+                                            self.ddp.send_keepalive_if_needed()
                                         else:
                                             current_payload += p
 
                                 if current_payload:
                                     self.ddp.send_ddp_frame(current_payload)
+                                    self.ddp.poll_bus_events()
+                                    self.ddp.send_keepalive_if_needed()
                     if (self.ENABLE_INACTIVITY_RELEASE
                         and self.screen_is_active
                         and (time.time() - self.last_draw_time > self.inactivity_timeout_sec)):
