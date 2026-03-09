@@ -35,104 +35,50 @@ cd ~
 # --- Smart Branch/Tag Logic ---
 CONFIG_FILE="$HOME/config.json"
 # Detect Repo from config if available
-REPO=$(python3 -c "import json, os; f=os.path.expanduser('$CONFIG_FILE'); r=json.load(open(f)).get('repo', 'DSparks156x/RNS-E-Hudiy') if os.path.exists(f) else 'DSparks156x/RNS-E-Hudiy'; print(r.replace('https://github.com/', '').replace('.git', ''))" 2>/dev/null || echo "DSparks156x/RNS-E-Hudiy")
-echo "   Using Repository: $REPO"
+REPO_PATH=$(python3 -c "import json, os; f=os.path.expanduser('$CONFIG_FILE'); r=json.load(open(f)).get('repo', 'DSparks156x/RNS-E-Hudiy') if os.path.exists(f) else 'DSparks156x/RNS-E-Hudiy'; print(r.replace('https://github.com/', '').replace('.git', ''))" 2>/dev/null || echo "DSparks156x/RNS-E-Hudiy")
+REPO_URL="https://github.com/${REPO_PATH}.git"
+echo "   Using Repository: $REPO_URL"
 
-# Use Python to handle JSON, GitHub API tag listing, and date comparisons
-BRANCH=$(python3 <<EOF
-import json
-import urllib.request
-import os
-from datetime import datetime
+# 1. Load config branch
+BRANCH=$(python3 -c "import json, os; f=os.path.expanduser('$CONFIG_FILE'); print(json.load(open(f)).get('branch', 'main')) if os.path.exists(f) else print('main')" 2>/dev/null || echo "main")
 
-def request_github(url):
-    try:
-        req = urllib.request.Request(url)
-        req.add_header('User-Agent', 'RNS-E-Hudiy-Updater')
-        with urllib.request.urlopen(req, timeout=10) as response:
-            return json.loads(response.read().decode())
-    except Exception:
-        return None
-
-def get_commit_date(ref):
-    data = request_github(f"https://api.github.com/repos/{REPO}/commits/{ref}")
-    if data:
-        try:
-            date_str = data['commit']['committer']['date']
-            return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")
-        except: pass
-    return None
-
-def find_latest_ref(prefix):
-    """Finds the latest tag starting with prefix, or the literal prefix branch/tag."""
-    tags_data = request_github(f"https://api.github.com/repos/{REPO}/tags") or []
-    candidate_refs = [t['name'] for t in tags_data if t['name'].startswith(prefix)]
+# 2. Smart Tag Selection Logic
+# If branch is not 'main' or 'testing', look for latest tag matching 'branch-*'
+if [[ "$BRANCH" != "main" && "$BRANCH" != "testing" ]]; then
+    echo "   Checking for versioned tags for branch: $BRANCH..."
+    # Get latest tag starting with $BRANCH- using git ls-remote
+    LATEST_TAG=$(git ls-remote --tags --sort="v:refname" "$REPO_URL" "refs/tags/${BRANCH}-*" | tail -n1 | sed 's/.*refs\/tags\///')
     
-    # Also consider the literal prefix as a branch/tag (e.g., 'beta' or 'release')
-    candidate_refs.append(prefix)
-    
-    latest_ref = prefix
-    latest_date = datetime.min
-    
-    for ref in set(candidate_refs):
-        date = get_commit_date(ref)
-        if date and date > latest_date:
-            latest_date = date
-            latest_ref = ref
-            
-    return latest_ref, latest_date
+    if [ ! -z "$LATEST_TAG" ]; then
+        echo "   Found tag: $LATEST_TAG. Switching to tag for update."
+        SELECTED_REF="$LATEST_TAG"
+    else
+        # Fallback to literal branch name
+        SELECTED_REF="$BRANCH"
+    fi
+else
+    SELECTED_REF="$BRANCH"
+fi
 
-# 1. Load config
-config_branch = "release" # Default to release
-if os.path.exists("$CONFIG_FILE"):
-    try:
-        with open("$CONFIG_FILE", 'r') as f:
-            config_branch = json.load(f).get('branch', 'release')
-    except: pass
+# Final Reachability Check - Fallback to main if branch/tag doesn't exist
+if ! git ls-remote --exit-code --heads "$REPO_URL" "$SELECTED_REF" >/dev/null 2>&1 && \
+   ! git ls-remote --exit-code --tags "$REPO_URL" "$SELECTED_REF" >/dev/null 2>&1; then
+    echo "   ⚠ Reference $SELECTED_REF not found on remote. Falling back to 'main'."
+    BRANCH="main"
+    SELECTED_REF="main"
+fi
 
-# 2. Handle "testing" (always main)
-if config_branch == "testing":
-    print("main")
-    exit()
-
-# 3. Smart Logic for "beta" or "release"
-if config_branch == "beta":
-    # Find latest beta and latest release
-    final_beta_ref, beta_date = find_latest_ref("beta")
-    final_release_ref, release_date = find_latest_ref("release")
-    
-    # If release is newer than beta, upgrade to release
-    if release_date > beta_date:
-        print(final_release_ref)
-    else:
-        print(final_beta_ref)
-    exit()
-
-if config_branch == "release":
-    # Just find the latest release tag/branch
-    final_release_ref, _ = find_latest_ref("release")
-    print(final_release_ref)
-    exit()
-
-# 4. Fallback/Default
-print(config_branch)
-EOF
-)
-
-echo "Selected Update Branch/Tag: $BRANCH"
-
-# Map "testing" to "main" for the URL if it wasn't caught
-TARGET_BRANCH=$BRANCH
-[ "$BRANCH" == "testing" ] && TARGET_BRANCH="main"
+echo "Selected Update Branch/Tag: $SELECTED_REF"
 
 # Download the latest installer script from the selected branch/tag
-URL="https://raw.githubusercontent.com/${REPO}/${TARGET_BRANCH}/install.sh"
+URL="https://raw.githubusercontent.com/${REPO_PATH}/${SELECTED_REF}/install.sh"
 echo "Fetching installer from: $URL"
 
 wget -q -O install_update.sh "$URL"
 chmod +x install_update.sh
 
 # Build install command
+# Pass the original BRANCH (not the tag) to the installer so it can do its own lookup/persistence
 INSTALL_CMD="sudo ./install_update.sh \"$BRANCH\""
 if [ "$INSTALL_MODE" = false ]; then
     INSTALL_CMD="$INSTALL_CMD -u"
@@ -141,7 +87,6 @@ fi
 # Run install script
 echo "n" | eval $INSTALL_CMD
 
-#rebooting immediately causes reboot to take forever, something is taking its time. 
-
+# rebooting immediately causes reboot to take forever, something is taking its time. 
 sleep 10
 sudo reboot now

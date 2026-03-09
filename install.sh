@@ -40,8 +40,8 @@ if [ -f "$REAL_HOME/config.json" ]; then
     fi
 fi
 
-BRANCH="main"
 UPDATE_MODE=false
+BRANCH_ARG=""
 
 # Simple argument parser
 while [[ "$#" -gt 0 ]]; do
@@ -49,17 +49,47 @@ while [[ "$#" -gt 0 ]]; do
         -u|--update) UPDATE_MODE=true; shift ;;
         -*) echo "Unknown option: $1"; shift ;;
         *)  # Assume first positional argument is the branch
-            BRANCH="$1"
-            # Special case for "testing" to map to "main"
-            if [ "$BRANCH" == "testing" ]; then
-                BRANCH="main"
-            fi
+            BRANCH_ARG="$1"
             shift
             ;;
     esac
 done
 
-echo "   Install Branch: $BRANCH"
+# Detect Branch from config if not provided
+if [ -z "$BRANCH_ARG" ] && [ -f "$REAL_HOME/config.json" ]; then
+    BRANCH=$(python3 -c "import json; print(json.load(open('$REAL_HOME/config.json')).get('branch', 'main'))" 2>/dev/null)
+    [ -z "$BRANCH" ] && BRANCH="main"
+else
+    BRANCH="${BRANCH_ARG:-main}"
+fi
+
+# Smart Tag Selection Logic
+# If branch is not 'main' or 'testing', look for latest tag matching 'branch-*'
+if [[ "$BRANCH" != "main" && "$BRANCH" != "testing" ]]; then
+    echo "   Checking for versioned tags for branch: $BRANCH..."
+    # Get latest tag starting with $BRANCH-
+    LATEST_TAG=$($GIT_CMD ls-remote --tags --sort="v:refname" "$REPO_URL" "refs/tags/${BRANCH}-*" | tail -n1 | sed 's/.*refs\/tags\///')
+    
+    if [ ! -z "$LATEST_TAG" ]; then
+        echo "   Found tag: $LATEST_TAG. Switching to tag for install."
+        SELECTED_REF="$LATEST_TAG"
+    else
+        # Fallback to literal branch name
+        SELECTED_REF="$BRANCH"
+    fi
+else
+    SELECTED_REF="$BRANCH"
+fi
+
+# Final Reachability Check - Fallback to main if branch/tag doesn't exist
+if ! $GIT_CMD ls-remote --exit-code --heads "$REPO_URL" "$SELECTED_REF" >/dev/null 2>&1 && \
+   ! $GIT_CMD ls-remote --exit-code --tags "$REPO_URL" "$SELECTED_REF" >/dev/null 2>&1; then
+    echo "   ⚠ Reference $SELECTED_REF not found on remote. Falling back to 'main'."
+    BRANCH="main"
+    SELECTED_REF="main"
+fi
+
+echo "   Install Branch/Tag: $SELECTED_REF"
 echo "   Update Mode: $UPDATE_MODE"
 
 # Define Config Paths
@@ -103,8 +133,8 @@ echo "? Step 2: Downloading Project Files..."
 
 # Create a temporary directory for cloning
 TEMP_DIR=$(mktemp -d)
-echo "   Cloning repository to temporary folder..."
-$GIT_CMD clone -b $BRANCH --depth 1 $REPO_URL "$TEMP_DIR"
+echo "   Cloning repository to temporary folder ($SELECTED_REF)..."
+$GIT_CMD clone -b $SELECTED_REF --depth 1 $REPO_URL "$TEMP_DIR"
 
 echo "   Installing to $REAL_HOME..."
 
