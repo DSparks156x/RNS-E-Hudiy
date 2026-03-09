@@ -57,9 +57,9 @@ class DisplayEngine:
         self.t_btn = self._topics('steering_module', '0x2C1')
         
         # We need to subscribe to radio topics for the header/footer even without RadioApp active
-        if self.can_connected:
-            self.sub.subscribe(b"CAN_0x363") # fis_line1
-            self.sub.subscribe(b"CAN_0x365") # fis_line2
+        #if self.can_connected:
+        #    self.sub.subscribe(b"CAN_0x363") # fis_line1
+        #    self.sub.subscribe(b"CAN_0x365") # fis_line2
         
         self.t_car = set()
         for key in ['oil_temp', 'battery', 'fuel_level']:
