@@ -14,17 +14,29 @@ logger = logging.getLogger(__name__)
 def load_config():
     _base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     config_path = os.path.join(_base_dir, 'config.json')
+    
+    # Default values
+    can_raw = 'ipc:///run/rnse_control/can_stream.ipc'
+    tp2_stream = 'ipc:///run/rnse_control/tp2_stream.ipc'
+    tp2_cmd = 'ipc:///run/rnse_control/tp2_cmd.ipc'
+    
     try:
          with open(config_path) as _f:
              cfg = json.load(_f)
-         _zmq = cfg.get('interfaces', {}).get('zmq', {})
-         can_raw = _zmq.get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc')
-         tp2_stream = _zmq.get('tp2_stream', 'ipc:///run/rnse_control/tp2_stream.ipc')
-         tp2_cmd = _zmq.get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
+         
+         _interfaces = cfg.get('interfaces', {})
+         _zmq = _interfaces.get('zmq', {})
+         if not _zmq:
+             _zmq = cfg.get('zmq', {}) # Fallback to old format if necessary
+             
+         can_raw = _zmq.get('can_raw_stream', can_raw)
+         tp2_stream = _zmq.get('tp2_stream', tp2_stream)
+         tp2_cmd = _zmq.get('tp2_command', tp2_cmd)
+         
          return can_raw, tp2_stream, tp2_cmd
     except Exception as e:
-         logger.warning(f"Could not read config.json: {e}")
-         return 'ipc:///run/rnse_control/can_stream.ipc', 'ipc:///run/rnse_control/tp2_stream.ipc', 'ipc:///run/rnse_control/tp2_cmd.ipc'
+         logger.warning(f"Could not read config.json: {e}. Using defaults.")
+         return can_raw, tp2_stream, tp2_cmd
 
 class DataLogger:
     def __init__(self, module, groups, can_ids):
@@ -208,5 +220,5 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    logger = DataLogger(module=args.module, groups=args.groups, can_ids=args.ids)
-    logger.run()
+    data_logger = DataLogger(module=args.module, groups=args.groups, can_ids=args.ids)
+    data_logger.run()
