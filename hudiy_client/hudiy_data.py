@@ -388,6 +388,14 @@ class TP2BridgeHandler(ClientEventHandler):
         req_act_restore = hudiy_api.RegisterActionRequest()
         req_act_restore.action = "restore_configs"
         client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_restore.SerializeToString())
+
+        req_act_reboot = hudiy_api.RegisterActionRequest()
+        req_act_reboot.action = "reboot_system"
+        client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_reboot.SerializeToString())
+
+        req_act_shutdown = hudiy_api.RegisterActionRequest()
+        req_act_shutdown.action = "shutdown_system"
+        client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_shutdown.SerializeToString())
         
         # 2. Register Icon
         req_icon = hudiy_api.RegisterStatusIconRequest()
@@ -446,6 +454,14 @@ class TP2BridgeHandler(ClientEventHandler):
             
             # Execute the script in the terminal
             subprocess.Popen(["foot", "--fullscreen", "bash", updater_script], env=env)
+        elif message.action == "reboot_system":
+            logger.info("Hudiy Action: Rebooting system...")
+            import subprocess
+            subprocess.run(["sudo", "reboot", "now"])
+        elif message.action == "shutdown_system":
+            logger.info("Hudiy Action: Shutting down system...")
+            import subprocess
+            subprocess.run(["sudo", "shutdown", "-h", "now"])
 
     def send_command(self, cmd):
         with self.lock:
