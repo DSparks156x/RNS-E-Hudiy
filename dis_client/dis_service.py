@@ -278,9 +278,6 @@ class DisService:
         if not self.ddp.send_ddp_frame(payload_clear + payload_commit):
             logger.error("clear_screen: Failed to send frame.")
             
-    def set_source_radio(self):
-        self.ddp.send_can(0x661, [0x00] * 8)
-        logger.info("Source: Radio")
 
     def handle_redraw(self):
         if not self.command_cache: return
@@ -355,7 +352,6 @@ class DisService:
                         logger.error("DDP Initialization failed. Retrying.")
                         time.sleep(3)
                     else:
-                        self.set_source_radio()
                         logger.info("DDP READY.")
                         self.last_draw_time = time.time()
                         self.screen_is_active = False
