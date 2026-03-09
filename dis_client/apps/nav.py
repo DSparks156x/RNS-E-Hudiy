@@ -305,14 +305,15 @@ class NavApp(BaseApp):
 
         blank_char = chr(0x1F)
         
-        # First write a full-width blank block to wipe any previous ghosting artifacts 
+        # First clear the street name area surgically (x=0 to x=60)
+        # This protects the progress bar starting at x=61
         commands.append({
             'group': 'street',
-            'cmd': 'draw_text',
-            'text': blank_char * 16, 
+            'cmd': 'clear_area',
             'x': 0,
             'y': 39,
-            'flags': self.FLAG_ITEM
+            'w': 61,
+            'h': 9
         })
 
         # Then draw the actual centered text on top of the blank wiped area
@@ -326,8 +327,7 @@ class NavApp(BaseApp):
         })
 
         # 4. Red: Progress bar (Right Edge)
-        # To ensure the bar is drawn ON TOP of the text padding wipe, we group it with 'street'
-        # so whenever the street updates (every tick due to scrolling), the bar is refreshed.
+        # Independent group 'bar' so it only redraws when distance changes
         
         last_bar_h = getattr(self, 'last_bar_h', 0)
         
@@ -335,7 +335,7 @@ class NavApp(BaseApp):
         # We must clear the old pixels from the top.
         if bar_h < last_bar_h:
             commands.append({
-                'group': 'street',
+                'group': 'dist',
                 'cmd': 'clear_area',
                 'x': 61, 'y': 0, 'w': 3, 'h': 48
             })
@@ -347,9 +347,9 @@ class NavApp(BaseApp):
             
             # Draw 3 vertical lines for a thick bar
             commands += [
-                {'group': 'street', 'cmd': 'draw_line', 'x': 61, 'y': start_y, 'length': bar_h, 'vertical': True},
-                {'group': 'street', 'cmd': 'draw_line', 'x': 62, 'y': start_y, 'length': bar_h, 'vertical': True},
-                {'group': 'street', 'cmd': 'draw_line', 'x': 63, 'y': start_y, 'length': bar_h, 'vertical': True},
+                {'group': 'dist', 'cmd': 'draw_line', 'x': 61, 'y': start_y, 'length': bar_h, 'vertical': True},
+                {'group': 'dist', 'cmd': 'draw_line', 'x': 62, 'y': start_y, 'length': bar_h, 'vertical': True},
+                {'group': 'dist', 'cmd': 'draw_line', 'x': 63, 'y': start_y, 'length': bar_h, 'vertical': True},
             ]
 
         return commands

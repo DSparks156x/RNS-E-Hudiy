@@ -223,9 +223,29 @@ class DisService:
         return payload
 
     def draw_bitmap(self, x: int, y: int, icon_name: str, mode_flag: int = 0x02):
-        payload = self.get_bitmap_payload(x, y, icon_name, mode_flag)
-        if payload:
-            self.ddp.send_ddp_frame(payload)
+        if not icon_name or icon_name not in BITMAPS:
+            return
+        icon = BITMAPS[icon_name]
+        w, h, data = icon['w'], icon['h'], icon['data']
+        abs_y = y + self.region_y_offset
+        
+        # 1. Set window
+        payload_clip = [0x52, 0x05, 0x00, x, abs_y, w, h]
+        if not self.ddp.send_ddp_frame(payload_clip): return
+        
+        # 2. Send chunks
+        bytes_per_row = (w + 7) // 8
+        rows_per_chunk = 37 // bytes_per_row
+        if rows_per_chunk < 1: rows_per_chunk = 1
+        for i in range(0, h, rows_per_chunk):
+            start_byte = i * bytes_per_row
+            rows_to_send = min(rows_per_chunk, h - i)
+            chunk_data = data[start_byte:start_byte + (rows_to_send * bytes_per_row)]
+            payload_bmp = [0x55, len(chunk_data) + 3, mode_flag, 0x00, i] + chunk_data
+            if not self.ddp.send_ddp_frame(payload_bmp): break
+            
+        # 3. Reset window
+        self.ddp.send_ddp_frame([0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height])
 
     def get_line_payload(self, x: int, y: int, length: int, vertical: bool = True) -> List[int]:
         orientation = 0x10 if vertical else 0x20
@@ -427,7 +447,11 @@ class DisService:
                                     if c == 'draw_text':
                                         p = self.get_text_payload(cmd.get('text', ''), cmd.get('x', 0), cmd.get('y', 0), cmd.get('flags', 0x06))
                                     elif c == 'draw_bitmap':
-                                        p = self.get_bitmap_payload(cmd.get('x', 0), cmd.get('y', 0), cmd.get('icon_name'))
+                                        if current_payload:
+                                            self.ddp.send_ddp_frame(current_payload)
+                                            current_payload = []
+                                        self.draw_bitmap(cmd.get('x', 0), cmd.get('y', 0), cmd.get('icon_name'))
+                                        continue
                                     elif c == 'draw_line':
                                         p = self.get_line_payload(cmd.get('x', 0), cmd.get('y', 0), cmd.get('length', 0), cmd.get('vertical', True))
                                     elif c == 'clear_area':

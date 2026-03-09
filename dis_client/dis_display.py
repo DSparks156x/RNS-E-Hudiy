@@ -592,7 +592,7 @@ class DisplayEngine:
                 if center_enabled and (flag & 0x20):
                     blank_char = chr(0x1F)
                     wipe_len = 16 # Full width
-                    self._send_draw({'command':'draw_text', 'text': blank_char * wipe_len, 'y':self.Y[k], 'flags': 0x06})
+                    self._send_draw({'command':'clear_area', 'x': 0, 'y': self.Y[k], 'w': 64, 'h': 9})
 
                 if self._send_draw({'command':'draw_text', 'text':padded_txt, 'y':self.Y[k], 'flags':flag}):
                     self.last_sent[k] = txt # Store original raw text for comparison
