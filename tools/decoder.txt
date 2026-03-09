@@ -1,0 +1,1014 @@
+
+==================================================
+Data Log at 2026-03-08 16:40:09
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08f40c78032c02a4
+[555] Payload: e8a16a022a000054
+[351] Payload: 0000000000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 840.0 rpm
+  - Field 1: 42.0 °C
+  - Field 2: 21.0 °C
+  - Field 3: 4.5 deg
+  - Field 4: 27.0 °C
+  - Field 5: 8.34 g/s
+  - Field 6: 0.0 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 94.74 %
+  - Field 1: 94.74 %
+  - Field 2: 25.56 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 800.0 rpm
+  - Field 1: 24.81 %
+  - Field 2: 370.0 mbar
+  - Field 3: 830.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:40:29
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08180f7c002c02da
+[555] Payload: e8866a052a000055
+[351] Payload: 0042070000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 920.0 rpm
+  - Field 1: 45.0 °C
+  - Field 2: 20.0 °C
+  - Field 3: 3.0 deg
+  - Field 4: 27.0 °C
+  - Field 5: 7.6 g/s
+  - Field 6: 0.88 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 94.74 %
+  - Field 1: 94.74 %
+  - Field 2: 33.08 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 920.0 rpm
+  - Field 1: 33.83 %
+  - Field 2: 520.0 mbar
+  - Field 3: 840.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:40:37
+==================================================
+--- CAN Messages ---
+[35B] Payload: 0860177e002c02f6
+[555] Payload: e8756a0c2b000056
+[351] Payload: 00cc0b0000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1280.0 rpm
+  - Field 1: 47.0 °C
+  - Field 2: 20.0 °C
+  - Field 3: 6.0 deg
+  - Field 4: 27.0 °C
+  - Field 5: 7.63 g/s
+  - Field 6: 1.76 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 103.76 %
+  - Field 1: 103.76 %
+  - Field 2: 67.67 %
+  - Field 3: 96.47 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1440.0 rpm
+  - Field 1: 71.43 %
+  - Field 2: 1400.0 mbar
+  - Field 3: 860.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:40:39
+==================================================
+--- CAN Messages ---
+[35B] Payload: 080e1e7e002c028a
+[555] Payload: e86e69852f000056
+[351] Payload: 004a120000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1920.0 rpm
+  - Field 1: 47.0 °C
+  - Field 2: 19.0 °C
+  - Field 3: 13.5 deg
+  - Field 4: 27.0 °C
+  - Field 5: 7.98 g/s
+  - Field 6: 1.76 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 156.39 %
+  - Field 1: 156.39 %
+  - Field 2: 38.35 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1960.0 rpm
+  - Field 1: 42.86 %
+  - Field 2: 760.0 mbar
+  - Field 3: 970.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:40:51
+==================================================
+--- CAN Messages ---
+[35B] Payload: 089a3080202802de
+[555] Payload: e86d69093d000057
+[351] Payload: 0070210000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 2960.0 rpm
+  - Field 1: 48.0 °C
+  - Field 2: 18.0 °C
+  - Field 3: 17.25 deg
+  - Field 4: 27.0 °C
+  - Field 5: 9.51 g/s
+  - Field 6: 4.4 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 174.44 %
+  - Field 1: 174.44 %
+  - Field 2: 103.76 %
+  - Field 3: 46.27 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 2680.0 rpm
+  - Field 1: 122.56 %
+  - Field 2: 1340.0 mbar
+  - Field 3: 1440.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:40:53
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08922c80081d0297
+[555] Payload: e86b690e49000058
+[351] Payload: 006c2c0000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 2760.0 rpm
+  - Field 1: 49.0 °C
+  - Field 2: 18.0 °C
+  - Field 3: 11.25 deg
+  - Field 4: 27.0 °C
+  - Field 5: 10.87 g/s
+  - Field 6: 5.28 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 171.43 %
+  - Field 1: 171.43 %
+  - Field 2: 104.51 %
+  - Field 3: 64.31 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 2640.0 rpm
+  - Field 1: 94.74 %
+  - Field 2: 1350.0 mbar
+  - Field 3: 1230.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:40:58
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08c823820b1802cd
+[555] Payload: e86c69852a000058
+[351] Payload: 0046240000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 2320.0 rpm
+  - Field 1: 51.0 °C
+  - Field 2: 17.0 °C
+  - Field 3: 3.75 deg
+  - Field 4: 27.0 °C
+  - Field 5: 11.85 g/s
+  - Field 6: 7.92 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 163.16 %
+  - Field 1: 163.16 %
+  - Field 2: 8.27 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 2440.0 rpm
+  - Field 1: 8.27 %
+  - Field 2: 190.0 mbar
+  - Field 3: 850.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:41:02
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08941e84081802dd
+[555] Payload: e86c69002d000059
+[351] Payload: 00e01e0000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1920.0 rpm
+  - Field 1: 52.0 °C
+  - Field 2: 18.0 °C
+  - Field 3: 9.0 deg
+  - Field 4: 27.0 °C
+  - Field 5: 11.74 g/s
+  - Field 6: 9.68 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 156.39 %
+  - Field 1: 156.39 %
+  - Field 2: 39.85 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1920.0 rpm
+  - Field 1: 38.35 %
+  - Field 2: 700.0 mbar
+  - Field 3: 880.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:41:12
+==================================================
+--- CAN Messages ---
+[35B] Payload: 080e0e88031802f1
+[555] Payload: e89469012a00005a
+[351] Payload: 0000000000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 880.0 rpm
+  - Field 1: 54.0 °C
+  - Field 2: 19.0 °C
+  - Field 3: 6.0 deg
+  - Field 4: 27.0 °C
+  - Field 5: 11.06 g/s
+  - Field 6: 10.56 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 94.74 %
+  - Field 1: 94.74 %
+  - Field 2: 25.56 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 880.0 rpm
+  - Field 1: 25.56 %
+  - Field 2: 370.0 mbar
+  - Field 3: 830.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:41:23
+==================================================
+--- CAN Messages ---
+[35B] Payload: 082e248a20180298
+[555] Payload: e86f69083300005b
+[351] Payload: 00b60f0000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 2000.0 rpm
+  - Field 1: 56.0 °C
+  - Field 2: 19.0 °C
+  - Field 3: 10.5 deg
+  - Field 4: 27.0 °C
+  - Field 5: 10.87 g/s
+  - Field 6: 9.68 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 160.15 %
+  - Field 1: 160.15 %
+  - Field 2: 74.44 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 2160.0 rpm
+  - Field 1: 72.18 %
+  - Field 2: 1070.0 mbar
+  - Field 3: 1000.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:41:26
+==================================================
+--- CAN Messages ---
+[35B] Payload: 0810228a001802ce
+[555] Payload: e86e69023600005b
+[351] Payload: 00f41e0000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 2160.0 rpm
+  - Field 1: 56.0 °C
+  - Field 2: 17.0 °C
+  - Field 3: 0.75 deg
+  - Field 4: 27.0 °C
+  - Field 5: 11.76 g/s
+  - Field 6: 10.56 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 172.93 %
+  - Field 1: 172.93 %
+  - Field 2: 81.2 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 2720.0 rpm
+  - Field 1: 80.45 %
+  - Field 2: 1080.0 mbar
+  - Field 3: 1070.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:41:31
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08261b8a081802f8
+[555] Payload: e86f69822a00005c
+[351] Payload: 005a250000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1760.0 rpm
+  - Field 1: 57.0 °C
+  - Field 2: 17.0 °C
+  - Field 3: 6.75 deg
+  - Field 4: 27.0 °C
+  - Field 5: 12.23 g/s
+  - Field 6: 11.44 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 155.64 %
+  - Field 1: 155.64 %
+  - Field 2: 13.53 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1720.0 rpm
+  - Field 1: 13.53 %
+  - Field 2: 240.0 mbar
+  - Field 3: 840.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:41:39
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08be1d8e28180280
+[555] Payload: e87869092c00005e
+[351] Payload: 00ae140000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1840.0 rpm
+  - Field 1: 59.0 °C
+  - Field 2: 19.0 °C
+  - Field 3: 9.75 deg
+  - Field 4: 27.0 °C
+  - Field 5: 11.79 g/s
+  - Field 6: 13.2 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 155.64 %
+  - Field 1: 155.64 %
+  - Field 2: 40.6 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1880.0 rpm
+  - Field 1: 54.89 %
+  - Field 2: 820.0 mbar
+  - Field 3: 860.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:41:41
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08c4358e281802b6
+[555] Payload: e86c69105600005e
+[351] Payload: 0050250000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 3000.0 rpm
+  - Field 1: 59.0 °C
+  - Field 2: 18.0 °C
+  - Field 3: 11.25 deg
+  - Field 4: 27.0 °C
+  - Field 5: 12.31 g/s
+  - Field 6: 14.08 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 187.22 %
+  - Field 1: 187.22 %
+  - Field 2: 147.37 %
+  - Field 3: 82.35 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 3200.0 rpm
+  - Field 1: 139.85 %
+  - Field 2: 1990.0 mbar
+  - Field 3: 1630.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:41:43
+==================================================
+--- CAN Messages ---
+[35B] Payload: 081e4b8e2018028d
+[555] Payload: e86b690b5c00005e
+[351] Payload: 0006330000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 4320.0 rpm
+  - Field 1: 60.0 °C
+  - Field 2: 19.0 °C
+  - Field 3: 9.75 deg
+  - Field 4: 27.0 °C
+  - Field 5: 13.23 g/s
+  - Field 6: 14.08 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 178.95 %
+  - Field 1: 178.95 %
+  - Field 2: 174.44 %
+  - Field 3: 87.84 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 4560.0 rpm
+  - Field 1: 178.2 %
+  - Field 2: 1780.0 mbar
+  - Field 3: 1910.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:41:44
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08d03b8e201802cd
+[555] Payload: e86a69946c00005e
+[351] Payload: 009e3b0000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 3760.0 rpm
+  - Field 1: 60.0 °C
+  - Field 2: 21.0 °C
+  - Field 3: 0.0 deg
+  - Field 4: 27.0 °C
+  - Field 5: 14.59 g/s
+  - Field 6: 14.08 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 169.17 %
+  - Field 1: 169.17 %
+  - Field 2: 160.9 %
+  - Field 3: 88.63 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 5000.0 rpm
+  - Field 1: 165.41 %
+  - Field 2: 1630.0 mbar
+  - Field 3: 1770.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:41:47
+==================================================
+--- CAN Messages ---
+[35B] Payload: 081c2090001802f0
+[555] Payload: e86a69872a00005f
+[351] Payload: 0072360000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 2320.0 rpm
+  - Field 1: 60.0 °C
+  - Field 2: 18.0 °C
+  - Field 3: 3.75 deg
+  - Field 4: 27.0 °C
+  - Field 5: 14.92 g/s
+  - Field 6: 15.84 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 168.42 %
+  - Field 1: 168.42 %
+  - Field 2: 8.27 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 2120.0 rpm
+  - Field 1: 8.27 %
+  - Field 2: 190.0 mbar
+  - Field 3: 850.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:41:54
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08c61b920818028b
+[555] Payload: e86c69802c000060
+[351] Payload: 006c300000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1760.0 rpm
+  - Field 1: 63.0 °C
+  - Field 2: 20.0 °C
+  - Field 3: 11.25 deg
+  - Field 4: 27.0 °C
+  - Field 5: 14.68 g/s
+  - Field 6: 18.48 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 155.64 %
+  - Field 1: 155.64 %
+  - Field 2: 33.83 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1760.0 rpm
+  - Field 1: 33.83 %
+  - Field 2: 610.0 mbar
+  - Field 3: 870.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:42:31
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08901c9e081802a2
+[555] Payload: e86d69812e000064
+[351] Payload: 00e0310000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1800.0 rpm
+  - Field 1: 71.0 °C
+  - Field 2: 17.0 °C
+  - Field 3: 15.0 deg
+  - Field 4: 27.0 °C
+  - Field 5: 15.53 g/s
+  - Field 6: 26.4 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 156.39 %
+  - Field 1: 156.39 %
+  - Field 2: 37.59 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1800.0 rpm
+  - Field 1: 37.59 %
+  - Field 2: 660.0 mbar
+  - Field 3: 930.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:42:33
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08b21c9e081802b0
+[555] Payload: e86b69002f000065
+[351] Payload: 002e320000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1800.0 rpm
+  - Field 1: 72.0 °C
+  - Field 2: 17.0 °C
+  - Field 3: 12.0 deg
+  - Field 4: 27.0 °C
+  - Field 5: 15.56 g/s
+  - Field 6: 27.28 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 156.39 %
+  - Field 1: 156.39 %
+  - Field 2: 52.63 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1800.0 rpm
+  - Field 1: 38.35 %
+  - Field 2: 660.0 mbar
+  - Field 3: 900.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:42:36
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08901d9e081802c3
+[555] Payload: e86d690131000065
+[351] Payload: 008c330000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1840.0 rpm
+  - Field 1: 72.0 °C
+  - Field 2: 17.0 °C
+  - Field 3: 10.5 deg
+  - Field 4: 27.0 °C
+  - Field 5: 15.61 g/s
+  - Field 6: 27.28 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 156.39 %
+  - Field 1: 156.39 %
+  - Field 2: 57.89 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1880.0 rpm
+  - Field 1: 56.39 %
+  - Field 2: 870.0 mbar
+  - Field 3: 990.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:42:36
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08c81d9e081802c5
+[555] Payload: e86d698031000065
+[351] Payload: 00be330000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1840.0 rpm
+  - Field 1: 72.0 °C
+  - Field 2: 17.0 °C
+  - Field 3: 10.5 deg
+  - Field 4: 27.0 °C
+  - Field 5: 15.61 g/s
+  - Field 6: 27.28 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 156.39 %
+  - Field 1: 156.39 %
+  - Field 2: 57.89 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1880.0 rpm
+  - Field 1: 56.39 %
+  - Field 2: 870.0 mbar
+  - Field 3: 990.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:42:36
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08c01d9e081802c6
+[555] Payload: e86c690131000065
+[351] Payload: 00dc330000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1840.0 rpm
+  - Field 1: 72.0 °C
+  - Field 2: 17.0 °C
+  - Field 3: 10.5 deg
+  - Field 4: 27.0 °C
+  - Field 5: 15.61 g/s
+  - Field 6: 27.28 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 156.39 %
+  - Field 1: 156.39 %
+  - Field 2: 57.89 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1880.0 rpm
+  - Field 1: 56.39 %
+  - Field 2: 870.0 mbar
+  - Field 3: 990.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:42:38
+==================================================
+--- CAN Messages ---
+[35B] Payload: 081c1ea0081802d5
+[555] Payload: e86c690230000066
+[351] Payload: 006e340000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1920.0 rpm
+  - Field 1: 72.0 °C
+  - Field 2: 17.0 °C
+  - Field 3: 15.0 deg
+  - Field 4: 27.0 °C
+  - Field 5: 15.71 g/s
+  - Field 6: 28.16 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 156.39 %
+  - Field 1: 156.39 %
+  - Field 2: 42.11 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1920.0 rpm
+  - Field 1: 42.86 %
+  - Field 2: 750.0 mbar
+  - Field 3: 960.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:42:38
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08141ea0081802d7
+[555] Payload: e86c69802f000066
+[351] Payload: 0072340000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1920.0 rpm
+  - Field 1: 72.0 °C
+  - Field 2: 17.0 °C
+  - Field 3: 15.0 deg
+  - Field 4: 27.0 °C
+  - Field 5: 15.71 g/s
+  - Field 6: 28.16 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 156.39 %
+  - Field 1: 156.39 %
+  - Field 2: 42.11 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1920.0 rpm
+  - Field 1: 42.86 %
+  - Field 2: 750.0 mbar
+  - Field 3: 960.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
+
+==================================================
+Data Log at 2026-03-08 16:42:38
+==================================================
+--- CAN Messages ---
+[35B] Payload: 08fc1da0081802d8
+[555] Payload: e86c69012f000066
+[351] Payload: 005a340000000000
+
+--- TP2 Module 0x01 Groups ---
+[Group 11]
+  - Field 0: 1920.0 rpm
+  - Field 1: 72.0 °C
+  - Field 2: 17.0 °C
+  - Field 3: 15.0 deg
+  - Field 4: 27.0 °C
+  - Field 5: 15.71 g/s
+  - Field 6: 28.16 km/h
+  - Field 7: 0x00EA Type_37
+[Group 114]
+  - Field 0: 156.39 %
+  - Field 1: 156.39 %
+  - Field 2: 42.11 %
+  - Field 3: 1.96 %
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x0000 Type_37
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x0000 Type_37
+[Group 115]
+  - Field 0: 1920.0 rpm
+  - Field 1: 42.86 %
+  - Field 2: 750.0 mbar
+  - Field 3: 960.0 mbar
+  - Field 4: 0x0000 Type_37
+  - Field 5: 0x5000 Type_31
+  - Field 6: 0x0000 Type_37
+  - Field 7: 0x144B Type_31
+==================================================
+
