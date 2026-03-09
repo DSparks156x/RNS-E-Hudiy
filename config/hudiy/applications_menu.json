@@ -159,6 +159,15 @@
                 "Hudiy"
             ],
             "iconFontFamily": "Material Symbols Rounded",
+            "iconName": "settings_backup_restore",
+            "action": "restore_configs",
+            "label": "Restore Configs"
+        },
+        {
+            "categories": [
+                "Hudiy"
+            ],
+            "iconFontFamily": "Material Symbols Rounded",
             "iconName": "cancel_presentation",
             "action": "quit_hudiy",
             "label": "Quit"

@@ -2,6 +2,7 @@
   "branch": "testing",
   "repo": "https://github.com/DSparks156x/RNS-E-Hudiy",
   "config_restore_repo": "https://github.com/DSparks156x/RNS-E-Hudiy",
+  "config_restore_branch": "testing",
   "interfaces": {
     "can": {
       "infotainment": "can0",

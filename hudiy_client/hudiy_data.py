@@ -384,6 +384,10 @@ class TP2BridgeHandler(ClientEventHandler):
         req_act_update = hudiy_api.RegisterActionRequest()
         req_act_update.action = "update_rnse"
         client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_update.SerializeToString())
+
+        req_act_restore = hudiy_api.RegisterActionRequest()
+        req_act_restore.action = "restore_configs"
+        client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_restore.SerializeToString())
         
         # 2. Register Icon
         req_icon = hudiy_api.RegisterStatusIconRequest()
@@ -408,8 +412,8 @@ class TP2BridgeHandler(ClientEventHandler):
             logger.info("Hudiy Action: Toggle Diagnostics")
             self.send_command("TOGGLE")
             self.check_status_now(client)
-        elif message.action == "update_rnse":
-            logger.info("Hudiy Action: Update RNS-E")
+        elif message.action == "update_rnse" or message.action == "restore_configs":
+            logger.info(f"Hudiy Action: {message.action}")
             import subprocess
             
             # Send quit action to gracefully close Hudiy
@@ -418,9 +422,13 @@ class TP2BridgeHandler(ClientEventHandler):
             client.send(hudiy_api.MESSAGE_DISPATCH_ACTION, 0, req_quit.SerializeToString())
             
             # Launch bash script in a visible terminal
-            logger.info("Executing updater bash script in terminal...")
+            logger.info(f"Executing {message.action} bash script in terminal...")
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            updater_script = os.path.join(script_dir, "update_rnse.sh")
+            
+            if message.action == "update_rnse":
+                updater_script = os.path.join(script_dir, "update_rnse.sh")
+            else:
+                updater_script = os.path.join(script_dir, "restore_configs.sh")
             
             # Ensure Wayland environment variables are set for foot
             env = os.environ.copy()
