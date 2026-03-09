@@ -1,8 +1,3 @@
-## Update Stuff
-* Updater Script Config Handling
-   * Make the update/install script back up all configs if they are different, and replace them. rather than leaving them untouched and making you manually update them.
-   * Would back up into a folder with the date - number increment in that folder - config.json/hudiy config folder 
-
 ## Power management stuff
 * GPIO sleep delay
     * Delay added. What is ideal time?
@@ -10,11 +5,10 @@
     * The can0 interface is put into listen only mode when ignition is off. The TP2 worker and DIS Service also pause themselves when ignition is off, but listen only ensures nothing else causes a problem.
     * Delay is added, what is ideal?
     * Messages being sent causes the radio to remain awake, the TV active message is always sent.  Listen only delay would manipulate how long the radio stays awake. Unsure if it causes wierd issues if bus is kept awake abnormally long by us, or if it could be beneficial. 
+    * logic could be revised/improved for robustness.
 
 ## DIS Stuff
 * Nav Screen Fixes
-    * Distance display "centering" needs to be removed. left aligned in current pos is fine. centering proportional font is hard.
-    * Nav distance bar rendering wacky. probably could also be scaled dif (start further away)
     * Nav auto switch return no longer works. 
 * Nav Screen Improvements
     * Add white flash on auto switch to catch attention about upcoming direction.
@@ -51,5 +45,3 @@
     * Multi module logging could be cool, would you want seperate or combined files though? 
 * 0-60 timing would be cool. lots of possibilites for this though. Should it be in dataview? should it be in the cluster? should it just use vehicle speed from can status messages? Should it also support a GPS module on the pi?
 
-## Smaller uncategorized
-* Steering wheel PTT button. would be cool to use for assistant activation. Not sure this is on canbus, plus other modules use it. Dont remember wether nav or telephone use it. Telephone id pull the fuse on anyways. 
