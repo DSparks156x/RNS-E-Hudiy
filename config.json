@@ -58,7 +58,7 @@
       }
     },
     "tv_simulation": {
-      "enabled": true
+      "enabled": false
     },
     "mmi_controls": true,
     "mfsw_controls": true,
