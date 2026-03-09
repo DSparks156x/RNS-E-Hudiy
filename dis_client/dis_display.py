@@ -97,7 +97,7 @@ class DisplayEngine:
                 self.sub_hudiy.subscribe(t)
 
         self.draw = self.zmq_ctx.socket(zmq.PUSH)
-        self.draw.setsockopt(zmq.SNDHWM, 20) # Prevent long backlogs if service freezes
+        self.draw.setsockopt(zmq.SNDHWM, 100) # Increased from 20 to prevent drops during rapid updates
         if mock:
             logger.info("MOCK MODE: Connecting to Emulator on TCP 5557")
             self.draw.connect("tcp://127.0.0.1:5557")
