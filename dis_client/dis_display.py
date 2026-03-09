@@ -591,8 +591,16 @@ class DisplayEngine:
                 center_enabled = self.cfg.get('display', {}).get('text_centering', False)
                 if center_enabled and (flag & 0x20):
                     blank_char = chr(0x1F)
-                    wipe_len = 16 # Full width
-                    self._send_draw({'command':'clear_area', 'x': 0, 'y': self.Y[k], 'w': 64, 'h': 9})
+                    y_pos = self.Y[k]
+                    # Safety Clip: Ensure clear_area doesn't exceed screen height (48 or 88)
+                    # Height 9 is standard for line wipes.
+                    h = 9
+                    max_h = 88 if self.nav_active else 48 # full height vs central
+                    if (y_pos + h) > max_h:
+                        h = max_h - y_pos
+                    
+                    if h > 0:
+                        self._send_draw({'command':'clear_area', 'x': 0, 'y': y_pos, 'w': 64, 'h': h})
 
                 if self._send_draw({'command':'draw_text', 'text':padded_txt, 'y':self.Y[k], 'flags':flag}):
                     self.last_sent[k] = txt # Store original raw text for comparison

@@ -59,9 +59,6 @@ class CarInfoApp(BaseApp):
         lines['line3'] = (f"Load:  {self.data['load']}", flag)
         # Line 4: IAT
         lines['line4'] = (f"IAT:   {self.data['iat']}", flag)
-        # Line 5: Status/Free
-        lines['line5'] = ("", flag)
-
         # Update Cache
         self.cached_view = lines
         self.last_update_time = now
