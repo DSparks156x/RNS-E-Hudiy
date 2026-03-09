@@ -143,7 +143,7 @@
         "scroll_up": "KEY_VOLUMEUP",
         "scroll_down": "KEY_VOLUMEDOWN",
         "mode": "KEY_ENTER",
-        "ptt": "KEY_H"
+        "ptt": "KEY_M"
       },
       "long_press": {
         "mode": "KEY_NEXTSONG",
