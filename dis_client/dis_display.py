@@ -529,7 +529,7 @@ class DisplayEngine:
                         elif cmd == 'draw_text':
                             success = self._send_draw({'command': 'draw_text', 'text': item.get('text', ''), 'x': item.get('x', 0), 'y': item.get('y', 0), 'flags': item.get('flags', 0x06)})
                         elif cmd == 'draw_line':
-                            success = self._send_draw({'command': 'draw_line', 'x': item.get('x', 0), 'y': item.get('y', 0), 'length': item.get('len', 0), 'vertical': item.get('vert', True)})
+                            success = self._send_draw({'command': 'draw_line', 'x': item.get('x', 0), 'y': item.get('y', 0), 'length': item.get('length', 0), 'vertical': item.get('vertical', True)})
                         elif cmd == 'clear_area':
                             success = self._send_draw({'command': 'clear_area', 'x': item.get('x', 0), 'y': item.get('y', 0), 'w': item.get('w', 0), 'h': item.get('h', 0)})
                         

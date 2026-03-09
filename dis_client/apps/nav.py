@@ -200,10 +200,11 @@ class NavApp(BaseApp):
     def get_view(self) -> List[Dict]:
         # If no route, show text fallback
         if not self.description and not self.distance_label:
-            return {
-                'line3': ("No Route".center(11), self.FLAG_WIPE),
-                'line4': ("" .ljust(16), self.FLAG_ITEM)
-            }
+            return [
+                {'type': 'nav_graphic_v2', 'clear_on_update': True},
+                {'group': 'no_route_1', 'cmd': 'draw_text', 'text': "No Route".center(11), 'x': 0, 'y': 21, 'flags': 0x06},
+                {'group': 'no_route_2', 'cmd': 'draw_text', 'text': "" .ljust(16), 'x': 0, 'y': 31, 'flags': 0x06}
+            ]
 
         icon_key = self._get_icon_name()
         # Ensure icon exists in icons.py mapping fallback
