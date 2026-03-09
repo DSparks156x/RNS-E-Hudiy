@@ -1,0 +1,2 @@
+# Protect config.json from being overwritten during merges
+config.json merge=ours
