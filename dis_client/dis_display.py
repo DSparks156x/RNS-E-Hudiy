@@ -580,9 +580,11 @@ class DisplayEngine:
                     blanks_needed = target_len - len(txt)
                     blank_char = chr(0x1F)
                     
-                    # Pad Right: Always use simple padding to clear trailing characters
-                    # Center-aligned text is wiped separately via PRE-CLEAR.
-                    padded_txt = txt + (blank_char * blanks_needed)
+                    # Pad Right: Only use simple padding for left-aligned text
+                    # Centered text (0x20) is wiped via hardware clear_area and 
+                    # must NOT be padded as blanks shift the visual center point.
+                    if not (flag & 0x20):
+                        padded_txt = txt + (blank_char * blanks_needed)
                 
                 # --- PRE-CLEAR FOR CENTERED TEXT ---
                 # If centering is enabled in config and this text is centered (0x20),
