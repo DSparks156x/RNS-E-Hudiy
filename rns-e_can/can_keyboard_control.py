@@ -51,6 +51,8 @@ class ControlState:
         self.mfsw_mode_long_action_fired = False
         self.mfsw_ptt_press_count = 0
         self.mfsw_ptt_long_action_fired = False
+        self.mfsw_scroll_click_press_count = 0
+        self.mfsw_scroll_click_long_action_fired = False
         self.is_pi_source_active = None
         self.last_status_log_time = time.time()
 
@@ -139,13 +141,14 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
                 'mode_short': parse_key(mfsw_short_press.get('mode')),
                 'mode_long': parse_key(mfsw_long_press.get('mode')),
                 'ptt_short': parse_key(mfsw_short_press.get('ptt')),
-                'ptt_long': parse_key(mfsw_long_press.get('ptt'))
+                'ptt_long': parse_key(mfsw_long_press.get('ptt')),
+                'scroll_click_short': parse_key(mfsw_short_press.get('scroll_click')),
+                'scroll_click_long': parse_key(mfsw_long_press.get('scroll_click'))
             },
             
             'tv_mode_id': int(source_data.get('tv_mode_identifier', '0x00'), 16),
             'play_key': parse_key(source_data.get('play_key')),
             'pause_key': parse_key(source_data.get('pause_key')),
-            'source_pause': source_data.get('source_pause', False),
             'cooldown': thresholds.get('cooldown_period', 0.2),
             'long_press_count': thresholds.get('long_press_message_count', 5),
             'extended_press_count': thresholds.get('extended_long_press_message_count', 30),
@@ -313,6 +316,12 @@ def handle_mfsw_message(msg, state):
             logger.info("MFSW PTT Long Press")
             press_key(CONFIG['mfsw_map'].get('ptt_long'))
             state.mfsw_ptt_long_action_fired = True
+    elif cmd_byte == CONFIG['mfsw_cmds'].get('scroll_click'):
+        state.mfsw_scroll_click_press_count += 1
+        if not state.mfsw_scroll_click_long_action_fired and state.mfsw_scroll_click_press_count >= CONFIG['long_press_count']:
+            logger.info("MFSW Scroll Click Long Press")
+            press_key(CONFIG['mfsw_map'].get('scroll_click_long'))
+            state.mfsw_scroll_click_long_action_fired = True
     elif cmd_byte in CONFIG['mfsw_release_cmds']:
         if not state.mfsw_mode_long_action_fired and state.mfsw_mode_press_count > 0:
             logger.info("MFSW Mode Short Press")
@@ -322,10 +331,16 @@ def handle_mfsw_message(msg, state):
             logger.info("MFSW PTT Short Press")
             press_key(CONFIG['mfsw_map'].get('ptt_short'))
 
+        if not state.mfsw_scroll_click_long_action_fired and state.mfsw_scroll_click_press_count > 0:
+            logger.info("MFSW Scroll Click Short Press")
+            press_key(CONFIG['mfsw_map'].get('scroll_click_short'))
+
         state.mfsw_mode_press_count = 0
         state.mfsw_mode_long_action_fired = False
         state.mfsw_ptt_press_count = 0
         state.mfsw_ptt_long_action_fired = False
+        state.mfsw_scroll_click_press_count = 0
+        state.mfsw_scroll_click_long_action_fired = False
 
 def handle_source_message(msg, state):
     """Processes RNS-E source messages to auto-play/pause media."""
@@ -337,13 +352,10 @@ def handle_source_message(msg, state):
 
     if is_pi_active != state.is_pi_source_active:
         state.is_pi_source_active = is_pi_active
-        if not CONFIG.get('source_pause', False):
-            key_to_press = CONFIG['play_key'] if is_pi_active else CONFIG['pause_key']
-            action = "PLAY" if is_pi_active else "PAUSE"
-            logger.info(f"Source switched. Simulating {action}.")
-            press_key(key_to_press)
-        else:
-            logger.info("Source switched. source_pause is enabled, skipping key simulation.")
+        key_to_press = CONFIG['play_key'] if is_pi_active else CONFIG['pause_key']
+        action = "PLAY" if is_pi_active else "PAUSE"
+        logger.info(f"Source switched. Simulating {action}.")
+        press_key(key_to_press)
 
 # --- Signal Handling and Main Loop ---
 def setup_signal_handlers():

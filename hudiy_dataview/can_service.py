@@ -136,16 +136,18 @@ class CANService:
                             payload = bytes.fromhex(json.loads(msg)['data_hex'])
                             if '35B' in t_str and len(payload) >= 6:
                                 self.latest_data['rpm'] = (payload[2] * 256 + payload[1]) / 4.0
-                                self.latest_data['coolant'] = (payload[3] * 0.75) - 64
+                                self.latest_data['coolant'] = (payload[3] * 0.75) - 48.0
                                 self.latest_data['fuel'] = payload[5]
                                 
                             if '555' in t_str and len(payload) >= 8:
-                                # Load Actual at B0, IAT at B1, Load Spec at B2
-                                self.latest_data['load_actual'] = payload[0] * 0.1
-                                self.latest_data['iat'] = (payload[1] * 0.75) - 64
-                                self.latest_data['load_spec'] = payload[2] * 0.1
+                                # Data mapping based on TP2 correlation:
+                                # B0: Load Spec (approx), B1: Load Actual (approx)
+                                # B2: IAT, B3-B4: Boost, B7: Oil Temp
+                                self.latest_data['load_spec'] = payload[0] * 0.75
+                                self.latest_data['load_actual'] = payload[1] * 0.75
+                                self.latest_data['iat'] = (payload[2] * 0.75) - 58.5
 
-                                self.latest_data['boost'] = (payload[3] + payload[4] * 256) * 0.08
+                                self.latest_data['boost'] = (payload[3] + payload[4] * 256) * 0.078
                                 self.latest_data['oil'] = payload[7] - 60
                                 
                             if '527' in t_str and len(payload) >= 6:
@@ -156,8 +158,9 @@ class CANService:
                                 self.latest_data['battery'] = (((payload[0]) / 2.0) + 50) / 10.0
 
                             if '351' in t_str and len(payload) >= 3:
-                                # Speed: (byte2 << 8 | byte1) / 200 (km/h)
-                                self.latest_data['speed'] = (payload[2] * 256 + payload[1]) / 200.0
+                                # Speed: (byte2 << 8 | byte1) / 480.0 (km/h)
+                                # Based on log data showing ~2.4x overreport with /200
+                                self.latest_data['speed'] = (payload[2] * 256 + payload[1]) / 480.0
                         except Exception as e:
                             logger.debug(f"Error parsing CAN message {t_str}: {e}")
                 

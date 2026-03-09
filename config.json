@@ -2,6 +2,7 @@
   "branch": "main",
   "repo": "https://github.com/DSparks156x/RNS-E-Hudiy",
   "config_restore_repo": "https://github.com/DSparks156x/RNS-E-Hudiy",
+  "config_restore_branch": "testing",
   "interfaces": {
     "can": {
       "infotainment": "can0",
@@ -61,7 +62,7 @@
     },
     "mmi_controls": true,
     "mfsw_controls": true,
-    "source_controls": true,
+    "source_controls": false,
     "system_actions": true,
     "car_time_zone": "America/Denver",
     "debug_mode": false
@@ -71,8 +72,8 @@
     "time_data": "0x623",
     "ignition_status": "0x2C3",
     "tv_presence": "0x602",
-    "fis_line1": "0x265",
-    "fis_line2": "0x267",
+    "fis_line1": "0x363",
+    "fis_line2": "0x365",
     "media_status": "0x6C1",
     "nav_status": "0x6C0",
     "mmi": "0x461",
@@ -130,31 +131,33 @@
     },
     "mfsw": {
       "commands": {
-        "scroll_up": "0x04",
-        "scroll_down": "0x05",
-        "mode_press": "0x08",
-        "ptt_press": "0x5C",
+        "scroll_up": "0x0B",
+        "scroll_down": "0x0C",
+        "mode_press": "0x1C",
+        "ptt_press": "0x2A",
+        "scroll_click": "0x08",
         "release": [
           "0x00",
           "0x00"
         ]
       },
       "short_press": {
-        "scroll_up": "KEY_VOLUMEUP",
-        "scroll_down": "KEY_VOLUMEDOWN",
+        "scroll_up": "KEY_V",
+        "scroll_down": "KEY_N",
         "mode": "KEY_ENTER",
-        "ptt": "KEY_M"
+        "ptt": "KEY_M",
+        "scroll_click": "KEY_B"
       },
       "long_press": {
-        "mode": "KEY_NEXTSONG",
-        "ptt": "KEY_V"
+        "mode": "KEY_ESC",
+        "ptt": "KEY_H",
+        "scroll_click": "KEY_B"
       }
     },
     "source": {
       "tv_mode_identifier": "0x37",
       "play_key": "KEY_X",
-      "pause_key": "KEY_C",
-      "source_pause": false
+      "pause_key": "KEY_C"
     }
   }
 }
