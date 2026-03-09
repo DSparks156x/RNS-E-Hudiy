@@ -133,6 +133,7 @@
         "scroll_up": "0x04",
         "scroll_down": "0x05",
         "mode_press": "0x08",
+        "ptt_press": "0x5C",
         "release": [
           "0x00",
           "0x00"
@@ -141,10 +142,12 @@
       "short_press": {
         "scroll_up": "KEY_VOLUMEUP",
         "scroll_down": "KEY_VOLUMEDOWN",
-        "mode": "KEY_ENTER"
+        "mode": "KEY_ENTER",
+        "ptt": "KEY_H"
       },
       "long_press": {
-        "mode": "KEY_NEXTSONG"
+        "mode": "KEY_NEXTSONG",
+        "ptt": "KEY_V"
       }
     },
     "source": {

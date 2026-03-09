@@ -49,6 +49,8 @@ class ControlState:
         self.last_mmi_action_info = {'command': None, 'time': 0}
         self.mfsw_mode_press_count = 0
         self.mfsw_mode_long_action_fired = False
+        self.mfsw_ptt_press_count = 0
+        self.mfsw_ptt_long_action_fired = False
         self.is_pi_source_active = None
         self.last_status_log_time = time.time()
 
@@ -135,7 +137,9 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
                 'scroll_up': parse_key(mfsw_short_press.get('scroll_up')),
                 'scroll_down': parse_key(mfsw_short_press.get('scroll_down')),
                 'mode_short': parse_key(mfsw_short_press.get('mode')),
-                'mode_long': parse_key(mfsw_long_press.get('mode'))
+                'mode_long': parse_key(mfsw_long_press.get('mode')),
+                'ptt_short': parse_key(mfsw_short_press.get('ptt')),
+                'ptt_long': parse_key(mfsw_long_press.get('ptt'))
             },
             
             'tv_mode_id': int(source_data.get('tv_mode_identifier', '0x00'), 16),
@@ -303,12 +307,25 @@ def handle_mfsw_message(msg, state):
             logger.info("MFSW Mode Long Press")
             press_key(CONFIG['mfsw_map'].get('mode_long'))
             state.mfsw_mode_long_action_fired = True
+    elif cmd_byte == CONFIG['mfsw_cmds'].get('ptt_press'):
+        state.mfsw_ptt_press_count += 1
+        if not state.mfsw_ptt_long_action_fired and state.mfsw_ptt_press_count >= CONFIG['long_press_count']:
+            logger.info("MFSW PTT Long Press")
+            press_key(CONFIG['mfsw_map'].get('ptt_long'))
+            state.mfsw_ptt_long_action_fired = True
     elif cmd_byte in CONFIG['mfsw_release_cmds']:
         if not state.mfsw_mode_long_action_fired and state.mfsw_mode_press_count > 0:
             logger.info("MFSW Mode Short Press")
             press_key(CONFIG['mfsw_map'].get('mode_short'))
+        
+        if not state.mfsw_ptt_long_action_fired and state.mfsw_ptt_press_count > 0:
+            logger.info("MFSW PTT Short Press")
+            press_key(CONFIG['mfsw_map'].get('ptt_short'))
+
         state.mfsw_mode_press_count = 0
         state.mfsw_mode_long_action_fired = False
+        state.mfsw_ptt_press_count = 0
+        state.mfsw_ptt_long_action_fired = False
 
 def handle_source_message(msg, state):
     """Processes RNS-E source messages to auto-play/pause media."""
