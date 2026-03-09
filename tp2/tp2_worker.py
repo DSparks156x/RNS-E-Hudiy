@@ -59,9 +59,11 @@ class TP2Service:
         self.pub = self.context.socket(zmq.PUB)
         self.pub.bind(self.addr_pub)
         
-        # Replier (Commands) - Moved to Command Thread
         self.rep = self.context.socket(zmq.REP)
         self.rep.bind(self.addr_rep)
+        
+        # Initial status push
+        self._publish_status()
         
         # Connection Management
         self.sessions = {}
@@ -75,6 +77,13 @@ class TP2Service:
         # State Tracking
         self.last_ignition_state = None 
 
+    def _publish_status(self):
+        try:
+            payload = {"enabled": self.running}
+            self.pub.send_multipart([b"HUDIY_TP2_STATUS", json.dumps(payload).encode()])
+            logger.info(f"Published TP2 Status: {payload}")
+        except Exception as e:
+            logger.error(f"Failed to publish TP2 status: {e}")
     def _get_or_create_session(self, module_id):
         # NOTE: Must be called within Lock
         if module_id in self.sessions:
@@ -201,6 +210,7 @@ class TP2Service:
                             self.last_ignition_state = kl15
                             status = "Enabled" if self.running else "Disabled"
                             logger.info(f"Ignition Change: TP2 Service {status}")
+                            self._publish_status()
                             
                         # If steady, we respect the current self.running state (which might be manually toggled)
                         
@@ -315,6 +325,7 @@ class TP2Service:
                         self.running = not self.running
                         status = "Enabled" if self.running else "Disabled"
                     logger.info(f"(Cmd) Service {status}")
+                    self._publish_status()
                     response = {"status": "ok", "message": f"Service {status}", "enabled": self.running}
 
                 self.rep.send_json(response)
