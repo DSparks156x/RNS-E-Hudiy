@@ -290,6 +290,7 @@ chown -R $REAL_USER:$REAL_USER "$REAL_HOME/tp2"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/hudiy_dataview"
 chown $REAL_USER:$REAL_USER "$REAL_HOME/config.json"
 chmod +x "$REAL_HOME/hudiy_client/update_rnse.sh"
+chmod +x "$REAL_HOME/hudiy_client/restore_configs.sh"
 
 echo "? Project files installed and cleaned."
 
