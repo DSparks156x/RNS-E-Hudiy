@@ -47,12 +47,15 @@ def extract_deltas(prev_img: Image.Image, curr_img: Image.Image):
 
 def run_test():
     import argparse
-    from PIL import ImageOps
+    from PIL import ImageOps, ImageEnhance, ImageFilter
     parser = argparse.ArgumentParser()
     parser.add_argument('--mock', action='store_true', help='Connect to DIS Emulator (TCP 5557)')
     parser.add_argument('--file', type=str, default='polish_cow.gif', help='Path to the GIF file to play')
     parser.add_argument('--invert', action='store_true', help='Invert the colors of the GIF')
     parser.add_argument('--fps', type=float, default=5.0, help='Playback framerate (default: 5)')
+    parser.add_argument('--contrast', type=float, default=1.8, help='Contrast multiplier before dithering (default: 1.8)')
+    parser.add_argument('--sharpen', type=float, default=1.5, help='Sharpness multiplier before dithering (default: 1.5)')
+    parser.add_argument('--no-enhance', action='store_true', help='Skip all enhancements, raw dither only')
     args = parser.parse_args()
 
     # Load config to get the IPC address, or default to standard location
@@ -101,7 +104,9 @@ def run_test():
         frame = img.copy().convert("RGB")
         frame.thumbnail(target_size, Image.Resampling.LANCZOS)
         
-        canvas = Image.new("RGB", target_size, (0, 0, 0))
+        # White letterbox: matches typical GIF/white backgrounds so empty borders
+        # dither cleanly to solid white rather than a noisy 50% grey pattern.
+        canvas = Image.new("RGB", target_size, (255, 255, 255))
         offset_x = (target_size[0] - frame.size[0]) // 2
         offset_y = (target_size[1] - frame.size[1]) // 2
         canvas.paste(frame, (offset_x, offset_y))
@@ -109,7 +114,28 @@ def run_test():
         if args.invert:
             canvas = ImageOps.invert(canvas)
         
-        curr_dithered = canvas.convert('1')
+        if args.no_enhance:
+            curr_dithered = canvas.convert('1')
+        else:
+            # Convert to grayscale for a controlled enhancement pipeline
+            gray = canvas.convert('L')
+            
+            # 1. Autocontrast: stretch histogram so darkest pixel → 0, brightest → 255.
+            #    cutoff=1 clips the top/bottom 1% of pixels to handle blown-out whites
+            #    or near-black shadows that would otherwise anchor the stretch badly.
+            gray = ImageOps.autocontrast(gray, cutoff=1)
+            
+            # 2. Contrast boost: push midtones toward black/white so the ditherer
+            #    produces crisper areas rather than uniform 50% noise.
+            gray = ImageEnhance.Contrast(gray).enhance(args.contrast)
+            
+            # 3. Unsharp mask: compensate for LANCZOS softness at tiny resolution.
+            #    Radius 1 = tight (sub-pixel scale for 64px images), percent controls
+            #    strength, threshold 3 avoids sharpening noise in flat areas.
+            gray = gray.filter(ImageFilter.UnsharpMask(radius=1, percent=int(args.sharpen * 100), threshold=3))
+            
+            curr_dithered = gray.convert('1')
+        
         frames_dithered.append(curr_dithered)
         
     delta_frames = []
