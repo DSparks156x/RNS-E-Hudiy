@@ -26,6 +26,9 @@ def extract_deltas(prev_img: Image.Image, curr_img: Image.Image, granular: bool 
     prev_pixels = prev_img.load() if prev_img else None
     curr_pixels = curr_img.load()
 
+    blocks = []
+    current_block = None
+
     for y in range(h):
         row_bytes = []
         changed = []
@@ -48,23 +51,37 @@ def extract_deltas(prev_img: Image.Image, curr_img: Image.Image, granular: bool 
             changed.append(curr_byte != prev_byte or prev_img is None)
 
         if not any(changed):
+            if current_block:
+                blocks.append(current_block)
+                current_block = None
             continue
 
         if not granular:
-            # Original behaviour: resend the whole row
-            updates.append({'y': y, 'x': 0, 'data': bytes(row_bytes)})
+            row_x = 0
+            row_data = bytes(row_bytes)
         else:
-            # Trim leading/trailing unchanged bytes; send one command per row.
-            # Splitting on internal gaps is intentionally avoided — see docstring.
             first = next(i for i, c in enumerate(changed) if c)
             last  = len(changed) - 1 - next(i for i, c in enumerate(reversed(changed)) if c)
-            updates.append({
+            row_x = first * 8
+            row_data = bytes(row_bytes[first:last + 1])
+            
+        if current_block and current_block['x'] == row_x and len(current_block['data']) // current_block['h'] == len(row_data):
+            current_block['data'] += row_data
+            current_block['h'] += 1
+        else:
+            if current_block:
+                blocks.append(current_block)
+            current_block = {
                 'y': y,
-                'x': first * 8,
-                'data': bytes(row_bytes[first:last + 1])
-            })
+                'x': row_x,
+                'h': 1,
+                'data': row_data
+            }
+            
+    if current_block:
+        blocks.append(current_block)
 
-    return updates
+    return blocks
 
 def run_test():
     import argparse
@@ -201,11 +218,11 @@ def run_test():
     time.sleep(1)
 
     print("Priming first frame layout...")
-    for row in prime_rows:
+    for block in prime_rows:
         draw.send_json({
             'command': 'draw_raw_bitmap',
-            'data_hex': row['data'].hex(),
-            'w': len(row['data']) * 8, 'h': 1, 'x': row['x'], 'y': row['y'],
+            'data_hex': block['data'].hex(),
+            'w': (len(block['data']) // block['h']) * 8, 'h': block['h'], 'x': block['x'], 'y': block['y'],
             'mode_flag': 0x02 # Draw Mode
         })
     draw.send_json({'command': 'commit'})
@@ -214,20 +231,28 @@ def run_test():
     print("Playing optimized deltas (Ctrl+C to stop)...")
     try:
         while True:
-            for f_idx, rows in enumerate(delta_frames):
-                for row in rows:
+            for f_idx, blocks in enumerate(delta_frames):
+                frame_start_time = time.time()
+                for block in blocks:
                     draw.send_json({
                         'command': 'draw_raw_bitmap',
-                        'data_hex': row['data'].hex(),
-                        'w': len(row['data']) * 8,
-                        'h': 1,
-                        'x': row['x'],
-                        'y': row['y'],
+                        'data_hex': block['data'].hex(),
+                        'w': (len(block['data']) // block['h']) * 8,
+                        'h': block['h'],
+                        'x': block['x'],
+                        'y': block['y'],
                         'mode_flag': 0x02 # Draw Mode
                     })
                     
                 draw.send_json({'command': 'commit'})
-                time.sleep(1.0 / args.fps)
+                
+                elapsed = time.time() - frame_start_time
+                print(f"Frame {f_idx} pushed to ZMQ in {elapsed:.3f}s (rows: {len(rows)})")
+                
+                # Deduct the time spent sending from the desired frame time
+                frame_time = 1.0 / args.fps
+                sleep_time = max(0, frame_time - elapsed)
+                time.sleep(sleep_time)
     except KeyboardInterrupt:
         pass
         
