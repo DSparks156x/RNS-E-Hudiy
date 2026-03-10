@@ -354,7 +354,8 @@ class TP2BridgeHandler(ClientEventHandler):
         self.lock = threading.Lock()
         
         self.icon_id = None
-        self.icon_visible = False
+        self.icon_visible = None # Start with None to force initial update
+        self.client = None
         self.running = True
         self.timer = None
 
@@ -374,6 +375,7 @@ class TP2BridgeHandler(ClientEventHandler):
             if self.socket: self.socket.close()
 
     def on_hello_response(self, client, message):
+        self.client = client
         logger.info(f"TP2 Bridge Connected to Hudiy: v{message.api_version.major}.{message.api_version.minor}")
         
         # 1. Register Action
@@ -388,6 +390,14 @@ class TP2BridgeHandler(ClientEventHandler):
         req_act_restore = hudiy_api.RegisterActionRequest()
         req_act_restore.action = "restore_configs"
         client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_restore.SerializeToString())
+
+        req_act_reboot = hudiy_api.RegisterActionRequest()
+        req_act_reboot.action = "reboot_system"
+        client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_reboot.SerializeToString())
+
+        req_act_shutdown = hudiy_api.RegisterActionRequest()
+        req_act_shutdown.action = "shutdown_system"
+        client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_shutdown.SerializeToString())
         
         # 2. Register Icon
         req_icon = hudiy_api.RegisterStatusIconRequest()
@@ -446,6 +456,14 @@ class TP2BridgeHandler(ClientEventHandler):
             
             # Execute the script in the terminal
             subprocess.Popen(["foot", "--fullscreen", "bash", updater_script], env=env)
+        elif message.action == "reboot_system":
+            logger.info("Hudiy Action: Rebooting system...")
+            import subprocess
+            subprocess.run(["sudo", "reboot", "now"])
+        elif message.action == "shutdown_system":
+            logger.info("Hudiy Action: Shutting down system...")
+            import subprocess
+            subprocess.run(["sudo", "shutdown", "-h", "now"])
 
     def send_command(self, cmd):
         with self.lock:
@@ -485,6 +503,23 @@ class TP2BridgeHandler(ClientEventHandler):
                     client.send(hudiy_api.MESSAGE_CHANGE_STATUS_ICON_STATE, 0, msg.SerializeToString())
                     logger.info(f"Updated Icon Visibility: {self.icon_visible}")
 
+    def update_icon_state(self, enabled):
+        """Called from ZMQ subscriber thread or polling"""
+        with self.lock:
+            if self.icon_id is None or self.client is None:
+                return
+                
+            if enabled != self.icon_visible:
+                self.icon_visible = enabled
+                msg = hudiy_api.ChangeStatusIconState()
+                msg.id = self.icon_id
+                msg.visible = self.icon_visible
+                try:
+                    self.client.send(hudiy_api.MESSAGE_CHANGE_STATUS_ICON_STATE, 0, msg.SerializeToString())
+                    logger.info(f"ZMQ/Poll Sync - Updated Icon Visibility: {self.icon_visible}")
+                except Exception as e:
+                    logger.error(f"Failed to send icon state update: {e}")
+
     def poll_status(self, client):
         if not self.running: return
         
@@ -521,6 +556,11 @@ class HudiyData:
         self.tp2_handler = TP2BridgeHandler(self.tp2_zmq_addr)
         self.tp2_client = None
         
+        self.tp2_status_addr = "ipc:///run/rnse_control/tp2_stream.ipc"
+        if config and 'interfaces' in config:
+            _zmq = config['interfaces'].get('zmq', {})
+            self.tp2_status_addr = _zmq.get('tp2_stream', self.tp2_status_addr)
+
         self.running = True
         
     def connect_media(self):
@@ -585,15 +625,39 @@ class HudiyData:
                 logger.info("TP2 Bridge Reconnecting in 5s...")
                 time.sleep(5)
     
+    def tp2_status_subscriber(self):
+        """Thread: Listens for TP2 status updates via ZMQ"""
+        ctx = zmq.Context()
+        sub = ctx.socket(zmq.SUB)
+        sub.connect(self.tp2_status_addr)
+        sub.subscribe(b"HUDIY_TP2_STATUS")
+        logger.info(f"TP2 Status Subscriber connected to {self.tp2_status_addr}")
+        
+        while self.running:
+            try:
+                parts = sub.recv_multipart(flags=zmq.NOBLOCK)
+                if len(parts) == 2:
+                    data = json.loads(parts[1])
+                    enabled = data.get("enabled", False)
+                    self.tp2_handler.update_icon_state(enabled)
+            except zmq.Again:
+                time.sleep(0.1)
+            except Exception as e:
+                logger.error(f"TP2 Status Subscriber Error: {e}")
+                time.sleep(1)
+        sub.close()
+
     def run(self):
         logger.info("THREADING Hudiy Data ACTIVE!")
         media_thread = threading.Thread(target=self.connect_media, daemon=True)
         nav_thread = threading.Thread(target=self.connect_nav, daemon=True)
         tp2_thread = threading.Thread(target=self.connect_tp2, daemon=True)
+        tp2_status_thread = threading.Thread(target=self.tp2_status_subscriber, daemon=True)
         
         media_thread.start()
         nav_thread.start()
         tp2_thread.start()
+        tp2_status_thread.start()
         
         try:
             while self.running:

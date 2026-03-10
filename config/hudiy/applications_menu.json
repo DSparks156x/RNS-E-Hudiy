@@ -168,6 +168,33 @@
                 "Hudiy"
             ],
             "iconFontFamily": "Material Symbols Rounded",
+            "iconName": "car_repair",
+            "action": "toggle_diagnostics",
+            "label": "Toggle Diagnostics"
+        },
+        {
+            "categories": [
+                "Hudiy"
+            ],
+            "iconFontFamily": "Material Symbols Rounded",
+            "iconName": "restart_alt",
+            "action": "reboot_system",
+            "label": "Reboot"
+        },
+        {
+            "categories": [
+                "Hudiy"
+            ],
+            "iconFontFamily": "Material Symbols Rounded",
+            "iconName": "power_settings_new",
+            "action": "shutdown_system",
+            "label": "Shutdown"
+        },
+        {
+            "categories": [
+                "Hudiy"
+            ],
+            "iconFontFamily": "Material Symbols Rounded",
             "iconName": "cancel_presentation",
             "action": "quit_hudiy",
             "label": "Quit"

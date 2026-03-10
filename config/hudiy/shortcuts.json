@@ -2,11 +2,6 @@
     "shortcuts": [
         {
             "iconFontFamily": "Material Symbols Rounded",
-            "iconName": "car_repair",
-            "action": "toggle_diagnostics"
-        },
-        {
-            "iconFontFamily": "Material Symbols Rounded",
             "iconName": "query_stats",
             "action": "hudiy_diagnostics"
         },
