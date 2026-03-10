@@ -437,6 +437,12 @@ class DisService:
                                 self.handle_redraw()
                             else:
                                 current_payload = []
+                                # must_colocate: True when current_payload ends with a clear_area
+                                # whose paired draw command has not yet been appended.
+                                # While True, the next drawable payload is always added to the
+                                # same frame as the clear (no 42-byte split allowed) and the
+                                # combined pair is flushed immediately afterward.
+                                must_colocate = False
                                 for cmd in cmds:
                                     c = cmd.get('command')
                                     p = []
@@ -446,12 +452,23 @@ class DisService:
                                         if current_payload:
                                             self.ddp.send_ddp_frame(current_payload)
                                             current_payload = []
+                                        must_colocate = False
                                         self.draw_bitmap(cmd.get('x', 0), cmd.get('y', 0), cmd.get('icon_name'))
                                         continue
                                     elif c == 'draw_line':
                                         p = self.get_line_payload(cmd.get('x', 0), cmd.get('y', 0), cmd.get('length', 0), cmd.get('vertical', True))
                                     elif c == 'clear_area':
+                                        # Flush whatever was pending BEFORE starting the clear,
+                                        # so the clear begins a fresh frame with its paired draw.
+                                        if current_payload:
+                                            self.ddp.send_ddp_frame(current_payload)
+                                            current_payload = []
+                                            self.ddp.poll_bus_events()
+                                            self.ddp.send_keepalive_if_needed()
                                         p = self.get_clear_area_payload(cmd.get('x', 0), cmd.get('y', 0), cmd.get('w', 64), cmd.get('h', 9))
+                                        current_payload = p
+                                        must_colocate = True  # next draw must share this frame
+                                        continue
                                     elif c == 'commit':
                                         if current_payload:
                                             self.ddp.send_ddp_frame(current_payload)
@@ -459,12 +476,14 @@ class DisService:
                                             # Poll after drawing to keep session alive during burst
                                             self.ddp.poll_bus_events()
                                             self.ddp.send_keepalive_if_needed()
+                                        must_colocate = False
                                         self.commit_frame()
                                         continue
                                     elif c == 'draw_raw_bitmap':
                                         if current_payload:
                                             self.ddp.send_ddp_frame(current_payload)
                                             current_payload = []
+                                        must_colocate = False
                                         try:
                                             raw_bytes = bytes.fromhex(cmd.get('data_hex', ''))
                                             w, h, x, y = cmd.get('w', 64), cmd.get('h', 88), cmd.get('x', 0), cmd.get('y', 0)
@@ -487,7 +506,16 @@ class DisService:
                                         continue
                                     
                                     if p:
-                                        if current_payload and (len(current_payload) + len(p) > 42):
+                                        if must_colocate:
+                                            # This draw is the atomic pair for the preceding clear.
+                                            # Append regardless of size, then flush the combined pair.
+                                            current_payload += p
+                                            must_colocate = False
+                                            self.ddp.send_ddp_frame(current_payload)
+                                            current_payload = []
+                                            self.ddp.poll_bus_events()
+                                            self.ddp.send_keepalive_if_needed()
+                                        elif current_payload and (len(current_payload) + len(p) > 42):
                                             self.ddp.send_ddp_frame(current_payload)
                                             current_payload = p
                                             # Poll after drawing to keep session alive during burst
