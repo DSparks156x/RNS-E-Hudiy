@@ -9,76 +9,41 @@ from PIL import Image
 def extract_deltas(prev_img: Image.Image, curr_img: Image.Image):
     w, h = curr_img.size
     
-    set_rows = []
-    erase_rows = []
-    
-    set_y_min = h; set_y_max = -1
-    erase_y_min = h; erase_y_max = -1
+    updated_rows = []
     
     prev_pixels = prev_img.load() if prev_img else None
     curr_pixels = curr_img.load()
     
     for y in range(h):
-        set_row = bytearray()
-        erase_row = bytearray()
-        row_has_set = False
-        row_has_erase = False
+        curr_row = bytearray()
+        has_change = False
         
         for x_byte in range(w // 8):
-            set_byte = 0
-            erase_byte = 0
+            curr_byte = 0
+            prev_byte = 0
             
             for bit in range(8):
                 x = (x_byte * 8) + bit
-                curr_val = 1 if curr_pixels[x, y] > 0 else 0
-                prev_val = 1 if prev_pixels and prev_pixels[x, y] > 0 else 0
+                cv = 1 if curr_pixels[x, y] > 0 else 0
+                pv = 1 if prev_pixels and prev_pixels[x, y] > 0 else 0
                 
-                if curr_val == 1 and prev_val == 0:
-                    set_byte |= (1 << (7 - bit))
-                    row_has_set = True
-                elif curr_val == 0 and prev_val == 1:
-                    erase_byte |= (1 << (7 - bit))
-                    row_has_erase = True
-                    
-            set_row.append(set_byte)
-            erase_row.append(erase_byte)
+                if cv == 1:
+                    curr_byte |= (1 << (7 - bit))
+                if pv == 1:
+                    prev_byte |= (1 << (7 - bit))
             
-        set_rows.append(set_row)
-        erase_rows.append(erase_row)
+            if curr_byte != prev_byte:
+                has_change = True
             
-        if row_has_set:
-            if y < set_y_min: set_y_min = y
-            if y > set_y_max: set_y_max = y
+            curr_row.append(curr_byte)
             
-        if row_has_erase:
-            if y < erase_y_min: erase_y_min = y
-            if y > erase_y_max: erase_y_max = y
-
-    set_dict = None
-    if set_y_min <= set_y_max:
-        set_data = bytearray()
-        for y in range(set_y_min, set_y_max + 1):
-            set_data.extend(set_rows[y])
-        set_h = (set_y_max - set_y_min) + 1
-        set_dict = {
-            'data': bytes(set_data),
-            'y': set_y_min,
-            'h': set_h
-        }
-
-    erase_dict = None
-    if erase_y_min <= erase_y_max:
-        erase_data = bytearray()
-        for y in range(erase_y_min, erase_y_max + 1):
-            erase_data.extend(erase_rows[y])
-        erase_h = (erase_y_max - erase_y_min) + 1
-        erase_dict = {
-            'data': bytes(erase_data),
-            'y': erase_y_min,
-            'h': erase_h
-        }
+        if has_change or prev_img is None:
+            updated_rows.append({
+                'y': y,
+                'data': bytes(curr_row)
+            })
             
-    return (set_dict, erase_dict)
+    return updated_rows
 
 def run_test():
     import argparse
@@ -150,12 +115,12 @@ def run_test():
     delta_frames = []
     for f_idx in range(len(frames_dithered)):
         prev_idx = f_idx - 1 if f_idx > 0 else len(frames_dithered) - 1
-        set_payload, erase_payload = extract_deltas(frames_dithered[prev_idx], frames_dithered[f_idx])
-        delta_frames.append((set_payload, erase_payload))
+        rows = extract_deltas(frames_dithered[prev_idx], frames_dithered[f_idx])
+        delta_frames.append(rows)
 
     # To initialize the physical screen before the loop, we need a payload connecting a blank black screen to Frame 0
     black_canvas = Image.new('1', target_size, 0)
-    prime_set, prime_erase = extract_deltas(black_canvas, frames_dithered[0])
+    prime_rows = extract_deltas(black_canvas, frames_dithered[0])
         
     print(f"Computed {len(delta_frames)} delta frames. Starting playback on DIS...")
 
@@ -165,19 +130,12 @@ def run_test():
     time.sleep(1)
 
     print("Priming first frame layout...")
-    if prime_erase:
+    for row in prime_rows:
         draw.send_json({
             'command': 'draw_raw_bitmap',
-            'data_hex': prime_erase['data'].hex(),
-            'w': 64, 'h': prime_erase['h'], 'x': 0, 'y': prime_erase['y'],
-            'mode_flag': 0x00
-        })
-    if prime_set:
-        draw.send_json({
-            'command': 'draw_raw_bitmap',
-            'data_hex': prime_set['data'].hex(),
-            'w': 64, 'h': prime_set['h'], 'x': 0, 'y': prime_set['y'],
-            'mode_flag': 0x03
+            'data_hex': row['data'].hex(),
+            'w': 64, 'h': 1, 'x': 0, 'y': row['y'],
+            'mode_flag': 0x02 # Draw Mode
         })
     draw.send_json({'command': 'commit'})
     time.sleep(0.5)
@@ -185,27 +143,16 @@ def run_test():
     print("Playing optimized deltas (Ctrl+C to stop)...")
     try:
         while True:
-            for f_idx, (set_dict, erase_dict) in enumerate(delta_frames):
-                if erase_dict:
+            for f_idx, rows in enumerate(delta_frames):
+                for row in rows:
                     draw.send_json({
                         'command': 'draw_raw_bitmap',
-                        'data_hex': erase_dict['data'].hex(),
+                        'data_hex': row['data'].hex(),
                         'w': 64, 
-                        'h': erase_dict['h'], 
+                        'h': 1, 
                         'x': 0, 
-                        'y': erase_dict['y'],
-                        'mode_flag': 0x00 # Erase Mode
-                    })
-                
-                if set_dict:
-                    draw.send_json({
-                        'command': 'draw_raw_bitmap',
-                        'data_hex': set_dict['data'].hex(),
-                        'w': 64, 
-                        'h': set_dict['h'], 
-                        'x': 0, 
-                        'y': set_dict['y'],
-                        'mode_flag': 0x03 # Set Mode
+                        'y': row['y'],
+                        'mode_flag': 0x02 # Draw Mode
                     })
                     
                 draw.send_json({'command': 'commit'})

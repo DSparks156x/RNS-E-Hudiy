@@ -45,7 +45,7 @@ class DisService:
 
         self.context = zmq.Context()
         self.draw_socket = self.context.socket(zmq.PULL)
-        self.draw_socket.setsockopt(zmq.RCVHWM, 100) # Increased to match sender
+        self.draw_socket.setsockopt(zmq.RCVHWM, 1000) # Increased to prevent drops during GIF bursts
         _zmq = self.config.get('interfaces', {}).get('zmq', {})
         try:
             self.draw_socket.bind(_zmq.get('dis_draw', 'ipc:///run/rnse_control/dis_draw.ipc'))
@@ -212,8 +212,7 @@ class DisService:
         abs_y = y + self.region_y_offset
         payload = [0x52, 0x05, 0x00, x, abs_y, w, h]
         bytes_per_row = (w + 7) // 8
-        rows_per_chunk = 37 // bytes_per_row
-        if rows_per_chunk < 1: rows_per_chunk = 1
+        rows_per_chunk = 1 # Force single row per command for protocol compatibility
         for i in range(0, h, rows_per_chunk):
             start_byte = i * bytes_per_row
             rows_to_send = min(rows_per_chunk, h - i)
@@ -235,8 +234,7 @@ class DisService:
         
         # 2. Send chunks (pacing=False: stream all rows without 20ms gaps)
         bytes_per_row = (w + 7) // 8
-        rows_per_chunk = 37 // bytes_per_row
-        if rows_per_chunk < 1: rows_per_chunk = 1
+        rows_per_chunk = 1 # Force single row per command for protocol compatibility
         for i in range(0, h, rows_per_chunk):
             start_byte = i * bytes_per_row
             rows_to_send = min(rows_per_chunk, h - i)
@@ -496,8 +494,7 @@ class DisService:
                                             # so the cluster has time to process before the next draw arrives.
                                             if self.ddp.send_ddp_frame(payload_clip, pacing=False):
                                                 bytes_per_row = (w + 7) // 8
-                                                rows_per_chunk = 37 // bytes_per_row
-                                                if rows_per_chunk < 1: rows_per_chunk = 1
+                                                rows_per_chunk = 1 # Force single row per command for protocol compatibility
                                                 for i in range(0, h, rows_per_chunk):
                                                     start_byte = i * bytes_per_row
                                                     rows_to_send = min(rows_per_chunk, h - i)
