@@ -6,44 +6,65 @@ import os
 import sys
 from PIL import Image
 
-def extract_deltas(prev_img: Image.Image, curr_img: Image.Image):
+def extract_deltas(prev_img: Image.Image, curr_img: Image.Image, granular: bool = False):
+    """Return a list of update segments for pixels that changed between frames.
+
+    Without granular: one segment per changed row (full row width, x=0).
+    With granular: one trimmed segment per changed row — leading/trailing
+    unchanged bytes are skipped, but the row is never split into multiple
+    commands.  Each draw_raw_bitmap carries ~90 bytes of JSON overhead while
+    a full row is only 8 bytes (64px); skipping a 1-byte internal gap saves
+    2 bytes of payload but costs an extra ~90-byte command, so splitting
+    always loses.  Trimming the leading/trailing edges is the only case where
+    skipping bytes beats the overhead.
+    Minimum granularity is 8 pixels (one packed byte) in both modes.
+    """
     w, h = curr_img.size
-    
-    updated_rows = []
-    
+
+    updates = []
+
     prev_pixels = prev_img.load() if prev_img else None
     curr_pixels = curr_img.load()
-    
+
     for y in range(h):
-        curr_row = bytearray()
-        has_change = False
-        
+        row_bytes = []
+        changed = []
+
         for x_byte in range(w // 8):
             curr_byte = 0
             prev_byte = 0
-            
+
             for bit in range(8):
                 x = (x_byte * 8) + bit
                 cv = 1 if curr_pixels[x, y] > 0 else 0
                 pv = 1 if prev_pixels and prev_pixels[x, y] > 0 else 0
-                
+
                 if cv == 1:
                     curr_byte |= (1 << (7 - bit))
                 if pv == 1:
                     prev_byte |= (1 << (7 - bit))
-            
-            if curr_byte != prev_byte:
-                has_change = True
-            
-            curr_row.append(curr_byte)
-            
-        if has_change or prev_img is None:
-            updated_rows.append({
+
+            row_bytes.append(curr_byte)
+            changed.append(curr_byte != prev_byte or prev_img is None)
+
+        if not any(changed):
+            continue
+
+        if not granular:
+            # Original behaviour: resend the whole row
+            updates.append({'y': y, 'x': 0, 'data': bytes(row_bytes)})
+        else:
+            # Trim leading/trailing unchanged bytes; send one command per row.
+            # Splitting on internal gaps is intentionally avoided — see docstring.
+            first = next(i for i, c in enumerate(changed) if c)
+            last  = len(changed) - 1 - next(i for i, c in enumerate(reversed(changed)) if c)
+            updates.append({
                 'y': y,
-                'data': bytes(curr_row)
+                'x': first * 8,
+                'data': bytes(row_bytes[first:last + 1])
             })
-            
-    return updated_rows
+
+    return updates
 
 def run_test():
     import argparse
@@ -55,7 +76,9 @@ def run_test():
     parser.add_argument('--fps', type=float, default=5.0, help='Playback framerate (default: 5)')
     parser.add_argument('--contrast', type=float, default=1.8, help='Contrast multiplier before dithering (default: 1.8)')
     parser.add_argument('--sharpen', type=float, default=1.5, help='Sharpness multiplier before dithering (default: 1.5)')
+    parser.add_argument('--dither', type=str, choices=['fs', 'none', 'bayer'], default='fs', help='Dithering algorithm (fs=Floyd-Steinberg, none=Threshold, bayer=Ordered)')
     parser.add_argument('--no-enhance', action='store_true', help='Skip all enhancements, raw dither only')
+    parser.add_argument('--delta', action='store_true', help='Send sub-row byte-span segments instead of whole rows (min 8px granularity)')
     args = parser.parse_args()
 
     # Load config to get the IPC address, or default to standard location
@@ -134,19 +157,41 @@ def run_test():
             #    strength, threshold 3 avoids sharpening noise in flat areas.
             gray = gray.filter(ImageFilter.UnsharpMask(radius=1, percent=int(args.sharpen * 100), threshold=3))
             
-            curr_dithered = gray.convert('1')
+            if args.dither == 'fs':
+                curr_dithered = gray.convert('1', dither=Image.FLOYDSTEINBERG)
+            elif args.dither == 'none':
+                curr_dithered = gray.convert('1', dither=Image.Dither.NONE)
+            elif args.dither == 'bayer':
+                bayer_matrix = [
+                    [  0, 128,  32, 160],
+                    [192,  64, 224,  96],
+                    [ 48, 176,  16, 144],
+                    [240, 112, 208,  80]
+                ]
+                w, h = gray.size
+                gray_data = list(gray.getdata())
+                bayer_data = bytearray(w * h)
+                for py in range(h):
+                    for px in range(w):
+                        val = gray_data[py * w + px]
+                        thresh = bayer_matrix[py % 4][px % 4]
+                        bayer_data[py * w + px] = 255 if val > thresh else 0
+                
+                bayer_img = Image.new('L', (w, h))
+                bayer_img.putdata(bayer_data)
+                curr_dithered = bayer_img.convert('1', dither=Image.Dither.NONE)
         
         frames_dithered.append(curr_dithered)
         
     delta_frames = []
     for f_idx in range(len(frames_dithered)):
         prev_idx = f_idx - 1 if f_idx > 0 else len(frames_dithered) - 1
-        rows = extract_deltas(frames_dithered[prev_idx], frames_dithered[f_idx])
+        rows = extract_deltas(frames_dithered[prev_idx], frames_dithered[f_idx], granular=args.delta)
         delta_frames.append(rows)
 
     # To initialize the physical screen before the loop, we need a payload connecting a blank black screen to Frame 0
     black_canvas = Image.new('1', target_size, 0)
-    prime_rows = extract_deltas(black_canvas, frames_dithered[0])
+    prime_rows = extract_deltas(black_canvas, frames_dithered[0], granular=args.delta)
         
     print(f"Computed {len(delta_frames)} delta frames. Starting playback on DIS...")
 
@@ -160,7 +205,7 @@ def run_test():
         draw.send_json({
             'command': 'draw_raw_bitmap',
             'data_hex': row['data'].hex(),
-            'w': 64, 'h': 1, 'x': 0, 'y': row['y'],
+            'w': len(row['data']) * 8, 'h': 1, 'x': row['x'], 'y': row['y'],
             'mode_flag': 0x02 # Draw Mode
         })
     draw.send_json({'command': 'commit'})
@@ -174,9 +219,9 @@ def run_test():
                     draw.send_json({
                         'command': 'draw_raw_bitmap',
                         'data_hex': row['data'].hex(),
-                        'w': 64, 
-                        'h': 1, 
-                        'x': 0, 
+                        'w': len(row['data']) * 8,
+                        'h': 1,
+                        'x': row['x'],
                         'y': row['y'],
                         'mode_flag': 0x02 # Draw Mode
                     })

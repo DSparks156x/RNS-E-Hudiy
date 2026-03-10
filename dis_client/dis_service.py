@@ -27,6 +27,12 @@ logger = logging.getLogger(__name__)
 
 class DisService:
     def __init__(self, config_path='/home/pi/config.json'):
+        # --- EXPERIMENTAL FLAGS ---
+        # Set to True to disable the new 42-byte DDP block batching for raw bitmaps. 
+        # Batching speeds up GIFs drastically by combining rows into single CAN frames,
+        # but some clusters may need pacing=False (unbatched) to prevent tearing.
+        self.UNSAFE_BATCHING_BYPASS = False
+
         try:
             with open(config_path) as f:
                 self.config = json.load(f)
@@ -479,34 +485,45 @@ class DisService:
                                         self.commit_frame()
                                         continue
                                     elif c == 'draw_raw_bitmap':
-                                        if current_payload:
-                                            self.ddp.send_ddp_frame(current_payload)
-                                            current_payload = []
-                                        must_colocate = False
                                         try:
                                             raw_bytes = bytes.fromhex(cmd.get('data_hex', ''))
                                             w, h, x, y = cmd.get('w', 64), cmd.get('h', 88), cmd.get('x', 0), cmd.get('y', 0)
                                             mode_flag = cmd.get('mode_flag', 0x02)
                                             abs_y = y + self.region_y_offset
-                                            payload_clip = [0x52, 0x05, 0x00, x, abs_y, w, h]
-                                            # pacing=False: suppress the 20ms WHITE DIS inter-block delay for
-                                            # the clip + every row chunk so all data streams to the cluster
-                                            # without gaps. Re-enable pacing on the final reset-window command
-                                            # so the cluster has time to process before the next draw arrives.
-                                            if self.ddp.send_ddp_frame(payload_clip, pacing=False):
+                                            
+                                            if self.UNSAFE_BATCHING_BYPASS:
+                                                # If we are NOT batching, we flush the current payload to clear the queue,
+                                                # then manually frame-out the clip, rows, and reset using pacing=False 
+                                                # to aggressively override the 20ms cluster delay. This is known to cause 
+                                                # tearing on some clusters if abused, but keeps frames cohesive.
+                                                if current_payload:
+                                                    self.ddp.send_ddp_frame(current_payload)
+                                                    current_payload = []
+                                                must_colocate = False
+                                                
+                                                payload_clip = [0x52, 0x05, 0x00, x, abs_y, w, h]
+                                                if self.ddp.send_ddp_frame(payload_clip, pacing=False):
+                                                    bytes_per_row = (w + 7) // 8
+                                                    cmd_size = 5 + bytes_per_row
+                                                    rows_per_block = max(1, 42 // cmd_size)
+                                                    for base in range(0, h, rows_per_block):
+                                                        block_payload = []
+                                                        for i in range(base, min(base + rows_per_block, h)):
+                                                            row_data = list(raw_bytes[i * bytes_per_row : (i + 1) * bytes_per_row])
+                                                            block_payload += [0x55, len(row_data) + 3, mode_flag, 0x00, i] + row_data
+                                                        if not self.ddp.send_ddp_frame(block_payload, pacing=False): break
+                                                    self.ddp.send_ddp_frame([0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height])
+                                            else:
+                                                # EXPERIMENTAL BATCHING: Append to `p` to share the 42-byte block 
+                                                # with other commands natively, meaning it obeys the 20ms block pacing.
+                                                p = [0x52, 0x05, 0x00, x, abs_y, w, h]
                                                 bytes_per_row = (w + 7) // 8
-                                                cmd_size = 5 + bytes_per_row
-                                                rows_per_block = max(1, 42 // cmd_size)
-                                                for base in range(0, h, rows_per_block):
-                                                    block_payload = []
-                                                    for i in range(base, min(base + rows_per_block, h)):
-                                                        row_data = list(raw_bytes[i * bytes_per_row : (i + 1) * bytes_per_row])
-                                                        block_payload += [0x55, len(row_data) + 3, mode_flag, 0x00, i] + row_data
-                                                    if not self.ddp.send_ddp_frame(block_payload, pacing=False): break
-                                                self.ddp.send_ddp_frame([0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height])
+                                                for i in range(0, h):
+                                                    row_data = list(raw_bytes[i * bytes_per_row : (i + 1) * bytes_per_row])
+                                                    p += [0x55, len(row_data) + 3, mode_flag, 0x00, i] + row_data
+                                                p += [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
                                         except Exception as e:
-                                            logger.error(f"Failed drawing raw bitmap: {e}")
-                                        continue
+                                            logger.error(f"Failed parsing raw bitmap: {e}")
                                     
                                     if p:
                                         if must_colocate:

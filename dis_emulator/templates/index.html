@@ -235,7 +235,10 @@
             </div>
 
             <div class="control-group">
-                <h3>Last Command Set</h3>
+                <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                    Last Command Set
+                    <span id="lastCommandBytes" style="font-size: 10px; color: #888;">0 B</span>
+                </h3>
                 <div class="log-container" id="lastCommandSet"
                     style="height: 120px; color: #aaa; background: #080808; margin-top: 0;">
                     (Empty)
@@ -319,6 +322,7 @@
         const log = document.getElementById('log');
         const commandsLog = document.getElementById('commandsLog');
         const lastCommandSet = document.getElementById('lastCommandSet');
+        const lastCommandBytes = document.getElementById('lastCommandBytes');
         const connStatus = document.getElementById('connStatus');
         const lastAction = document.getElementById('lastAction');
         const fpsDisplay = document.getElementById('fpsCount');
@@ -508,14 +512,27 @@
             commandsLog.scrollTop = commandsLog.scrollHeight;
         }
 
+        function estimateCommandBytes(cmd) {
+            let size = 6; // Base overhead for DDP instruction roughly
+            if (cmd.text) size += cmd.text.length;
+            if (cmd.data_hex) size += cmd.data_hex.length / 2;
+            else if (cmd.data && typeof cmd.data.length === 'number') size += cmd.data.length;
+            return size;
+        }
+
         function updateLastCommandSet(set) {
             lastCommandSet.innerHTML = "";
             if (set.length === 0) {
                 lastCommandSet.innerText = "(Empty)";
+                if (lastCommandBytes) lastCommandBytes.innerText = "0 B";
                 return;
             }
 
+            let totalBytes = 0;
+
             set.forEach(cmd => {
+                totalBytes += estimateCommandBytes(cmd);
+
                 const div = document.createElement('div');
                 div.className = 'command-entry';
                 div.style.fontSize = '9px';
@@ -537,6 +554,7 @@
                 lastCommandSet.appendChild(div);
             });
             lastCommandSet.scrollTop = 0;
+            if (lastCommandBytes) lastCommandBytes.innerText = totalBytes + " B";
         }
 
         function initEmulator() {
