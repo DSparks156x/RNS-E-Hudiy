@@ -212,12 +212,9 @@ class DisService:
         abs_y = y + self.region_y_offset
         payload = [0x52, 0x05, 0x00, x, abs_y, w, h]
         bytes_per_row = (w + 7) // 8
-        rows_per_chunk = 1 # Force single row per command for protocol compatibility
-        for i in range(0, h, rows_per_chunk):
-            start_byte = i * bytes_per_row
-            rows_to_send = min(rows_per_chunk, h - i)
-            chunk_data = data[start_byte:start_byte + (rows_to_send * bytes_per_row)]
-            payload += [0x55, len(chunk_data) + 3, mode_flag, 0x00, i] + chunk_data
+        for i in range(0, h):
+            row_data = list(data[i * bytes_per_row : (i + 1) * bytes_per_row])
+            payload += [0x55, len(row_data) + 3, mode_flag, 0x00, i] + row_data
         payload += [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
         return payload
 
@@ -232,15 +229,19 @@ class DisService:
         payload_clip = [0x52, 0x05, 0x00, x, abs_y, w, h]
         if not self.ddp.send_ddp_frame(payload_clip, pacing=False): return
         
-        # 2. Send chunks (pacing=False: stream all rows without 20ms gaps)
+        # 2. Send rows, grouped into DDP blocks.
+        # Each row needs its own 0x55 header (5 bytes) + bytes_per_row data bytes.
+        # We pack as many rows as fit in one 42-byte DDP block so they share a single ACK,
+        # drastically cutting the number of ACK round-trips vs one-row-per-frame.
         bytes_per_row = (w + 7) // 8
-        rows_per_chunk = 1 # Force single row per command for protocol compatibility
-        for i in range(0, h, rows_per_chunk):
-            start_byte = i * bytes_per_row
-            rows_to_send = min(rows_per_chunk, h - i)
-            chunk_data = data[start_byte:start_byte + (rows_to_send * bytes_per_row)]
-            payload_bmp = [0x55, len(chunk_data) + 3, mode_flag, 0x00, i] + chunk_data
-            if not self.ddp.send_ddp_frame(payload_bmp, pacing=False): break
+        cmd_size = 5 + bytes_per_row          # size of one 0x55 row command
+        rows_per_block = max(1, 42 // cmd_size) # rows that fit in one 42-byte block
+        for base in range(0, h, rows_per_block):
+            block_payload = []
+            for i in range(base, min(base + rows_per_block, h)):
+                row_data = list(data[i * bytes_per_row : (i + 1) * bytes_per_row])
+                block_payload += [0x55, len(row_data) + 3, mode_flag, 0x00, i] + row_data
+            if not self.ddp.send_ddp_frame(block_payload, pacing=False): break
             
         # 3. Reset window (pacing=True: give cluster time to render before next command)
         self.ddp.send_ddp_frame([0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height])
@@ -494,13 +495,14 @@ class DisService:
                                             # so the cluster has time to process before the next draw arrives.
                                             if self.ddp.send_ddp_frame(payload_clip, pacing=False):
                                                 bytes_per_row = (w + 7) // 8
-                                                rows_per_chunk = 1 # Force single row per command for protocol compatibility
-                                                for i in range(0, h, rows_per_chunk):
-                                                    start_byte = i * bytes_per_row
-                                                    rows_to_send = min(rows_per_chunk, h - i)
-                                                    chunk_data = list(raw_bytes[start_byte : start_byte + (rows_to_send * bytes_per_row)])
-                                                    payload_bmp = [0x55, len(chunk_data) + 3, mode_flag, 0x00, i] + chunk_data
-                                                    if not self.ddp.send_ddp_frame(payload_bmp, pacing=False): break
+                                                cmd_size = 5 + bytes_per_row
+                                                rows_per_block = max(1, 42 // cmd_size)
+                                                for base in range(0, h, rows_per_block):
+                                                    block_payload = []
+                                                    for i in range(base, min(base + rows_per_block, h)):
+                                                        row_data = list(raw_bytes[i * bytes_per_row : (i + 1) * bytes_per_row])
+                                                        block_payload += [0x55, len(row_data) + 3, mode_flag, 0x00, i] + row_data
+                                                    if not self.ddp.send_ddp_frame(block_payload, pacing=False): break
                                                 self.ddp.send_ddp_frame([0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height])
                                         except Exception as e:
                                             logger.error(f"Failed drawing raw bitmap: {e}")
