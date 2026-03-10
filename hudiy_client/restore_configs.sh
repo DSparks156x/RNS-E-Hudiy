@@ -60,8 +60,11 @@ echo "Selected Restore Branch/Tag: $SELECTED_REF"
 
 # Create temporary directory
 TEMP_DIR=$(mktemp -d)
-echo "Cloning repository to temporary folder..."
-git clone -b "$SELECTED_REF" --depth 1 "$REPO_URL" "$TEMP_DIR"
+echo "Cloning repository (optimized sparse-checkout)..."
+git clone -b "$SELECTED_REF" --depth 1 --filter=blob:none --sparse --no-checkout "$REPO_URL" "$TEMP_DIR"
+cd "$TEMP_DIR" || exit 1
+git sparse-checkout set config.json config/hudiy
+git checkout
 
 # Define backup logic (incrementing folders)
 DATE_DIR=$(date +%Y-%m-%d)
