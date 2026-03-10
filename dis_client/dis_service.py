@@ -229,11 +229,11 @@ class DisService:
         w, h, data = icon['w'], icon['h'], icon['data']
         abs_y = y + self.region_y_offset
         
-        # 1. Set window
+        # 1. Set window (pacing=False: don't pause between clip and first chunk)
         payload_clip = [0x52, 0x05, 0x00, x, abs_y, w, h]
-        if not self.ddp.send_ddp_frame(payload_clip): return
+        if not self.ddp.send_ddp_frame(payload_clip, pacing=False): return
         
-        # 2. Send chunks
+        # 2. Send chunks (pacing=False: stream all rows without 20ms gaps)
         bytes_per_row = (w + 7) // 8
         rows_per_chunk = 37 // bytes_per_row
         if rows_per_chunk < 1: rows_per_chunk = 1
@@ -242,9 +242,9 @@ class DisService:
             rows_to_send = min(rows_per_chunk, h - i)
             chunk_data = data[start_byte:start_byte + (rows_to_send * bytes_per_row)]
             payload_bmp = [0x55, len(chunk_data) + 3, mode_flag, 0x00, i] + chunk_data
-            if not self.ddp.send_ddp_frame(payload_bmp): break
+            if not self.ddp.send_ddp_frame(payload_bmp, pacing=False): break
             
-        # 3. Reset window
+        # 3. Reset window (pacing=True: give cluster time to render before next command)
         self.ddp.send_ddp_frame([0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height])
 
     def get_line_payload(self, x: int, y: int, length: int, vertical: bool = True) -> List[int]:
@@ -490,7 +490,11 @@ class DisService:
                                             mode_flag = cmd.get('mode_flag', 0x02)
                                             abs_y = y + self.region_y_offset
                                             payload_clip = [0x52, 0x05, 0x00, x, abs_y, w, h]
-                                            if self.ddp.send_ddp_frame(payload_clip):
+                                            # pacing=False: suppress the 20ms WHITE DIS inter-block delay for
+                                            # the clip + every row chunk so all data streams to the cluster
+                                            # without gaps. Re-enable pacing on the final reset-window command
+                                            # so the cluster has time to process before the next draw arrives.
+                                            if self.ddp.send_ddp_frame(payload_clip, pacing=False):
                                                 bytes_per_row = (w + 7) // 8
                                                 rows_per_chunk = 37 // bytes_per_row
                                                 if rows_per_chunk < 1: rows_per_chunk = 1
@@ -499,7 +503,7 @@ class DisService:
                                                     rows_to_send = min(rows_per_chunk, h - i)
                                                     chunk_data = list(raw_bytes[start_byte : start_byte + (rows_to_send * bytes_per_row)])
                                                     payload_bmp = [0x55, len(chunk_data) + 3, mode_flag, 0x00, i] + chunk_data
-                                                    if not self.ddp.send_ddp_frame(payload_bmp): break
+                                                    if not self.ddp.send_ddp_frame(payload_bmp, pacing=False): break
                                                 self.ddp.send_ddp_frame([0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height])
                                         except Exception as e:
                                             logger.error(f"Failed drawing raw bitmap: {e}")

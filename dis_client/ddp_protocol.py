@@ -350,11 +350,17 @@ class DDPProtocol:
 
     # --- Public API Methods ---
 
-    def send_ddp_frame(self, payload: List[int]) -> bool:
+    def send_ddp_frame(self, payload: List[int], pacing: bool = True) -> bool:
         """
         Sends a full DDP data payload.
         CRITICAL: Splits large payloads into multiple 'Blocks' of max 42 bytes.
         AND enforces an inter-block delay to allow the cluster to process buffer.
+
+        pacing: If False, suppresses the 20ms WHITE DIS inter-block delay.
+                Use pacing=False for consecutive bitmap chunk sends so the cluster
+                receives all row data without gaps. Re-enable for the final
+                reset-window command so the cluster has time to process before
+                the next logical draw command arrives.
         """
         if self.state != DDPState.READY:
             logger.warning("Attempted to send frame while not READY. Ignoring.")
@@ -383,7 +389,9 @@ class DDPProtocol:
                 # 3. INTER-BLOCK PACING
                 # Critical for White DIS: Pause after ACK to let the cluster CPU catch up.
                 # This creates the "piece by piece" transmission style of RNS-E.
-                if self.dis_mode == DisMode.WHITE:
+                # pacing=False skips this to allow rapid streaming of related chunks
+                # (e.g. consecutive rows of a bitmap) without inter-chunk delays.
+                if pacing and self.dis_mode == DisMode.WHITE:
                     time.sleep(0.02) # 20ms delay between blocks
             
         except (DDPAckTimeoutError, DDPCANError) as e:
