@@ -53,6 +53,8 @@ class ControlState:
         self.mfsw_ptt_long_action_fired = False
         self.mfsw_scroll_click_press_count = 0
         self.mfsw_scroll_click_long_action_fired = False
+        self.mfsw_volume_scroll_click_press_count = 0
+        self.mfsw_volume_scroll_click_long_action_fired = False
         self.is_pi_source_active = None
         self.last_status_log_time = time.time()
 
@@ -104,26 +106,26 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
         pw_mgmt = FEATURES.get('power_management', {})
 
         # Input Mappings (New Nested Format)
-        input_cfg = cfg.get('input_mappings', {})
+        input_cfg = cfg.get('input_mappings') or {}
         
         # MMI Mappings
-        mmi_cfg = input_cfg.get('mmi', {})
-        mmi_scroll_cmds = mmi_cfg.get('scroll_commands', [])
-        mmi_short_press = mmi_cfg.get('short_press', {})
-        mmi_long_press = mmi_cfg.get('long_press', {})
-        mmi_extended_press = mmi_cfg.get('extended_press', {})
+        mmi_cfg = input_cfg.get('mmi') or {}
+        mmi_scroll_cmds = mmi_cfg.get('scroll_commands') or []
+        mmi_short_press = mmi_cfg.get('short_press') or {}
+        mmi_long_press = mmi_cfg.get('long_press') or {}
+        mmi_extended_press = mmi_cfg.get('extended_press') or {}
 
         # MFSW Mappings
-        mfsw_cfg = input_cfg.get('mfsw', {})
-        mfsw_cmds_cfg = mfsw_cfg.get('commands', {})
-        mfsw_short_press = mfsw_cfg.get('short_press', {})
-        mfsw_long_press = mfsw_cfg.get('long_press', {})
+        mfsw_cfg = input_cfg.get('mfsw') or {}
+        mfsw_cmds_cfg = mfsw_cfg.get('commands') or {}
+        mfsw_short_press = mfsw_cfg.get('short_press') or {}
+        mfsw_long_press = mfsw_cfg.get('long_press') or {}
 
         # Source Mappings
-        source_data = input_cfg.get('source', {})
+        source_data = input_cfg.get('source') or {}
         
         # Thresholds
-        thresholds = cfg.get('thresholds', {})
+        thresholds = cfg.get('thresholds') or {}
         
         CONFIG = {
             'zmq_address': zmq_cfg.get('can_raw_stream'),
@@ -143,7 +145,13 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
                 'ptt_short': parse_key(mfsw_short_press.get('ptt')),
                 'ptt_long': parse_key(mfsw_long_press.get('ptt')),
                 'scroll_click_short': parse_key(mfsw_short_press.get('scroll_click')),
-                'scroll_click_long': parse_key(mfsw_long_press.get('scroll_click'))
+                'scroll_click_long': parse_key(mfsw_long_press.get('scroll_click')),
+                'volume_scroll_up_short': parse_key(mfsw_short_press.get('volume_scroll_up')),
+                'volume_scroll_down_short': parse_key(mfsw_short_press.get('volume_scroll_down')),
+                'volume_scroll_click_short': parse_key(mfsw_short_press.get('volume_scroll_click')),
+                'volume_scroll_up_long': parse_key(mfsw_long_press.get('volume_scroll_up')),
+                'volume_scroll_down_long': parse_key(mfsw_long_press.get('volume_scroll_down')),
+                'volume_scroll_click_long': parse_key(mfsw_long_press.get('volume_scroll_click'))
             },
             
             'tv_mode_id': int(source_data.get('tv_mode_identifier', '0x00'), 16),
@@ -301,27 +309,41 @@ def handle_mmi_message(msg, state):
 
 def handle_mfsw_message(msg, state):
     if msg['dlc'] < 2: return
+    mfsw_cmds = CONFIG.get('mfsw_cmds', {})
+    if not mfsw_cmds: return
     cmd_byte = int(msg['data_hex'][2:4], 16)
-    if cmd_byte == CONFIG['mfsw_cmds']['scroll_up']: press_key(CONFIG['mfsw_map'].get('scroll_up'))
-    elif cmd_byte == CONFIG['mfsw_cmds']['scroll_down']: press_key(CONFIG['mfsw_map'].get('scroll_down'))
-    elif cmd_byte == CONFIG['mfsw_cmds']['mode_press']:
+    if cmd_byte == mfsw_cmds.get('scroll_up'):
+        press_key(CONFIG['mfsw_map'].get('scroll_up'))
+    elif cmd_byte == mfsw_cmds.get('scroll_down'):
+        press_key(CONFIG['mfsw_map'].get('scroll_down'))
+    elif cmd_byte == mfsw_cmds.get('mode_press'):
         state.mfsw_mode_press_count += 1
         if not state.mfsw_mode_long_action_fired and state.mfsw_mode_press_count >= CONFIG['long_press_count']:
             logger.info("MFSW Mode Long Press")
             press_key(CONFIG['mfsw_map'].get('mode_long'))
             state.mfsw_mode_long_action_fired = True
-    elif cmd_byte == CONFIG['mfsw_cmds'].get('ptt_press'):
+    elif cmd_byte == mfsw_cmds.get('ptt_press'):
         state.mfsw_ptt_press_count += 1
         if not state.mfsw_ptt_long_action_fired and state.mfsw_ptt_press_count >= CONFIG['long_press_count']:
             logger.info("MFSW PTT Long Press")
             press_key(CONFIG['mfsw_map'].get('ptt_long'))
             state.mfsw_ptt_long_action_fired = True
-    elif cmd_byte == CONFIG['mfsw_cmds'].get('scroll_click'):
+    elif cmd_byte == mfsw_cmds.get('scroll_click'):
         state.mfsw_scroll_click_press_count += 1
         if not state.mfsw_scroll_click_long_action_fired and state.mfsw_scroll_click_press_count >= CONFIG['long_press_count']:
             logger.info("MFSW Scroll Click Long Press")
             press_key(CONFIG['mfsw_map'].get('scroll_click_long'))
             state.mfsw_scroll_click_long_action_fired = True
+    elif cmd_byte == mfsw_cmds.get('volume_scroll_up'):
+        press_key(CONFIG['mfsw_map'].get('volume_scroll_up_short'))
+    elif cmd_byte == mfsw_cmds.get('volume_scroll_down'):
+        press_key(CONFIG['mfsw_map'].get('volume_scroll_down_short'))
+    elif cmd_byte == mfsw_cmds.get('volume_scroll_click'):
+        state.mfsw_volume_scroll_click_press_count += 1
+        if not state.mfsw_volume_scroll_click_long_action_fired and state.mfsw_volume_scroll_click_press_count >= CONFIG['long_press_count']:
+            logger.info("MFSW Volume Scroll Click Long Press")
+            press_key(CONFIG['mfsw_map'].get('volume_scroll_click_long'))
+            state.mfsw_volume_scroll_click_long_action_fired = True
     elif cmd_byte in CONFIG['mfsw_release_cmds']:
         if not state.mfsw_mode_long_action_fired and state.mfsw_mode_press_count > 0:
             logger.info("MFSW Mode Short Press")
@@ -335,12 +357,18 @@ def handle_mfsw_message(msg, state):
             logger.info("MFSW Scroll Click Short Press")
             press_key(CONFIG['mfsw_map'].get('scroll_click_short'))
 
+        if not state.mfsw_volume_scroll_click_long_action_fired and state.mfsw_volume_scroll_click_press_count > 0:
+            logger.info("MFSW Volume Scroll Click Short Press")
+            press_key(CONFIG['mfsw_map'].get('volume_scroll_click_short'))
+
         state.mfsw_mode_press_count = 0
         state.mfsw_mode_long_action_fired = False
         state.mfsw_ptt_press_count = 0
         state.mfsw_ptt_long_action_fired = False
         state.mfsw_scroll_click_press_count = 0
         state.mfsw_scroll_click_long_action_fired = False
+        state.mfsw_volume_scroll_click_press_count = 0
+        state.mfsw_volume_scroll_click_long_action_fired = False
 
 def handle_source_message(msg, state):
     """Processes RNS-E source messages to auto-play/pause media."""

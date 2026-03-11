@@ -61,14 +61,23 @@ Main configuration is in `config.json`.
 
 ### General Settings
 *   **Branch**: 
-    *   `testing`: Latest code from `main`.
-    *   `beta`: Latest beta or release tag.
-    *   `release`: Latest stable release tag.
-*   **Can interface**: Sets the socketcan interface (Default: `can0`).
+    *   `testing`: Latest code from `testing`.
+    *   `main`: Latest code from `main`.
+    *   `beta`: Latest beta or release tag. dont yet exist
+    *   `release`: Latest stable release tag. dont yet exist
+*   **Can interfaces**:
+    * Infotainment: Sets the socketcan interface for the infotainment functions. (Default: `can0`).
+    * Diagnostic: Sets the socketcan interface for diagnostic functions.  (Default: `can0`). Diagnostics work on infotainment on at least my car.
+*   **Display**:
+    * Mode: Sets the default display mode. (Default: `nav`). probably will remove.. nav and phone are hidden unless active and have auto switches.
+    * Road-side: Determines roundabout icon rotation. (Default: `right`).
+    * Units: Sets the units for various measurements. (Default: `imperial`). 
+        * Boost_Mode: "relative" to Atmosphere (conventional boost gauge) or "absolute". relative requires diagnostics for atmospheric. 
+
 *   **ZMQ**: Configures internal ZMQ streams. (Avoid modifying unless necessary).
 *   **CAN Ids**: Configures specific CAN IDs used by scripts. 
     *   **Ignition Status**: `2C3` is standard for TTs, `271` for some other platforms.
-*   **FIS_line/Media/Nav**: Currently unused.
+    *   **FIS_line/Media/Nav**: Currently unused.
 
 ### Features
 *   **Listen only mode**: Puts `can0` into listen-only when ignition is off, otherwise the radio will not go to sleep.

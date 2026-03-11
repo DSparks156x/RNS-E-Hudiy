@@ -136,8 +136,11 @@
         "scroll_up": "0x0B",
         "scroll_down": "0x0C",
         "mode_press": "0x1C",
+        "volume_scroll_up": "0x11",
+        "volume_scroll_down": "0x12",
         "ptt_press": "0x2A",
         "scroll_click": "0x08",
+        "volume_scroll_click": "0x13",
         "release": [
           "0x00",
           "0x00"
@@ -148,12 +151,18 @@
         "scroll_down": "KEY_N",
         "mode": "KEY_ENTER",
         "ptt": "KEY_M",
-        "scroll_click": "KEY_B"
+        "scroll_click": "KEY_B",
+        "volume_scroll_up": null,
+        "volume_scroll_down": null,
+        "volume_scroll_click": null
       },
       "long_press": {
         "mode": "KEY_ESC",
         "ptt": "KEY_H",
-        "scroll_click": "KEY_B"
+        "scroll_click": "KEY_B",
+        "volume_scroll_up": null,
+        "volume_scroll_down": null,
+        "volume_scroll_click": null
       }
     },
     "source": {
