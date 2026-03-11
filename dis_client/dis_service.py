@@ -520,14 +520,25 @@ class DisService:
                                                         if not self.ddp.send_ddp_frame(block_payload, pacing=False): break
                                                     self.ddp.send_ddp_frame([0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height])
                                             else:
-                                                # EXPERIMENTAL BATCHING: Append to `p` to share the 42-byte block 
-                                                # with other commands natively, meaning it obeys the 20ms block pacing.
-                                                p = [0x52, 0x05, 0x00, x, abs_y, w, h]
+                                                # EXPERIMENTAL BATCHING: Intelligently chunk into 42-byte payloads
+                                                # to share blocks natively while preventing CAN buffer overflows.
                                                 bytes_per_row = (w + 7) // 8
+                                                cmd_parts = [[0x52, 0x05, 0x00, x, abs_y, w, h]]
                                                 for i in range(0, h):
                                                     row_data = list(raw_bytes[i * bytes_per_row : (i + 1) * bytes_per_row])
-                                                    p += [0x55, len(row_data) + 3, mode_flag, 0x00, i] + row_data
-                                                p += [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
+                                                    cmd_parts.append([0x55, len(row_data) + 3, mode_flag, 0x00, i] + row_data)
+                                                cmd_parts.append([0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height])
+                                                
+                                                for part in cmd_parts:
+                                                    if current_payload and (len(current_payload) + len(part) > 42):
+                                                        self.ddp.send_ddp_frame(current_payload)
+                                                        current_payload = []
+                                                        self.ddp.poll_bus_events()
+                                                        self.ddp.send_keepalive_if_needed()
+                                                        must_colocate = False
+                                                    current_payload += part
+                                                
+                                                p = []  # Bypass generic append since we injected parts manually
                                         except Exception as e:
                                             logger.error(f"Failed parsing raw bitmap: {e}")
                                     
