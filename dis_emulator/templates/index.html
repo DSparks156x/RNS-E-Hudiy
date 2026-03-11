@@ -626,9 +626,6 @@
                 case 'clear_area':
                     bCtx.fillStyle = 'black';
                     bCtx.fillRect(cmd.x || 0, (cmd.y || 0) + REG_Y, cmd.w || 64, cmd.h || 9);
-                    // Commit immediate as requested for clear_area
-                    drawDividers();
-                    ctx.drawImage(backBuffer, 0, 0);
                     break;
                 case 'draw_text':
                     drawText(cmd.text, cmd.x || 0, (cmd.y || 0) + REG_Y, cmd.flags || 0x06);

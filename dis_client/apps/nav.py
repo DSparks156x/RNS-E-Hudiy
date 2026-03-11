@@ -299,9 +299,9 @@ class NavApp(BaseApp):
         
         # (Removed hardcoded truncation so _scroll_text can actually scroll it)
         pass
-        # Scroll the street name if it's too long (limit to 14 chars as requested)
+        # Scroll the street name if it's too long (limit to 12 chars as requested)
         # Use a unique key for the scroll state, explicitly set alignment to 'center'
-        street_display = self._scroll_text(street, 'nav_street', 13, align='center')
+        street_display = self._scroll_text(street, 'nav_street', 12, align='center')
 
         blank_char = chr(0x1F)
         
