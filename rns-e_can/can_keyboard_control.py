@@ -55,6 +55,8 @@ class ControlState:
         self.mfsw_scroll_click_long_action_fired = False
         self.mfsw_volume_scroll_click_press_count = 0
         self.mfsw_volume_scroll_click_long_action_fired = False
+        self.active_mfsw_scroll_key = None
+        self.active_mfsw_volume_scroll_key = None
         self.is_pi_source_active = None
         self.last_status_log_time = time.time()
 
@@ -313,9 +315,15 @@ def handle_mfsw_message(msg, state):
     if not mfsw_cmds: return
     cmd_byte = int(msg['data_hex'][2:4], 16)
     if cmd_byte == mfsw_cmds.get('scroll_up'):
-        press_key(CONFIG['mfsw_map'].get('scroll_up'))
+        key = CONFIG['mfsw_map'].get('scroll_up')
+        if key and UINPUT_DEVICE:
+            UINPUT_DEVICE.emit(key, 1)
+            state.active_mfsw_scroll_key = key
     elif cmd_byte == mfsw_cmds.get('scroll_down'):
-        press_key(CONFIG['mfsw_map'].get('scroll_down'))
+        key = CONFIG['mfsw_map'].get('scroll_down')
+        if key and UINPUT_DEVICE:
+            UINPUT_DEVICE.emit(key, 1)
+            state.active_mfsw_scroll_key = key
     elif cmd_byte == mfsw_cmds.get('mode_press'):
         state.mfsw_mode_press_count += 1
         if not state.mfsw_mode_long_action_fired and state.mfsw_mode_press_count >= CONFIG['long_press_count']:
@@ -335,9 +343,15 @@ def handle_mfsw_message(msg, state):
             press_key(CONFIG['mfsw_map'].get('scroll_click_long'))
             state.mfsw_scroll_click_long_action_fired = True
     elif cmd_byte == mfsw_cmds.get('volume_scroll_up'):
-        press_key(CONFIG['mfsw_map'].get('volume_scroll_up_short'))
+        key = CONFIG['mfsw_map'].get('volume_scroll_up_short')
+        if key and UINPUT_DEVICE:
+            UINPUT_DEVICE.emit(key, 1)
+            state.active_mfsw_volume_scroll_key = key
     elif cmd_byte == mfsw_cmds.get('volume_scroll_down'):
-        press_key(CONFIG['mfsw_map'].get('volume_scroll_down_short'))
+        key = CONFIG['mfsw_map'].get('volume_scroll_down_short')
+        if key and UINPUT_DEVICE:
+            UINPUT_DEVICE.emit(key, 1)
+            state.active_mfsw_volume_scroll_key = key
     elif cmd_byte == mfsw_cmds.get('volume_scroll_click'):
         state.mfsw_volume_scroll_click_press_count += 1
         if not state.mfsw_volume_scroll_click_long_action_fired and state.mfsw_volume_scroll_click_press_count >= CONFIG['long_press_count']:
@@ -360,6 +374,14 @@ def handle_mfsw_message(msg, state):
         if not state.mfsw_volume_scroll_click_long_action_fired and state.mfsw_volume_scroll_click_press_count > 0:
             logger.info("MFSW Volume Scroll Click Short Press")
             press_key(CONFIG['mfsw_map'].get('volume_scroll_click_short'))
+
+        if state.active_mfsw_scroll_key and UINPUT_DEVICE:
+            UINPUT_DEVICE.emit(state.active_mfsw_scroll_key, 0)
+            state.active_mfsw_scroll_key = None
+
+        if state.active_mfsw_volume_scroll_key and UINPUT_DEVICE:
+            UINPUT_DEVICE.emit(state.active_mfsw_volume_scroll_key, 0)
+            state.active_mfsw_volume_scroll_key = None
 
         state.mfsw_mode_press_count = 0
         state.mfsw_mode_long_action_fired = False
