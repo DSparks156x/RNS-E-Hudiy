@@ -9,3 +9,5 @@ __pycache__/
 *.py[cod]
 *$py.class
 references/dis_servicelog1.txt
+references/hi res ddp/ddp_protocol_hd.py
+references/hi res ddp/dis_service_hd.py
