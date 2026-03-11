@@ -36,6 +36,12 @@ class DisService:
         try:
             with open(config_path) as f:
                 self.config = json.load(f)
+                
+            if self.config.get('features', {}).get('debug_mode', False):
+                logger.setLevel(logging.DEBUG)
+                logging.getLogger().setLevel(logging.DEBUG)
+                logger.debug("Debug mode enabled via config.json")
+                
         except FileNotFoundError:
             logger.critical(f"FATAL: config.json not found at {config_path}")
             exit(1)
