@@ -128,6 +128,14 @@ class DisplayEngine:
         except Exception as e:
             logger.warning(f"Could not connect to dis_status: {e}")
 
+        # TP2 Command Socket (for atmospheric pressure subscription)
+        self.tp2_cmd = self.zmq_ctx.socket(zmq.REQ)
+        self.tp2_cmd.setsockopt(zmq.RCVTIMEO, 1000)
+        self.tp2_cmd.setsockopt(zmq.LINGER, 0)
+        _tp2_addr = self.cfg.get('interfaces', {}).get('zmq', {}).get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
+        self.tp2_cmd.connect(_tp2_addr)
+        self.last_tp2_sync = 0
+
         self.nav_active = False # Default inactive
 
         # --- Startup Logic ---
@@ -365,6 +373,26 @@ class DisplayEngine:
                         logger.info(f"Auto-switching back to {self.pre_nav_app_name}")
                         self.switch_to_app(self.pre_nav_app_name)
                         self.pre_nav_app_name = None
+
+                # Periodic TP2 SYNC for Atmospheric Pressure (Module 01, Group 113)
+                if now - self.last_tp2_sync > 10.0:
+                    self.last_tp2_sync = now
+                    try:
+                        sync_msg = {
+                            "cmd": "SYNC",
+                            "client_id": "dis_display",
+                            "module": 1,
+                            "groups": [],
+                            "low_priority_groups": [113]
+                        }
+                        self.tp2_cmd.send_json(sync_msg, flags=zmq.NOBLOCK)
+                        # We don't wait for reply to avoid blocking DIS loop
+                        try:
+                            self.tp2_cmd.recv_json(flags=zmq.NOBLOCK)
+                        except zmq.Again:
+                            pass
+                    except Exception as e:
+                        logger.debug(f"TP2 Sync failed: {e}")
 
                 self._check_buttons()
                 self._draw()

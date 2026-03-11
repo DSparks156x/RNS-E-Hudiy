@@ -24,7 +24,9 @@
     "road_side": "right",
     "units": {
       "speed": "imperial",
-      "ambient_temp": "imperial"
+      "ambient_temp": "imperial",
+      "boost": "metric",
+      "boost_mode": "absolute"
     },
     "text_scrolling": {
       "continuous": true,

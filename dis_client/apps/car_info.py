@@ -13,6 +13,9 @@ class CarInfoApp(BaseApp):
             'iat': '--',
             'coolant': '--'
         }
+        # Atmospheric pressure fallback (standard atmosphere)
+        self.atmosphere = 1013.25
+        
         # Rate Limiting
         self.last_update_time = 0
         self.update_interval = 0.5 # 500ms (2 FPS max)
@@ -29,8 +32,18 @@ class CarInfoApp(BaseApp):
 
     def update_hudiy(self, topic, payload):
         if topic == b'HUDIY_DIAG':
+            mod = payload.get('module')
             group = payload.get('group')
             data = payload.get('data', [])
+            
+            # Module 01, Group 113: Atmospheric Pressure (Block 4)
+            if mod == 1 and group == 113:
+                if len(data) >= 4:
+                    try:
+                        self.atmosphere = float(data[3]['value'])
+                    except (ValueError, TypeError):
+                        pass
+
             if group == 0: # Temperatures
                 if len(data) > 0: self.data['oil'] = f"{data[0]['value']}{data[0]['unit']}"
                 if len(data) > 2: self.data['coolant'] = f"{data[2]['value']}{data[2]['unit']}"
@@ -38,7 +51,26 @@ class CarInfoApp(BaseApp):
             elif group == 1: # Performance
                 if len(data) > 1: 
                     try:
-                        self.data['boost'] = f"{int(float(data[1]['value']))}mb"
+                        raw_boost = float(data[1]['value'])
+                        
+                        # Configuration
+                        boost_unit = self.config.get('display', {}).get('units', {}).get('boost', 'metric')
+                        boost_mode = self.config.get('display', {}).get('units', {}).get('boost_mode', 'absolute')
+                        
+                        display_val = raw_boost
+                        if boost_mode == 'relative':
+                            display_val = raw_boost - self.atmosphere
+                            
+                        if boost_unit == 'imperial':
+                            # mbar to psi
+                            psi_val = display_val * 0.0145038
+                            sign = "+" if boost_mode == 'relative' and psi_val >= 0 else ""
+                            self.data['boost'] = f"{sign}{psi_val:.1f}psi"
+                        else:
+                            # metric (mbar)
+                            sign = "+" if boost_mode == 'relative' and display_val >= 0 else ""
+                            self.data['boost'] = f"{sign}{int(round(display_val))}mbar"
+                            
                     except (ValueError, TypeError):
                         self.data['boost'] = f"{data[1]['value']}mb"
                 if len(data) > 3: self.data['load'] = f"{data[3]['value']}{data[3]['unit']}"
