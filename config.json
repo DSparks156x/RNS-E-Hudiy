@@ -136,11 +136,11 @@
         "scroll_up": "0x0B",
         "scroll_down": "0x0C",
         "mode_press": "0x1C",
-        "volume_scroll_up": "0x11",
-        "volume_scroll_down": "0x12",
+        "volume_scroll_up": "0x06",
+        "volume_scroll_down": "0x07",
         "ptt_press": "0x2A",
         "scroll_click": "0x08",
-        "volume_scroll_click": "0x13",
+        "volume_scroll_click": "0xA7",
         "release": [
           "0x00",
           "0x00"
