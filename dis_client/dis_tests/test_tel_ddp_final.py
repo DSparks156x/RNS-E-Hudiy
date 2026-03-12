@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 TEL_CONFIG = {
     'can_channel': 'can0',
     'can_bitrate': 100000,
-    'ddp_tx_id': 0x6C4,  # Our TX (Device)
-    'ddp_rx_id': 0x6C5,  # Cluster TX (Our RX)
+    'ddp_tx_id': 0x6D1,  # Our TX (Device)
+    'ddp_rx_id': 0x6D0,  # Cluster TX (Our RX)
 }
 ID_HEARTBEAT = 0x665
 

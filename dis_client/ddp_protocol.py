@@ -204,16 +204,20 @@ class DDPProtocol:
         ack_packet = [self.PKT_TYPE_ACK + ack_seq]
         logger.debug(f"Sending ACK {ack_packet[0]:02X}")
         self.send_can(self.tx_id, ack_packet)
+        # Breathing Logic: 20ms pause after ACK to allow cluster to breathe
+        time.sleep(0.02)
 
     def _handle_incoming_packet(self, data: List[int]) -> bool:
         """
-        Central handler for all "background" packets (Keep-Alives, ACKs, etc.).
-        Returns True if the packet was handled, False if it's a data packet.
+        Central handler for all "background" packets (Keep-Alives, ACKs, Data).
+        Returns True if the packet was fully handled (background), False if it's primary data.
         """
         if not data:
             return False
 
-        msg_type_prefix = data[0] & self.PKT_TYPE_MASK
+        first_byte = data[0]
+        msg_type_prefix = first_byte & self.PKT_TYPE_MASK
+        msg_seq = first_byte & self.PKT_SEQ_MASK
         
         # --- Type 0xA_ (Session Control) ---
         if msg_type_prefix == 0xA0:
@@ -222,44 +226,46 @@ class DDPProtocol:
                 self._set_state(DDPState.DISCONNECTED)
                 return True
             
-            # Session drop detection
-            if data == self.KA_RED_PRESENT and self.dis_mode == DisMode.RED and self.state == DDPState.READY:
-                logger.warning("Red DIS broadcast detected while READY. Session dropped.")
-                self._set_state(DDPState.DISCONNECTED)
-                return True
-
-            # Cluster Ping (0xA3 or 0xA3 00, etc.)
+            # Cluster Ping (0xA3)
             if data[0] == self.KA_KEEP_PING[0]:
                 logger.debug(f"Cluster sent Keep-Alive {data} -> replying A1")
                 reply = self.KA_RED_ACCEPT if self.dis_mode == DisMode.RED else self.KA_WHITE_ACCEPT
                 self.send_can(self.tx_id, reply)
                 return True
             
-            # Cluster Pong (to our Ping)
+            # Pong to our A3
             if (data == self.KA_WHITE_ACCEPT or data == self.KA_RED_ACCEPT) and self.i_am_opener:
-                logger.debug("Cluster replied A1 to our A3")
                 return True
-            
-            # Ignore unhandled 0xA_ packets
-            return True # Assume it was session-related
+            return True
 
         # --- Type 0xB_ (ACK) ---
         if msg_type_prefix == self.PKT_TYPE_ACK:
-            logger.debug(f"<- Received ACK {data[0]:02X}")
-            self._last_received_ack = data # Store for _recv_specific
+            logger.debug(f"<- Received ACK {first_byte:02X}")
+            self._last_received_ack = data
             return True
 
-        # --- Type 0x0_, 0x1_, 0x2_ (Data) ---
         if msg_type_prefix in [0x00, self.PKT_TYPE_DATA_END, self.PKT_TYPE_DATA_BODY]:
-            # Check for benign Graphics ACKs starting with 0x0B or 0x1B
+            # Peer Data: Cluster sends data (e.g. C5, C6, C7 queries).
+            # We MUST ACK end-of-frame packets immediately to prevent session close.
+            if msg_type_prefix in [0x00, self.PKT_TYPE_DATA_END]: 
+                logger.debug(f"<- Peer Data {first_byte:02X}, sending immediate ACK...")
+                self.send_ack(msg_seq)
+            
+            # Use current_app logic or background filters
             payload = data[1:]
+            
+            # Check for benign static status/graphic ACKs
             if payload == DDPMessages.STAT_GRAPHIC_ACK_WHITE or payload == DDPMessages.STAT_GRAPHIC_ACK_RED:
-                logger.debug(f"<- Swallowing background Graphics ACK {payload}")
+                logger.debug(f"<- Swallowing background status/graphic ACK {payload}")
                 return True
-            return False # Not handled, it's data for the caller
+            
+            # Store it for the receiver chain
+            self._last_received_data = data
+            return False 
 
-        logger.warning(f"Unknown unhandled packet type {data[0]:02X}")
-        return True # Treat as handled to avoid breaking loops
+        # Log unknown types but don't disconnect
+        logger.debug(f"Unknown/unhandled packet type {data[0]:02X}")
+        return True
 
     def _recv_specific(self, expected_data: List[int], timeout_ms: int) -> Optional[List[int]]:
         """
@@ -290,43 +296,34 @@ class DDPProtocol:
         logger.error(f"Timeout waiting for {expected_data}")
         return None
 
-    def _recv_and_ack_data(self, timeout_ms: int) -> Optional[List[int]]:
+    def _recv_message_chain(self, timeout_ms: int, filter_opcode: Optional[int] = None) -> Optional[List[int]]:
         """
-        Waits for a data packet (0x0x, 0x1x, 0x2x), ACKs it if required,
-        and returns the full packet.
-        Uses _handle_incoming_packet to filter out background noise.
+        Wait for a complete DDP message. 
+        If filter_opcode is set, it will ignore data packets that don't match.
         """
         start = time.time()
-        self._last_received_data = None # Clear buffer
-
+        full_payload = []
+        
         while time.time() - start < (timeout_ms / 1000.0):
-            data = self._recv(0.05) # Poll for 50ms
-            if not data:
-                continue
-
-            # Let the central handler process it first
-            is_background_packet = self._handle_incoming_packet(data)
+            data = self._recv(0.05)
+            if not data: continue
             
-            if self.state == DDPState.DISCONNECTED:
-                logger.warning("Session closed while waiting for data packet")
-                return None
-
-            if is_background_packet:
-                continue # It was an ACK or KA, keep waiting for data
-
-            # If it wasn't a background packet, it must be data.
+            is_bg = self._handle_incoming_packet(data)
+            if is_bg: continue
+            
+            # If we are here, it's data.
+            opcode = data[1]
+            if filter_opcode is not None and opcode != filter_opcode:
+                logger.debug(f"Skipping unsolicited opcode 0x{opcode:02X}, waiting for 0x{filter_opcode:02X}")
+                continue
+            
+            # Handle single/multi frame logic (simplified here)
             msg_type = data[0] & self.PKT_TYPE_MASK
-            msg_seq = data[0] & self.PKT_SEQ_MASK
+            full_payload.extend(data[1:])
             
             if msg_type in [0x00, self.PKT_TYPE_DATA_END]:
-                self.send_ack(msg_seq)
-                return data
-            elif msg_type == self.PKT_TYPE_DATA_BODY:
-                return data
-            else:
-                logger.warning(f"Received non-data packet {data} when expecting data")
-                
-        logger.error(f"Timeout waiting for a data packet")
+                return full_payload
+        
         return None
 
     def send_data_packet(self, data: List[int], is_multi_packet_frame_body: bool = False):
@@ -454,6 +451,7 @@ class DDPProtocol:
             for i in range(4):
                 logger.info(f"RED DIS: Sending A3 (Loop {i+1}/4)...")
                 self.send_can(self.tx_id, self.KA_KEEP_PING)
+                # Again, KA_RED_ACCEPT is a single CAN packet, _recv_specific is correct.
                 if not self._recv_specific(self.KA_RED_ACCEPT, 500):
                     raise DDPHandshakeError(f"Cluster did not reply on loop {i+1}")
                 logger.info(f"RED DIS: Received A1 0F (Loop {i+1}/4).")
@@ -576,12 +574,12 @@ class DDPProtocol:
         logger.info("Init Step 1 (Capabilities Query) sent!")
 
         # Step 2: Receive capabilities response
-        data = self._recv_and_ack_data(1000)
+        data = self._recv_message_chain(1000)
         if not data:
              raise DDPHandshakeError("Init Step 1 timeout: No response from cluster.")
         
         # Detection: Standard mode responds with 0x09 (Nav), High-Res uses 0x15 (Telem)
-        if data[1] == 0x15:
+        if data[0] == 0x15:
             logger.info("Detected HIGH-RES (Telem/Phone) Mode via 0x15 response.")
         elif not self.payload_is(data, self.PL["PL_LOG_3"]):
             logger.warning(f"Step 2 unexpected payload: got {data}, expected {self.PL['PL_LOG_3']}. Proceeding anyway.")
@@ -606,7 +604,7 @@ class DDPProtocol:
         self.send_data_packet([0x01, 0x01, 0x00]) # Step 5
         logger.info("Init 5/x passed!")
         
-        data = self._recv_and_ack_data(1000) # Step 6
+        data = self._recv_message_chain(1000) # Step 6
         if self.payload_is(data, self.PL["PL_LOG_14"]):
             logger.info("Init 6/x passed (Regular)!")
         elif self.payload_is(data, self.PL.get("PL_LOG_14_ALT")):
@@ -617,7 +615,7 @@ class DDPProtocol:
         self.send_data_packet([0x08]) # Step 7
         logger.info("Init 7/x passed!")
 
-        data = self._recv_and_ack_data(1000) # Step 8
+        data = self._recv_message_chain(1000) # Step 8
         if self.payload_is(data, self.PL["PL_LOG_18"]):
             logger.info("Init 8/x passed (Regular)!")
         elif self.payload_is(data, self.PL.get("PL_LOG_18_ALT")):
@@ -628,7 +626,7 @@ class DDPProtocol:
         self.send_data_packet([0x20, 0x3B, 0xA0, 0x00]) # Step 9
         logger.info("Init 9/x passed!")
 
-        data = self._recv_and_ack_data(1000) # Step 10
+        data = self._recv_message_chain(1000) # Step 10
         if self.payload_is(data, self.PL["PL_LOG_21"]):
             logger.info("Init 10/x passed (Regular)!")
         elif self.payload_is(data, self.PL.get("PL_LOG_21_ALT")):
@@ -636,7 +634,7 @@ class DDPProtocol:
         else:
             raise DDPHandshakeError(f"Step 10 failed: wait PL {self.PL['PL_LOG_21']}, got {data}")
 
-        data = self._recv_and_ack_data(1000) # Step 11
+        data = self._recv_message_chain(1000) # Step 11
         if not self.payload_is(data, self.PL["PL_LOG_23"]):
             raise DDPHandshakeError(f"Step 11 failed: wait PL {self.PL['PL_LOG_23']}, got {data}")
         logger.info("Init 11/x passed!")
@@ -644,7 +642,7 @@ class DDPProtocol:
         self.send_data_packet([0x20, 0x3B, 0xA0, 0x00]) # Step 12
         logger.info("Init 12/x passed!")
 
-        data = self._recv_and_ack_data(1000) # Step 13
+        data = self._recv_message_chain(1000) # Step 13
         if not self.payload_is(data, self.PL["PL_LOG_27"]):
             raise DDPHandshakeError(f"Step 13 failed: wait PL {self.PL['PL_LOG_27']}, got {data}")
         logger.info("Init 13/x passed!")
@@ -658,7 +656,7 @@ class DDPProtocol:
     def _init_path_red(self):
         """Handles the Red DIS handshake path."""
         logger.info("Following RED DIS Short Path...")
-        data = self._recv_and_ack_data(1000) # Wait for PL_LOG_14
+        data = self._recv_message_chain(1000) # Wait for PL_LOG_14
         if not self.payload_is(data, self.PL["PL_LOG_14"]):
             raise DDPHandshakeError(f"RED Path failed (Step 2): wait PL {self.PL['PL_LOG_14']}, got {data}")
         logger.info("Init 2/x (Red) passed!")
@@ -666,7 +664,7 @@ class DDPProtocol:
         self.send_data_packet([0x20, 0x3B, 0xA0, 0x00]) # Send 13 20...
         logger.info("Init 3/x (Red) passed!")
 
-        data = self._recv_and_ack_data(1000) # Wait for PL_LOG_23
+        data = self._recv_message_chain(1000) # Wait for PL_LOG_23
         if not self.payload_is(data, self.PL["PL_LOG_23"]):
             raise DDPHandshakeError(f"RED Path failed (Step 4): wait PL {self.PL['PL_LOG_23']}, got {data}")
         logger.info("Init 4/x (Red) passed!")
@@ -697,13 +695,13 @@ class DDPProtocol:
 
             # --- Handshake Fork ---
             # Wait for the packet that determines which path to take
-            data = self._recv_and_ack_data(1000)
+            data = self._recv_message_chain(1000)
             if data is None: raise DDPHandshakeError("Timed out waiting for handshake fork packet.")
             
             # Handle out-of-order PL_LOG_5 (seen in some logs)
             if self.payload_is(data, self.PL["PL_LOG_5"]):
                 logger.info("Handshake Fork: Got out-of-order packet (PL 00 01). Accepting.")
-                data = self._recv_and_ack_data(1000)
+                data = self._recv_message_chain(1000)
                 if data is None: raise DDPHandshakeError("Timed out after out-of-order packet.")
 
             # --- Path B (White Short) ---
@@ -781,10 +779,7 @@ class DDPProtocol:
             msg_seq = data[0] & self.PKT_SEQ_MASK
             payload = data[1:]
 
-            # We must ALWAYS ACK data packets (Type 0x00 or 0x10) immediately,
-            # regardless of whether we handle the content.
-            if msg_type in [0x00, self.PKT_TYPE_DATA_END]:
-                self.send_ack(msg_seq)
+            # (ACK was already sent by _handle_incoming_packet)
 
             # --- DETECT PAUSE (Cluster Claims Screen) ---
             if payload in [DDPMessages.STAT_BUSY_WARN_HALF, DDPMessages.STAT_BUSY_HALF,
