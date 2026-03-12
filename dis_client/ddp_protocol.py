@@ -82,9 +82,6 @@ class DDPProtocol:
     """
 
     # --- CAN & Protocol Constants ---
-    CAN_ID_SEND = 0x6C0
-    CAN_ID_RECV = 0x6C1
-    CAN_MASK_RECV = 0x7FF
     CAN_PACING_DELAY_S = 0.002  # Critical 2ms pacing delay for packets
 
     # -- Keep-Alive (KA) Payloads --
@@ -123,7 +120,13 @@ class DDPProtocol:
         self.channel = config.get('can_channel', 'can0')
         self.bitrate = config.get('can_bitrate', 100000)
         
-        logger.debug(f"CAN config: {{'bitrate': {self.bitrate}, 'interface': 'socketcan', 'channel': '{self.channel}'}}")
+        # Allow overriding DDP IDs for modules like Telephone (0x6C5/0x6C4)
+        # Defaults to Navigation (0x6C0/0x6C1)
+        self.tx_id = config.get('ddp_tx_id', 0x6C0)
+        self.rx_id = config.get('ddp_rx_id', 0x6C1)
+        self.rx_mask = config.get('ddp_rx_mask', 0x7FF)
+        
+        logger.debug(f"CAN config: {{'bitrate': {self.bitrate}, 'interface': 'socketcan', 'channel': '{self.channel}', 'tx': 0x{self.tx_id:X}, 'rx': 0x{self.rx_id:X}}}")
         
         try:
             self.bus = can.Bus(
@@ -133,7 +136,7 @@ class DDPProtocol:
                 timeout=0.01  # Non-blocking
             )
             self.bus.set_filters([
-                {"can_id": self.CAN_ID_RECV, "can_mask": self.CAN_MASK_RECV, "extended": False}
+                {"can_id": self.rx_id, "can_mask": self.rx_mask, "extended": False}
             ])
         except Exception as e:
             logger.error(f"Failed to open CAN-Bus '{self.channel}': {e}")
@@ -182,12 +185,12 @@ class DDPProtocol:
             raise DDPCANError(f"CAN Send Error: {e}")
 
     def _recv(self, timeout_s: float = 0.01) -> Optional[List[int]]:
-        """Receives and logs a single CAN message from the bus (ID 0x6C1)."""
+        """Receives and logs a single CAN message from the bus (ID)."""
         msg = self.bus.recv(timeout_s)
         if msg:
-            if msg.arbitration_id == self.CAN_ID_RECV:
+            if msg.arbitration_id == self.rx_id:
                 data = list(msg.data)
-                logger.debug("<- 0x%03X: %s", self.CAN_ID_RECV, ' '.join(f'{b:02X}' for b in data))
+                logger.debug("<- 0x%03X: %s", self.rx_id, ' '.join(f'{b:02X}' for b in data))
                 time.sleep(self.CAN_PACING_DELAY_S)
                 return data
         return None
@@ -197,7 +200,7 @@ class DDPProtocol:
         ack_seq = (received_seq_num + 1) % 16
         ack_packet = [self.PKT_TYPE_ACK + ack_seq]
         logger.debug(f"Sending ACK {ack_packet[0]:02X}")
-        self.send_can(self.CAN_ID_SEND, ack_packet)
+        self.send_can(self.tx_id, ack_packet)
 
     def _handle_incoming_packet(self, data: List[int]) -> bool:
         """
@@ -226,7 +229,7 @@ class DDPProtocol:
             if data[0] == self.KA_KEEP_PING[0]:
                 logger.debug(f"Cluster sent Keep-Alive {data} -> replying A1")
                 reply = self.KA_RED_ACCEPT if self.dis_mode == DisMode.RED else self.KA_WHITE_ACCEPT
-                self.send_can(self.CAN_ID_SEND, reply)
+                self.send_can(self.tx_id, reply)
                 return True
             
             # Cluster Pong (to our Ping)
@@ -333,7 +336,7 @@ class DDPProtocol:
         first_byte = packet_type + self.send_seq_num
         packet = [first_byte] + data
         
-        self.send_can(self.CAN_ID_SEND, packet)
+        self.send_can(self.tx_id, packet)
         
         expected_ack_byte = self.PKT_TYPE_ACK + (self.send_seq_num + 1) % 16
         self.send_seq_num = (self.send_seq_num + 1) % 16
@@ -407,7 +410,7 @@ class DDPProtocol:
         data = self._recv_specific(self.KA_WHITE_OPEN, 1000)
         if data == self.KA_WHITE_OPEN:
             logger.info("Cluster opened -> sending A1")
-            self.send_can(self.CAN_ID_SEND, self.KA_WHITE_ACCEPT)
+            self.send_can(self.tx_id, self.KA_WHITE_ACCEPT)
             self.i_am_opener = False
             self._set_state(DDPState.SESSION_ACTIVE)
             self.dis_mode = DisMode.WHITE
@@ -417,7 +420,7 @@ class DDPProtocol:
     def _white_dis_active_open(self) -> bool:
         """(Private) Actively initiates the White DIS session by sending A0."""
         logger.info("ACTIVE WHITE: Sending A0...")
-        self.send_can(self.CAN_ID_SEND, self.KA_WHITE_OPEN)
+        self.send_can(self.tx_id, self.KA_WHITE_OPEN)
         if self._recv_specific(self.KA_WHITE_ACCEPT, 500):
             logger.info("A1 received")
             self.i_am_opener = True
@@ -433,11 +436,11 @@ class DDPProtocol:
         try:
             # Step 1: Send A1 0F
             logger.info("RED DIS: Sending A1 0F...")
-            self.send_can(self.CAN_ID_SEND, self.KA_RED_OPEN)
+            self.send_can(self.tx_id, self.KA_RED_OPEN)
             
             # Step 2: Send A3 right after
             logger.info("RED DIS: Sending A3...")
-            self.send_can(self.CAN_ID_SEND, self.KA_KEEP_PING)
+            self.send_can(self.tx_id, self.KA_KEEP_PING)
             
             # Step 3: Wait for cluster's A1 0F reply
             if not self._recv_specific(self.KA_RED_ACCEPT, 500):
@@ -447,7 +450,7 @@ class DDPProtocol:
             # Step 4: Exchange A3 / A1 0F four times
             for i in range(4):
                 logger.info(f"RED DIS: Sending A3 (Loop {i+1}/4)...")
-                self.send_can(self.CAN_ID_SEND, self.KA_KEEP_PING)
+                self.send_can(self.tx_id, self.KA_KEEP_PING)
                 if not self._recv_specific(self.KA_RED_ACCEPT, 500):
                     raise DDPHandshakeError(f"Cluster did not reply on loop {i+1}")
                 logger.info(f"RED DIS: Received A1 0F (Loop {i+1}/4).")
@@ -488,7 +491,7 @@ class DDPProtocol:
             # --- White DIS (Passive) Detection ---
             if data == self.KA_WHITE_OPEN:
                 logger.info("Found White DIS passive open (A0 0F...).")
-                self.send_can(self.CAN_ID_SEND, self.KA_WHITE_ACCEPT)
+                self.send_can(self.tx_id, self.KA_WHITE_ACCEPT)
                 self.i_am_opener = False
                 self._set_state(DDPState.SESSION_ACTIVE)
                 self.dis_mode = DisMode.WHITE
@@ -503,7 +506,7 @@ class DDPProtocol:
         """Actively closes the DDP session by sending A8 (Hard Close)."""
         if self.state != DDPState.DISCONNECTED:
             logger.info("Actively closing session (sending A8)...")
-            self.send_can(self.CAN_ID_SEND, self.KA_CLOSE)
+            self.send_can(self.tx_id, self.KA_CLOSE)
             self._set_state(DDPState.DISCONNECTED)
 
     def release_screen(self) -> bool:
@@ -711,7 +714,7 @@ class DDPProtocol:
 
             # --- Final Keep-Alive Exchange ---
             logger.info("Sending final A3 Keep-Alive to complete handshake...")
-            self.send_can(self.CAN_ID_SEND, self.KA_KEEP_PING)
+            self.send_can(self.tx_id, self.KA_KEEP_PING)
             
             reply = self.KA_RED_ACCEPT if self.dis_mode == DisMode.RED else self.KA_WHITE_ACCEPT
             if not self._recv_specific(reply, 1000):
@@ -741,7 +744,7 @@ class DDPProtocol:
         
         if self.i_am_opener and time.time() - self.last_ka_sent > 2.0:
             logger.debug("Sending A3 Keep-Alive")
-            self.send_can(self.CAN_ID_SEND, self.KA_KEEP_PING)
+            self.send_can(self.tx_id, self.KA_KEEP_PING)
             self.last_ka_sent = time.time()
 
     def poll_bus_events(self):
@@ -779,7 +782,7 @@ class DDPProtocol:
                     logger.warning(f"Cluster INTERRUPT (Status {payload}). Pausing...")
                     self._set_state(DDPState.PAUSED)
                     # Urgent Ping to keep session alive during warning
-                    self.send_can(self.CAN_ID_SEND, self.KA_KEEP_PING)
+                    self.send_can(self.tx_id, self.KA_KEEP_PING)
 
             # --- DETECT FREE (Cluster Releases Screen) ---
             elif payload in [DDPMessages.STAT_FREE_HALF, DDPMessages.STAT_FREE_FULL]:
@@ -793,7 +796,7 @@ class DDPProtocol:
                 # 1. Reply with 2F (Confirmation)
                 first_byte = self.PKT_TYPE_DATA_END + self.send_seq_num
                 pkt = [first_byte] + DDPMessages.CMD_REINIT_CONF
-                self.send_can(self.CAN_ID_SEND, pkt)
+                self.send_can(self.tx_id, pkt)
                 self.send_seq_num = (self.send_seq_num + 1) % 16
 
                 # 2. Switch state directly to READY.

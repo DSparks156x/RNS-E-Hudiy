@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-test_tel_ddp.py (Refined)
-Triggers cluster with 0x665 heartbeat, then responds to A0 on 0x6C4.
+test_tel_ddp.py (Refined - v2)
+Triggers cluster with 0x665 heartbeat, then responds to A0 on 0x6C4 using 0x6C5.
 """
 
 import can
@@ -13,7 +13,7 @@ import sys
 CAN_CHANNEL = 'can0'
 CAN_BITRATE = 100000
 ID_HEARTBEAT = 0x665  # Phone heartbeat / Trigger
-ID_TX = 0x6C3         # Our TX ID (Guess based on 0x6C4 RX)
+ID_TX = 0x6C5         # Corrected TX ID based on user feedback
 ID_RX = 0x6C4         # Cluster's TX ID (Our RX)
 
 def main():
@@ -52,28 +52,26 @@ def main():
                 # Step 4: DDP sequence
                 print("Step 4: Sending DDP initialization frames...")
                 
-                # We'll try a sequence similar to ddp_protocol_hd.py
                 # Packet: [Type+Seq, Op, Data...]
                 # Type 0x1x = End of Frame
                 
-                # 0x15: Discovery/Init?
+                # 0x15: Discovery/Init
                 bus.send(can.Message(arbitration_id=ID_TX, data=[0x10, 0x15, 0x01, 0x01, 0x02, 0x00, 0x00, 0x00], is_extended_id=False))
                 time.sleep(0.05)
                 
-                # 0x57: Write "HELO"
+                # 0x57: Write "HELLO"
+                # Characters: H=0x48, E=0x45, L=0x4C, L=0x4C, O=0x4F
                 # Flags=0x02, X=0, Y=0
-                # H=0x48, E=0x45, L=0x4C, O=0x4F
-                bus.send(can.Message(arbitration_id=ID_TX, data=[0x11, 0x57, 0x07, 0x02, 0x00, 0x00, 0x48, 0x45], is_extended_id=False))
-                bus.send(can.Message(arbitration_id=ID_TX, data=[0x22, 0x4C, 0x4F, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False))
+                bus.send(can.Message(arbitration_id=ID_TX, data=[0x11, 0x57, 0x08, 0x02, 0x00, 0x00, 0x48, 0x45], is_extended_id=False))
+                bus.send(can.Message(arbitration_id=ID_TX, data=[0x22, 0x4C, 0x4C, 0x4F, 0x00, 0x00, 0x00, 0x00], is_extended_id=False))
                 
                 # 0x39: Commit
                 bus.send(can.Message(arbitration_id=ID_TX, data=[0x13, 0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False))
                 
-                print("DDP Frames sent. Observe FIS.")
-                # After sending, keep listening for a bit in case of A8 (Disconnect)
+                print("DDP Frames sent via 0x6C5. Observe FIS.")
                 
             elif data[0] == 0xA8:
-                print("Cluster sent A8 (Disconnect). It might be bored or missing our response.")
+                print("Cluster sent A8 (Disconnect).")
             
         # Keep sending heartbeats so it doesn't close the "door"
         if int(time.time() * 10) % 5 == 0:
