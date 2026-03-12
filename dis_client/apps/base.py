@@ -55,8 +55,8 @@ class BaseApp:
         # 1. Resolve configuration (Param > Config > Default)
         scroll_cfg = self.config.get('display', {}).get('text_scrolling', {})
         if speed_ms is None: speed_ms = scroll_cfg.get('speed_ms', 300)
-        if start_pause_ms is None: start_pause_ms = scroll_cfg.get('start_delay', 1000)
-        if end_pause_ms is None: end_pause_ms = scroll_cfg.get('end_delay', 250)
+        if start_pause_ms is None: start_pause_ms = scroll_cfg.get('start_delay_ms', 1000)
+        if end_pause_ms is None: end_pause_ms = scroll_cfg.get('end_delay_ms', 250)
         if continuous is None: continuous = scroll_cfg.get('continuous', False)
 
         if len(text) <= max_len:

@@ -15,15 +15,17 @@ import logging
 import signal
 import sys
 import json
+import threading
 
 # --- Global State ---
 RUNNING = True
 RELOAD_CONFIG = False
 CONFIG = {}
 CAN_BUS = None
+CAN_SEND_LOCK = threading.Lock()
 ZMQ_CONTEXT = None
 ZMQ_PUB_SOCKET = None
-ZMQ_PULL_SOCKET = None # NEW: Socket to receive messages to be sent
+ZMQ_PULL_SOCKET = None # Socket to receive messages to be sent
 
 # --- Logging Setup ---
 def setup_logging():
@@ -159,6 +161,34 @@ def reload_config_handler(signum, frame):
     RELOAD_CONFIG = True
 
 
+# --- Send Worker ---
+def send_worker():
+    """Dedicated thread: blocks on ZMQ PULL and immediately forwards to CAN bus."""
+    while RUNNING:
+        try:
+            parts = ZMQ_PULL_SOCKET.recv_multipart()
+            if not RUNNING:
+                break
+            if len(parts) != 2:
+                continue
+            bus = CAN_BUS
+            if bus is None:
+                continue
+            can_id = int(parts[0].decode())
+            data_hex = parts[1].decode()
+            msg_to_send = can.Message(
+                arbitration_id=can_id,
+                data=bytes.fromhex(data_hex),
+                is_extended_id=False
+            )
+            with CAN_SEND_LOCK:
+                bus.send(msg_to_send)
+            logger.debug(f"Sent CAN message from ZMQ: ID={can_id:03X}, Data={data_hex}")
+        except Exception as e:
+            if RUNNING:
+                logger.debug(f"send_worker: {e}")
+
+
 # --- Main Application ---
 def main():
     """The main application entry point and loop."""
@@ -173,6 +203,7 @@ def main():
         sys.exit(1)
 
     logger.info("CAN handler service started successfully.")
+    threading.Thread(target=send_worker, daemon=True, name="can-send").start()
     message_count = 0
     last_log_time = time.time()
 
@@ -193,8 +224,6 @@ def main():
                     time.sleep(10) 
                     continue
             
-            # --- MODIFIED: Handle incoming and outgoing messages ---
-
             # 1. Receive from CAN and publish to ZMQ
             message = CAN_BUS.recv(timeout=0.01) # Use a short timeout
             if message:
@@ -210,22 +239,6 @@ def main():
                     json.dumps(msg_dict).encode('utf-8')
                 ])
                 message_count += 1
-            
-            # 2. Receive from ZMQ and send to CAN (non-blocking)
-            try:
-                parts = ZMQ_PULL_SOCKET.recv_multipart(flags=zmq.NOBLOCK)
-                if len(parts) == 2:
-                    can_id = int(parts[0].decode())
-                    data_hex = parts[1].decode()
-                    msg_to_send = can.Message(
-                        arbitration_id=can_id,
-                        data=bytes.fromhex(data_hex),
-                        is_extended_id=False
-                    )
-                    CAN_BUS.send(msg_to_send)
-                    logger.debug(f"Sent CAN message from ZMQ: ID={can_id:03X}, Data={data_hex}")
-            except zmq.Again:
-                pass # No outgoing messages waiting
 
             if time.time() - last_log_time > 60:
                 logger.info(f"Published {message_count} messages in the last minute.")

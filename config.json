@@ -30,11 +30,22 @@
     },
     "text_scrolling": {
       "continuous": true,
+      "continuous_gap": 1,
       "speed_ms": 400,
-      "start_delay": 0,
-      "end_delay": 0
+      "start_delay_ms": 0,
+      "end_delay_ms": 0,
+      "line_offset_ms": 2000
     },
-    "text_centering": true
+    "text_centering": true,
+    "top_display": {
+      "enabled": true,
+      "media_line1_mode": "title",
+      "media_line2_mode": "source",
+      "phone_line1_mode": "caller",
+      "phone_line2_mode": "state",
+      "nav_line1_mode": "description",
+      "nav_line2_mode": "distance"
+    }
   },
   "features": {
     "day_night_mode": true,

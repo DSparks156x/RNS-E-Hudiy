@@ -75,9 +75,9 @@ class HudiyEventHandler(ClientEventHandler):
         # Initialize Data Objects
         self.current_media_data = {
             'artist': '', 'title': '', 'album': '', 
-            'playing': False, 'duration': '0:00', 'position': '0:00',
+            'playing': False, 'media_state': 'NONE', 'duration': '0:00', 'position': '0:00',
             'source_id': 0, 
-            'source_label': 'Now Playing',
+            'source_label': 'None',
             'projection_active': False,
             'timestamp': 0
         }
@@ -128,16 +128,30 @@ class HudiyEventHandler(ClientEventHandler):
         self.publish_and_write_media(self.current_media_data)
 
     def on_media_status(self, client, message):
-        pos = getattr(message, 'position_label', 'N/A')
+        pos = getattr(message, 'position_label', '0:00')
         
         src_id = getattr(message, 'source', 0)
-        src_label = MEDIA_SOURCE_MAP.get(src_id, "Now Playing")
+        src_label = MEDIA_SOURCE_MAP.get(src_id, "None")
+        is_playing = bool(getattr(message, 'is_playing', False))
         
         if src_id != self.current_media_data.get('source_id'):
             logger.info(f"SOURCE CHANGED: {src_label} ({src_id})")
 
+        if src_id == 0:
+            media_state = "NONE"
+        elif is_playing:
+            media_state = "PLAYING"
+        else:
+            has_meta = any((
+                self.current_media_data.get('title', ''),
+                self.current_media_data.get('artist', ''),
+                self.current_media_data.get('album', '')
+            ))
+            media_state = "PAUSED" if has_meta else "IDLE"
+
         self.current_media_data.update({
-            'playing': message.is_playing,
+            'playing': is_playing,
+            'media_state': media_state,
             'position': pos,
             'source_id': src_id,
             'source_label': src_label,
@@ -148,9 +162,11 @@ class HudiyEventHandler(ClientEventHandler):
 
     # --- Projection Callback ---
     def on_projection_status(self, client, message):
-        active = getattr(message, 'active', False)
+        active = bool(getattr(message, 'active', False))
         logger.info(f"PROJECTION STATUS: {'Active' if active else 'Inactive'}")
         self.current_media_data['projection_active'] = active
+        if not active and self.current_media_data.get('source_id', 0) == 0:
+            self.current_media_data['media_state'] = "NONE"
         self.publish_and_write_media(self.current_media_data)
 
     def publish_and_write_media(self, data: dict):
@@ -263,7 +279,7 @@ class HudiyEventHandler(ClientEventHandler):
         self.publish_and_write_phone(self.current_phone_data)
 
     def on_phone_levels_status(self, client, message):
-        battery = getattr(message, 'bettery_level', 0)
+        battery = getattr(message, 'battery_level', 0)
         signal = getattr(message, 'signal_level', 0)
         
         self.current_phone_data.update({
