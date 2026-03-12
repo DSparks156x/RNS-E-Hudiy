@@ -150,14 +150,17 @@ class DDPProtocol:
             self.bus.shutdown()
 
     # --- State and Helper Functions ---
-
     def _set_state(self, new_state: DDPState):
         """Centralized state transition function."""
         if self.state == new_state:
             return
         
         logger.info(f"State transition: {self.state.name} -> {new_state.name}")
+        old_state = self.state
         self.state = new_state
+
+        if new_state == DDPState.READY and old_state == DDPState.PAUSED:
+            logger.info("Resuming from PAUSE.")
         
         # Reset context on disconnection
         if new_state == DDPState.DISCONNECTED:
@@ -568,12 +571,21 @@ class DDPProtocol:
 
     def _init_common_start(self):
         """Sends the first 4 packets common to all handshakes."""
-        self.send_data_packet([0x15, 0x01, 0x01, 0x02, 0x00, 0x00]) # Step 1
-        logger.info("Init 1/x passed!")
+        # Step 1: Query capabilities
+        self.send_data_packet([0x15, 0x01, 0x01, 0x02, 0x00, 0x00])
+        logger.info("Init Step 1 (Capabilities Query) sent!")
 
-        data = self._recv_and_ack_data(1000) # Step 2
-        if not self.payload_is(data, self.PL["PL_LOG_3"]):
-            raise DDPHandshakeError(f"Step 2 failed: wait PL {self.PL['PL_LOG_3']}, got {data}")
+        # Step 2: Receive capabilities response
+        data = self._recv_and_ack_data(1000)
+        if not data:
+             raise DDPHandshakeError("Init Step 1 timeout: No response from cluster.")
+        
+        # Detection: Standard mode responds with 0x09 (Nav), High-Res uses 0x15 (Telem)
+        if data[1] == 0x15:
+            logger.info("Detected HIGH-RES (Telem/Phone) Mode via 0x15 response.")
+        elif not self.payload_is(data, self.PL["PL_LOG_3"]):
+            logger.warning(f"Step 2 unexpected payload: got {data}, expected {self.PL['PL_LOG_3']}. Proceeding anyway.")
+        
         logger.info("Init 2/x passed!")
 
         self.send_data_packet([0x01, 0x01, 0x00]) # Step 3
