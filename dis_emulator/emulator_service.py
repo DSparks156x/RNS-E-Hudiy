@@ -148,6 +148,9 @@ class EmulatorBridge:
                             socketio.emit('dis_command', cmd)
                         except zmq.Again:
                             break
+                        except Exception as e:
+                            logger.error(f"Error parsing JSON command: {e}")
+                            break
                             
                 if self.log_socket in socks:
                     while True:

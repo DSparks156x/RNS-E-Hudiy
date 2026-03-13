@@ -15,6 +15,7 @@
       "metric_stream": "ipc:///run/rnse_control/hudiy_stream.ipc",
       "dis_draw": "ipc:///run/rnse_control/dis_draw.ipc",
       "dis_status": "ipc:///run/rnse_control/dis_status.ipc",
+      "dis_display_status": "ipc:///run/rnse_control/dis_display_status.ipc",
       "tp2_stream": "ipc:///run/rnse_control/tp2_stream.ipc",
       "tp2_command": "ipc:///run/rnse_control/tp2_cmd.ipc"
     }

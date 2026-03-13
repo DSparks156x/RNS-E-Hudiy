@@ -201,7 +201,7 @@ class TextScroller:
         self._stream_len = 1
         self._stream_x2 = b""
         if self.continuous:
-            gap = bytes([_CONT_GAP] * (self.continuous_gap + 1))
+            gap = bytes([_CONT_GAP] * self.continuous_gap)
             txt = _encode_continuous_text(text)
             self._stream = (txt + gap) if text else gap
             self._stream_len = max(1, len(self._stream))
@@ -252,7 +252,7 @@ class TextScroller:
                 self.pos = (self.pos + 1) % self._stream_len
                 self._recompute()
                 if self.pos == 0:
-                    self.wait_timer = now + self.start_delay if self.continuous_loop_delay else now
+                    self.wait_timer = now + self.start_delay
             else:
                 max_pos = self.raw_len - self.width
                 self.pos = self.pos + 1 if self.pos < max_pos else 0
@@ -289,13 +289,18 @@ class LineController:
     def __init__(self, can_id, zmq_ctx, can_send_addr, name,
                  speed_seconds, start_delay, end_delay, stagger,
                  continuous, continuous_gap, continuous_loop_delay,
-                 no_scroll, watcher=None):
+                 no_scroll, watcher=None, mock=False):
         self.can_id = can_id
         self._zmq_ctx = zmq_ctx
         self._can_send_addr = can_send_addr
         self.name = name
         self._watcher = watcher
         self.no_scroll = no_scroll
+        self.mock = mock
+        self.hb_interval = 5.0 if mock else HB_INTERVAL
+        
+        # Map CAN ID to top line index (1 or 2)
+        self.line_num = 1 if can_id == 0x363 else (2 if can_id == 0x365 else 0)
 
         self.scroller = TextScroller(
             width=self.W,
@@ -330,13 +335,27 @@ class LineController:
 
     def _send(self, data: bytes) -> bool:
         try:
+            if self.mock and self.line_num > 0:
+                # Top display mock packets are sent as "draw_top_text" JSON commands
+                payload = {
+                    "command": "draw_top_text",
+                    "line": self.line_num,
+                    "data_hex": data.hex(),
+                    "centered": True,
+                    "fixed_width": True
+                }
+                logger.info("[%s] Sending mock top text: %s", self.name, data.hex())
+                self._push.send_json(payload)
+                self._fail_count = 0
+                return True
+                
             self._push.send_multipart([str(self.can_id).encode(), data.hex().encode()])
             self._fail_count = 0
             return True
         except Exception:
             self._fail_count += 1
             if self._fail_count == CAN_FAIL_WARN:
-                logger.warning("[%s] %d consecutive CAN send failures", self.name, CAN_FAIL_WARN)
+                logger.warning("[%s] %d consecutive ZMQ send failures", self.name, CAN_FAIL_WARN)
             return False
 
     # --- Run loop ---
@@ -358,8 +377,10 @@ class LineController:
 
             # Heartbeat — maintain display at low rate
             if tv and now >= self._next_write:
+                if self.mock:
+                    logger.debug("[%s] Heartbeat", self.name)
                 self._send(self.snapshot())
-                self._next_write = now + HB_INTERVAL
+                self._next_write = now + self.hb_interval
 
             time.sleep(0.005)
 
@@ -370,19 +391,24 @@ class LineController:
 
 class CANWatcher:
     def __init__(self, zmq_ctx, can_sub_addr, can_send_addr,
-                 id_source, dis_ctrl, tv_source_byte):
+                 id_source, dis_ctrl, tv_source_byte, mock=False):
         self._zmq_ctx = zmq_ctx
         self._can_sub_addr = can_sub_addr
         self._can_send_addr = can_send_addr
         self._id_src = id_source
         self._lines = {}  # populated by DISController after construction
         self._dis = dis_ctrl
-        self.tv_active = False
+        self.mock = mock
+        self.tv_active = True if mock else False
         self._tv_source_byte = tv_source_byte
         self._last_oem: dict = {}
+        
+        if mock:
+            logger.info("Mock Mode: CANWatcher forcing tv_active = True")
 
     def _isend(self, cid: int, data: bytes):
         try:
+            logger.debug("CANWatcher reactive send: 0x%03X -> %s", cid, data.hex())
             self._push.send_multipart([str(cid).encode(), data.hex().encode()])
         except Exception as e:
             logger.debug("CANWatcher isend failed: %s", e)
@@ -417,7 +443,13 @@ class CANWatcher:
 
                         if cid == self._id_src and len(data) >= 4:
                             was = self.tv_active
-                            self.tv_active = (data[3] == self._tv_source_byte)
+                            is_tv = (data[3] == self._tv_source_byte)
+                            
+                            if self.mock:
+                                # In mock mode, we still track it but don't let it disable us
+                                self.tv_active = True
+                            else:
+                                self.tv_active = is_tv
 
                             if self.tv_active and not was:
                                 logger.info("TV source activated")
@@ -466,8 +498,10 @@ class CANWatcher:
 # ---------------------------------------------------------------------------
 
 class DISController:
-    def __init__(self):
+    def __init__(self, mock=False):
         _nice()
+        self.mock = mock
+        logger.info("DISController initializing (mock=%s)", mock)
         cfg = self._load_config()
         self._setup_can(cfg)
         self._setup_lines(cfg)
@@ -477,7 +511,14 @@ class DISController:
         signal.signal(signal.SIGTERM, self._shutdown)
 
     def _load_config(self) -> dict:
-        with open(CONFIG_PATH) as f:
+        config_path = CONFIG_PATH
+        if self.mock and not os.path.exists(config_path):
+            if os.path.exists("../config.json"):
+                config_path = "../config.json"
+            elif os.path.exists("config.json"):
+                config_path = "config.json"
+                
+        with open(config_path) as f:
             cfg = json.load(f)
         
         display_cfg = cfg.get("display", {})
@@ -500,8 +541,12 @@ class DISController:
         self._tv_source_byte = _hex(source_cfg["tv_mode_identifier"], 0x37)
 
         self._zmq_ctx = zmq.Context()
-        self._can_sub_addr = zmq_cfg.get("can_raw_stream", "ipc:///run/rnse_control/can_stream.ipc")
-        self._can_send_addr = zmq_cfg.get("send_address", "ipc:///run/rnse_control/can_send.ipc")
+        if self.mock:
+            self._can_sub_addr = "tcp://127.0.0.1:5558"
+            self._can_send_addr = "tcp://127.0.0.1:5557"
+        else:
+            self._can_sub_addr = zmq_cfg.get("can_raw_stream", "ipc:///run/rnse_control/can_stream.ipc")
+            self._can_send_addr = zmq_cfg.get("send_address", "ipc:///run/rnse_control/can_send.ipc")
 
     def _setup_lines(self, cfg: dict):
         display_cfg = cfg.get("display", {})
@@ -511,15 +556,17 @@ class DISController:
         def speed_cfg(raw_cps):
             # Fallback to general speed_ms if CPS not provided or 0
             if not raw_cps:
-                ms = _float(scroll_cfg.get("speed_ms"), 400)
-                cps = 1000.0 / ms if ms > 0 else 3.0
+                ms = _float(scroll_cfg.get("speed_ms"), 300)
+                cps = 1000.0 / ms if ms > 0 else 3.333
             else:
-                cps = max(0.0, min(10.0, _float(raw_cps, 3.0)))
+                cps = max(0.0, min(10.0, _float(raw_cps, 3.333)))
             
             return (0.0, True) if cps == 0 else (round(1.0 / cps, 3), False)
 
-        start_delay = _float(feat.get("start_delay"), _float(scroll_cfg.get("start_delay"), 2.0))
-        end_delay = _float(feat.get("end_delay"), _float(scroll_cfg.get("end_delay"), 2.0))
+        start_delay_ms = _float(feat.get("start_delay_ms"), _float(scroll_cfg.get("start_delay_ms"), 1000.0))
+        end_delay_ms = _float(feat.get("end_delay_ms"), _float(scroll_cfg.get("end_delay_ms"), 250.0))
+        start_delay = start_delay_ms / 1000.0
+        end_delay = end_delay_ms / 1000.0
         
         # Use millisecond offset from config, fallback to seconds-based name or 1.0s
         ms_stagger = _float(scroll_cfg.get("line_offset_ms"), _float(scroll_cfg.get("line_start_offset"), 1000.0) * 1.0)
@@ -527,8 +574,8 @@ class DISController:
         
         # Unify continuous settings
         continuous = _bool(feat.get("continuous"), _bool(scroll_cfg.get("continuous"), False))
-        continuous_gap = _int(feat.get("continuous_gap"), _int(scroll_cfg.get("continuous_gap"), 3))
-        continuous_loop_delay = _bool(feat.get("continuous_loop_delay"), False)
+        continuous_gap = _int(feat.get("continuous_gap"), _int(scroll_cfg.get("continuous_gap"), 1))
+        continuous_loop_delay = True # Always use delay for continuous to match dis_display
 
         l1_mode = str(feat.get("media_line1_mode", "0"))
         l2_mode = str(feat.get("media_line2_mode", "0"))
@@ -540,6 +587,7 @@ class DISController:
         self._watcher = CANWatcher(
             self._zmq_ctx, self._can_sub_addr, self._can_send_addr,
             self._id_src, self, self._tv_source_byte,
+            mock=self.mock,
         )
 
         def make_ctrl(can_id, name, speed, line_stagger, mode, no_scroll):
@@ -559,6 +607,7 @@ class DISController:
                 continuous_loop_delay=continuous_loop_delay,
                 no_scroll=no_scroll,
                 watcher=self._watcher,
+                mock=self.mock,
             )
 
         self._ctrl_l1 = make_ctrl(self._id_l1, "L1", l1_speed, 0.0, l1_mode, l1_noscroll)
@@ -576,7 +625,12 @@ class DISController:
         self._no_media = ("No Media", "")
 
     def _setup_zmq(self, cfg: dict):
-        self._zmq_addr = cfg["interfaces"]["zmq"]["metric_stream"]
+        if self.mock:
+            self._zmq_addr = "tcp://127.0.0.1:5559"
+            self._display_status_addr = "tcp://127.0.0.1:5561"
+        else:
+            self._zmq_addr = cfg["interfaces"]["zmq"]["metric_stream"]
+            self._display_status_addr = cfg["interfaces"]["zmq"].get("dis_display_status", "ipc:///run/rnse_control/dis_display_status.ipc")
         # socket created inside _listener thread for ZMQ thread-safety
 
     def _setup_state(self, cfg: dict):
@@ -585,11 +639,17 @@ class DISController:
         self._prio = PRIO_NONE
         self._media_texts = ("", "")
         self._call_active = False
+        self._phone_texts = ("", "")
         self._last_media_msg = 0.0
         self._not_playing_t = 0.0
         self._no_media_grace = 0.0
+        self._no_media_shown = False
         self._nav_active = False
         self._nav_texts = ("", "")
+        
+        # Center Display Awareness
+        self._center_app = None
+        self._center_ready = False
 
         for c, t in zip(self._ctrls, self._no_media):
             if t:
@@ -598,7 +658,10 @@ class DISController:
     def _make_sub(self, addr):
         sub = self._zmq_ctx.socket(zmq.SUB)
         sub.connect(addr)
-        for t in (b"HUDIY_MEDIA", b"HUDIY_PHONE", b"HUDIY_NAV", b"HUDIY_NAV_STATUS"):
+        if hasattr(self, '_display_status_addr') and self._display_status_addr != addr:
+            sub.connect(self._display_status_addr)
+            
+        for t in (b"HUDIY_MEDIA", b"HUDIY_PHONE", b"HUDIY_NAV", b"HUDIY_NAV_STATUS", b"DIS_DISPLAY_STATUS"):
             sub.setsockopt(zmq.SUBSCRIBE, t)
         return sub
 
@@ -633,8 +696,10 @@ class DISController:
             "album":  d.get("album", ""),
             "source": d.get("source_label") or d.get("source", ""),
         }
+        logger.info("Extracted Media Fields: %s", f)
         l1 = self._parse_mode(self._l1_mode, f) if self._ctrl_l1 else ""
         l2 = self._parse_mode(self._l2_mode, f) if self._ctrl_l2 else ""
+        logger.info("Formatted Media Lines: L1='%s', L2='%s'", l1, l2)
         return l1, l2
 
     def _phone_fields(self, d):
@@ -672,15 +737,62 @@ class DISController:
                 ctrl._next_write = 0.0  # write new content immediately
 
     def _resolve(self):
-        if self._prio >= PRIO_PHONE:
-            # Phone handled directly in listener for now
-            pass
-        elif self._prio >= PRIO_NAV:
-            self._push(*self._nav_texts)
-        elif self._prio >= PRIO_MEDIA:
-            self._push(*self._media_texts)
+        can_skip = (self._center_ready and self._center_app)
+        logger.info("Resolving Priority: call=%s, nav=%s, media_msg=%s, center=%s (%s)", 
+                    self._call_active, self._nav_active, self._last_media_msg > 0, self._center_app, self._center_ready)
+        
+        # Priority Order: Phone -> Nav -> Media -> None
+        
+        # 1. Phone
+        if self._call_active:
+            if not (can_skip and self._center_app == "app_phone"):
+                if self._prio != PRIO_PHONE:
+                    logger.info("Priority: PHONE")
+                self._prio = PRIO_PHONE
+                self._push(*self._phone_texts)
+                return
+            else:
+                logger.info("Skipping PHONE (already on center display)")
+                
+        # 2. Nav
+        if self._nav_active:
+            if not (can_skip and self._center_app == "app_nav"):
+                if self._prio != PRIO_NAV:
+                    logger.info("Priority: NAV")
+                self._prio = PRIO_NAV
+                self._push(*self._nav_texts)
+                return
+            else:
+                logger.info("Skipping NAV (already on center display)")
+                
+        # 3. Media
+        now = time.monotonic()
+        connected = (
+            self._last_media_msg > 0 and
+            (now - self._last_media_msg) < MEDIA_TIMEOUT
+        )
+        if connected:
+            if not (can_skip and self._center_app == "app_media_player"):
+                if self._prio != PRIO_MEDIA:
+                    logger.info("Priority: MEDIA")
+                self._prio = PRIO_MEDIA
+                self._push(*self._media_texts)
+                return
+            else:
+                logger.info("Skipping MEDIA (already on center display)")
+                
+        # 4. Fallback
+        if self._prio != PRIO_NONE:
+            logger.info("Priority: NONE")
+        self._prio = PRIO_NONE
+        if self._center_ready:
+            # Center is active, but showing something else or we've skipped everything.
+            # Show blank line as requested.
+            self._push("", "")
         else:
             self._push(*self._no_media)
+        
+        self._no_media_shown = True
 
     def _listener(self):
         self._sub = self._make_sub(self._zmq_addr)
@@ -693,8 +805,7 @@ class DISController:
 
             if pending is not None and now >= deadline:
                 self._media_texts = pending
-                if not self._call_active:
-                    self._push(*pending)
+                self._resolve()
                 pending = None
                 deadline = None
 
@@ -718,17 +829,19 @@ class DISController:
                 parts = self._sub.recv_multipart(flags=zmq.NOBLOCK)
                 topic, data = parts[0], json.loads(parts[1])
                 err_count = 0
-
+                
+                logger.info("RX Topic: %s", topic.decode())
                 if topic == b"HUDIY_MEDIA":
                     src = data.get("source_id", 0)
                     playing = data.get("playing", False)
                     title = (data.get("title") or "").strip()
+                    logger.info("Media Msg: src=%s, playing=%s, title='%s'", src, playing, title)
 
-                    if src != 0 and (playing or title):
+                    # Allow src 0 in mock mode, otherwise ignore it
+                    if (src != 0 or self.mock) and (playing or title):
                         self._last_media_msg = now
                         self._no_media_shown = False
                         self._no_media_grace = 0.0
-                        self._prio = PRIO_MEDIA
                         new = self._media_fields(data)
                         if new != pending:
                             pending = new
@@ -738,13 +851,15 @@ class DISController:
                             )
                             deadline = now + (SKIP_DEBOUNCE if recently_skipped else DEBOUNCE)
                     else:
+                        if src == 0 and not self.mock:
+                            logger.debug("Ignoring media msg with src 0 (non-mock)")
                         pending = None
                         deadline = None
                         self._not_playing_t = now
                         self._last_media_msg = 0.0
                         self._no_media_shown = False
                         self._no_media_grace = now + NO_MEDIA_DEBOUNCE
-                        self._prio = PRIO_NONE
+                        self._resolve()
 
                 elif topic == b"HUDIY_PHONE":
                     state = data.get("state", "IDLE")
@@ -754,34 +869,24 @@ class DISController:
                     if self._call_active:
                         if not was:
                             logger.info("Call started (%s)", state)
-                        self._prio = PRIO_PHONE
-                        self._push(*self._phone_fields(data))
+                        self._phone_texts = self._phone_fields(data)
+                        self._resolve()
                     elif was:
                         logger.info("Call ended — restoring display")
-                        if connected:
-                            self._prio = PRIO_MEDIA
-                        elif self._nav_active:
-                            self._prio = PRIO_NAV
-                        else:
-                            self._prio = PRIO_NONE
                         self._resolve()
 
                 elif topic == b"HUDIY_NAV_STATUS":
                     self._nav_active = data.get("active", False)
-                    if not self._call_active:
-                        if self._nav_active:
-                            self._prio = PRIO_NAV
-                        elif connected:
-                            self._prio = PRIO_MEDIA
-                        else:
-                            self._prio = PRIO_NONE
-                        self._resolve()
+                    self._resolve()
 
                 elif topic == b"HUDIY_NAV":
                     self._nav_texts = self._nav_fields(data)
-                    if not self._call_active and self._nav_active:
-                        self._prio = PRIO_NAV
-                        self._push(*self._nav_texts)
+                    self._resolve()
+
+                elif topic == b"DIS_DISPLAY_STATUS":
+                    self._center_app = data.get("app")
+                    self._center_ready = (data.get("state") == "READY")
+                    self._resolve()
 
             except zmq.Again:
                 err_count = 0
@@ -810,4 +915,9 @@ class DISController:
 
 
 if __name__ == "__main__":
-    DISController().run()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mock', action='store_true', help='Connect to Emulator ports')
+    args = parser.parse_args()
+    
+    DISController(mock=args.mock).run()

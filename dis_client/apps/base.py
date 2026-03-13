@@ -68,7 +68,7 @@ class BaseApp:
             return text # No padding for static left-aligned text
 
         # 2. Setup scroll state
-        now = time.time() * 1000
+        now = time.monotonic() * 1000
         
         if key not in self._scroll_state:
             self._scroll_state[key] = {

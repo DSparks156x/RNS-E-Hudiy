@@ -128,13 +128,28 @@ class DisplayEngine:
         except Exception as e:
             logger.warning(f"Could not connect to dis_status: {e}")
 
-        # TP2 Command Socket (for atmospheric pressure subscription)
-        self.tp2_cmd = self.zmq_ctx.socket(zmq.REQ)
-        self.tp2_cmd.setsockopt(zmq.RCVTIMEO, 1000)
-        self.tp2_cmd.setsockopt(zmq.LINGER, 0)
-        _tp2_addr = self.cfg.get('interfaces', {}).get('zmq', {}).get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
-        self.tp2_cmd.connect(_tp2_addr)
-        self.last_tp2_sync = 0
+        # --- Display Status Publication (for App Awareness) ---
+        self.pub_status = self.zmq_ctx.socket(zmq.PUB)
+        try:
+            if mock:
+                self.pub_status.bind("tcp://127.0.0.1:5561")
+                logger.info("MOCK MODE: dis_display_status bound to TCP 5561")
+            else:
+                _zmq = self.cfg.get('interfaces', {}).get('zmq', {})
+                if not _zmq:
+                    _zmq = self.cfg.get('zmq', {})
+                self.pub_status.bind(_zmq.get('dis_display_status', 'ipc:///run/rnse_control/dis_display_status.ipc'))
+        except Exception as e:
+            logger.warning(f"Could not bind dis_display_status socket: {e}")
+
+        if not mock:
+            # TP2 Command Socket (for atmospheric pressure subscription)
+            self.tp2_cmd = self.zmq_ctx.socket(zmq.REQ)
+            self.tp2_cmd.setsockopt(zmq.RCVTIMEO, 1000)
+            self.tp2_cmd.setsockopt(zmq.LINGER, 0)
+            _tp2_addr = self.cfg.get('interfaces', {}).get('zmq', {}).get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
+            self.tp2_cmd.connect(_tp2_addr)
+            self.last_tp2_sync = 0
 
         self.nav_active = False # Default inactive
 
@@ -178,6 +193,24 @@ class DisplayEngine:
                     default.update(data)
         except Exception as e: logger.error(f"Failed to load settings: {e}")
         return default
+
+    def publish_status(self):
+        """Broadcast current app and ready state for top-display awareness."""
+        if not hasattr(self, 'pub_status'):
+            return
+        
+        try:
+            state_str = "READY" if getattr(self, 'service_ready', False) else "PAUSED"
+            app_name = self.pages[self.current_page_idx]
+            
+            payload = {
+                "state": state_str,
+                "app": app_name,
+                "timestamp": time.time()
+            }
+            self.pub_status.send_multipart([b"DIS_DISPLAY_STATUS", json.dumps(payload).encode()])
+        except Exception as e:
+            logger.error(f"Failed to publish display status: {e}")
 
     def save_settings(self):
         try:
@@ -232,6 +265,7 @@ class DisplayEngine:
             self.save_settings()
             
         self.force_redraw(send_clear=True)
+        self.publish_status()
 
     def switch_to_app(self, app_name):
         """Direct jump to an app by name."""
@@ -246,6 +280,7 @@ class DisplayEngine:
         self.current_app.on_enter()
         logger.info(f"Auto-Switched to App: {app_name}")
         self.force_redraw(send_clear=True)
+        self.publish_status()
 
     def process_input(self, action):
         # Override standard logic: Up/Down Tap cycles pages
@@ -284,6 +319,7 @@ class DisplayEngine:
         if send_clear:
             self._send_draw({'command': 'clear'})
             self._send_draw({'command': 'commit'})
+        self.publish_status()
 
     def run(self):
         logger.info("DIS Engine V5.8 Running")
@@ -362,6 +398,7 @@ class DisplayEngine:
                                     logger.info(f"DIS Service State Changed to: {state}. Ready={self.service_ready}")
                                     if self.service_ready:
                                         self.force_redraw(send_clear=True)
+                                    self.publish_status()
                     except zmq.Again: pass
 
                 if self.sub in socks: self._handle_can()
@@ -375,7 +412,7 @@ class DisplayEngine:
                         self.pre_nav_app_name = None
 
                 # Periodic TP2 SYNC for Atmospheric Pressure (Module 01, Group 113)
-                if now - self.last_tp2_sync > 10.0:
+                if hasattr(self, 'tp2_cmd') and now - self.last_tp2_sync > 10.0:
                     self.last_tp2_sync = now
                     try:
                         sync_msg = {
@@ -396,6 +433,12 @@ class DisplayEngine:
 
                 self._check_buttons()
                 self._draw()
+
+                # Periodic status heartbeat (every 1s)
+                if now - getattr(self, 'last_status_pub', 0) > 1.0:
+                    self.publish_status()
+                    self.last_status_pub = now
+
                 time.sleep(0.01)
             except KeyboardInterrupt: break
             except Exception as e: logger.error(f"Err: {e}", exc_info=True); time.sleep(1)
