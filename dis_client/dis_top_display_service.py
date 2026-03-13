@@ -142,8 +142,8 @@ def _normalize(text: str) -> str:
 
 
 _TRANS = bytes(audscii_trans)
-_BLANK = audscii_trans[ord(" ")]
-_CONT_GAP = 0x65
+_BLANK = audscii_trans[32]
+_CONT_GAP = audscii_trans[31]
 
 
 def _encode_text(text: str) -> bytes:
