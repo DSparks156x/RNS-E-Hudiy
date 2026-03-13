@@ -19,6 +19,8 @@ class NavApp(BaseApp):
         # Cache previous state to prevent flickering logic if needed
         self.last_maneuver = -1
         self._meters = -1.0
+        self.last_val_len = 0
+        self.last_unit_len = 0
         
         self.road_side = "right"
         try:
@@ -264,14 +266,19 @@ class NavApp(BaseApp):
 
         # 2. Distance (top-right) — only draw if we have real data
         val_str, unit_str = self._split_distance(self.distance_label)
+        needs_bar_redraw = False
         
         if val_str:
             x_pos = 42
             blank_char = chr(0x1F)
             
-            # Left align and pad to wipe any previous longer data
-            # Distance usually fits in 5 chars (e.g. "123.4"), units in 4 (e.g. "feet")
-            val_padded = val_str.ljust(5, blank_char)
+            # Dynamic padding: only pad if the new string is shorter than the last one
+            val_padded = val_str
+            if len(val_str) < self.last_val_len:
+                val_padded = val_str.ljust(self.last_val_len, blank_char)
+                needs_bar_redraw = True
+            
+            self.last_val_len = len(val_str)
 
             # Draw numeric value on top
             commands.append({
@@ -284,7 +291,13 @@ class NavApp(BaseApp):
             })
             # Draw units below if present
             if unit_str:
-                unit_padded = unit_str.ljust(4, blank_char)
+                unit_padded = unit_str
+                if len(unit_str) < self.last_unit_len:
+                    unit_padded = unit_str.ljust(self.last_unit_len, blank_char)
+                    needs_bar_redraw = True
+                
+                self.last_unit_len = len(unit_str)
+
                 commands.append({
                     'group': 'dist',
                     'cmd': 'draw_text',
@@ -293,26 +306,32 @@ class NavApp(BaseApp):
                     'y': 17,
                     'flags': 0x06
                 })
+            else:
+                self.last_unit_len = 0
         else:
-            # Just push empty padded spaces to clear the old distance cleanly at x=49
+            # Just push empty padded spaces if it went from something to nothing
             x_pos = 49
             blank_char = chr(0x1F)
-            commands.append({
-                'group': 'dist',
-                'cmd': 'draw_text',
-                'text': blank_char * 5,
-                'x': x_pos,
-                'y': 10,
-                'flags': 0x06
-            })
-            commands.append({
-                'group': 'dist',
-                'cmd': 'draw_text',
-                'text': blank_char * 4,
-                'x': x_pos,
-                'y': 19,
-                'flags': 0x06
-            })
+            if self.last_val_len > 0 or self.last_unit_len > 0:
+                needs_bar_redraw = True
+                commands.append({
+                    'group': 'dist',
+                    'cmd': 'draw_text',
+                    'text': blank_char * self.last_val_len,
+                    'x': x_pos,
+                    'y': 10,
+                    'flags': 0x06
+                })
+                commands.append({
+                    'group': 'dist',
+                    'cmd': 'draw_text',
+                    'text': blank_char * self.last_unit_len,
+                    'x': x_pos,
+                    'y': 19,
+                    'flags': 0x06
+                })
+            self.last_val_len = 0
+            self.last_unit_len = 0
 
         # 3. Street name (bottom, centered)
         # Extract just the street name if possible
@@ -359,27 +378,27 @@ class NavApp(BaseApp):
         # 4. Red: Progress bar (Right Edge)
         # Independent group 'bar' so it only redraws when distance changes
         
-        last_bar_h = getattr(self, 'last_bar_h', 0)
-        
-        # If the bar SHRINKS (meaning distance increased, e.g. a new maneuver started)
-        # We must clear the old pixels from the top.
-        if bar_h < last_bar_h:
-            commands.append({
-                'group': 'dist',
-                'cmd': 'clear_area',
-                'x': 61, 'y': 0, 'w': 3, 'h': 48
-            })
-            
         self.last_bar_h = bar_h
 
+        bar_commands = []
         if bar_h > 0:
             start_y = 48 - bar_h # Anchor to bottom (Y=48)
             
             # Draw 3 vertical lines for a thick bar
-            commands += [
-                {'group': 'dist', 'cmd': 'draw_line', 'x': 61, 'y': start_y, 'length': bar_h, 'vertical': True},
-                {'group': 'dist', 'cmd': 'draw_line', 'x': 62, 'y': start_y, 'length': bar_h, 'vertical': True},
-                {'group': 'dist', 'cmd': 'draw_line', 'x': 63, 'y': start_y, 'length': bar_h, 'vertical': True},
+            bar_commands = [
+                {'group': 'bar', 'cmd': 'draw_line', 'x': 61, 'y': start_y, 'length': bar_h, 'vertical': True},
+                {'group': 'bar', 'cmd': 'draw_line', 'x': 62, 'y': start_y, 'length': bar_h, 'vertical': True},
+                {'group': 'bar', 'cmd': 'draw_line', 'x': 63, 'y': start_y, 'length': bar_h, 'vertical': True},
             ]
+
+        # If we added padding to the text, we MUST redraw the bar in the same 'dist' group 
+        # to ensure it covers up any padding that might have overwritten the bar's pixels.
+        if needs_bar_redraw:
+            for bc in bar_commands:
+                bc_copy = bc.copy()
+                bc_copy['group'] = 'dist'
+                commands.append(bc_copy)
+        else:
+            commands += bar_commands
 
         return commands
