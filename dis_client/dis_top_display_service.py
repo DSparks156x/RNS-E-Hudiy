@@ -650,6 +650,7 @@ class DISController:
         # Center Display Awareness
         self._center_app = None
         self._center_ready = False
+        self._center_msg_t = 0.0
 
         for c, t in zip(self._ctrls, self._no_media):
             if t:
@@ -737,6 +738,12 @@ class DISController:
                 ctrl._next_write = 0.0  # write new content immediately
 
     def _resolve(self):
+        now = time.monotonic()
+        if now - self._center_msg_t > 5.0:
+            if self._center_ready:
+                logger.warning("Center Display status STALE. Assuming NOT READY.")
+            self._center_ready = False
+
         can_skip = bool(self._center_ready and self._center_app)
         logger.info("Resolving Priority: call=%s, nav=%s, media_ready=%s, center=%s (%s) -> can_skip=%s", 
                     self._call_active, self._nav_active, self._last_media_msg > 0, self._center_app, self._center_ready, can_skip)
@@ -884,6 +891,7 @@ class DISController:
                     self._resolve()
 
                 elif topic == b"DIS_DISPLAY_STATUS":
+                    self._center_msg_t = time.monotonic()
                     old_app = self._center_app
                     old_ready = self._center_ready
                     self._center_app = data.get("app")

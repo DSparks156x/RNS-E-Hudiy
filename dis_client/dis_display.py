@@ -113,18 +113,20 @@ class DisplayEngine:
         if self.hudiy_connected:
             self.poller.register(self.sub_hudiy, zmq.POLLIN)
 
-        self.service_ready = False
+        self.service_ready = True # Default to True in all modes, but allows updates
         self.sub_status = self.zmq_ctx.socket(zmq.SUB)
         try:
             if mock:
-                 self.service_ready = True
+                 self.sub_status.connect("tcp://127.0.0.1:5562")
+                 logger.info("MOCK MODE: dis_status (Ready/Paused) sub on TCP 5562")
             else:
                  _zmq = self.cfg.get('interfaces', {}).get('zmq', {})
                  if not _zmq:
                      _zmq = self.cfg.get('zmq', {})
                  self.sub_status.connect(_zmq.get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc'))
-                 self.sub_status.subscribe(b"DIS_STATE")
-                 self.poller.register(self.sub_status, zmq.POLLIN)
+            
+            self.sub_status.subscribe(b"DIS_STATE")
+            self.poller.register(self.sub_status, zmq.POLLIN)
         except Exception as e:
             logger.warning(f"Could not connect to dis_status: {e}")
 

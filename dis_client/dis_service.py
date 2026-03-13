@@ -621,6 +621,12 @@ class DisService:
                 if current_state != getattr(self, 'last_pub_state', None) or (now_time - getattr(self, 'last_status_cast', 0) > 1.0):
                     if current_state != getattr(self, 'last_pub_state', None):
                         logger.info(f"DDPState Broadcasting new state: {current_state}")
+                    elif (now_time - getattr(self, 'last_status_cast', 0) > 1.0):
+                         # Periodic heartbeat log (every 5s to avoid spam)
+                         if now_time - getattr(self, 'last_heartbeat_log', 0) > 5.0:
+                             logger.debug(f"Heartbeat state cast: {current_state}")
+                             self.last_heartbeat_log = now_time
+
                     self.last_pub_state = current_state
                     self.last_status_cast = now_time
                     

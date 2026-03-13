@@ -101,6 +101,14 @@ class EmulatorBridge:
         except Exception as e:
             logger.debug(f"TCP 5560 bind skipped: {e}")
 
+        # Status Pub for DIS_STATE (Paused/Ready)
+        self.status_pub = self.context.socket(zmq.PUB)
+        try:
+            self.status_pub.bind("tcp://127.0.0.1:5562")
+            logger.info("ZMQ Mock Status Publisher bound to tcp://127.0.0.1:5562")
+        except Exception as e:
+            logger.error(f"Failed to bind mock status PUB: {e}")
+
     def send_mock_can(self, data):
         btn = data.get('btn')
         state = data.get('state')
@@ -136,8 +144,15 @@ class EmulatorBridge:
         poller.register(self.draw_socket, zmq.POLLIN)
         poller.register(self.log_socket, zmq.POLLIN)
         
+        last_status_time = 0
         while True:
             try:
+                now = time.time()
+                # Status Heartbeat (1s)
+                if now - last_status_time > 1.0:
+                    self.status_pub.send_string("DIS_STATE READY")
+                    last_status_time = now
+                    
                 time.sleep(0.05)
                 socks = dict(poller.poll(50))
                 
