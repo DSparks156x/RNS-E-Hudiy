@@ -208,6 +208,7 @@ class DisplayEngine:
                 "app": app_name,
                 "timestamp": time.time()
             }
+            logger.info(f"Broadcasting Display Status: {app_name} ({state_str})")
             self.pub_status.send_multipart([b"DIS_DISPLAY_STATUS", json.dumps(payload).encode()])
         except Exception as e:
             logger.error(f"Failed to publish display status: {e}")
@@ -323,6 +324,7 @@ class DisplayEngine:
 
     def run(self):
         logger.info("DIS Engine V5.8 Running")
+        self.publish_status()
         time.sleep(1.0) 
         self.force_redraw(send_clear=True)
         self.last_loop = time.time()

@@ -737,9 +737,9 @@ class DISController:
                 ctrl._next_write = 0.0  # write new content immediately
 
     def _resolve(self):
-        can_skip = (self._center_ready and self._center_app)
-        logger.info("Resolving Priority: call=%s, nav=%s, media_msg=%s, center=%s (%s)", 
-                    self._call_active, self._nav_active, self._last_media_msg > 0, self._center_app, self._center_ready)
+        can_skip = bool(self._center_ready and self._center_app)
+        logger.info("Resolving Priority: call=%s, nav=%s, media_ready=%s, center=%s (%s) -> can_skip=%s", 
+                    self._call_active, self._nav_active, self._last_media_msg > 0, self._center_app, self._center_ready, can_skip)
         
         # Priority Order: Phone -> Nav -> Media -> None
         
@@ -884,8 +884,12 @@ class DISController:
                     self._resolve()
 
                 elif topic == b"DIS_DISPLAY_STATUS":
+                    old_app = self._center_app
+                    old_ready = self._center_ready
                     self._center_app = data.get("app")
                     self._center_ready = (data.get("state") == "READY")
+                    if self._center_app != old_app or self._center_ready != old_ready:
+                        logger.info("Center Display Status: app=%s, ready=%s", self._center_app, self._center_ready)
                     self._resolve()
 
             except zmq.Again:
