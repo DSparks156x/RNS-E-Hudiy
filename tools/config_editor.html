@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RNS-E HUDiy Config Editor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --input-bg: #0f172a;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.2);
+            --border: #334155;
+            --success: #10b981;
+            --radius-lg: 12px;
+            --radius-md: 8px;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            width: 100%;
+            max-width: 1200px;
+            margin: 2rem 0;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: clamp(2rem, 5vw, 3rem);
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: -0.05em;
+        }
+
+        .main-container {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .actions-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            background: var(--card-bg);
+            padding: 1rem;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            position: sticky;
+            top: 1rem;
+            z-index: 100;
+            backdrop-filter: blur(8px);
+            background: rgba(30, 41, 59, 0.8);
+        }
+
+        .btn {
+            background: var(--border);
+            color: var(--text-primary);
+            border: none;
+            padding: 0.8rem 1.4rem;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.9rem;
+        }
+
+        .btn:hover { background: #475569; transform: translateY(-2px); }
+        .btn.primary { background: var(--accent); color: var(--bg); }
+        .btn.primary:hover { background: #7dd3fc; box-shadow: 0 0 20px var(--accent-glow); }
+
+        #config-form {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        .config-section {
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-header {
+            background: rgba(51, 65, 85, 0.4);
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 0.1em;
+        }
+
+        .section-content {
+            padding: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr));
+            gap: 2rem;
+        }
+
+        /* Nested Groups */
+        .nested-group {
+            grid-column: 1 / -1;
+            background: rgba(15, 23, 42, 0.3);
+            border: 1px dashed var(--border);
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            margin-top: 0.5rem;
+        }
+
+        .nested-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nested-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .nested-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+            gap: 1.5rem;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 0.6rem; }
+
+        .label-wrapper { display: flex; flex-direction: column; gap: 0.2rem; }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-transform: capitalize;
+        }
+
+        .help-tip {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            line-height: 1.4;
+        }
+
+        input, select {
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            padding: 0.75rem 1rem;
+            font-size: 0.95rem;
+            font-family: 'JetBrains Mono', monospace;
+            width: 100%;
+        }
+
+        input:focus { outline: none; border-color: var(--accent); background: #1e293b; }
+
+        .json-raw {
+            width: 100%;
+            height: 300px;
+            font-family: 'JetBrains Mono', monospace;
+            background: #000;
+            color: #10b981;
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            font-size: 0.85rem;
+        }
+
+        #file-input { display: none; }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--accent);
+            color: var(--bg);
+            padding: 0.8rem 2rem;
+            border-radius: 99px;
+            font-weight: 700;
+            box-shadow: 0 10px 25px rgba(56, 189, 248, 0.4);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1000;
+            opacity: 0;
+        }
+
+        .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+        @media (max-width: 640px) {
+            header { margin: 1rem 0; }
+            .section-content { padding: 1rem; gap: 1.5rem; }
+            .nested-group { padding: 0.75rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>HUDiy Config</h1>
+        <p class="subtitle">Experience management for your RNS-E interface</p>
+    </header>
+
+    <div class="main-container">
+        <div class="actions-bar">
+            <input type="file" id="file-input" accept=".json">
+            <button class="btn" onclick="document.getElementById('file-input').click()">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                Import JSON
+            </button>
+            <button class="btn primary" onclick="downloadConfig()">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Export config.json
+            </button>
+        </div>
+
+        <div id="config-form"></div>
+
+        <div class="config-section" id="raw-section" style="display: none; margin-top: 2rem; border-color: var(--success);">
+            <div class="section-header" style="color: var(--success);">Live JSON Preview</div>
+            <div class="section-content">
+                <textarea id="json-output" class="json-raw" readonly></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">Saved Successfully</div>
+
+    <script>
+        let currentConfig = {};
+
+        const SCHEMA = {
+            "branch": { help: "Git branch for system updates.", type: "text" },
+            "repo": { help: "Main source repository.", type: "text" },
+            "display.mode": { help: "Initial display mode.", type: "select", options: ["nav", "media", "car", "dash"] },
+            "display.road_side": { help: "Driver steering position.", type: "select", options: ["left", "right"] },
+            "display.units.speed": { help: "Velocity units.", type: "select", options: ["imperial", "metric"] },
+            "display.units.ambient_temp": { help: "Temperature readout units.", type: "select", options: ["imperial", "metric"] },
+            "display.text_scrolling.continuous": { help: "Loop long text indefinitely.", type: "boolean" },
+            "display.text_scrolling.speed_ms": { help: "Delay between scroll steps (ms).", type: "number" },
+            "features.day_night_mode": { help: "Auto-adjust brightness/colors based on car status.", type: "boolean" },
+            "features.debug_mode": { help: "Enable detailed logging for troubleshooting.", type: "boolean" },
+            "features.car_time_zone": { help: "Timezone for system clock.", type: "text" },
+            // MMI Specific Mappings
+            // Short Press
+            "input_mappings.mmi.short_press.1,0": { label: "Previous Track", help: "Pattern: 1,0" },
+            "input_mappings.mmi.short_press.2,0": { label: "Next Track", help: "Pattern: 2,0" },
+            "input_mappings.mmi.short_press.0,16": { label: "Knob Press", help: "Pattern: 0,16" },
+            "input_mappings.mmi.short_press.64,0": { label: "Top Left Quad", help: "Pattern: 64,0" },
+            "input_mappings.mmi.short_press.128,0": { label: "Bottom Left Quad", help: "Pattern: 128,0" },
+            "input_mappings.mmi.short_press.0,32": { label: "Knob CCW", help: "Pattern: 0,32" },
+            "input_mappings.mmi.short_press.0,64": { label: "Knob CW", help: "Pattern: 0,64" },
+            "input_mappings.mmi.short_press.0,2": { label: "Return", help: "Pattern: 0,2" },
+            "input_mappings.mmi.short_press.0,1": { label: "Setup", help: "Pattern: 0,1" },
+            // Long Press
+            "input_mappings.mmi.long_press.1,0": { label: "Previous Track", help: "Pattern: 1,0" },
+            "input_mappings.mmi.long_press.2,0": { label: "Next Track", help: "Pattern: 2,0" },
+            "input_mappings.mmi.long_press.0,16": { label: "Knob Press", help: "Pattern: 0,16" },
+            "input_mappings.mmi.long_press.64,0": { label: "Top Left Quad", help: "Pattern: 64,0" },
+            "input_mappings.mmi.long_press.128,0": { label: "Bottom Left Quad", help: "Pattern: 128,0" },
+            "input_mappings.mmi.long_press.0,2": { label: "Return", help: "Pattern: 0,2" },
+            "input_mappings.mmi.long_press.0,1": { label: "Setup", help: "Pattern: 0,1" },
+            // Extended Press
+            "input_mappings.mmi.extended_press.1,0": { label: "Previous Track", help: "Pattern: 1,0" },
+            "input_mappings.mmi.extended_press.2,0": { label: "Next Track", help: "Pattern: 2,0" },
+            "input_mappings.mmi.extended_press.0,16": { label: "Knob Press", help: "Pattern: 0,16" },
+            "input_mappings.mmi.extended_press.64,0": { label: "Top Left Quad", help: "Pattern: 64,0" },
+            "input_mappings.mmi.extended_press.128,0": { label: "Bottom Left Quad", help: "Pattern: 128,0" },
+            "input_mappings.mmi.extended_press.0,2": { label: "Return", help: "Pattern: 0,2" },
+            "input_mappings.mmi.extended_press.0,1": { label: "Setup", help: "Pattern: 0,1" }
+        };
+
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    currentConfig = JSON.parse(e.target.result);
+                    renderForm();
+                    showToast("Configuration Loaded");
+                } catch (err) {
+                    alert("Invalid JSON file");
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        function renderForm() {
+            const formContainer = document.getElementById('config-form');
+            formContainer.innerHTML = '';
+
+            const SECTIONS = [
+                { id: "core", title: "Core Configuration", keys: ["branch", "repo", "config_restore_repo", "config_restore_branch"] },
+                { id: "display", title: "Display & UI", root: "display" },
+                { id: "features", title: "Enhanced Features", root: "features" },
+                { id: "can", title: "CAN Bus Mappings", root: "can_ids" },
+                { id: "io", title: "Input/Output Logic", root: "input_mappings" },
+                { id: "limits", title: "Thresholds & Limits", root: "thresholds" },
+                { id: "net", title: "Network Interfaces", root: "interfaces" }
+            ];
+
+            SECTIONS.forEach(sec => {
+                const sectionEl = document.createElement('div');
+                sectionEl.className = 'config-section';
+                sectionEl.innerHTML = `<div class="section-header">${sec.title}</div><div class="section-content"></div>`;
+                formContainer.appendChild(sectionEl);
+
+                const container = sectionEl.querySelector('.section-content');
+                if (sec.keys) {
+                    sec.keys.forEach(k => renderNode(k, currentConfig[k], container, k));
+                } else if (sec.root) {
+                    renderRecursive(currentConfig[sec.root], sec.root, container);
+                }
+            });
+
+            updateRawJson();
+        }
+
+        function renderRecursive(obj, path, container) {
+            if (!obj) return;
+            
+            const entries = Object.entries(obj);
+            
+            // Separate direct fields, nested objects, and special fields to be moved to bottom
+            const bottomKeys = ['scroll_commands'];
+            const hideKeys = (path.includes('long_press') || path.includes('extended_press')) ? ['0,32', '0,64'] : [];
+            
+            const fields = entries.filter(([k, v]) => (typeof v !== 'object' || v === null || Array.isArray(v)) && !bottomKeys.includes(k) && !hideKeys.includes(k));
+            const nested = entries.filter(([_, v]) => typeof v === 'object' && v !== null && !Array.isArray(v));
+            const bottomFields = entries.filter(([k, _]) => bottomKeys.includes(k));
+
+            // 1. Render normal direct fields
+            fields.forEach(([key, val]) => {
+                renderNode(`${path}.${key}`, val, container, key);
+            });
+
+            // 2. Render nested groups
+            nested.forEach(([key, val]) => {
+                const groupWrapper = document.createElement('div');
+                groupWrapper.className = 'nested-group';
+                groupWrapper.innerHTML = `
+                    <div class="nested-title">${key.replace(/_/g, ' ')}</div>
+                    <div class="nested-content"></div>
+                `;
+                container.appendChild(groupWrapper);
+                renderRecursive(val, `${path}.${key}`, groupWrapper.querySelector('.nested-content'));
+            });
+
+            // 3. Render bottom fields (like scroll_commands)
+            bottomFields.forEach(([key, val]) => {
+                renderNode(`${path}.${key}`, val, container, key);
+            });
+        }
+
+        function renderNode(path, value, container, shortKey) {
+            const meta = SCHEMA[path] || {};
+            const group = document.createElement('div');
+            group.className = 'form-group';
+            
+            const labelText = meta.label || shortKey.replace(/_/g, ' ');
+            const helpText = meta.help || "";
+
+            group.innerHTML = `
+                <div class="label-wrapper">
+                    <label>${labelText}</label>
+                    ${helpText ? `<span class="help-tip">${helpText}</span>` : ''}
+                </div>
+            `;
+
+            let input;
+            if (meta.type === 'select') {
+                input = document.createElement('select');
+                meta.options.forEach(opt => {
+                    const o = document.createElement('option');
+                    o.value = opt;
+                    o.textContent = opt;
+                    if (opt === value) o.selected = true;
+                    input.appendChild(o);
+                });
+            } else if (typeof value === 'boolean') {
+                input = document.createElement('select');
+                input.innerHTML = `<option value="true">Enabled</option><option value="false">Disabled</option>`;
+                input.value = value.toString();
+            } else if (typeof value === 'number') {
+                input = document.createElement('input');
+                input.type = 'number';
+                input.step = 'any';
+                input.value = value;
+            } else {
+                input = document.createElement('input');
+                input.type = 'text';
+                input.value = Array.isArray(value) ? JSON.stringify(value) : (value || "");
+                if (Array.isArray(value)) input.disabled = true;
+            }
+
+            input.onchange = (e) => {
+                let v = e.target.value;
+                if (input.type === 'number') v = parseFloat(v);
+                if (input.tagName === 'SELECT' && (v === 'true' || v === 'false')) v = (v === 'true');
+                
+                setValueByPath(path, v);
+                showToast(`Updated ${labelText}`);
+            };
+
+            group.appendChild(input);
+            container.appendChild(group);
+        }
+
+        function setValueByPath(path, value) {
+            const parts = path.split('.');
+            let obj = currentConfig;
+            for (let i = 0; i < parts.length - 1; i++) {
+                obj = obj[parts[i]];
+            }
+            obj[parts[parts.length - 1]] = value;
+            updateRawJson();
+        }
+
+        function updateRawJson() {
+            const raw = document.getElementById('json-output');
+            raw.value = JSON.stringify(currentConfig, null, 2);
+            document.getElementById('raw-section').style.display = 'block';
+        }
+
+        function downloadConfig() {
+            const blob = new Blob([JSON.stringify(currentConfig, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'config.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2000);
+        }
+    </script>
+</body>
+</html>
