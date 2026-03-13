@@ -60,6 +60,8 @@ def hex_to_bcd(hex_str: str) -> int:
 class AppState:
     def __init__(self):
         self.last_time_sync_attempt_time: float = 0.0
+        self.time_sync_in_progress: bool = False
+        self.time_sync_task: Optional[asyncio.Task] = None
         # Auto-shutdown state
         self.last_kl15_status: Optional[int] = None  # Ignition status (1=ON, 0=OFF, None=Unknown)
         self.last_kls_status: Optional[int] = None   # Key in lock sensor status (1=IN, 0=PULLED, None=Unknown)
@@ -68,8 +70,10 @@ class AppState:
         
         # Listen-only state
         self.can_listen_only: bool = False
+        self.desired_listen_only: bool = False
         self.listen_only_pending: bool = False
         self.listen_only_trigger_timestamp: Optional[float] = None
+        self.listen_only_transition_in_progress: bool = False
         
         # GPIO shutdown state
         self.gpio_shutdown_pending: bool = False
@@ -77,14 +81,14 @@ class AppState:
         
         self.zmq_pub = None # ZMQ Publisher socket
 
-    def check_shutdown_condition(self) -> bool:
+    async def check_shutdown_condition(self) -> bool:
         """Check if shutdown delay has been reached and execute shutdown."""
         if self.shutdown_pending and self.shutdown_trigger_timestamp:
             delay = getattr(self, '_current_shutdown_delay', CONFIG.get('shutdown_delay', 300))
             if time.time() - self.shutdown_trigger_timestamp >= delay:
                 logger.info(f"Shutdown delay ({delay}s) reached. Shutting down system NOW.")
                 shutdown_command = ["sudo", "shutdown", "-h", "now"]
-                if execute_system_command(shutdown_command):
+                if await execute_system_command_async(shutdown_command):
                     logger.info("Shutdown command executed successfully.")
                     return True  # Signal to stop the service
                 else:
@@ -103,29 +107,29 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
         logger.critical(f"FATAL: Could not load or parse {config_path}: {e}"); return False
 
     try:
-        # System Settings
-        system_cfg = cfg.get('system', {})
-        CONFIG['car_time_zone'] = system_cfg.get('car_time_zone', 'UTC')
-        debug_mode = system_cfg.get('debug_mode', False)
-
         # Features & Power Management
         FEATURES = cfg.setdefault('features', {})
+        CONFIG['car_time_zone'] = FEATURES.get('car_time_zone', 'UTC')
+        debug_mode = FEATURES.get('debug_mode', False)
         pw_mgmt = FEATURES.get('power_management', {})
         
         # Initialize default sections if missing
         FEATURES.setdefault('tv_simulation', {'enabled': False})
-        FEATURES.setdefault('time_sync', {'enabled': False, 'data_format': 'new_logic'})
+        FEATURES.setdefault('time_sync', {'enabled': False, 'data_format': 'old_logic'})
         
         pw_mgmt.setdefault('auto_shutdown', {'enabled': False, 'trigger': 'ignition_off'})
         pw_mgmt.setdefault('listen_only_mode', {'enabled': False, 'delay_seconds': 0})
         pw_mgmt.setdefault('gpio_shutdown', {'enabled': False, 'pin': 26, 'active_low': True, 'delay_seconds': 0})
 
         interfaces_cfg = cfg.get('interfaces', {})
+        can_config = interfaces_cfg.get('can', {})
         zmq_config = interfaces_cfg.get('zmq', {})
         can_ids = cfg.get('can_ids', {})
-        thresholds = cfg.get('thresholds', {})
+        car_tz = pytz.timezone(CONFIG['car_time_zone'])
         
         CONFIG.update({
+            'can_interface': can_config.get('infotainment', 'can0'),
+            'car_timezone': car_tz,
             'zmq_publish_address': zmq_config.get('can_raw_stream'),
             'zmq_send_address': zmq_config.get('send_address'),
             'zmq_base_publish_address': zmq_config.get('system_events'),
@@ -134,9 +138,9 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
                 'time_data': int(can_ids.get('time_data', '0x623'), 16),
                 'ignition_status': int(can_ids.get('ignition_status', '0x2C3'), 16),
             },
-            'time_data_format': FEATURES['time_sync']['data_format'],
-            'time_sync_threshold_seconds': thresholds.get('time_sync_threshold_minutes', 1.0) * 60,
-            'shutdown_delay': thresholds.get('shutdown_delay_ignition_off_seconds', 300),
+            'time_data_format': FEATURES['time_sync'].get('data_format', 'old_logic'),
+            'time_sync_threshold_seconds': FEATURES['time_sync'].get('threshold_minutes', 1.0) * 60,
+            'shutdown_delay': pw_mgmt.get('auto_shutdown', {}).get('delay_seconds', 300),
         })
         
         # Add power management to FEATURES for consistency in handlers
@@ -179,12 +183,13 @@ class CanInterfaceManager:
     def set_listen_only(enable: bool):
         mode = "listen-only on" if enable else "listen-only off"
         logger.info(f"Setting CAN interface to {mode}...")
+        can_interface = CONFIG.get('can_interface', 'can0')
         
         # We need to bring the interface down, change mode, and bring it up
         commands = [
-            ["sudo", "ip", "link", "set", "can0", "down"],
-            ["sudo", "ip", "link", "set", "can0", "type", "can"] + (["listen-only", "on"] if enable else ["listen-only", "off"]),
-            ["sudo", "ip", "link", "set", "can0", "up"]
+            ["sudo", "ip", "link", "set", can_interface, "down"],
+            ["sudo", "ip", "link", "set", can_interface, "type", "can"] + (["listen-only", "on"] if enable else ["listen-only", "off"]),
+            ["sudo", "ip", "link", "set", can_interface, "up"]
         ]
         
         success = True
@@ -199,6 +204,9 @@ class CanInterfaceManager:
             logger.error(f"Failed to switch CAN interface to {mode}.")
         return success
 
+async def set_listen_only_async(enable: bool) -> bool:
+    return await asyncio.to_thread(CanInterfaceManager.set_listen_only, enable)
+
 def execute_system_command(command_list: List[str]) -> bool:
     if not command_list: return False
     cmd_str = ' '.join(command_list)
@@ -209,8 +217,22 @@ def execute_system_command(command_list: List[str]) -> bool:
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         logger.error(f"Failed to execute command '{cmd_str}': {e}"); return False
 
+async def execute_system_command_async(command_list: List[str]) -> bool:
+    return await asyncio.to_thread(execute_system_command, command_list)
+
 # --- Message Handling ---
-def handle_time_data_message(msg: Dict[str, Any], state: AppState):
+async def complete_time_sync(state: AppState, date_str: str, time_diff_seconds: float):
+    try:
+        logger.info(f"Car time differs by {time_diff_seconds:.1f}s. Syncing system time.")
+        await execute_system_command_async(["sudo", "date", "-u", date_str])
+    except asyncio.CancelledError:
+        logger.info("Time sync task cancelled before completion.")
+        raise
+    finally:
+        state.time_sync_in_progress = False
+        state.time_sync_task = None
+
+async def handle_time_data_message(msg: Dict[str, Any], state: AppState):
     if not FEATURES.get('time_sync', {}).get('enabled', False) or msg.get('dlc', 0) < 8: return
     
     data_hex = msg['data_hex']
@@ -227,13 +249,13 @@ def handle_time_data_message(msg: Dict[str, Any], state: AppState):
         state.last_time_sync_attempt_time = time.time()
         car_dt = datetime(year=year, month=month, day=day, hour=hour, minute=minute, second=second)
         pi_utc_dt = datetime.now(pytz.utc)
-        car_utc_dt = pytz.timezone(CONFIG['car_time_zone']).localize(car_dt).astimezone(pytz.utc)
+        car_utc_dt = CONFIG['car_timezone'].localize(car_dt).astimezone(pytz.utc)
         time_diff_seconds = abs((car_utc_dt - pi_utc_dt).total_seconds())
 
-        if time_diff_seconds > CONFIG['time_sync_threshold_seconds']:
+        if time_diff_seconds > CONFIG['time_sync_threshold_seconds'] and not state.time_sync_in_progress:
             date_str = car_utc_dt.strftime('%m%d%H%M%Y.%S')
-            logger.info(f"Car time differs by {time_diff_seconds:.1f}s. Syncing system time.")
-            execute_system_command(["sudo", "date", "-u", date_str])
+            state.time_sync_in_progress = True
+            state.time_sync_task = asyncio.create_task(complete_time_sync(state, date_str, time_diff_seconds))
         else:
             logger.debug(f"Time sync check: difference {time_diff_seconds:.1f}s (threshold: {CONFIG['time_sync_threshold_seconds']}s)")
             
@@ -317,23 +339,21 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
                             logger.info(f"Ignition OFF detected (or initial state). Starting {delay}s listen-only delay.")
                             state.listen_only_pending = True
                             state.listen_only_trigger_timestamp = time.time()
+                            state.desired_listen_only = False
                     else:
-                        logger.info("Ignition OFF detected. Switching to listen-only mode immediately (delay=0).")
-                        if CanInterfaceManager.set_listen_only(True):
-                            state.can_listen_only = True
-                            state.listen_only_pending = False
-                            state.listen_only_trigger_timestamp = None
+                        logger.info("Ignition OFF detected. Queuing immediate listen-only transition.")
+                        state.desired_listen_only = True
+                        state.listen_only_pending = False
+                        state.listen_only_trigger_timestamp = None
                             
                 elif kl15_status == 1: # Ignition ON
                     if state.listen_only_pending:
                         logger.info("Ignition ON detected. Cancelling pending listen-only transition.")
                         state.listen_only_pending = False
                         state.listen_only_trigger_timestamp = None
-                    
+                    state.desired_listen_only = False
                     if state.can_listen_only:
-                        logger.info("Ignition ON detected. Switching back to normal mode.")
-                        if CanInterfaceManager.set_listen_only(False):
-                            state.can_listen_only = False
+                        logger.info("Ignition ON detected. Queuing return to normal CAN mode.")
                 
     except (IndexError, ValueError) as e:
         logger.warning(f"Could not parse power status message (data_hex: {msg.get('data_hex', 'N/A')}): {e}")
@@ -384,11 +404,16 @@ class GpioShutdownMonitor:
         return False
 
 # --- Async Tasks ---
-async def send_periodic_messages_task():
+async def send_periodic_messages_task(state: AppState):
     logger.info("Periodic sender task started.")
     while RUNNING:
         try:
-            if FEATURES.get('tv_simulation', {}).get('enabled'):
+            if (
+                FEATURES.get('tv_simulation', {}).get('enabled')
+                and not state.can_listen_only
+                and not state.desired_listen_only
+                and not state.listen_only_transition_in_progress
+            ):
                 send_can_message(CONFIG['can_ids']['tv_presence'], "0912300000000000")
             await asyncio.sleep(0.5)
         except asyncio.CancelledError:
@@ -424,16 +449,27 @@ async def listen_for_can_messages_task(state: AppState):
             if len(msg) < 2:
                 logger.warning(f"Received incomplete message: {msg}")
                 continue
-            _, msg_bytes = msg
+            topic_bytes, msg_bytes = msg
             try:
+                topic = topic_bytes.decode('utf-8')
                 msg_dict = json.loads(msg_bytes.decode('utf-8'))
-                can_id = msg_dict.get('arbitration_id', 0)
+                can_id = msg_dict.get('arbitration_id')
+                if can_id is None and topic.startswith("CAN_"):
+                    can_id = int(topic[4:], 16)
+                if can_id is None:
+                    logger.warning(f"Received CAN message without arbitration ID on topic '{topic}'.")
+                    continue
+                data_hex = msg_dict.get('data_hex', '')
+                dlc = msg_dict.get('dlc', 0)
+                if len(data_hex) < dlc * 2:
+                    logger.warning(f"Received malformed CAN payload for ID={can_id:03X}: dlc={dlc}, data_hex='{data_hex}'")
+                    continue
                 
                 logger.debug(f"Received CAN message ID={can_id:03X}: {msg_dict}")
                 
                 # Dispatch to handlers
                 if can_id == CONFIG['can_ids']['time_data']:
-                    handle_time_data_message(msg_dict, state)
+                    await handle_time_data_message(msg_dict, state)
                 elif can_id == CONFIG['can_ids']['ignition_status']:
                     handle_power_status_message(msg_dict, state)
                     
@@ -454,7 +490,6 @@ async def shutdown_monitor_task(state: AppState):
     global RUNNING
     
     gpio_monitor = None
-    gpio_monitor = None
     try:
         pw_mgmt = FEATURES.get('power_management', {})
         if pw_mgmt.get('gpio_shutdown', {}).get('enabled', False):
@@ -472,7 +507,7 @@ async def shutdown_monitor_task(state: AppState):
             now = time.time()
             
             # 1. Check existing auto_shutdown logic
-            if state.check_shutdown_condition():
+            if await state.check_shutdown_condition():
                 RUNNING = False
                 break
             
@@ -480,11 +515,25 @@ async def shutdown_monitor_task(state: AppState):
             if state.listen_only_pending and state.listen_only_trigger_timestamp:
                 delay = pw_mgmt.get('listen_only_mode', {}).get('delay_seconds', 0)
                 if now - state.listen_only_trigger_timestamp >= delay:
-                    logger.info(f"Listen-only delay ({delay}s) reached. Switching to listen-only mode.")
-                    if CanInterfaceManager.set_listen_only(True):
-                        state.can_listen_only = True
-                        state.listen_only_pending = False
-                        state.listen_only_trigger_timestamp = None
+                    logger.info(f"Listen-only delay ({delay}s) reached. Queuing listen-only mode.")
+                    state.desired_listen_only = True
+                    state.listen_only_pending = False
+                    state.listen_only_trigger_timestamp = None
+
+            # 2b. Reconcile actual CAN mode with desired mode.
+            if state.can_listen_only != state.desired_listen_only and not state.listen_only_transition_in_progress:
+                state.listen_only_transition_in_progress = True
+                target_mode = state.desired_listen_only
+                try:
+                    if await set_listen_only_async(target_mode):
+                        state.can_listen_only = target_mode
+                    else:
+                        logger.warning(
+                            "CAN mode transition to %s failed. Will retry.",
+                            "listen-only" if target_mode else "normal"
+                        )
+                finally:
+                    state.listen_only_transition_in_progress = False
             
             # 3. Check GPIO shutdown (with delay and cancellation)
             if gpio_monitor:
@@ -500,14 +549,14 @@ async def shutdown_monitor_task(state: AppState):
                             state.gpio_shutdown_trigger_timestamp = now
                         else:
                             logger.info("GPIO Shutdown trigger detected. Shutting down system NOW (delay=0).")
-                            if execute_system_command(["sudo", "shutdown", "-h", "now"]):
+                            if await execute_system_command_async(["sudo", "shutdown", "-h", "now"]):
                                 RUNNING = False
                                 break
                     else:
                         # Pending - check if time reached
                         if state.gpio_shutdown_trigger_timestamp and (now - state.gpio_shutdown_trigger_timestamp >= delay):
                             logger.info(f"GPIO Shutdown delay ({delay}s) reached. Shutting down system NOW.")
-                            if execute_system_command(["sudo", "shutdown", "-h", "now"]):
+                            if await execute_system_command_async(["sudo", "shutdown", "-h", "now"]):
                                 RUNNING = False
                                 break
                 else:
@@ -536,39 +585,68 @@ def reload_config_handler(sig):
     global RELOAD_CONFIG
     logger.info("SIGHUP signal received. Flagging for configuration reload."); RELOAD_CONFIG = True
 
-async def main_async():
-    global RELOAD_CONFIG
-    state = AppState()
-    
-    # Init ZMQ Publisher
+async def start_runtime(state: AppState):
     context = zmq.Context()
     state.zmq_pub = context.socket(zmq.PUB)
     try:
         state.zmq_pub.bind(CONFIG['zmq_base_publish_address'])
         logger.info(f"ZMQ Publisher bound to {CONFIG['zmq_base_publish_address']}")
     except Exception as e:
-        logger.error(f"Failed to bind ZMQ publisher: {e}")
-    
+        if not state.zmq_pub.closed:
+            state.zmq_pub.close()
+        context.term()
+        raise RuntimeError(f"Failed to bind ZMQ publisher: {e}") from e
+
     tasks = [
         asyncio.create_task(listen_for_can_messages_task(state)),
-        asyncio.create_task(send_periodic_messages_task()),
+        asyncio.create_task(send_periodic_messages_task(state)),
         asyncio.create_task(shutdown_monitor_task(state))
     ]
+    return context, tasks
+
+async def stop_runtime(state: AppState, context: zmq.Context, tasks):
+    if state.time_sync_task and not state.time_sync_task.done():
+        state.time_sync_task.cancel()
+    for task in tasks:
+        task.cancel()
+    pending_tasks = list(tasks)
+    if state.time_sync_task:
+        pending_tasks.append(state.time_sync_task)
+    await asyncio.gather(*pending_tasks, return_exceptions=True)
+    if state.zmq_pub and not state.zmq_pub.closed:
+        state.zmq_pub.close()
+    context.term()
+
+async def main_async():
+    global RELOAD_CONFIG, RUNNING
+    state = AppState()
+    pub_context, tasks = await start_runtime(state)
     
     while RUNNING:
         if RELOAD_CONFIG:
             logger.info("Reloading configuration...")
             if load_and_initialize_config(): 
                 RELOAD_CONFIG = False
-                logger.warning("Listener subscriptions will not change until the service is fully restarted.")
+                if ZMQ_PUSH_SOCKET and not ZMQ_PUSH_SOCKET.closed:
+                    ZMQ_PUSH_SOCKET.close()
+                if not initialize_zmq_sender():
+                    logger.error("Failed to reconnect ZMQ sender after reload. Stopping service.")
+                    RUNNING = False
+                    break
+                preserved_can_listen_only = state.can_listen_only
+                preserved_desired_listen_only = state.desired_listen_only
+                await stop_runtime(state, pub_context, tasks)
+                state = AppState()
+                state.can_listen_only = preserved_can_listen_only
+                state.desired_listen_only = preserved_desired_listen_only
+                pub_context, tasks = await start_runtime(state)
+                logger.info("Configuration reload complete.")
             else:
                 logger.error("Config reload failed!")
         
         await asyncio.sleep(1)
 
-    for task in tasks:
-        task.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
+    await stop_runtime(state, pub_context, tasks)
 
 def main():
     logger.info("Starting CAN Base Function service...")
