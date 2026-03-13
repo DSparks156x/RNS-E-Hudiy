@@ -52,12 +52,14 @@
     "sync_android_auto": false,
     "time_sync": {
       "enabled": true,
-      "data_format": "old_logic"
+      "data_format": "old_logic",
+      "threshold_minutes": 0.1
     },
     "power_management": {
       "auto_shutdown": {
         "enabled": false,
-        "trigger": "ignition_off"
+        "trigger": "ignition_off",
+        "delay_seconds": 900
       },
       "listen_only_mode": {
         "enabled": true,
@@ -93,17 +95,11 @@
     "mfsw": "0x5C3",
     "source": "0x661"
   },
-  "thresholds": {
-    "cooldown_period": 0.2,
-    "long_press_message_count": 5,
-    "extended_long_press_message_count": 30,
-    "shutdown_delay_ignition_off_seconds": 900,
-    "cooldown_period_no_can_seconds": 60,
-    "time_sync_threshold_minutes": 0.1,
-    "daynight_cooldown_seconds": 10
-  },
   "input_mappings": {
     "mmi": {
+      "cooldown_period": 0.2,
+      "long_press_message_count": 5,
+      "extended_long_press_message_count": 30,
       "scroll_commands": [
         "0,32",
         "0,64"

@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RNS-E HUDiy Config Editor</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
     <style>
         :root {
             --bg: #0f172a;
@@ -21,7 +24,11 @@
             --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
         body {
             font-family: 'Inter', system-ui, sans-serif;
@@ -88,9 +95,20 @@
             font-size: 0.9rem;
         }
 
-        .btn:hover { background: #475569; transform: translateY(-2px); }
-        .btn.primary { background: var(--accent); color: var(--bg); }
-        .btn.primary:hover { background: #7dd3fc; box-shadow: 0 0 20px var(--accent-glow); }
+        .btn:hover {
+            background: #475569;
+            transform: translateY(-2px);
+        }
+
+        .btn.primary {
+            background: var(--accent);
+            color: var(--bg);
+        }
+
+        .btn.primary:hover {
+            background: #7dd3fc;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
 
         #config-form {
             display: grid;
@@ -107,8 +125,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .section-header {
@@ -163,9 +188,17 @@
             gap: 1.5rem;
         }
 
-        .form-group { display: flex; flex-direction: column; gap: 0.6rem; }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
 
-        .label-wrapper { display: flex; flex-direction: column; gap: 0.2rem; }
+        .label-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
 
         label {
             font-size: 0.85rem;
@@ -180,7 +213,8 @@
             line-height: 1.4;
         }
 
-        input, select {
+        input,
+        select {
             background: var(--input-bg);
             border: 1px solid var(--border);
             border-radius: var(--radius-md);
@@ -191,7 +225,11 @@
             width: 100%;
         }
 
-        input:focus { outline: none; border-color: var(--accent); background: #1e293b; }
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: #1e293b;
+        }
 
         .json-raw {
             width: 100%;
@@ -204,7 +242,9 @@
             font-size: 0.85rem;
         }
 
-        #file-input { display: none; }
+        #file-input {
+            display: none;
+        }
 
         .toast {
             position: fixed;
@@ -222,15 +262,82 @@
             opacity: 0;
         }
 
-        .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* Detailed Help Styles */
+        .help-icon {
+            cursor: pointer;
+            color: var(--accent);
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.2rem;
+            height: 1.2rem;
+            background: rgba(56, 189, 248, 0.1);
+            border-radius: 50%;
+            transition: all 0.2s;
+            vertical-align: middle;
+            margin-left: 0.5rem;
+        }
+
+        .help-icon:hover {
+            background: var(--accent);
+            color: var(--bg);
+        }
+
+        .detailed-help-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .detailed-help-modal {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .detailed-help-text {
+            white-space: pre-wrap;
+            margin-bottom: 2rem;
+            color: var(--text-primary);
+        }
 
         @media (max-width: 640px) {
-            header { margin: 1rem 0; }
-            .section-content { padding: 1rem; gap: 1.5rem; }
-            .nested-group { padding: 0.75rem; }
+            header {
+                margin: 1rem 0;
+            }
+
+            .section-content {
+                padding: 1rem;
+                gap: 1.5rem;
+            }
+
+            .nested-group {
+                padding: 0.75rem;
+            }
         }
     </style>
 </head>
+
 <body>
 
     <header>
@@ -242,18 +349,25 @@
         <div class="actions-bar">
             <input type="file" id="file-input" accept=".json">
             <button class="btn" onclick="document.getElementById('file-input').click()">
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                </svg>
                 Import JSON
             </button>
             <button class="btn primary" onclick="downloadConfig()">
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
                 Export config.json
             </button>
         </div>
 
         <div id="config-form"></div>
 
-        <div class="config-section" id="raw-section" style="display: none; margin-top: 2rem; border-color: var(--success);">
+        <div class="config-section" id="raw-section"
+            style="display: none; margin-top: 2rem; border-color: var(--success);">
             <div class="section-header" style="color: var(--success);">Live JSON Preview</div>
             <div class="section-content">
                 <textarea id="json-output" class="json-raw" readonly></textarea>
@@ -263,23 +377,60 @@
 
     <div id="toast" class="toast">Saved Successfully</div>
 
+    <div id="detailed-help-overlay" class="detailed-help-overlay" onclick="closeDetailedHelp()">
+        <div class="detailed-help-modal" onclick="event.stopPropagation()">
+            <div class="nested-title" id="help-modal-title">Detailed Help</div>
+            <div class="detailed-help-text" id="help-modal-text"></div>
+            <button class="btn" onclick="closeDetailedHelp()" style="width: 100%; justify-content: center;">Close</button>
+        </div>
+    </div>
+
     <script>
         let currentConfig = {};
 
         const SCHEMA = {
-            "branch": { help: "Git branch for system updates.", type: "text" },
-            "repo": { help: "Main source repository.", type: "text" },
-            "display.mode": { help: "Initial display mode.", type: "select", options: ["nav", "media", "car", "dash"] },
-            "display.road_side": { help: "Driver steering position.", type: "select", options: ["left", "right"] },
+            "branch": { 
+                label: "update branch", 
+                help: "Branch used for updates.", 
+                type: "text",
+                options: ["testing", "release", "beta"],
+                detailedHelp: "Testing Branch - Latest experimental possibly broken changes, used by me for testing.\n\nRelease Branch - Latest relatively well tested good release.\n\nBeta Branch - Latest less tested release or Release if newer. may or may not really get used"
+            },
+            "repo": { label: "update repo", help: "Repo used for updates.", type: "text" },
+            "config_restore_repo": { help: "Repo used for configure restore.", type: "text" },
+            "config_restore_branch": { 
+                help: "Branch used for config restore.", 
+                type: "text",
+                options: ["testing", "release", "beta"],
+                detailedHelp: "Testing Branch - Latest experimental possibly broken changes, used by me for testing.\n\nRelease Branch - Latest relatively well tested good release.\n\nBeta Branch - Latest less tested release or Release if newer. may or may not really get used"
+            },
+            "display.mode": { help: "Initial display mode.", type: "select", options: ["nav", "media", "car"] },
+            "display.road_side": { help: "Side of the road you drive on.", type: "select", options: ["left", "right"] },
             "display.units.speed": { help: "Velocity units.", type: "select", options: ["imperial", "metric"] },
             "display.units.ambient_temp": { help: "Temperature readout units.", type: "select", options: ["imperial", "metric"] },
+            "display.units.boost": { help: "Boost Units.", type: "select", options: ["imperial", "metric"] },
+            "display.units.boost_mode": { help: "Absolute manifold pressure or manifold minus atmosphere", type: "select", options: ["absolute", "relative"] },
             "display.text_scrolling.continuous": { help: "Loop long text indefinitely.", type: "boolean" },
+            "display.text_scrolling.continuous_gap": { help: "space between end and start of scroll text" },
             "display.text_scrolling.speed_ms": { help: "Delay between scroll steps (ms).", type: "number" },
-            "features.day_night_mode": { help: "Auto-adjust brightness/colors based on car status.", type: "boolean" },
+            "display.text_scrolling.line_offset_ms": { help: "time offset between scroll lines" },
+            "display.text_scrolling.start_delay_ms": { help: "Scroll pause time at start of text" },
+            "display.text_scrolling.end_delay_ms": { help: "Scroll pause time at end of text" },
+            "features.day_night_mode": { help: "Automatically sets day/night in Hudiy. Hudiy state propagates to AA/Carplay", type: "boolean" },
+            "features.source_controls": { help: "Auto Pause/Resume when switching from/to tv source.", type: "boolean" },
             "features.debug_mode": { help: "Enable detailed logging for troubleshooting.", type: "boolean" },
             "features.car_time_zone": { help: "Timezone for system clock.", type: "text" },
+            "features.time_sync.threshold_minutes": { help: "Max allowable drift before sync (min).", type: "number" },
+            "features.power_management.auto_shutdown": { label: "Ignition Auto Shutdown" },
+            "features.power_management.auto_shutdown.delay_seconds": { help: "Wait time before shutdown (sec).", type: "number" },
+            "features.power_management.listen_only_mode": { label: "Infotainment CAN Listen Only Mode", help: "puts infotainment can interface into listen only after off." },
+            "features.power_management.gpio_shutdown": { help: "shuts down the pi based on GPIO." },
+            "features.power_management.gpio_shutdown.active_low": { help: "shut down when GPIO is low if enabled" },
             // MMI Specific Mappings
-            // Short Press
+            "input_mappings.mmi.cooldown_period": { help: "Min time between distinct button events (sec).", type: "number" },
+            "input_mappings.mmi.long_press_message_count": { help: "Messages needed to trigger Long Press.", type: "number" },
+            "input_mappings.mmi.extended_long_press_message_count": { help: "Messages needed to trigger Extended Press.", type: "number" },
+            // MMI Press Types
             "input_mappings.mmi.short_press.1,0": { label: "Previous Track", help: "Pattern: 1,0" },
             "input_mappings.mmi.short_press.2,0": { label: "Next Track", help: "Pattern: 2,0" },
             "input_mappings.mmi.short_press.0,16": { label: "Knob Press", help: "Pattern: 0,16" },
@@ -304,7 +455,14 @@
             "input_mappings.mmi.extended_press.64,0": { label: "Top Left Quad", help: "Pattern: 64,0" },
             "input_mappings.mmi.extended_press.128,0": { label: "Bottom Left Quad", help: "Pattern: 128,0" },
             "input_mappings.mmi.extended_press.0,2": { label: "Return", help: "Pattern: 0,2" },
-            "input_mappings.mmi.extended_press.0,1": { label: "Setup", help: "Pattern: 0,1" }
+            "input_mappings.mmi.extended_press.0,1": { label: "Setup", help: "Pattern: 0,1" },
+            // Interfaces
+            "interfaces.can": { label: "CAN interfaces" },
+            "interfaces.can.infotainment": { help: "SocketCAN interface for infotainment." },
+            "interfaces.can.diagnostic": { 
+                help: "SocketCAN interface used for diagnostics",
+                detailedHelp: "This is the interface diagnostic functions are done on. It does not necessarily have to be the OBD2 port CANbus. It should work over infotainment on most gateways as far as im aware."
+            }
         };
 
         document.getElementById('file-input').addEventListener('change', (e) => {
@@ -328,12 +486,11 @@
             formContainer.innerHTML = '';
 
             const SECTIONS = [
-                { id: "core", title: "Core Configuration", keys: ["branch", "repo", "config_restore_repo", "config_restore_branch"] },
-                { id: "display", title: "Display & UI", root: "display" },
+                { id: "core", title: "Update Configuration", keys: ["branch", "repo", "config_restore_repo", "config_restore_branch"] },
+                { id: "display", title: "DIS (Cluster Display)", root: "display" },
                 { id: "features", title: "Enhanced Features", root: "features" },
-                { id: "can", title: "CAN Bus Mappings", root: "can_ids" },
-                { id: "io", title: "Input/Output Logic", root: "input_mappings" },
-                { id: "limits", title: "Thresholds & Limits", root: "thresholds" },
+                { id: "can", title: "CAN Bus IDs", root: "can_ids" },
+                { id: "io", title: "Input Mappings", root: "input_mappings" },
                 { id: "net", title: "Network Interfaces", root: "interfaces" }
             ];
 
@@ -356,13 +513,16 @@
 
         function renderRecursive(obj, path, container) {
             if (!obj) return;
-            
+
             const entries = Object.entries(obj);
-            
+
             // Separate direct fields, nested objects, and special fields to be moved to bottom
             const bottomKeys = ['scroll_commands'];
+            if (path === 'features.power_management') {
+                bottomKeys.push('auto_shutdown');
+            }
             const hideKeys = (path.includes('long_press') || path.includes('extended_press')) ? ['0,32', '0,64'] : [];
-            
+
             const fields = entries.filter(([k, v]) => (typeof v !== 'object' || v === null || Array.isArray(v)) && !bottomKeys.includes(k) && !hideKeys.includes(k));
             const nested = entries.filter(([_, v]) => typeof v === 'object' && v !== null && !Array.isArray(v));
             const bottomFields = entries.filter(([k, _]) => bottomKeys.includes(k));
@@ -376,8 +536,11 @@
             nested.forEach(([key, val]) => {
                 const groupWrapper = document.createElement('div');
                 groupWrapper.className = 'nested-group';
+                const meta = SCHEMA[`${path}.${key}`] || {};
+                const labelText = meta.label || key.replace(/_/g, ' ');
+
                 groupWrapper.innerHTML = `
-                    <div class="nested-title">${key.replace(/_/g, ' ')}</div>
+                    <div class="nested-title">${labelText}</div>
                     <div class="nested-content"></div>
                 `;
                 container.appendChild(groupWrapper);
@@ -394,13 +557,17 @@
             const meta = SCHEMA[path] || {};
             const group = document.createElement('div');
             group.className = 'form-group';
-            
+
             const labelText = meta.label || shortKey.replace(/_/g, ' ');
             const helpText = meta.help || "";
+            const detailedHelp = meta.detailedHelp || "";
 
             group.innerHTML = `
                 <div class="label-wrapper">
-                    <label>${labelText}</label>
+                    <label>
+                        ${labelText}
+                        ${detailedHelp ? `<span class="help-icon" onclick="showDetailedHelp('${labelText}', \`${detailedHelp.replace(/'/g, "\\'")}\`)">?</span>` : ''}
+                    </label>
                     ${helpText ? `<span class="help-tip">${helpText}</span>` : ''}
                 </div>
             `;
@@ -415,6 +582,58 @@
                     if (opt === value) o.selected = true;
                     input.appendChild(o);
                 });
+            } else if (meta.options && meta.type === 'text') {
+                // Select or Custom
+                const wrapper = document.createElement('div');
+                wrapper.style.display = 'flex';
+                wrapper.style.gap = '0.5rem';
+                
+                input = document.createElement('input');
+                input.type = 'text';
+                input.value = value || "";
+                input.style.flex = "1";
+
+                const select = document.createElement('select');
+                select.style.width = "auto";
+                select.innerHTML = '<option value="">Custom...</option>';
+                let isPreset = false;
+                meta.options.forEach(opt => {
+                    const o = document.createElement('option');
+                    o.value = opt;
+                    o.textContent = opt;
+                    if (opt === value) {
+                        o.selected = true;
+                        isPreset = true;
+                    }
+                    select.appendChild(o);
+                });
+
+                // Set initial visibility
+                input.style.display = isPreset ? 'none' : 'block';
+
+                select.onchange = (e) => {
+                    if (e.target.value) {
+                        input.value = e.target.value;
+                        input.style.display = 'none';
+                    } else {
+                        input.style.display = 'block';
+                        input.focus();
+                    }
+                    // Trigger update
+                    setValueByPath(path, input.value || "");
+                    showToast(`Updated ${labelText}`);
+                };
+
+                input.onchange = (e) => {
+                    setValueByPath(path, e.target.value);
+                    showToast(`Updated ${labelText}`);
+                };
+
+                wrapper.appendChild(select);
+                wrapper.appendChild(input);
+                group.appendChild(wrapper);
+                container.appendChild(group);
+                return; // Group handled
             } else if (typeof value === 'boolean') {
                 input = document.createElement('select');
                 input.innerHTML = `<option value="true">Enabled</option><option value="false">Disabled</option>`;
@@ -435,7 +654,7 @@
                 let v = e.target.value;
                 if (input.type === 'number') v = parseFloat(v);
                 if (input.tagName === 'SELECT' && (v === 'true' || v === 'false')) v = (v === 'true');
-                
+
                 setValueByPath(path, v);
                 showToast(`Updated ${labelText}`);
             };
@@ -476,6 +695,17 @@
             t.classList.add('show');
             setTimeout(() => t.classList.remove('show'), 2000);
         }
+
+        function showDetailedHelp(title, text) {
+            document.getElementById('help-modal-title').textContent = title;
+            document.getElementById('help-modal-text').textContent = text;
+            document.getElementById('detailed-help-overlay').style.display = 'flex';
+        }
+
+        function closeDetailedHelp() {
+            document.getElementById('detailed-help-overlay').style.display = 'none';
+        }
     </script>
 </body>
+
 </html>

@@ -160,9 +160,9 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
             'tv_mode_id': int(source_data.get('tv_mode_identifier', '0x00'), 16),
             'play_key': parse_key(source_data.get('play_key')),
             'pause_key': parse_key(source_data.get('pause_key')),
-            'cooldown': thresholds.get('cooldown_period', 0.2),
-            'long_press_count': thresholds.get('long_press_message_count', 5),
-            'extended_press_count': thresholds.get('extended_long_press_message_count', 30),
+            'cooldown': mmi_cfg.get('cooldown_period', 0.2),
+            'long_press_count': mmi_cfg.get('long_press_message_count', 5),
+            'extended_press_count': mmi_cfg.get('extended_long_press_message_count', 30),
         }
         logger.info("Configuration loaded and processed successfully.")
         return True

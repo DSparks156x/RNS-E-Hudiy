@@ -134,9 +134,9 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
                 'time_data': int(can_ids.get('time_data', '0x623'), 16),
                 'ignition_status': int(can_ids.get('ignition_status', '0x2C3'), 16),
             },
-            'time_data_format': FEATURES['time_sync']['data_format'],
-            'time_sync_threshold_seconds': thresholds.get('time_sync_threshold_minutes', 1.0) * 60,
-            'shutdown_delay': thresholds.get('shutdown_delay_ignition_off_seconds', 300),
+            'time_data_format': FEATURES['time_sync'].get('data_format', 'old_logic'),
+            'time_sync_threshold_seconds': FEATURES['time_sync'].get('threshold_minutes', 1.0) * 60,
+            'shutdown_delay': pw_mgmt.get('auto_shutdown', {}).get('delay_seconds', 300),
         })
         
         # Add power management to FEATURES for consistency in handlers
