@@ -463,6 +463,42 @@
             "interfaces.can.diagnostic": { 
                 help: "SocketCAN interface used for diagnostics",
                 detailedHelp: "This is the interface diagnostic functions are done on. It does not necessarily have to be the OBD2 port CANbus. It should work over infotainment on most gateways as far as im aware."
+            },
+            "interfaces.zmq.dis_display_status": { 
+                label: "DIS Display Status ZMQ",
+                help: "ZMQ address for DIS display status updates." 
+            },
+            "interfaces.zmq.can_raw_stream": { 
+                label: "CAN Raw Stream ZMQ",
+                help: "ZMQ address for raw CAN stream." 
+            },
+            "interfaces.zmq.send_address": { 
+                label: "CAN Send Address ZMQ",
+                help: "ZMQ address for sending CAN frames." 
+            },
+            "interfaces.zmq.system_events": { 
+                label: "System Events ZMQ",
+                help: "ZMQ address for system events." 
+            },
+            "interfaces.zmq.dis_draw": { 
+                label: "DIS Draw ZMQ",
+                help: "ZMQ address for DIS drawing commands." 
+            },
+            "interfaces.zmq.dis_status": { 
+                label: "DIS Status ZMQ",
+                help: "ZMQ address for DIS status." 
+            },
+            "interfaces.zmq.tp2_stream": { 
+                label: "TP2 Stream ZMQ",
+                help: "ZMQ address for TP2 stream." 
+            },
+            "interfaces.zmq.tp2_command": { 
+                label: "TP2 Command ZMQ",
+                help: "ZMQ address for TP2 commands." 
+            },
+            "interfaces.zmq.metric_stream": { 
+                label: "Metric Stream ZMQ",
+                help: "ZMQ address for Hudiy metric stream." 
             }
         };
 
