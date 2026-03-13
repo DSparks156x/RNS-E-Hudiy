@@ -29,6 +29,15 @@ def test_connect():
 def test_disconnect():
     logger.info("Client disconnected from Socket.IO")
 
+@socketio.on('set_dis_state')
+def test_set_dis_state(data):
+    if 'bridge' in globals():
+        state = data.get('state', 'READY')
+        bridge.current_dis_state = state
+        logger.info(f"Emulator DIS state manually set to: {state}")
+        # Immediate broadcast to feel responsive
+        bridge.status_pub.send_string(f"DIS_STATE {state}")
+
 @socketio.on('mock_input')
 def test_mock_input(data):
     if 'bridge' in globals():
@@ -109,6 +118,8 @@ class EmulatorBridge:
         except Exception as e:
             logger.error(f"Failed to bind mock status PUB: {e}")
 
+        self.current_dis_state = "READY"
+
     def send_mock_can(self, data):
         btn = data.get('btn')
         state = data.get('state')
@@ -150,7 +161,7 @@ class EmulatorBridge:
                 now = time.time()
                 # Status Heartbeat (1s)
                 if now - last_status_time > 1.0:
-                    self.status_pub.send_string("DIS_STATE READY")
+                    self.status_pub.send_string(f"DIS_STATE {self.current_dis_state}")
                     last_status_time = now
                     
                 time.sleep(0.05)

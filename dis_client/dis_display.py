@@ -182,7 +182,6 @@ class DisplayEngine:
         # --- Advanced Nav Auto-Switching ---
         self.pre_nav_app_name = None
         self.auto_switch_back_at = 0
-        self.last_maneuver_id = None
 
         # --- Phone Auto-Switching ---
         self.phone_active = False
@@ -212,7 +211,7 @@ class DisplayEngine:
                 "app": app_name,
                 "timestamp": time.time()
             }
-            logger.info(f"Broadcasting Display Status: {app_name} ({state_str})")
+            #logger.info(f"Broadcasting Display Status: {app_name} ({state_str})")
             self.pub_status.send_multipart([b"DIS_DISPLAY_STATUS", json.dumps(payload).encode()])
         except Exception as e:
             logger.error(f"Failed to publish display status: {e}")
@@ -362,33 +361,47 @@ class DisplayEngine:
                                             
                                             if active:
                                                 # Auto-switch TO nav
-                                                self.switch_to_app('app_nav')
+                                                nav_app = self.apps['app_nav']
+                                                meters = nav_app.meters
+                                                dist_label = nav_app.distance_label
+                                                current_name = self.pages[self.current_page_idx]
+
+                                                if current_name != 'app_nav':
+                                                    self.pre_nav_app_name = current_name
+                                                    self.switch_to_app('app_nav')
+                                                    
+                                                    # If far away (or unknown), start auto-return timer immediately
+                                                    if meters > 1000 or meters == -1:
+                                                        self.auto_switch_back_at = time.time() + 10.0
+                                                    else:
+                                                        self.auto_switch_back_at = 0
+                                                else:
+                                                    logger.debug(f"Nav activated but already on app_nav. meters={meters}")
                                             else:
                                                 # Auto-switch AWAY from nav if currently on it
                                                 current_name = self.pages[self.current_page_idx]
                                                 if current_name == 'app_nav':
-                                                    self.switch_to_app('app_media_player')
+                                                    if self.pre_nav_app_name:
+                                                        self.switch_to_app(self.pre_nav_app_name)
+                                                    else:
+                                                        self.switch_to_app('app_media_player')
                                             
-                                            # Reset auto-switch state when nav status changes
-                                            self.auto_switch_back_at = 0
-                                            self.last_maneuver_id = None
-                                            self.pre_nav_app_name = None
+                                                # Clean up toggle state when nav deactivated
+                                                self.auto_switch_back_at = 0
+                                                self.pre_nav_app_name = None
 
                                     # Update NavApp even if not current, for distance monitoring
-                                    # We skip if it's HUDIY_NAV_STATUS as NavApp doesn't use it
                                     if topic.startswith(b'HUDIY_NAV') and topic != b'HUDIY_NAV_STATUS':
                                         nav_app = self.apps['app_nav']
-                                        
-                                        # Only update if it's NOT the current app (to avoid double update)
-                                        if self.current_app != nav_app:
-                                            nav_app.update_hudiy(topic, data)
-                                        
+                                        nav_app.update_hudiy(topic, data)
                                         self._handle_nav_auto_switch(nav_app)
 
                                     if topic == b'HUDIY_PHONE':
                                         self._handle_phone_status(data)
 
-                                    self.current_app.update_hudiy(topic, data)
+                                    # Update current app if it wasn't already updated (NavApp above)
+                                    if not (topic.startswith(b'HUDIY_NAV') and topic != b'HUDIY_NAV_STATUS'):
+                                        self.current_app.update_hudiy(topic, data)
                                 except json.JSONDecodeError: pass
                     except zmq.Again: pass
 
@@ -396,7 +409,7 @@ class DisplayEngine:
                     try:
                         while True:
                             msg = self.sub_status.recv_string(flags=zmq.NOBLOCK)
-                            logger.info(f"DEBUG: sub_status RX: {msg}")
+                            #logger.info(f"DEBUG: sub_status RX: {msg}")
                             if msg.startswith("DIS_STATE"):
                                 try:
                                     state = msg.split(" ")[1]
@@ -457,37 +470,33 @@ class DisplayEngine:
         # Distance-based Auto-Switch Logic
         if not self.nav_active: return
         
-        man_id = f"{nav_app.description}_{nav_app.maneuver_type}"
-        meters = nav_app.parse_distance(nav_app.distance_label)
+        meters = nav_app.meters
         current_name = self.pages[self.current_page_idx]
+        now = time.time()
 
         if current_name != 'app_nav':
-            # Threshold to switch TO Nav: 200m
-            if 0 <= meters <= 500 and man_id != self.last_maneuver_id:
-                logger.info(f"Maneuver Alert: {meters}m. Switching to Nav.")
+            # Threshold to switch TO Nav: 500m
+            if 0 <= meters <= 500:
+                logger.info(f"Distance Alert: {meters}m. Switching to Nav.")
                 self.pre_nav_app_name = current_name
-                self.last_maneuver_id = man_id
                 self.auto_switch_back_at = 0
                 self.switch_to_app('app_nav')
         elif self.pre_nav_app_name:
             # Currently on Nav via auto-switch, check for switch back
-            if man_id != self.last_maneuver_id:
-                # Direction changed!
-                if meters > 1000:
-                    # New maneuver is far away, trigger auto-return timer
-                    if self.auto_switch_back_at == 0:
-                        logger.info(f"Maneuver finished, next ({meters}m) > 1000m. Returning to {self.pre_nav_app_name} in 10s.")
-                        self.auto_switch_back_at = time.time() + 6.0
-                else:
-                    # New maneuver is close, stay on nav and reset timer
+            # Treat -1 (unknown) as "far/finished" to ensure we switch back if data drops
+            if meters > 1000 or meters == -1:
+                # Next maneuver is far away, trigger auto-return timer
+                if self.auto_switch_back_at == 0:
+                    logger.info(f"Distance {meters}m (or unknown). Returning to {self.pre_nav_app_name} in 10s.")
+                    self.auto_switch_back_at = now + 10.0
+            elif 0 <= meters <= 1000:
+                # We are close enough to stay on nav, reset timer if it was running
+                if self.auto_switch_back_at != 0:
+                    logger.info(f"Distance {meters}m <= 1000m, clearing return timer.")
                     self.auto_switch_back_at = 0
-                
-                # Update tracker so we don't spam timer/logs
-                self.last_maneuver_id = man_id
             else:
-                # Same maneuver, keep timer reset if we stay/get close
-                if 0 <= meters <= 1000:
-                    self.auto_switch_back_at = 0
+                # Unknown/out of range or exactly 1000m
+                pass
 
     def _handle_phone_status(self, data):
         state = data.get('state', 'IDLE')

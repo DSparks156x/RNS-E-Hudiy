@@ -5,6 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audi DIS Emulator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="/static/font_data.js?v=2"></script>
     <style>
@@ -12,61 +15,90 @@
             --dis-bg: #000000;
             --dis-red: #ff3300;
             --dis-white: #ffffff;
-            --panel-bg: #1a1a1a;
-            --panel-border: #333;
+            --surface: #0a0a0a;
+            --surface-container: #171717;
+            --on-surface: #ffffff;
+            --on-surface-variant: #9e9e9e;
+            --primary: #ff3300;
+            --outline: #404040;
+            --accent-red: #ff3300;
+            --text-main: var(--on-surface);
+            --text-muted: var(--on-surface-variant);
         }
 
         body {
-            background-color: #121212;
-            color: #e0e0e0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--surface);
+            color: var(--text-main);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            overflow: hidden;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: var(--dis-red) #1a1a1a;
         }
 
         .emulator-container {
-            background-color: var(--panel-bg);
-            border: 2px solid var(--panel-border);
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
             display: flex;
             flex-direction: row;
             align-items: flex-start;
-            gap: 40px;
+            justify-content: center;
+            gap: 30px;
+            padding: 40px 20px;
+            max-width: 1400px;
+            width: 100%;
+            box-sizing: border-box;
+            flex-wrap: wrap;
         }
 
         .screen-column {
             display: flex;
             flex-direction: column;
             align-items: center;
+            position: sticky;
+            top: 40px;
+            width: 420px;
+            flex-shrink: 0;
+            z-index: 10;
         }
 
         .controls-column {
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
             gap: 20px;
-            max-width: 400px;
+            flex-grow: 1;
+            width: 100%;
+            max-width: 900px;
         }
 
         .control-group {
-            background: #222;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #444;
+            background: var(--surface-container);
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            transition: box-shadow 0.3s cubic-bezier(.25,.8,.25,1);
+        }
+
+        .control-group:hover {
+            box-shadow: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22);
+        }
+
+        .control-group:hover {
+            border-color: rgba(255, 51, 0, 0.3);
+            transform: translateY(-2px);
         }
 
         .control-group h3 {
             margin-top: 0;
             color: var(--dis-red);
-            font-size: 14px;
-            margin-bottom: 10px;
+            font-size: 13px;
+            margin-bottom: 15px;
             text-transform: uppercase;
+            letter-spacing: 1.5px;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 10px;
         }
 
         .btn-row {
@@ -77,103 +109,140 @@
         }
 
         .btn {
-            background-color: #333;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 8px 12px;
+            background-color: #262626;
+            color: #ffffff;
+            border: none;
+            padding: 10px 24px;
             cursor: pointer;
-            border-radius: 4px;
-            font-weight: bold;
-            font-size: 12px;
-            transition: all 0.1s;
+            border-radius: 20px;
+            font-weight: 500;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            letter-spacing: 0.1px;
         }
 
         .btn:hover {
-            background-color: #444;
+            background-color: #333333;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
 
         .btn:active {
+            transform: scale(0.95);
             background-color: var(--dis-red);
             color: #000;
             border-color: var(--dis-red);
         }
 
         input[type="text"],
-        input[type="number"] {
-            background: #111;
-            border: 1px solid #444;
-            color: #fff;
-            padding: 6px;
+        input[type="number"],
+        select {
+            background: transparent;
+            border: 1px solid var(--outline);
+            color: var(--on-surface);
+            padding: 12px 16px;
             border-radius: 4px;
             width: 100%;
-            margin-bottom: 10px;
+            margin-bottom: 16px;
             box-sizing: border-box;
+            font-size: 16px;
+            transition: border 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border: 2px solid var(--primary);
+            padding: 11px 15px;
         }
 
         .dis-screen-frame {
-            background-color: #050505;
-            padding: 15px;
-            border-radius: 8px;
-            border: 4px solid #222;
-            box-shadow: inset 0 0 10px rgba(0, 0, 0, 1);
-            margin-bottom: 20px;
+            background-color: #000000;
+            padding: 24px;
+            border-radius: 28px;
+            border: 8px solid #1a1a1a;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            margin-bottom: 32px;
+            position: relative;
         }
 
         canvas {
             image-rendering: pixelated;
             display: block;
             background-color: var(--dis-bg);
+            border-radius: 2px;
         }
 
         .status-bar {
             width: 100%;
             display: flex;
             justify-content: space-between;
-            font-size: 12px;
-            color: #666;
-            margin-top: 20px;
-            font-family: monospace;
+            font-size: 11px;
+            color: #555;
+            margin-top: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 0 10px;
         }
 
         h1 {
-            font-size: 18px;
-            margin-bottom: 30px;
-            color: #888;
+            font-size: 16px;
+            margin-bottom: 25px;
+            color: #666;
             text-transform: uppercase;
-            letter-spacing: 2px;
+            letter-spacing: 4px;
+            font-weight: 300;
         }
 
         .log-container {
             width: 100%;
-            height: 100px;
-            background: #000;
-            border: 1px solid #333;
-            margin-top: 10px;
-            padding: 10px;
-            font-family: monospace;
+            height: 120px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--glass-border);
+            margin-top: 20px;
+            padding: 12px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
             font-size: 10px;
             overflow-y: auto;
-            color: #0f0;
+            color: #4df04d;
             box-sizing: border-box;
+            border-radius: 8px;
+            scrollbar-width: none;
         }
 
         .command-entry {
-            border-bottom: 1px solid #222;
-            padding: 2px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 4px 0;
+            line-height: 1.4;
         }
 
         .command-entry .cmd-name {
             color: var(--dis-red);
             font-weight: bold;
+            display: inline-block;
+            min-width: 80px;
         }
 
         .command-entry .cmd-args {
-            color: #888;
+            color: #aaa;
         }
 
         .paused {
             opacity: 0.6;
             border-color: #f00 !important;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.2);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 900px) {
+            .screen-column {
+                position: relative;
+                top: 0;
+                width: 100%;
+            }
+            .controls-column {
+                max-width: 100%;
+            }
         }
     </style>
 </head>
@@ -182,7 +251,7 @@
 
     <div class="emulator-container">
         <!-- Left Side: DIS Screen and Logs -->
-        <div class="screen-column" style="width: 420px; overflow: hidden; flex-shrink: 0;">
+        <div class="screen-column">
             <h1>Audi DIS Emulator</h1>
 
             <div class="dis-screen-frame">
@@ -202,12 +271,24 @@
         </div>
 
         <!-- Right Side: Developer Controls -->
-        <div class="controls-column" style="width: 400px; flex-shrink: 0;">
+        <div class="controls-column">
             <div class="control-group">
                 <h3>Emulator Settings</h3>
                 <div class="btn-row">
                     <button class="btn" onclick="toggleDisTheme()">Toggle Red/White DIS</button>
                     <button class="btn" onclick="clearScreen()">Clear Screen</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Virtual DIS State</h3>
+                <div class="status-indicator-row" style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <div id="disStateIndicator" style="width: 12px; height: 12px; border-radius: 50%; background: #0f0; box-shadow: 0 0 5px #0f0;"></div>
+                    <span id="disStateText" style="font-weight: bold; color: #0f0; font-size: 12px;">READY</span>
+                </div>
+                <div class="btn-row">
+                    <button class="btn" id="btnStateReady" onclick="setDisState('READY')" style="flex: 1; border-color: #0f0;">READY</button>
+                    <button class="btn" id="btnStatePaused" onclick="setDisState('PAUSED')" style="flex: 1;">PAUSED</button>
                 </div>
             </div>
 
@@ -259,17 +340,8 @@
             </div>
 
             <div class="control-group">
-                <h3>Hudiy: Navigation Route</h3>
-                <div class="btn-row">
-                    <button class="btn" onclick="emitHudiy('HUDIY_NAV_STATUS', {active: true})">Start Route</button>
-                    <button class="btn" onclick="emitHudiy('HUDIY_NAV_STATUS', {active: false})">Stop Route</button>
-                </div>
-            </div>
-
-            <div class="control-group">
                 <h3>Hudiy: Nav Maneuver</h3>
-                <select id="mock-nav-type"
-                    style="width: 100%; margin-bottom: 10px; background: #111; color: white; padding: 6px; border: 1px solid #444; border-radius: 4px;">
+                <select id="mock-nav-type">
                     <option value="0">0 - Unknown</option>
                     <option value="1">1 - Depart</option>
                     <option value="2">2 - Name Change</option>
@@ -289,9 +361,8 @@
                     <option value="17">17 - Ferry Train</option>
                     <option value="19">19 - Destination</option>
                 </select>
-                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <select id="mock-nav-side"
-                        style="flex: 1; background: #111; color: white; padding: 6px; border: 1px solid #444; border-radius: 4px;">
+                <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                    <select id="mock-nav-side" style="flex: 1; margin-bottom: 0;">
                         <option value="1">Side: 1 (Left)</option>
                         <option value="2" selected>Side: 2 (Right)</option>
                         <option value="3">Side: 3 (Unspec)</option>
@@ -300,17 +371,49 @@
                         style="flex: 1; margin-bottom: 0;">
                 </div>
                 <input type="text" id="mock-nav-desc" placeholder="Street Name" value="Main St">
-                <div class="btn-row" style="align-items: center;">
+                <div class="btn-row" style="align-items: center; margin-bottom: 15px;">
                     <input type="number" id="mock-nav-dist" placeholder="Dist" value="500"
                         style="width: 70px; margin-bottom: 0;">
                     <select id="mock-nav-unit"
-                        style="width: 60px; background: #111; color: white; padding: 6px; border: 1px solid #444; border-radius: 4px; margin-right: 5px;">
+                        style="width: 60px; margin-right: 5px; margin-bottom: 0;">
                         <option value="m" selected>m</option>
                         <option value="km">km</option>
                         <option value="mi">mi</option>
                         <option value="ft">ft</option>
                     </select>
                     <button class="btn" onclick="emitMockNav()" style="flex: 1;">Send Update</button>
+                </div>
+                <div class="btn-row">
+                    <button class="btn" onclick="stopNavigation()" style="flex: 1; background: rgba(255, 51, 0, 0.1); border-color: rgba(255, 51, 0, 0.3); color: #ff3300;">Stop Navigation</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Hudiy: Phone</h3>
+                <select id="mock-phone-state">
+                    <option value="IDLE">IDLE</option>
+                    <option value="INCOMING">INCOMING</option>
+                    <option value="ALERTING">ALERTING</option>
+                    <option value="ACTIVE">ACTIVE</option>
+                </select>
+                <input type="text" id="mock-phone-name" placeholder="Name/Caller" value="John Doe">
+                <input type="text" id="mock-phone-id" placeholder="Phone Number" value="+1 555-0199">
+                <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                    <div style="flex: 1;">
+                        <span style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">Battery (%)</span>
+                        <input type="number" id="mock-phone-battery" value="85" min="0" max="100" style="margin-bottom: 0;">
+                    </div>
+                    <div style="flex: 1;">
+                        <span style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">Signal (0-5)</span>
+                        <input type="number" id="mock-phone-signal" value="4" min="0" max="5" style="margin-bottom: 0;">
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <select id="mock-phone-conn" style="flex: 1; margin-bottom: 0;">
+                        <option value="CONNECTED">CONNECTED</option>
+                        <option value="DISCONNECTED">DISCONNECTED</option>
+                    </select>
+                    <button class="btn" onclick="emitMockPhone()" style="flex: 1;">Sync Phone</button>
                 </div>
             </div>
         </div>
@@ -435,6 +538,9 @@
         }
 
         function emitMockNav() {
+            // First ensure nav is marked as active
+            emitHudiy('HUDIY_NAV_STATUS', { active: true });
+            
             emitHudiy('HUDIY_NAV', {
                 maneuver_type: parseInt(document.getElementById('mock-nav-type').value) || 0,
                 maneuver_side: parseInt(document.getElementById('mock-nav-side').value) || 3,
@@ -442,6 +548,57 @@
                 distance: document.getElementById('mock-nav-dist').value + ' ' + document.getElementById('mock-nav-unit').value,
                 description: document.getElementById('mock-nav-desc').value
             });
+        }
+
+        function stopNavigation() {
+            emitHudiy('HUDIY_NAV_STATUS', { active: false });
+            emitHudiy('HUDIY_NAV', {
+                maneuver_type: 0,
+                maneuver_side: 3,
+                maneuver_angle: 0,
+                distance: " ",
+                description: " "
+            });
+        }
+
+        function emitMockPhone() {
+            emitHudiy('HUDIY_PHONE', {
+                state: document.getElementById('mock-phone-state').value,
+                connection_state: document.getElementById('mock-phone-conn').value,
+                caller_name: document.getElementById('mock-phone-name').value,
+                caller_id: document.getElementById('mock-phone-id').value,
+                battery: parseInt(document.getElementById('mock-phone-battery').value) || 0,
+                signal: parseInt(document.getElementById('mock-phone-signal').value) || 0,
+                timestamp: Date.now() / 1000
+            });
+        }
+
+        function setDisState(state) {
+            if (socket && socket.connected) {
+                socket.emit('set_dis_state', { state: state });
+                
+                // Update UI immediately for responsiveness
+                const indicator = document.getElementById('disStateIndicator');
+                const text = document.getElementById('disStateText');
+                const btnReady = document.getElementById('btnStateReady');
+                const btnPaused = document.getElementById('btnStatePaused');
+                
+                if (state === 'READY') {
+                    indicator.style.background = '#0f0';
+                    indicator.style.boxShadow = '0 0 5px #0f0';
+                    text.innerText = 'READY';
+                    text.style.color = '#0f0';
+                    btnReady.style.borderColor = '#0f0';
+                    btnPaused.style.borderColor = '#555';
+                } else {
+                    indicator.style.background = '#f00';
+                    indicator.style.boxShadow = '0 0 5px #f00';
+                    text.innerText = 'PAUSED';
+                    text.style.color = '#f00';
+                    btnReady.style.borderColor = '#555';
+                    btnPaused.style.borderColor = '#f00';
+                }
+            }
         }
 
         // AUDSCII Translation Table (from icons.py)

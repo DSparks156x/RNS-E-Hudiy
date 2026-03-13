@@ -18,6 +18,7 @@ class NavApp(BaseApp):
         
         # Cache previous state to prevent flickering logic if needed
         self.last_maneuver = -1
+        self._meters = -1.0
         
         self.road_side = "right"
         try:
@@ -46,12 +47,13 @@ class NavApp(BaseApp):
             self.maneuver_type = data.get('maneuver_type', 0)
             self.maneuver_side = data.get('maneuver_side', 3)
             self.maneuver_angle = data.get('maneuver_angle', 0)
-            # self.icon_data = data.get('icon', b"") 
             if 'distance' in data:
-                self.distance_label = data['distance'] 
+                self.distance_label = data['distance']
+                self._meters = self.parse_distance(self.distance_label)
 
         elif topic == b'HUDIY_NAV_DISTANCE':
             self.distance_label = data.get('label', '')
+            self._meters = self.parse_distance(self.distance_label)
 
     def handle_input(self, action):
         if action in ['hold_up', 'hold_down']:
@@ -147,40 +149,68 @@ class NavApp(BaseApp):
         # Internal Fallback
         return "STRAIGHT"
 
+    @property
+    def meters(self) -> float:
+        """Cached unit-aware distance in meters."""
+        return self._meters
+
     @staticmethod
-    def parse_distance(label: str) -> float:
-        """Parses distance string (e.g., '200 m', '1.2 km') into meters."""
-        if not label:
+    def parse_distance(label: Any) -> float:
+        """Parses distance (number or string like '200 m', '1.2 km') into meters."""
+        if label is None:
             return -1.0
+        
+        # If already a number, just return as float (assume meters)
+        if isinstance(label, (int, float)):
+            return float(label)
+            
         try:
-            s = label.lower().replace(',', '.')
-            if 'now' in s or 'arrived' in s:
+            s = str(label).lower().strip()
+            if not s or 'now' in s or 'arrived' in s:
                 return 0.0
             
-            val = 0.0
-            if 'km' in s:
-                val = float(s.split('km')[0].strip()) * 1000.0
-            elif 'mi' in s: # Matches 'mi' and 'miles'
-                val = float(s.split('mi')[0].strip()) * 1609.34
-            elif 'ft' in s: # Matches 'ft' and 'feet'
-                val = float(s.split('ft')[0].strip()) * 0.3048
-            elif 'm' in s:
-                val = float(s.split('m')[0].strip())
-            else:
-                return -1.0 # Unknown unit
+            import re
+            m = re.search(r'([\d.,]+)\s*([a-z]*)', s)
+            if not m:
+                return -1.0
+            
+            num_str = m.group(1)
+            unit = m.group(2)
+            
+            # Clean thousands separators
+            if ',' in num_str:
+                if '.' in num_str:
+                    num_str = num_str.replace(',', '')
+                else:
+                    if len(num_str.split(',')[-1]) == 3:
+                        num_str = num_str.replace(',', '')
+                    else:
+                        num_str = num_str.replace(',', '.')
+            
+            val = float(num_str)
+            if 'km' in unit: val *= 1000.0
+            elif 'mi' in unit: val *= 1609.34
+            elif 'ft' in unit: val *= 0.3048
+            
             return val
-        except:
+        except Exception:
             return -1.0
 
-    def _split_distance(self, label: str):
-        """Splits distance string into (value, units) e.g. ('500', 'm')."""
-        if not label: return "", ""
+    def _split_distance(self, label: Any):
+        """Splits distance into (value, units)."""
+        if label is None or label == "": return "", ""
+        
+        # If it's a number, return it with empty string for units
+        if isinstance(label, (int, float)):
+            return str(label), ""
+
         import re
+        s = str(label).strip()
         # Capture numeric part and unit part
-        m = re.search(r'([\d.,/]+)\s*([a-zA-Z]+)', label)
+        m = re.search(r'([\d.,/]+)\s*([a-zA-Z]*)', s)
         if m:
             return m.group(1), m.group(2)
-        return label, ""
+        return s, ""
 
     def _get_progress_height(self) -> int:
         """Convert distance string to bar height (0..36 px, 300 m = full)"""
@@ -216,7 +246,7 @@ class NavApp(BaseApp):
         # Clean distance: "500 m" -> "500m", but ONLY if we actually have a label
         dist_clean = ""
         if self.distance_label:
-            dist_clean = self.distance_label.replace(" ", "").replace("km", "km").replace("m", "m")
+            dist_clean = str(self.distance_label).replace(" ", "").replace("km", "km").replace("m", "m")
 
         # Build graphical command list
         # The 'type' key is used by the engine for caching signatures
