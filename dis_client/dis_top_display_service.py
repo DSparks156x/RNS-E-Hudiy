@@ -75,7 +75,8 @@ CALL_LABELS = {
 
 PRIO_NONE  = 0
 PRIO_MEDIA = 1
-PRIO_PHONE = 2
+PRIO_NAV   = 2
+PRIO_PHONE = 3
 
 
 # ---------------------------------------------------------------------------
@@ -586,8 +587,9 @@ class DISController:
         self._call_active = False
         self._last_media_msg = 0.0
         self._not_playing_t = 0.0
-        self._no_media_shown = False
         self._no_media_grace = 0.0
+        self._nav_active = False
+        self._nav_texts = ("", "")
 
         for c, t in zip(self._ctrls, self._no_media):
             if t:
@@ -596,7 +598,7 @@ class DISController:
     def _make_sub(self, addr):
         sub = self._zmq_ctx.socket(zmq.SUB)
         sub.connect(addr)
-        for t in (b"HUDIY_MEDIA", b"HUDIY_PHONE", b"HUDIY_NAV"):
+        for t in (b"HUDIY_MEDIA", b"HUDIY_PHONE", b"HUDIY_NAV", b"HUDIY_NAV_STATUS"):
             sub.setsockopt(zmq.SUBSCRIBE, t)
         return sub
 
@@ -670,7 +672,12 @@ class DISController:
                 ctrl._next_write = 0.0  # write new content immediately
 
     def _resolve(self):
-        if self._prio >= PRIO_MEDIA:
+        if self._prio >= PRIO_PHONE:
+            # Phone handled directly in listener for now
+            pass
+        elif self._prio >= PRIO_NAV:
+            self._push(*self._nav_texts)
+        elif self._prio >= PRIO_MEDIA:
             self._push(*self._media_texts)
         else:
             self._push(*self._no_media)
@@ -751,14 +758,30 @@ class DISController:
                         self._push(*self._phone_fields(data))
                     elif was:
                         logger.info("Call ended — restoring display")
-                        self._prio = PRIO_MEDIA if connected else PRIO_NONE
+                        if connected:
+                            self._prio = PRIO_MEDIA
+                        elif self._nav_active:
+                            self._prio = PRIO_NAV
+                        else:
+                            self._prio = PRIO_NONE
+                        self._resolve()
+
+                elif topic == b"HUDIY_NAV_STATUS":
+                    self._nav_active = data.get("active", False)
+                    if not self._call_active:
+                        if self._nav_active:
+                            self._prio = PRIO_NAV
+                        elif connected:
+                            self._prio = PRIO_MEDIA
+                        else:
+                            self._prio = PRIO_NONE
                         self._resolve()
 
                 elif topic == b"HUDIY_NAV":
-                    active = data.get("active", False)
-                    if active or data.get("distance"):
-                        # Logic to show nav could go here if prioritized
-                        pass
+                    self._nav_texts = self._nav_fields(data)
+                    if not self._call_active and self._nav_active:
+                        self._prio = PRIO_NAV
+                        self._push(*self._nav_texts)
 
             except zmq.Again:
                 err_count = 0
