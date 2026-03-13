@@ -352,6 +352,22 @@ class DisService:
                     time.sleep(0.5)
                     continue
 
+                # --- DIS ENABLED CHECK ---
+                if not self.config.get('display', {}).get('enabled', True):
+                    # Enter dormant loop: drain draw_socket and wait
+                    try:
+                        while True:
+                            self.draw_socket.recv_json(flags=zmq.NOBLOCK)
+                    except zmq.Again:
+                        pass
+                    
+                    if getattr(self, 'last_enable_log', 0) < time.time() - 3600:
+                        logger.info("DIS Service is DISABLED in config.json. Standing by...")
+                        self.last_enable_log = time.time()
+                    
+                    time.sleep(1.0)
+                    continue
+
                 # --- NORMAL OPERATION (IGNITION ON) ---
                 if self.ddp.state == DDPState.DISCONNECTED:
                     self.screen_is_active = False
