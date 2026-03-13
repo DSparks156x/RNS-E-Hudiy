@@ -199,12 +199,28 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
         if (!values || values.length === 0) return <div style={styles.emptyGroup}>No Data</div>;
         return (
             <div style={styles.groupFields}>
-                {values.map((v, i) => (
-                    <div key={i} style={{ ...styles.fieldBox, border: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}` }}>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.onSurface }}>{v.value}</div>
-                        <div style={{ fontSize: '0.8rem', color: theme.onSurfaceVariant || '#aaa' }}>{v.unit || '-'}</div>
-                    </div>
-                ))}
+                {values.slice(0, 4).map((v, i) => {
+                    let dispVal = String(v.value);
+                    if (typeof v.value === 'number') {
+                        // For numbers, try to keep some precision but stay within 5 chars
+                        if (dispVal.length > 5) {
+                            const fixed = v.value.toFixed(1);
+                            dispVal = fixed.length <= 5 ? fixed : Math.round(v.value).toString();
+                        }
+                    }
+                    dispVal = dispVal.substring(0, 5);
+
+                    return (
+                        <div key={i} style={{ ...styles.fieldBox, border: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}` }}>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.onSurface, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                                {dispVal}
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: theme.onSurfaceVariant || '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'center' }}>
+                                {v.unit || '-'}
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
         );
     };
@@ -468,11 +484,14 @@ const styles: Record<string, React.CSSProperties> = {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '5px',
+        padding: '0px 2px',
         backgroundColor: 'rgba(0,0,0,0.1)',
         overflow: 'hidden',
-        minWidth: 0,
-        minHeight: 0
+        minWidth: '60px',
+        flexBasis: '0',
+        flexGrow: 1,
+        minHeight: '25px',
+        maxHeight: '60px'
     },
     emptyGroup: {
         height: '100%',
