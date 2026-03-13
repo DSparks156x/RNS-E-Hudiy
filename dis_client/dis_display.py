@@ -187,6 +187,9 @@ class DisplayEngine:
         self.phone_active = False
         self.pre_phone_app_name = None
 
+        # --- Input Rate Limiting ---
+        self.press_history = [] # Timestamps of recent app switches
+
     def load_settings(self):
         default = {'startup_app': 'app_media_player', 'remember_last': False, 'last_app': 'app_media_player'}
         try:
@@ -240,11 +243,26 @@ class DisplayEngine:
 
     def switch_page(self, delta):
         """Cycles to the next/prev page in the list, skipping inactive apps."""
-        # Throttle page switching to avoid accidental double-taps causing rapid jumps
-        now = time.time()
-        if hasattr(self, 'last_switch') and (now - self.last_switch < 0.2):
+        if not getattr(self, 'service_ready', False):
             return
-        self.last_switch = now
+
+        now = time.time()
+        
+        # --- Burst-Aware Rate Limiting ---
+        # Keep only presses from the last 1.5 seconds
+        self.press_history = [t for t in self.press_history if now - t < 1.5]
+        
+        # Calculate dynamic throttle: 
+        # - Default 0.2s for responsiveness
+        # - If 3+ presses in 1.5s, slow down to 0.7s
+        recent_count = len(self.press_history)
+        min_interval = 0.7 if recent_count >= 3 else 0.2
+        
+        last_s = self.press_history[-1] if self.press_history else 0
+        if (now - last_s < min_interval):
+            return
+            
+        self.press_history.append(now)
 
         count = len(self.pages)
         start_idx = self.current_page_idx
@@ -295,8 +313,12 @@ class DisplayEngine:
         self.publish_status()
 
     def process_input(self, action):
+        # Ignore stalk inputs if the display is paused
+        if not getattr(self, 'service_ready', False):
+            # logger.info(f"Ignoring input {action} while paused")
+            return
+        
         # Override standard logic: Up/Down Tap cycles pages
-        # Holds are passed to app (but currently User requested ignores)
         
         if action == 'tap_up':
             self.auto_switch_back_at = 0 
@@ -476,7 +498,7 @@ class DisplayEngine:
 
     def _handle_nav_auto_switch(self, nav_app):
         # Distance-based Auto-Switch Logic
-        if not self.nav_active: return
+        if not self.nav_active or not getattr(self, 'service_ready', False): return
         
         meters = nav_app.meters
         current_name = self.pages[self.current_page_idx]
@@ -507,6 +529,8 @@ class DisplayEngine:
                 pass
 
     def _handle_phone_status(self, data):
+        if not getattr(self, 'service_ready', False): return
+
         state = data.get('state', 'IDLE')
         # Interesting if INCOMING, ALERTING, or ACTIVE
         interesting = state in ['INCOMING', 'ALERTING', 'ACTIVE']
