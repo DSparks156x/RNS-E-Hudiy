@@ -36,6 +36,7 @@ class DisService:
         try:
             with open(config_path) as f:
                 self.config = json.load(f)
+            logger.info(f"Configuration loaded from: {config_path}")
                 
             if self.config.get('features', {}).get('debug_mode', False):
                 logger.setLevel(logging.DEBUG)
@@ -73,8 +74,9 @@ class DisService:
         _zmq = self.config.get('interfaces', {}).get('zmq', {})
         self.status_pub = self.context.socket(zmq.PUB)
         try:
-            self.status_pub.bind(_zmq.get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc'))
-            logger.info("ZMQ status pub socket bound.")
+            addr = _zmq.get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc')
+            self.status_pub.bind(addr)
+            logger.info(f"ZMQ status pub socket bound to: {addr}")
         except Exception as e:
             logger.warning(f"Could not bind status pub socket: {e}")
 
@@ -619,17 +621,6 @@ class DisService:
                 now_time = time.time()
                 current_state = getattr(self.ddp, 'state', None)
                 if current_state != getattr(self, 'last_pub_state', None) or (now_time - getattr(self, 'last_status_cast', 0) > 1.0):
-                    if current_state != getattr(self, 'last_pub_state', None):
-                        logger.info(f"DDPState Broadcasting new state: {current_state}")
-                    elif (now_time - getattr(self, 'last_status_cast', 0) > 1.0):
-                         # Periodic heartbeat log (every 5s to avoid spam)
-                         if now_time - getattr(self, 'last_heartbeat_log', 0) > 5.0:
-                             logger.debug(f"Heartbeat state cast: {current_state}")
-                             self.last_heartbeat_log = now_time
-
-                    self.last_pub_state = current_state
-                    self.last_status_cast = now_time
-                    
                     state_str = "DISCONNECTED"
                     if current_state == DDPState.READY:
                         state_str = "READY"
@@ -638,9 +629,20 @@ class DisService:
                     elif current_state == DDPState.SESSION_ACTIVE:
                         state_str = "INITIALIZING"
                     
+                    msg = f"DIS_STATE {state_str}"
                     try:
-                        self.status_pub.send_string(f"DIS_STATE {state_str}", flags=zmq.NOBLOCK)
-                    except: pass
+                        if current_state != getattr(self, 'last_pub_state', None):
+                            logger.info(f"ZMQ Broadcast (State Change): {msg}")
+                        elif (now_time - getattr(self, 'last_heartbeat_log', 0) > 5.0):
+                            logger.info(f"ZMQ Broadcast (Heartbeat): {msg}")
+                            self.last_heartbeat_log = now_time
+                            
+                        self.status_pub.send_string(msg, flags=zmq.NOBLOCK)
+                    except Exception as e:
+                        logger.warning(f"ZMQ: Failed to send status: {e}")
+
+                    self.last_pub_state = current_state
+                    self.last_status_cast = now_time
 
                 time.sleep(0.01)
             except Exception as e:

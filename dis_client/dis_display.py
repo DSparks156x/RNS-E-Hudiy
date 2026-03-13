@@ -113,7 +113,7 @@ class DisplayEngine:
         if self.hudiy_connected:
             self.poller.register(self.sub_hudiy, zmq.POLLIN)
 
-        self.service_ready = True # Default to True in all modes, but allows updates
+        self.service_ready = False # Default to False: proven ready by dis_service
         self.sub_status = self.zmq_ctx.socket(zmq.SUB)
         try:
             if mock:
@@ -125,7 +125,7 @@ class DisplayEngine:
                      _zmq = self.cfg.get('zmq', {})
                  self.sub_status.connect(_zmq.get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc'))
             
-            self.sub_status.subscribe(b"DIS_STATE")
+            self.sub_status.subscribe("") # Subscribe to everything to be sure
             self.poller.register(self.sub_status, zmq.POLLIN)
         except Exception as e:
             logger.warning(f"Could not connect to dis_status: {e}")
@@ -140,7 +140,9 @@ class DisplayEngine:
                 _zmq = self.cfg.get('interfaces', {}).get('zmq', {})
                 if not _zmq:
                     _zmq = self.cfg.get('zmq', {})
-                self.pub_status.bind(_zmq.get('dis_display_status', 'ipc:///run/rnse_control/dis_display_status.ipc'))
+                addr = _zmq.get('dis_display_status', 'ipc:///run/rnse_control/dis_display_status.ipc')
+                self.pub_status.bind(addr)
+                logger.info(f"dis_display_status (for top service) bound to {addr}")
         except Exception as e:
             logger.warning(f"Could not bind dis_display_status socket: {e}")
 
@@ -394,15 +396,19 @@ class DisplayEngine:
                     try:
                         while True:
                             msg = self.sub_status.recv_string(flags=zmq.NOBLOCK)
+                            logger.info(f"DEBUG: sub_status RX: {msg}")
                             if msg.startswith("DIS_STATE"):
-                                state = msg.split(" ")[1]
-                                is_ready = (state == "READY")
-                                if self.service_ready != is_ready:
-                                    self.service_ready = is_ready
-                                    logger.info(f"DIS Service State Changed to: {state}. Ready={self.service_ready}")
-                                    if self.service_ready:
-                                        self.force_redraw(send_clear=True)
-                                    self.publish_status()
+                                try:
+                                    state = msg.split(" ")[1]
+                                    is_ready = (state == "READY")
+                                    if self.service_ready != is_ready:
+                                        self.service_ready = is_ready
+                                        logger.info(f"DIS Service State Changed to: {state}. Ready={self.service_ready}")
+                                        if self.service_ready:
+                                            self.force_redraw(send_clear=True)
+                                        self.publish_status()
+                                except Exception as split_err:
+                                    logger.error(f"Failed to parse DIS_STATE message '{msg}': {split_err}")
                     except zmq.Again: pass
 
                 if self.sub in socks: self._handle_can()

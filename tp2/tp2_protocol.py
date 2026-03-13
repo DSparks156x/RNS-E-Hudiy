@@ -100,6 +100,9 @@ class TP2Protocol:
         """
         logger.info(f"TP2: Connecting to Module 0x{target_module_id:02X}...")
         
+        # 0. Clear buffer to avoid stale messages
+        self._clear_rx_buffer()
+        
         # 1. Broadcast Request (0x200)
         # Format: [DestID, OpCode=C0, 00, 10, TX_ID_Low, TX_ID_High, 01]
         tester_id_low = self.tester_id & 0xFF
@@ -144,6 +147,7 @@ class TP2Protocol:
 
         # 4. Wait for Parameter Response (A1)
         # Format: [A1, ...]
+        resp = self._recv(self.rx_id, 1000)
         if not resp or resp[0] != 0xA1:
              logger.error(f"TP2: Parameter negotiation failed. Resp: {resp}")
              return False
