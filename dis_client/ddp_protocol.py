@@ -167,6 +167,8 @@ class DDPProtocol:
             self.dis_mode = DisMode.UNKNOWN
             self.i_am_opener = False
             self.send_seq_num = 0
+            # Wait for cluster to finish clean up
+            time.sleep(0.5)
 
     def payload_is(self, data: List[int], expected_payload: List[int]) -> bool:
         """Helper to check payload regardless of the sequence number (first byte)."""
@@ -255,8 +257,16 @@ class DDPProtocol:
             payload = data[1:]
             if payload == DDPMessages.STAT_GRAPHIC_ACK_WHITE or payload == DDPMessages.STAT_GRAPHIC_ACK_RED:
                 logger.debug(f"<- Swallowing background Graphics ACK {payload}")
+                if msg_type_prefix in [0x00, self.PKT_TYPE_DATA_END]:
+                    self.send_ack(data[0] & self.PKT_SEQ_MASK)
                 return True
             return False # Not handled, it's data for the caller
+
+        # --- Type 0x9_ (Break) ---
+        if msg_type_prefix == 0x90:
+            logger.warning("Cluster sent Break (0x9x) -> closing session")
+            self._set_state(DDPState.DISCONNECTED)
+            return True
 
         logger.warning(f"Unknown unhandled packet type {data[0]:02X}")
         return True # Treat as handled to avoid breaking loops
@@ -498,6 +508,18 @@ class DDPProtocol:
                 self.i_am_opener = False
                 self._set_state(DDPState.SESSION_ACTIVE)
                 self.dis_mode = DisMode.WHITE
+                return True
+            
+            # --- Existing Session (A3 Ping) Detection ---
+            if data[0] == self.KA_KEEP_PING[0]:
+                logger.info("Found existing session via A3 ping. Replying A1.")
+                # If we haven't seen RED PRESENT, assume WHITE for the ACK
+                reply = self.KA_RED_ACCEPT if self.dis_mode == DisMode.RED else self.KA_WHITE_ACCEPT
+                self.send_can(self.tx_id, reply)
+                self.i_am_opener = False # We are joining an existing session
+                self._set_state(DDPState.SESSION_ACTIVE)
+                if self.dis_mode == DisMode.UNKNOWN:
+                    self.dis_mode = DisMode.WHITE # Default assumption if unknown
                 return True
         
         # --- No broadcast detected ---
