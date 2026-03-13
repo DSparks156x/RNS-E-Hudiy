@@ -833,72 +833,73 @@ class DISController:
                 self._no_media_shown = True
 
             try:
-                parts = self._sub.recv_multipart(flags=zmq.NOBLOCK)
-                topic, data = parts[0], json.loads(parts[1])
-                err_count = 0
-                
-                logger.info("RX Topic: %s", topic.decode())
-                if topic == b"HUDIY_MEDIA":
-                    src = data.get("source_id", 0)
-                    playing = data.get("playing", False)
-                    title = (data.get("title") or "").strip()
-                    logger.info("Media Msg: src=%s, playing=%s, title='%s'", src, playing, title)
+                while True: # Drain all pending messages in each iteration
+                    parts = self._sub.recv_multipart(flags=zmq.NOBLOCK)
+                    topic, data = parts[0], json.loads(parts[1])
+                    err_count = 0
+                    
+                    logger.info("RX Topic: %s", topic.decode())
+                    if topic == b"HUDIY_MEDIA":
+                        src = data.get("source_id", 0)
+                        playing = data.get("playing", False)
+                        title = (data.get("title") or "").strip()
+                        logger.info("Media Msg: src=%s, playing=%s, title='%s'", src, playing, title)
 
-                    # Allow src 0 in mock mode, otherwise ignore it
-                    if (src != 0 or self.mock) and (playing or title):
-                        self._last_media_msg = now
-                        self._no_media_shown = False
-                        self._no_media_grace = 0.0
-                        new = self._media_fields(data)
-                        if new != pending:
-                            pending = new
-                            recently_skipped = (
-                                self._not_playing_t > 0
-                                and (now - self._not_playing_t) < SKIP_WINDOW
-                            )
-                            deadline = now + (SKIP_DEBOUNCE if recently_skipped else DEBOUNCE)
-                    else:
-                        if src == 0 and not self.mock:
-                            logger.debug("Ignoring media msg with src 0 (non-mock)")
-                        pending = None
-                        deadline = None
-                        self._not_playing_t = now
-                        self._last_media_msg = 0.0
-                        self._no_media_shown = False
-                        self._no_media_grace = now + NO_MEDIA_DEBOUNCE
+                        # Allow src 0 in mock mode, otherwise ignore it
+                        if (src != 0 or self.mock) and (playing or title):
+                            self._last_media_msg = now
+                            self._no_media_shown = False
+                            self._no_media_grace = 0.0
+                            new = self._media_fields(data)
+                            if new != pending:
+                                pending = new
+                                recently_skipped = (
+                                    self._not_playing_t > 0
+                                    and (now - self._not_playing_t) < SKIP_WINDOW
+                                )
+                                deadline = now + (SKIP_DEBOUNCE if recently_skipped else DEBOUNCE)
+                        else:
+                            if src == 0 and not self.mock:
+                                logger.debug("Ignoring media msg with src 0 (non-mock)")
+                            pending = None
+                            deadline = None
+                            self._not_playing_t = now
+                            self._last_media_msg = 0.0
+                            self._no_media_shown = False
+                            self._no_media_grace = now + NO_MEDIA_DEBOUNCE
+                            self._resolve()
+
+                    elif topic == b"HUDIY_PHONE":
+                        state = data.get("state", "IDLE")
+                        was = self._call_active
+                        self._call_active = state in CALL_ACTIVE
+
+                        if self._call_active:
+                            if not was:
+                                logger.info("Call started (%s)", state)
+                            self._phone_texts = self._phone_fields(data)
+                            self._resolve()
+                        elif was:
+                            logger.info("Call ended — restoring display")
+                            self._resolve()
+
+                    elif topic == b"HUDIY_NAV_STATUS":
+                        self._nav_active = data.get("active", False)
                         self._resolve()
 
-                elif topic == b"HUDIY_PHONE":
-                    state = data.get("state", "IDLE")
-                    was = self._call_active
-                    self._call_active = state in CALL_ACTIVE
-
-                    if self._call_active:
-                        if not was:
-                            logger.info("Call started (%s)", state)
-                        self._phone_texts = self._phone_fields(data)
-                        self._resolve()
-                    elif was:
-                        logger.info("Call ended — restoring display")
+                    elif topic == b"HUDIY_NAV":
+                        self._nav_texts = self._nav_fields(data)
                         self._resolve()
 
-                elif topic == b"HUDIY_NAV_STATUS":
-                    self._nav_active = data.get("active", False)
-                    self._resolve()
-
-                elif topic == b"HUDIY_NAV":
-                    self._nav_texts = self._nav_fields(data)
-                    self._resolve()
-
-                elif topic == b"DIS_DISPLAY_STATUS":
-                    self._center_msg_t = time.monotonic()
-                    old_app = self._center_app
-                    old_ready = self._center_ready
-                    self._center_app = data.get("app")
-                    self._center_ready = (data.get("state") == "READY")
-                    if self._center_app != old_app or self._center_ready != old_ready:
-                        logger.info("Center Display Status: app=%s, ready=%s", self._center_app, self._center_ready)
-                    self._resolve()
+                    elif topic == b"DIS_DISPLAY_STATUS":
+                        self._center_msg_t = time.monotonic()
+                        old_app = self._center_app
+                        old_ready = self._center_ready
+                        self._center_app = data.get("app")
+                        self._center_ready = (data.get("state") == "READY")
+                        if self._center_app != old_app or self._center_ready != old_ready:
+                            logger.info("Center Display Status: app=%s, ready=%s", self._center_app, self._center_ready)
+                        self._resolve()
 
             except zmq.Again:
                 err_count = 0

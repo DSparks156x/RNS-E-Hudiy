@@ -197,7 +197,7 @@ class DisplayEngine:
         except Exception as e: logger.error(f"Failed to load settings: {e}")
         return default
 
-    def publish_status(self):
+    def publish_status(self, force=False):
         """Broadcast current app and ready state for top-display awareness."""
         if not hasattr(self, 'pub_status'):
             return
@@ -211,6 +211,14 @@ class DisplayEngine:
                 "app": app_name,
                 "timestamp": time.time()
             }
+
+            # Avoid redundant publishes unless forced (e.g. heartbeat or app switch)
+            if not force:
+                current_id = (state_str, app_name)
+                if getattr(self, '_last_published_id', None) == current_id:
+                    return
+                self._last_published_id = current_id
+
             #logger.info(f"Broadcasting Display Status: {app_name} ({state_str})")
             self.pub_status.send_multipart([b"DIS_DISPLAY_STATUS", json.dumps(payload).encode()])
         except Exception as e:

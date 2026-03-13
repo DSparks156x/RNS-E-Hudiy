@@ -102,6 +102,38 @@ class DisService:
 
         if not self.ENABLE_INACTIVITY_RELEASE and value:
             logger.info("Inactivity auto-release is DISABLED (screen will stay claimed forever)")
+        self._broadcast_status()
+
+    def _broadcast_status(self, force=False):
+        """Broadcast current DDP state via ZMQ."""
+        now = time.time()
+        current_state = getattr(self.ddp, 'state', None)
+        
+        if not force and current_state == getattr(self, 'last_pub_state', None) and (now - getattr(self, 'last_status_cast', 0) < 1.0):
+            return
+
+        state_str = "DISCONNECTED"
+        if current_state == DDPState.READY:
+            state_str = "READY"
+        elif current_state == DDPState.PAUSED:
+            state_str = "PAUSED"
+        elif current_state == DDPState.SESSION_ACTIVE:
+            state_str = "INITIALIZING"
+        
+        msg = f"DIS_STATE {state_str}"
+        try:
+            if current_state != getattr(self, 'last_pub_state', None):
+                logger.info(f"ZMQ Broadcast (State Change): {msg}")
+            elif (now - getattr(self, 'last_heartbeat_log', 0) > 5.0):
+                logger.info(f"ZMQ Broadcast (Heartbeat): {msg}")
+                self.last_heartbeat_log = now
+                
+            self.status_pub.send_string(msg, flags=zmq.NOBLOCK)
+        except Exception as e:
+            logger.warning(f"ZMQ: Failed to send status: {e}")
+
+        self.last_pub_state = current_state
+        self.last_status_cast = now
 
     def parse_time(self, t: str) -> int:
         if not t: return 0
@@ -371,31 +403,7 @@ class DisService:
                     continue
 
                 # --- NORMAL OPERATION (IGNITION ON) ---
-                now_time = time.time()
-                current_state = getattr(self.ddp, 'state', None)
-                if current_state != getattr(self, 'last_pub_state', None) or (now_time - getattr(self, 'last_status_cast', 0) > 1.0):
-                    state_str = "DISCONNECTED"
-                    if current_state == DDPState.READY:
-                        state_str = "READY"
-                    elif current_state == DDPState.PAUSED:
-                        state_str = "PAUSED"
-                    elif current_state == DDPState.SESSION_ACTIVE:
-                        state_str = "INITIALIZING"
-                    
-                    msg = f"DIS_STATE {state_str}"
-                    try:
-                        if current_state != getattr(self, 'last_pub_state', None):
-                            logger.info(f"ZMQ Broadcast (State Change): {msg}")
-                        elif (now_time - getattr(self, 'last_heartbeat_log', 0) > 5.0):
-                            logger.info(f"ZMQ Broadcast (Heartbeat): {msg}")
-                            self.last_heartbeat_log = now_time
-                            
-                        self.status_pub.send_string(msg, flags=zmq.NOBLOCK)
-                    except Exception as e:
-                        logger.warning(f"ZMQ: Failed to send status: {e}")
-
-                    self.last_pub_state = current_state
-                    self.last_status_cast = now_time
+                self._broadcast_status()
 
                 if self.ddp.state == DDPState.DISCONNECTED:
                     self.screen_is_active = False
@@ -426,6 +434,7 @@ class DisService:
                 elif self.ddp.state == DDPState.READY:
                     self.ddp.send_keepalive_if_needed()
                     self.ddp.poll_bus_events()
+                    self._broadcast_status()
                     if self.ddp.state != DDPState.READY: pass
                     if not self.screen_is_active and self.command_cache:
                          logger.info("Auto-Restore triggered.")
