@@ -371,6 +371,32 @@ class DisService:
                     continue
 
                 # --- NORMAL OPERATION (IGNITION ON) ---
+                now_time = time.time()
+                current_state = getattr(self.ddp, 'state', None)
+                if current_state != getattr(self, 'last_pub_state', None) or (now_time - getattr(self, 'last_status_cast', 0) > 1.0):
+                    state_str = "DISCONNECTED"
+                    if current_state == DDPState.READY:
+                        state_str = "READY"
+                    elif current_state == DDPState.PAUSED:
+                        state_str = "PAUSED"
+                    elif current_state == DDPState.SESSION_ACTIVE:
+                        state_str = "INITIALIZING"
+                    
+                    msg = f"DIS_STATE {state_str}"
+                    try:
+                        if current_state != getattr(self, 'last_pub_state', None):
+                            logger.info(f"ZMQ Broadcast (State Change): {msg}")
+                        elif (now_time - getattr(self, 'last_heartbeat_log', 0) > 5.0):
+                            logger.info(f"ZMQ Broadcast (Heartbeat): {msg}")
+                            self.last_heartbeat_log = now_time
+                            
+                        self.status_pub.send_string(msg, flags=zmq.NOBLOCK)
+                    except Exception as e:
+                        logger.warning(f"ZMQ: Failed to send status: {e}")
+
+                    self.last_pub_state = current_state
+                    self.last_status_cast = now_time
+
                 if self.ddp.state == DDPState.DISCONNECTED:
                     self.screen_is_active = False
                     if self.ddp.detect_and_open_session():
@@ -397,12 +423,10 @@ class DisService:
                     except zmq.Again:
                         pass
                     time.sleep(0.05)
-                    continue
                 elif self.ddp.state == DDPState.READY:
                     self.ddp.send_keepalive_if_needed()
                     self.ddp.poll_bus_events()
-                    if self.ddp.state != DDPState.READY:
-                        continue 
+                    if self.ddp.state != DDPState.READY: pass
                     if not self.screen_is_active and self.command_cache:
                          logger.info("Auto-Restore triggered.")
                          if self.claim_nav_screen():
@@ -618,31 +642,6 @@ class DisService:
                 
                 # Broadcast true service state instead of just screen_is_active
                 # dis_display uses READY to know when it can send commands. DDPState.READY is the true indicator.
-                now_time = time.time()
-                current_state = getattr(self.ddp, 'state', None)
-                if current_state != getattr(self, 'last_pub_state', None) or (now_time - getattr(self, 'last_status_cast', 0) > 1.0):
-                    state_str = "DISCONNECTED"
-                    if current_state == DDPState.READY:
-                        state_str = "READY"
-                    elif current_state == DDPState.PAUSED:
-                        state_str = "PAUSED"
-                    elif current_state == DDPState.SESSION_ACTIVE:
-                        state_str = "INITIALIZING"
-                    
-                    msg = f"DIS_STATE {state_str}"
-                    try:
-                        if current_state != getattr(self, 'last_pub_state', None):
-                            logger.info(f"ZMQ Broadcast (State Change): {msg}")
-                        elif (now_time - getattr(self, 'last_heartbeat_log', 0) > 5.0):
-                            logger.info(f"ZMQ Broadcast (Heartbeat): {msg}")
-                            self.last_heartbeat_log = now_time
-                            
-                        self.status_pub.send_string(msg, flags=zmq.NOBLOCK)
-                    except Exception as e:
-                        logger.warning(f"ZMQ: Failed to send status: {e}")
-
-                    self.last_pub_state = current_state
-                    self.last_status_cast = now_time
 
                 time.sleep(0.01)
             except Exception as e:
