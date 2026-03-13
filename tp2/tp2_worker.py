@@ -537,12 +537,13 @@ class TP2Service:
                                     hi = (int(dtc_code) >> 8) & 0xFF
                                     lo = int(dtc_code) & 0xFF
                                     try:
-                                        # Try requesting specific freeze frame for this DTC
                                         # VCDS uses 5-byte format: [0x12, 0x00, 0x04, hi, lo]
                                         ff_resp = proto.send_kvp_request([0x12, 0x00, 0x04, hi, lo])
                                         if ff_resp and ff_resp[0] == 0x52:
                                             # successful freeze frame read, attach raw hex string
                                             dtc_item['freeze_frame_raw'] = [f"{b:02X}" for b in ff_resp[1:]]
+                                            # Also attach decoded fields
+                                            dtc_item['freeze_frame'] = TP2Coding.decode_freeze_frame(ff_resp)
                                         elif ff_resp and ff_resp[0] == 0x7F:
                                             logger.debug(f"Mod 0x{mod_id:02X} Rejected Freeze Frame for {dtc_item['code']}: {ff_resp}")
                                     except Exception as ff_e:

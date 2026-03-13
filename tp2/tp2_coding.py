@@ -147,3 +147,53 @@ class TP2Coding:
             val = round(val, 2)
             
         return val, unit
+
+    @staticmethod
+    def decode_freeze_frame(raw_data: list) -> list:
+        """
+        Decodes VAG Environment Data (Freeze Frame) blocks.
+        Format: [SID=52, DTC_H, DTC_L, PID, Val, PID, Val...]
+        Returns a list of dicts: [{'label': 'Mileage', 'value': 1234, 'unit': 'km'}, ...]
+        """
+        if not raw_data or len(raw_data) < 4:
+            return []
+            
+        # Skip SID (52) and DTC (2 bytes)
+        # Payload starts at index 3
+        data = raw_data[3:]
+        results = []
+        i = 0
+        
+        while i < len(data):
+            pid = data[i]
+            if i + 1 >= len(data): break
+            
+            # Common VAG Environment Data PIDs
+            if pid == 0x6C: # Priority
+                results.append({'label': 'Priority', 'value': data[i+1]})
+                i += 2
+            elif pid == 0x2B: # Frequency
+                results.append({'label': 'Frequency', 'value': data[i+1]})
+                i += 2
+            elif pid == 0x02: # Reset Counter
+                results.append({'label': 'Reset Counter', 'value': data[i+1]})
+                i += 2
+            elif pid == 0x03: # Mileage (Fixed 3 bytes in most blocks)
+                if i + 3 < len(data):
+                    val = (data[i+1] << 16) | (data[i+2] << 8) | data[i+3]
+                    results.append({'label': 'Mileage', 'value': val, 'unit': 'km'})
+                    i += 4
+                else: i += 2 # Fallback
+            elif pid == 0x58: # Speed
+                results.append({'label': 'Speed', 'value': data[i+1], 'unit': 'km/h'})
+                i += 2
+            elif pid == 0x2E: # Voltage
+                results.append({'label': 'Voltage', 'value': round(data[i+1] * 0.1, 1), 'unit': 'V'})
+                i += 2
+            else:
+                # Unknown/Generic 1-byte value
+                # Using hex string for label to help user identify
+                results.append({'label': f'PID_0x{pid:02X}', 'value': data[i+1]})
+                i += 2
+                
+        return results
