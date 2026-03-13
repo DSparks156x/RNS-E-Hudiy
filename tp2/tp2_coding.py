@@ -170,30 +170,67 @@ class TP2Coding:
             
             # Common VAG Environment Data PIDs
             if pid == 0x6C: # Priority
-                results.append({'label': 'Priority', 'value': data[i+1]})
+                results.append({'label': 'Priority', 'value': data[i+1], 'known': True})
                 i += 2
             elif pid == 0x2B: # Frequency
-                results.append({'label': 'Frequency', 'value': data[i+1]})
+                results.append({'label': 'Frequency', 'value': data[i+1], 'known': True})
                 i += 2
             elif pid == 0x02: # Reset Counter
-                results.append({'label': 'Reset Counter', 'value': data[i+1]})
+                results.append({'label': 'Reset Counter', 'value': data[i+1], 'known': True})
                 i += 2
             elif pid == 0x03: # Mileage (Fixed 3 bytes in most blocks)
                 if i + 3 < len(data):
                     val = (data[i+1] << 16) | (data[i+2] << 8) | data[i+3]
-                    results.append({'label': 'Mileage', 'value': val, 'unit': 'km'})
+                    results.append({'label': 'Mileage', 'value': val, 'unit': 'km', 'known': True})
                     i += 4
                 else: i += 2 # Fallback
             elif pid == 0x58: # Speed
-                results.append({'label': 'Speed', 'value': data[i+1], 'unit': 'km/h'})
+                results.append({'label': 'Speed', 'value': data[i+1], 'unit': 'km/h', 'known': True})
                 i += 2
             elif pid == 0x2E: # Voltage
-                results.append({'label': 'Voltage', 'value': round(data[i+1] * 0.1, 1), 'unit': 'V'})
+                results.append({'label': 'Voltage', 'value': round(data[i+1] * 0.1, 1), 'unit': 'V', 'known': True})
                 i += 2
+            elif pid == 0x24: # Distance (3 bytes)
+                if i + 3 < len(data):
+                    val = (data[i+1] << 16) | (data[i+2] << 8) | data[i+3]
+                    results.append({'label': 'Distance', 'value': val, 'unit': 'km', 'known': True})
+                    i += 4
+                else: i += 2
+            elif pid == 0x5B: # Engine Load
+                results.append({'label': 'Engine Load', 'value': data[i+1], 'unit': '%', 'known': True})
+                i += 2
+            elif pid == 0x4E: # Engine Speed
+                if i + 2 < len(data):
+                    val = (data[i+1] << 8) | data[i+2]
+                    results.append({'label': 'Engine Speed', 'value': val, 'unit': 'rpm', 'known': True})
+                    i += 3
+                else: i += 2
             else:
                 # Unknown/Generic 1-byte value
-                # Using hex string for label to help user identify
-                results.append({'label': f'PID_0x{pid:02X}', 'value': data[i+1]})
+                results.append({'label': f'PID_0x{pid:02X}', 'value': data[i+1], 'known': False})
                 i += 2
                 
         return results
+    @staticmethod
+    def decode_dtc_status(status_byte: int) -> list:
+        """
+        Decodes a DTC status byte based on ISO 14229-1 (UDS).
+        Returns a list of active status strings.
+        """
+        meanings = [
+            (0x01, "Test Failed"),
+            (0x02, "Failed This Cycle"),
+            (0x04, "Pending"),
+            (0x08, "Confirmed"),
+            (0x10, "Not Completed Since Clear"),
+            (0x20, "Failed Since Clear"),
+            (0x40, "Not Completed This Cycle"),
+            (0x80, "Warning Requested")
+        ]
+        
+        active = []
+        for bit, text in meanings:
+            if status_byte & bit:
+                active.append(text)
+        
+        return active if active else ["No Status"]

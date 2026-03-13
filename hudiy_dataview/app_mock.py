@@ -667,7 +667,74 @@ def handle_request_dtcs(data):
     mod = data.get('module')
     if mod is not None:
         logger.info(f"Client requested DTCs for module {mod}")
-        worker.send_command("READ_DTC", module=int(mod), fire_and_forget=True)
+        
+        # Mock DTC Report with decoded Freeze Frame
+        mock_report = {
+            'module': int(mod),
+            'type': 'dtc_report',
+            'count': 3,
+            'dtcs': [
+                {
+                    'code': '01259',
+                    'code_dec': '01259',
+                    'status': 0x23,
+                    'status_decoded': ['Test Failed', 'Pending', 'Failed Since Clear'],
+                    'freeze_frame': [
+                        {'label': 'Priority', 'value': 2},
+                        {'label': 'Frequency', 'value': 14},
+                        {'label': 'Mileage', 'value': 142381, 'unit': 'km'},
+                        {'label': 'Speed', 'value': 12, 'unit': 'km/h'},
+                        {'label': 'Voltage', 'value': 13.8, 'unit': 'V'}
+                    ]
+                },
+                {
+                    'code': '04A12',
+                    'code_dec': '18962',
+                    'status': 0x01,
+                    'status_decoded': ['Test Failed'],
+                    'freeze_frame_raw': ['01', 'DE', 'AD', 'BE', 'EF'],
+                    'freeze_frame': [
+                        {'label': 'PID_0x01', 'value': 0xDE, 'known': False},
+                        {'label': 'PID_0xAD', 'value': 0xBE, 'known': False}
+                    ]
+                },
+                {
+                    'code': '05521',
+                    'code_dec': '21793',
+                    'status': 0x08,
+                    'status_decoded': ['Confirmed'],
+                    'freeze_frame': [
+                        {'label': 'Priority', 'value': 1, 'known': True},
+                        {'label': 'Frequency', 'value': 1, 'known': True},
+                        {'label': 'Mileage', 'value': 142390, 'unit': 'km', 'known': True},
+                        {'label': 'PID_0xFF', 'value': 0xAA, 'known': False}
+                    ]
+                },
+                {
+                    'code': '09999',
+                    'code_dec': '39321',
+                    'status': 0x00,
+                    'status_decoded': ['No Status'],
+                    'freeze_frame_raw': ['AA', 'BB', 'CC', 'DD'],
+                    'freeze_frame': [
+                        {'label': 'PID_0xAA', 'value': 0xBB, 'known': False},
+                        {'label': 'PID_0xCC', 'value': 0xDD, 'known': False}
+                    ]
+                },
+                # Add more DTCs to force scrolling
+                {'code': 'TEST', 'code_dec': '10001', 'status': 0},
+                {'code': 'TEST', 'code_dec': '10002', 'status': 0},
+                {'code': 'TEST', 'code_dec': '10003', 'status': 0},
+                {'code': 'TEST', 'code_dec': '10004', 'status': 0},
+                {'code': 'TEST', 'code_dec': '10005', 'status': 0},
+            ]
+        }
+        
+        def send_mock_report():
+            socketio.sleep(1.0) # Simulate hardware delay
+            socketio.emit('dtc_report', mock_report, namespace='/')
+            
+        socketio.start_background_task(send_mock_report)
         emit('command_response', {"status": "ok", "action": "request_dtcs", "module": mod})
     else:
         emit('command_response', {"status": "error", "message": "Missing module"})

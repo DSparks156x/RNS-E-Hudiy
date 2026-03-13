@@ -526,7 +526,8 @@ class TP2Service:
                                         dtc_list.append({
                                             'code': f"{code:04X}", # Need pure hex format or 5 digit code
                                             'code_dec': str(code).zfill(5), # VAG codes are typically 5 or 6 digit decimal
-                                            'status': status
+                                            'status': status,
+                                            'status_decoded': TP2Coding.decode_dtc_status(status)
                                         })
                                 else:
                                     logger.warning(f"Mod 0x{mod_id:02X} DTC Response length mismatch. Expected {count*bytes_per_dtc}, got {len(dtc_data)}")
