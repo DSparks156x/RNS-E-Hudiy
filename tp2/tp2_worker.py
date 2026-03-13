@@ -468,13 +468,13 @@ class TP2Service:
                         proto = session['protocol']
                         logger.info(f"Polling Mod 0x{mod_id:02X} for DTCs...")
                         try:
-                            # 0x18 Read By Status
-                            resp = proto.send_kvp_request([0x18, 0x00, 0xFF, 0x00])
+                            # 0x18 Read By Status - VCDS uses sub-function 0x02
+                            resp = proto.send_kvp_request([0x18, 0x02, 0xFF, 0x00])
                             
-                            # Fallback 1: Some modules don't like mask 0xFF, use 0x00
+                            # Fallback 1: Try sub-function 0x00 (Read All)
                             if resp and len(resp) >= 3 and resp[0] == 0x7F and resp[1] == 0x18:
-                                logger.info(f"Mod 0x{mod_id:02X} 0x18 0xFF rejected (NRC {resp[2]}), trying 0x18 0x00")
-                                resp_alt = proto.send_kvp_request([0x18, 0x00, 0x00, 0x00])
+                                logger.info(f"Mod 0x{mod_id:02X} 0x18 0x02 rejected (NRC {resp[2]}), trying 0x18 0x00")
+                                resp_alt = proto.send_kvp_request([0x18, 0x00, 0xFF, 0x00])
                                 if resp_alt: resp = resp_alt
 
                             # Fallback 2: Try older KWP 0x13
@@ -538,7 +538,8 @@ class TP2Service:
                                     lo = int(dtc_code) & 0xFF
                                     try:
                                         # Try requesting specific freeze frame for this DTC
-                                        ff_resp = proto.send_kvp_request([0x12, 0x00, hi, lo])
+                                        # VCDS uses 5-byte format: [0x12, 0x00, 0x04, hi, lo]
+                                        ff_resp = proto.send_kvp_request([0x12, 0x00, 0x04, hi, lo])
                                         if ff_resp and ff_resp[0] == 0x52:
                                             # successful freeze frame read, attach raw hex string
                                             dtc_item['freeze_frame_raw'] = [f"{b:02X}" for b in ff_resp[1:]]
@@ -685,8 +686,8 @@ class TP2Service:
                     if active_list:
                          session['idx'] += 1
                 
-                # Rate Limiting
-                time.sleep(0.05) # Faster for responsiveness, thread handles command blocking
+                # Rate Limiting - Throttled by T3 in protocol, so we can run faster here
+                time.sleep(0.01) 
 
             except KeyboardInterrupt:
                 logger.info("Stopping TP2 Service...")

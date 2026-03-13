@@ -23,7 +23,7 @@ class TP2Protocol:
     
     # Timing (ms)
     T1_TIMEOUT = 2000   # Wait for response (Increased to 2000ms to allow for slow ECU responses)
-    T3_INTERVAL = 12    # Inter-frame gap (Matched to ECU_Read.cpp)
+    T3_INTERVAL = 12    # Inter-frame gap (Default, will be overridden by negotiation)
 
     def __init__(self, channel='can0', tester_id=0x300):
         self.channel = channel
@@ -32,9 +32,9 @@ class TP2Protocol:
         self.tx_id = 0x000     # Will be dynamic
         self.rx_id = 0x000     # Will be dynamic
         
-        self.block_size = 0    # Negotiated Block Size
-        self.t1 = 100          # Timer 1
-        self.t3 = 10           # Timer 3
+        self.block_size = 0    # Negotiated Block Size (BS)
+        self.t1 = 100          # T1 Timeout (ms) for ACKs
+        self.t3 = 10           # T3 Gap (ms) between frames
         
         self.seq_tx = 0        # TX Sequence Number (0..F)
         self.seq_rx = 0        # RX Sequence Number (0..F)
@@ -63,7 +63,9 @@ class TP2Protocol:
         try:
             logger.info(f"TX: ID={arbitration_id:03X} Data=[{' '.join(f'{b:02X}' for b in data)}]")
             self.bus.send(msg)
-            time.sleep(self.t3 / 1000.0) # T3 Delay
+            # Use negotiated T3 delay. Default to T3_INTERVAL if not connected.
+            sleep_time = self.t3 / 1000.0 if self.connected else self.T3_INTERVAL / 1000.0
+            time.sleep(sleep_time)
         except can.CanError as e:
             logger.error(f"TP2: CAN Send Error: {e}")
             raise TP2Error(e)
@@ -142,10 +144,22 @@ class TP2Protocol:
 
         # 4. Wait for Parameter Response (A1)
         # Format: [A1, ...]
-        resp = self._recv(self.rx_id, 1000)
         if not resp or resp[0] != 0xA1:
              logger.error(f"TP2: Parameter negotiation failed. Resp: {resp}")
              return False
+        
+        # Parse ECU's Timing Preferences
+        # A1: [A1, BS, T1, T2, T3, T4]
+        # T1 = unit of 10ms (Byte 2)
+        # T3 = unit of 100us (Byte 4)
+        if len(resp) >= 5:
+            self.block_size = resp[1]
+            # T1 negotiation can be complex, often 10ms scaling
+            self.t1 = resp[2] * 10 
+            # T3 is inter-packet gap in 100us units. e.g. 0x4A = 74 = 7.4ms
+            # We enforce a minimum floor of 1ms to prevent bus saturation
+            self.t3 = max(1.0, resp[4] * 0.1)
+            logger.info(f"TP2: Timing Negotiated: BS={self.block_size}, T1={self.t1}ms, T3={self.t3}ms")
              
         self.connected = True
         self.seq_tx = 0
