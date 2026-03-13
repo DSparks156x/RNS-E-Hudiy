@@ -455,7 +455,7 @@ const styles: Record<string, React.CSSProperties> = {
         display: 'flex',
         alignItems: 'stretch',
         gap: '10px',
-        flexGrow: 1,
+        flex: 1,
         minHeight: 0
     },
     groupInput: {
