@@ -381,7 +381,8 @@
         <div class="detailed-help-modal" onclick="event.stopPropagation()">
             <div class="nested-title" id="help-modal-title">Detailed Help</div>
             <div class="detailed-help-text" id="help-modal-text"></div>
-            <button class="btn" onclick="closeDetailedHelp()" style="width: 100%; justify-content: center;">Close</button>
+            <button class="btn" onclick="closeDetailedHelp()"
+                style="width: 100%; justify-content: center;">Close</button>
         </div>
     </div>
 
@@ -389,23 +390,23 @@
         let currentConfig = {};
 
         const SCHEMA = {
-            "branch": { 
-                label: "update branch", 
-                help: "Branch used for updates.", 
+            "branch": {
+                label: "update branch",
+                help: "Branch used for updates.",
                 type: "text",
                 options: ["testing", "release", "beta"],
                 detailedHelp: "Testing Branch - Latest experimental possibly broken changes, used by me for testing.\n\nRelease Branch - Latest relatively well tested good release.\n\nBeta Branch - Latest less tested release or Release if newer. may or may not really get used"
             },
             "repo": { label: "update repo", help: "Repo used for updates.", type: "text" },
             "config_restore_repo": { help: "Repo used for configure restore.", type: "text" },
-            "config_restore_branch": { 
-                help: "Branch used for config restore.", 
+            "config_restore_branch": {
+                help: "Branch used for config restore.",
                 type: "text",
                 options: ["testing", "release", "beta"],
                 detailedHelp: "Testing Branch - Latest experimental possibly broken changes, used by me for testing.\n\nRelease Branch - Latest relatively well tested good release.\n\nBeta Branch - Latest less tested release or Release if newer. may or may not really get used"
             },
-            "display.enabled": { help: "Enable or disable the cluster display service.", type: "boolean" },
-            "display.mode": { help: "Initial display mode.", type: "select", options: ["nav", "media", "car"] },
+            "display.center_display.enabled": { help: "Enable or disable the cluster display service.", type: "boolean" },
+            "display.center_display.mode": { help: "Initial display mode.", type: "select", options: ["nav", "media", "car"] },
             "display.road_side": { help: "Side of the road you drive on.", type: "select", options: ["left", "right"] },
             "display.units.speed": { help: "Velocity units.", type: "select", options: ["imperial", "metric"] },
             "display.units.ambient_temp": { help: "Temperature readout units.", type: "select", options: ["imperial", "metric"] },
@@ -460,45 +461,45 @@
             // Interfaces
             "interfaces.can": { label: "CAN interfaces" },
             "interfaces.can.infotainment": { help: "SocketCAN interface for infotainment." },
-            "interfaces.can.diagnostic": { 
+            "interfaces.can.diagnostic": {
                 help: "SocketCAN interface used for diagnostics",
                 detailedHelp: "This is the interface diagnostic functions are done on. It does not necessarily have to be the OBD2 port CANbus. It should work over infotainment on most gateways as far as im aware."
             },
-            "interfaces.zmq.dis_display_status": { 
+            "interfaces.zmq.dis_display_status": {
                 label: "DIS Display Status ZMQ",
-                help: "ZMQ address for DIS display status updates." 
+                help: "ZMQ address for DIS display status updates."
             },
-            "interfaces.zmq.can_raw_stream": { 
+            "interfaces.zmq.can_raw_stream": {
                 label: "CAN Raw Stream ZMQ",
-                help: "ZMQ address for raw CAN stream." 
+                help: "ZMQ address for raw CAN stream."
             },
-            "interfaces.zmq.send_address": { 
+            "interfaces.zmq.send_address": {
                 label: "CAN Send Address ZMQ",
-                help: "ZMQ address for sending CAN frames." 
+                help: "ZMQ address for sending CAN frames."
             },
-            "interfaces.zmq.system_events": { 
+            "interfaces.zmq.system_events": {
                 label: "System Events ZMQ",
-                help: "ZMQ address for system events." 
+                help: "ZMQ address for system events."
             },
-            "interfaces.zmq.dis_draw": { 
+            "interfaces.zmq.dis_draw": {
                 label: "DIS Draw ZMQ",
-                help: "ZMQ address for DIS drawing commands." 
+                help: "ZMQ address for DIS drawing commands."
             },
-            "interfaces.zmq.dis_status": { 
+            "interfaces.zmq.dis_status": {
                 label: "DIS Status ZMQ",
-                help: "ZMQ address for DIS status." 
+                help: "ZMQ address for DIS status."
             },
-            "interfaces.zmq.tp2_stream": { 
+            "interfaces.zmq.tp2_stream": {
                 label: "TP2 Stream ZMQ",
-                help: "ZMQ address for TP2 stream." 
+                help: "ZMQ address for TP2 stream."
             },
-            "interfaces.zmq.tp2_command": { 
+            "interfaces.zmq.tp2_command": {
                 label: "TP2 Command ZMQ",
-                help: "ZMQ address for TP2 commands." 
+                help: "ZMQ address for TP2 commands."
             },
-            "interfaces.zmq.metric_stream": { 
+            "interfaces.zmq.metric_stream": {
                 label: "Metric Stream ZMQ",
-                help: "ZMQ address for Hudiy metric stream." 
+                help: "ZMQ address for Hudiy metric stream."
             }
         };
 
@@ -624,7 +625,7 @@
                 const wrapper = document.createElement('div');
                 wrapper.style.display = 'flex';
                 wrapper.style.gap = '0.5rem';
-                
+
                 input = document.createElement('input');
                 input.type = 'text';
                 input.value = value || "";

@@ -21,8 +21,10 @@
     }
   },
   "display": {
-    "enabled": true,
-    "mode": "nav",
+    "center_display": {
+      "enabled": true,
+      "mode": "nav"
+    },
     "road_side": "right",
     "units": {
       "speed": "imperial",

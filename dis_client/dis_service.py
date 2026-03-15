@@ -387,7 +387,7 @@ class DisService:
                     continue
 
                 # --- DIS ENABLED CHECK ---
-                if not self.config.get('display', {}).get('enabled', True):
+                if not self.config.get('display', {}).get('center_display', {}).get('enabled', True):
                     # Enter dormant loop: drain draw_socket and wait
                     try:
                         while True:
