@@ -58,7 +58,7 @@ HB_INTERVAL       = 0.100   # heartbeat — keeps display asserted at 10 Hz
 DEBOUNCE          = 0.18
 SKIP_DEBOUNCE     = 0.50
 SKIP_WINDOW       = 2.0
-NO_MEDIA_DEBOUNCE = 0.50
+NO_MEDIA_DEBOUNCE = 3.0
 MEDIA_TIMEOUT     = 8.0
 
 # --- CAN ---
@@ -171,7 +171,6 @@ class TextScroller:
         stagger=0.0,
         continuous=False,
         continuous_gap=3,
-        continuous_loop_delay=False,
     ):
         self.width = width
         self.scroll_speed = float(speed_seconds)
@@ -180,12 +179,13 @@ class TextScroller:
         self.stagger_delay = max(0.0, float(stagger))
         self.continuous = bool(continuous)
         self.continuous_gap = max(0, int(continuous_gap))
-        self.continuous_loop_delay = bool(continuous_loop_delay)
 
         self.lock = threading.Lock()
+        self._frozen = False
         self._reset("")
 
     def _reset(self, text: str):
+        self._frozen = False
         self.raw_text = text
         self.raw_len = len(text)
         self.pos = 0
@@ -201,7 +201,7 @@ class TextScroller:
         self._stream_len = 1
         self._stream_x2 = b""
         if self.continuous:
-            gap = bytes([_CONT_GAP] * self.continuous_gap)
+            gap = bytes([_CONT_GAP] * max(1, self.continuous_gap))
             txt = _encode_continuous_text(text)
             self._stream = (txt + gap) if text else gap
             self._stream_len = max(1, len(self._stream))
@@ -224,6 +224,14 @@ class TextScroller:
             self._reset("")
             return True
 
+    def freeze(self):
+        with self.lock:
+            self._frozen = True
+
+    def unfreeze(self):
+        with self.lock:
+            self._frozen = False
+
     def restart(self):
         with self.lock:
             if self.raw_len <= self.width:
@@ -241,6 +249,8 @@ class TextScroller:
     def tick(self):
         now = time.monotonic()
         with self.lock:
+            if self._frozen:
+                return None
             if self.raw_len <= self.width:
                 return None
             if (now - self.last_tick) <= self.scroll_speed:
@@ -251,8 +261,6 @@ class TextScroller:
             if self.continuous:
                 self.pos = (self.pos + 1) % self._stream_len
                 self._recompute()
-                if self.pos == 0:
-                    self.wait_timer = now + self.start_delay
             else:
                 max_pos = self.raw_len - self.width
                 self.pos = self.pos + 1 if self.pos < max_pos else 0
@@ -288,7 +296,7 @@ class LineController:
 
     def __init__(self, can_id, zmq_ctx, can_send_addr, name,
                  speed_seconds, start_delay, end_delay, stagger,
-                 continuous, continuous_gap, continuous_loop_delay,
+                 continuous, continuous_gap,
                  no_scroll, watcher=None, mock=False):
         self.can_id = can_id
         self._zmq_ctx = zmq_ctx
@@ -310,7 +318,6 @@ class LineController:
             stagger=stagger,
             continuous=continuous,
             continuous_gap=continuous_gap,
-            continuous_loop_delay=continuous_loop_delay,
         )
 
         self._fail_count = 0
@@ -330,6 +337,14 @@ class LineController:
     def restart(self):
         if not self.no_scroll:
             self.scroller.restart()
+
+    def freeze_scroll(self):
+        if not self.no_scroll:
+            self.scroller.freeze()
+
+    def unfreeze_scroll(self):
+        if not self.no_scroll:
+            self.scroller.unfreeze()
 
     # --- Send ---
 
@@ -364,6 +379,11 @@ class LineController:
         self._push = self._zmq_ctx.socket(zmq.PUSH)
         self._push.setsockopt(zmq.LINGER, 0)
         self._push.connect(self._can_send_addr)
+
+        _stat_intervals = []
+        _stat_last_write = 0.0
+        _stat_report = time.monotonic() + 30.0
+
         while True:
             now = time.monotonic()
             tv = self._watcher is not None and self._watcher.tv_active
@@ -377,12 +397,23 @@ class LineController:
 
             # Heartbeat — maintain display at low rate
             if tv and now >= self._next_write:
-                if self.mock:
-                    logger.debug("[%s] Heartbeat", self.name)
+                if _stat_last_write > 0:
+                    _stat_intervals.append(now - _stat_last_write)
+                _stat_last_write = now
                 self._send(self.snapshot())
                 self._next_write = now + self.hb_interval
+                self.unfreeze_scroll()  # release any OEM-triggered freeze
 
-            time.sleep(0.005)
+            # Periodic timing report
+            if now >= _stat_report and _stat_intervals:
+                avg = sum(_stat_intervals) / len(_stat_intervals)
+                logger.info("[%s] write intervals — n=%d avg=%.1fms min=%.1fms max=%.1fms",
+                    self.name, len(_stat_intervals),
+                    avg * 1000, min(_stat_intervals) * 1000, max(_stat_intervals) * 1000)
+                _stat_intervals.clear()
+                _stat_report = now + 30.0
+
+            time.sleep(0.020 if tv else 0.10)
 
 
 # ---------------------------------------------------------------------------
@@ -391,11 +422,12 @@ class LineController:
 
 class CANWatcher:
     def __init__(self, zmq_ctx, can_sub_addr, can_send_addr,
-                 id_source, dis_ctrl, tv_source_byte, mock=False):
+                 id_source, dis_ctrl, tv_source_byte, id_tv_presence=0, mock=False):
         self._zmq_ctx = zmq_ctx
         self._can_sub_addr = can_sub_addr
         self._can_send_addr = can_send_addr
         self._id_src = id_source
+        self._id_tv_presence = id_tv_presence
         self._lines = {}  # populated by DISController after construction
         self._dis = dis_ctrl
         self.mock = mock
@@ -416,7 +448,11 @@ class CANWatcher:
     def run(self):
         self._sub = self._zmq_ctx.socket(zmq.SUB)
         self._sub.connect(self._can_sub_addr)
-        for cid in (self._id_src, *self._lines.keys()):
+        active_line_ids = [cid for cid, ctrl in self._lines.items() if ctrl]
+        watch_ids = [self._id_src, *active_line_ids]
+        if self._id_tv_presence:
+            watch_ids.append(self._id_tv_presence)
+        for cid in watch_ids:
             self._sub.subscribe(f"CAN_{cid:03X}".encode())
 
         self._push = self._zmq_ctx.socket(zmq.PUSH)
@@ -437,9 +473,12 @@ class CANWatcher:
                         if len(parts) != 2:
                             continue
 
-                        topic = parts[0].decode()
-                        cid = int(topic[4:], 16)   # "CAN_363" -> 0x363
-                        data = bytes.fromhex(json.loads(parts[1])["data_hex"])
+                        try:
+                            topic = parts[0].decode()
+                            cid = int(topic[4:], 16)   # "CAN_363" -> 0x363
+                            data = bytes.fromhex(json.loads(parts[1])["data_hex"])
+                        except Exception:
+                            continue
 
                         if cid == self._id_src and len(data) >= 4:
                             was = self.tv_active
@@ -461,10 +500,19 @@ class CANWatcher:
 
                             elif not self.tv_active and was:
                                 logger.info("TV source deactivated")
-                                self._dis._no_media_shown = False
+
+                        elif self.tv_active and self._id_tv_presence and cid == self._id_tv_presence:
+                            # TV tuner heartbeat — reassert all lines immediately
+                            now = time.monotonic()
+                            last = self._last_oem.get(cid, 0.0)
+                            if (now - last) >= OEM_COOLDOWN:
+                                self._last_oem[cid] = now
+                                logger.debug("TV presence heartbeat — reasserting lines")
                                 for ctrl in self._lines.values():
                                     if ctrl:
-                                        ctrl.restart()
+                                        ctrl.freeze_scroll()
+                                        self._isend(ctrl.can_id, ctrl.snapshot())
+                                        ctrl._next_write = 0.0
 
                         elif self.tv_active and cid in self._lines:
                             ctrl = self._lines[cid]
@@ -477,6 +525,7 @@ class CANWatcher:
                                 continue
                             self._last_oem[cid] = now
 
+                            ctrl.freeze_scroll()
                             snap = ctrl.snapshot()
                             logger.debug("[%s] OEM write — responding", ctrl.name)
                             for _ in range(OEM_RESPONSE_N):
@@ -538,6 +587,7 @@ class DISController:
         self._id_l1 = _hex(can_ids["fis_line1"], 0x363)
         self._id_l2 = _hex(can_ids["fis_line2"], 0x365)
         self._id_src = _hex(can_ids["source"], 0x661)
+        self._id_tv_presence = _hex(can_ids.get("tv_presence", 0), 0)
         self._tv_source_byte = _hex(source_cfg["tv_mode_identifier"], 0x37)
 
         self._zmq_ctx = zmq.Context()
@@ -575,7 +625,6 @@ class DISController:
         # Unify continuous settings
         continuous = _bool(feat.get("continuous"), _bool(scroll_cfg.get("continuous"), False))
         continuous_gap = _int(feat.get("continuous_gap"), _int(scroll_cfg.get("continuous_gap"), 1))
-        continuous_loop_delay = True # Always use delay for continuous to match dis_display
 
         l1_mode = str(feat.get("media_line1_mode", "0"))
         l2_mode = str(feat.get("media_line2_mode", "0"))
@@ -587,6 +636,7 @@ class DISController:
         self._watcher = CANWatcher(
             self._zmq_ctx, self._can_sub_addr, self._can_send_addr,
             self._id_src, self, self._tv_source_byte,
+            id_tv_presence=self._id_tv_presence,
             mock=self.mock,
         )
 
@@ -604,7 +654,6 @@ class DISController:
                 stagger=line_stagger,
                 continuous=continuous,
                 continuous_gap=continuous_gap,
-                continuous_loop_delay=continuous_loop_delay,
                 no_scroll=no_scroll,
                 watcher=self._watcher,
                 mock=self.mock,
@@ -646,11 +695,10 @@ class DISController:
         self._no_media_shown = False
         self._nav_active = False
         self._nav_texts = ("", "")
-        
         # Center Display Awareness
         self._center_app = None
         self._center_ready = False
-        self._center_msg_t = 0.0
+        self._center_msg_t = time.monotonic()
 
         for c, t in zip(self._ctrls, self._no_media):
             if t:
@@ -690,18 +738,18 @@ class DISController:
         parts = [v for v in (clean(fields.get(k, "")) for k in keys) if v]
         return " - ".join(parts) if len(parts) >= 2 else (parts[0] if parts else "")
 
+    def _format_lines(self, l1_mode, l2_mode, f):
+        return (
+            self._parse_mode(l1_mode, f) if self._ctrl_l1 else "",
+            self._parse_mode(l2_mode, f) if self._ctrl_l2 else "",
+        )
+
     def _media_fields(self, d):
-        f = {
-            "title":  d.get("title") or "",
-            "artist": d.get("artist", ""),
-            "album":  d.get("album", ""),
-            "source": d.get("source_label") or d.get("source", ""),
-        }
-        logger.info("Extracted Media Fields: %s", f)
-        l1 = self._parse_mode(self._l1_mode, f) if self._ctrl_l1 else ""
-        l2 = self._parse_mode(self._l2_mode, f) if self._ctrl_l2 else ""
-        logger.info("Formatted Media Lines: L1='%s', L2='%s'", l1, l2)
-        return l1, l2
+        src_label = str(d.get("source_label") or d.get("source") or "").strip()
+        f = {"title": d.get("title") or "", "artist": d.get("artist", ""),
+             "album": d.get("album", ""), "source": src_label}
+        logger.debug("Media fields: %s", f)
+        return self._format_lines(self._l1_mode, self._l2_mode, f)
 
     def _phone_fields(self, d):
         conn = d.get("connection_state", "")
@@ -713,19 +761,13 @@ class DISController:
             "battery":    str(d.get("battery", "")),
             "signal":     str(d.get("signal", "")),
         }
-        l1 = self._parse_mode(self._ph_l1_mode, f) if self._ctrl_l1 else ""
-        l2 = self._parse_mode(self._ph_l2_mode, f) if self._ctrl_l2 else ""
-        return l1, l2
+        return self._format_lines(self._ph_l1_mode, self._ph_l2_mode, f)
 
     def _nav_fields(self, d):
-        f = {
-            "description": d.get("description", ""),
-            "maneuver":    d.get("maneuver_text", ""),
-            "distance":    d.get("distance", ""),
-        }
-        l1 = self._parse_mode(self._nav_l1_mode, f) if self._ctrl_l1 else ""
-        l2 = self._parse_mode(self._nav_l2_mode, f) if self._ctrl_l2 else ""
-        return l1, l2
+        f = {"description": d.get("description", ""),
+             "maneuver": d.get("maneuver_text", ""),
+             "distance": d.get("distance", "")}
+        return self._format_lines(self._nav_l1_mode, self._nav_l2_mode, f)
 
     def _push(self, l1: str, l2: str):
         l1 = _normalize(l1)
@@ -745,8 +787,11 @@ class DISController:
             self._center_ready = False
 
         can_skip = bool(self._center_ready and self._center_app)
-        logger.info("Resolving Priority: call=%s, nav=%s, media_ready=%s, center=%s (%s) -> can_skip=%s", 
-                    self._call_active, self._nav_active, self._last_media_msg > 0, self._center_app, self._center_ready, can_skip)
+        logger.debug(
+            "Resolving Priority: call=%s, nav=%s, media_ready=%s, center=%s (%s) -> can_skip=%s",
+            self._call_active, self._nav_active, self._last_media_msg > 0,
+            self._center_app, self._center_ready, can_skip,
+        )
         
         # Priority Order: Phone -> Nav -> Media -> None
         
@@ -759,7 +804,7 @@ class DISController:
                 self._push(*self._phone_texts)
                 return
             else:
-                logger.info("Skipping PHONE (already on center display)")
+                logger.debug("Skipping PHONE (already on center display)")
                 
         # 2. Nav
         if self._nav_active:
@@ -770,10 +815,9 @@ class DISController:
                 self._push(*self._nav_texts)
                 return
             else:
-                logger.info("Skipping NAV (already on center display)")
+                logger.debug("Skipping NAV (already on center display)")
                 
         # 3. Media
-        now = time.monotonic()
         connected = (
             self._last_media_msg > 0 and
             (now - self._last_media_msg) < MEDIA_TIMEOUT
@@ -786,20 +830,18 @@ class DISController:
                 self._push(*self._media_texts)
                 return
             else:
-                logger.info("Skipping MEDIA (already on center display)")
+                logger.debug("Skipping MEDIA (already on center display)")
                 
         # 4. Fallback
         if self._prio != PRIO_NONE:
             logger.info("Priority: NONE")
         self._prio = PRIO_NONE
         if self._center_ready:
-            # Center is active, but showing something else or we've skipped everything.
-            # Show blank line as requested.
             self._push("", "")
-        else:
+            self._no_media_shown = True
+        elif not self._no_media_shown and now >= self._no_media_grace:
             self._push(*self._no_media)
-        
-        self._no_media_shown = True
+            self._no_media_shown = True
 
     def _listener(self):
         self._sub = self._make_sub(self._zmq_addr)
@@ -807,60 +849,88 @@ class DISController:
         deadline = None
         err_count = 0
 
+        _stat_msgs = 0
+        _stat_resolves = 0
+        _stat_report = time.monotonic() + 30.0
+
         while self.running:
             now = time.monotonic()
 
             if pending is not None and now >= deadline:
                 self._media_texts = pending
+                logger.info("Media display: L1='%s' L2='%s'", *self._media_texts)
                 self._resolve()
+                for ctrl in self._ctrls:
+                    ctrl.unfreeze_scroll()
+                _stat_resolves += 1
                 pending = None
                 deadline = None
 
-            connected = (
-                self._last_media_msg > 0 and
-                (now - self._last_media_msg) < MEDIA_TIMEOUT
-            )
+            media_active = self._last_media_msg > 0 and (now - self._last_media_msg) < MEDIA_TIMEOUT
+            if (not self._no_media_shown and not media_active
+                    and (now - self._boot_time) >= self._boot_delay
+                    and now >= self._no_media_grace):
+                self._resolve()
+                _stat_resolves += 1
 
-            if (
-                not self._call_active
-                and not self._no_media_shown
-                and not connected
-                and self._prio < PRIO_MEDIA
-                and (now - self._boot_time) >= self._boot_delay
-                and now >= self._no_media_grace
-            ):
-                self._push(*self._no_media)
-                self._no_media_shown = True
+            if now >= _stat_report:
+                logger.info("listener stats — msgs=%d resolves=%d (last 30s)",
+                    _stat_msgs, _stat_resolves)
+                _stat_msgs = 0
+                _stat_resolves = 0
+                _stat_report = now + 30.0
 
             try:
                 while True: # Drain all pending messages in each iteration
                     parts = self._sub.recv_multipart(flags=zmq.NOBLOCK)
-                    topic, data = parts[0], json.loads(parts[1])
+                    try:
+                        topic, data = parts[0], json.loads(parts[1])
+                    except Exception:
+                        continue
+                    _stat_msgs += 1
+                    now = time.monotonic()
                     err_count = 0
                     
-                    logger.info("RX Topic: %s", topic.decode())
+                    logger.debug("RX Topic: %s", topic.decode())
                     if topic == b"HUDIY_MEDIA":
                         src = data.get("source_id", 0)
                         playing = data.get("playing", False)
                         title = (data.get("title") or "").strip()
-                        logger.info("Media Msg: src=%s, playing=%s, title='%s'", src, playing, title)
+                        media_state = data.get("media_state", "NONE")
+                        projection = data.get("projection_active", False)
+                        has_real_source = (src != 0 or self.mock) and media_state != "NONE"
+                        source_connected = has_real_source or projection
+                        logger.debug(
+                            "Media Msg: src=%s, state=%s, playing=%s, title='%s'",
+                            src, media_state, playing, title,
+                        )
 
-                        # Allow src 0 in mock mode, otherwise ignore it
-                        if (src != 0 or self.mock) and (playing or title):
+                        if has_real_source and (playing or title):
+                            # Source active with content
                             self._last_media_msg = now
                             self._no_media_shown = False
                             self._no_media_grace = 0.0
                             new = self._media_fields(data)
-                            if new != pending:
+                            if new != pending or new != self._media_texts:
                                 pending = new
+                                if new != self._media_texts:
+                                    for ctrl in self._ctrls:
+                                        ctrl.freeze_scroll()
                                 recently_skipped = (
                                     self._not_playing_t > 0
                                     and (now - self._not_playing_t) < SKIP_WINDOW
                                 )
                                 deadline = now + (SKIP_DEBOUNCE if recently_skipped else DEBOUNCE)
+                        elif source_connected:
+                            # Source present but idle — keep connection alive, no No Media flash
+                            self._last_media_msg = now
+                            self._not_playing_t = now
+                            deadline = None
+                            pending = None
+                            for ctrl in self._ctrls:
+                                ctrl.unfreeze_scroll()
                         else:
-                            if src == 0 and not self.mock:
-                                logger.debug("Ignoring media msg with src 0 (non-mock)")
+                            # Truly no source (src == 0 / media_state NONE)
                             pending = None
                             deadline = None
                             self._not_playing_t = now
@@ -892,7 +962,7 @@ class DISController:
                         self._resolve()
 
                     elif topic == b"DIS_DISPLAY_STATUS":
-                        self._center_msg_t = time.monotonic()
+                        self._center_msg_t = now
                         old_app = self._center_app
                         old_ready = self._center_ready
                         self._center_app = data.get("app")
@@ -902,7 +972,6 @@ class DISController:
                         self._resolve()
 
             except zmq.Again:
-                err_count = 0
                 sleep_for = max(0.0, min(0.05, deadline - now)) if deadline else 0.05
                 time.sleep(sleep_for)
             except Exception as e:
