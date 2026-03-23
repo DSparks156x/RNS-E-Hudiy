@@ -204,12 +204,13 @@ Clients must use a `ZMQ.SUB` socket connected to the publish address (`ipc:///ru
     {
       "value": 850.0,
       "unit": "RPM",
-      "description": "Engine Speed"
+      "type": 1
     },
     ...
   ]
 }
 ```
+
 
 **Payload Variant 2: DTC Report (Success)**
 ```json
@@ -277,7 +278,7 @@ interface DTC {
 interface MeasuringBlockData {
   value: number | string;
   unit: string;
-  description: string;
+  type: number;           // Formula type (e.g., 1=RPM, 5=Temp)
 }
 ```
 
