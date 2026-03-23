@@ -182,6 +182,14 @@ class DisplayEngine:
         # --- Advanced Nav Auto-Switching ---
         self.pre_nav_app_name = None
         self.auto_switch_back_at = 0
+        
+        # Load Navigation Auto-Switch Config
+        center_display_cfg = self.cfg.get('display', {}).get('center_display', {})
+        nav_cfg = center_display_cfg.get('navigation', {})
+        self.nav_auto_switch = nav_cfg.get('auto_switch', True)
+        self.nav_approach_threshold = nav_cfg.get('auto_switch_approach_threshold', 500)
+        self.nav_return_threshold = nav_cfg.get('auto_switch_return_threshold', 1000)
+        self.nav_return_delay = nav_cfg.get('auto_switch_return_delay', 10)
 
         # --- Phone Auto-Switching ---
         self.phone_active = False
@@ -389,7 +397,7 @@ class DisplayEngine:
                                             self.nav_active = active
                                             logger.info(f"Nav Active State Changed: {active}")
                                             
-                                            if active:
+                                            if active and getattr(self, 'nav_auto_switch', True):
                                                 # Auto-switch TO nav
                                                 nav_app = self.apps['app_nav']
                                                 meters = nav_app.meters
@@ -401,13 +409,15 @@ class DisplayEngine:
                                                     self.switch_to_app('app_nav')
                                                     
                                                     # If far away (or unknown), start auto-return timer immediately
-                                                    if meters > 1000 or meters == -1:
-                                                        self.auto_switch_back_at = time.time() + 10.0
+                                                    return_threshold = getattr(self, 'nav_return_threshold', 1000)
+                                                    return_delay = getattr(self, 'nav_return_delay', 10)
+                                                    if meters > return_threshold or meters == -1:
+                                                        self.auto_switch_back_at = time.time() + return_delay
                                                     else:
                                                         self.auto_switch_back_at = 0
                                                 else:
                                                     logger.debug(f"Nav activated but already on app_nav. meters={meters}")
-                                            else:
+                                            elif not active:
                                                 # Auto-switch AWAY from nav if currently on it
                                                 current_name = self.pages[self.current_page_idx]
                                                 if current_name == 'app_nav':
@@ -498,35 +508,33 @@ class DisplayEngine:
 
     def _handle_nav_auto_switch(self, nav_app):
         # Distance-based Auto-Switch Logic
-        if not self.nav_active or not getattr(self, 'service_ready', False): return
+        if not getattr(self, 'nav_auto_switch', True) or not self.nav_active or not getattr(self, 'service_ready', False): return
         
         meters = nav_app.meters
         current_name = self.pages[self.current_page_idx]
         now = time.time()
 
         if current_name != 'app_nav':
-            # Threshold to switch TO Nav: 500m
-            if 0 <= meters <= 500:
+            # Threshold to switch TO Nav
+            approach_threshold = getattr(self, 'nav_approach_threshold', 500)
+            if 0 <= meters <= approach_threshold:
                 logger.info(f"Distance Alert: {meters}m. Switching to Nav.")
                 self.pre_nav_app_name = current_name
                 self.auto_switch_back_at = 0
                 self.switch_to_app('app_nav')
         elif self.pre_nav_app_name:
             # Currently on Nav via auto-switch, check for switch back
-            # Treat -1 (unknown) as "far/finished" to ensure we switch back if data drops
-            if meters > 1000 or meters == -1:
-                # Next maneuver is far away, trigger auto-return timer
+            return_threshold = getattr(self, 'nav_return_threshold', 1000)
+            return_delay = getattr(self, 'nav_return_delay', 10)
+            
+            if meters > return_threshold or meters == -1:
                 if self.auto_switch_back_at == 0:
-                    logger.info(f"Distance {meters}m (or unknown). Returning to {self.pre_nav_app_name} in 10s.")
-                    self.auto_switch_back_at = now + 10.0
-            elif 0 <= meters <= 1000:
-                # We are close enough to stay on nav, reset timer if it was running
+                    logger.info(f"Distance {meters}m (or unknown). Returning to {self.pre_nav_app_name} in {return_delay}s.")
+                    self.auto_switch_back_at = now + return_delay
+            elif 0 <= meters <= return_threshold:
                 if self.auto_switch_back_at != 0:
-                    logger.info(f"Distance {meters}m <= 1000m, clearing return timer.")
+                    logger.info(f"Distance {meters}m <= {return_threshold}m, clearing return timer.")
                     self.auto_switch_back_at = 0
-            else:
-                # Unknown/out of range or exactly 1000m
-                pass
 
     def _handle_phone_status(self, data):
         if not getattr(self, 'service_ready', False): return

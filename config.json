@@ -23,7 +23,14 @@
   "display": {
     "center_display": {
       "enabled": true,
-      "mode": "nav"
+      "mode": "nav",
+      "navigation": {
+        "auto_switch": true,
+        "auto_switch_approach_threshold": 500,
+        "auto_switch_return_threshold": 1000,
+        "auto_switch_return_delay": 10,
+        "approach_bar_max_distance": 300
+      }
     },
     "road_side": "right",
     "units": {

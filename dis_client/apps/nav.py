@@ -84,7 +84,8 @@ class NavApp(BaseApp):
         
         # 1. SPECIAL / SIMPLE
         if t == 1: return "DEPART"
-        if t == 19: return "DESTINATION"
+        if t == 19:
+            return f"DESTINATION_{side_suffix}" if side in (1, 2) else "DESTINATION"
         if t == 16: return "FERRY_BOAT"
         if t == 17: return "FERRY_TRAIN"
         if t == 0 or t == 14: return "STRAIGHT"
@@ -100,53 +101,52 @@ class NavApp(BaseApp):
         if t == 7: return f"RAMP_ON_{side_suffix}"  # On Ramp
         if t == 8: return f"RAMP_OFF_{side_suffix}" # Off Ramp
         if t == 9: return f"FORK_{side_suffix}"
-        if t == 10: return "MERGE" # Merge usually doesn't have side in icon name for now
+        if t == 10:
+            return f"MERGE_{side_suffix}" if side in (1, 2) else "MERGE"
 
         # 4. ROUNDABOUTS
         if t == 11: return f"ROUNDABOUT_{cw_ccw}" # Enter
         if t == 12: return f"ROUNDABOUT_EXIT_{cw_ccw}" # Exit
         
         if t == 13: # ROUNDABOUT_ENTER_AND_EXIT
-            # Use Angle to determine shape
-            # Buckets based on user snippet: 10(Slight), 45(Normal), 135(Sharp), 180(U-Turn)
-            # NOTE: We need to determine if it's a Left or Right turn relative to entry.
-            # But the Icon names (e.g. ROUNDABOUT_LEFT_CLOCKWISE) imply the exit is to the left/right.
+            a = angle % 360
             
-            # Simple heuristic assumes standard 4-way roundabout
-            # Angle 180 = Straight? Or U-Turn? 
-            # User snippet: 180 = U-Turn.
-            
-            # Let's map roughly:
-            # 0-25: Straight (or Slight if side implies turn?)
-            # 26-65: Slight
-            # 66-115: Normal (90 deg)
-            # 116-155: Sharp
-            # > 155: U-Turn
-            
-            # BUT we also need direction (Left vs Right). 
-            # If side=1 (Left), then Slight Left, Sharpt Left etc.
-            
-            shape = "STRAIGHT"
-            if angle > 155: shape = "U_TURN"
-            elif angle > 115: shape = "SHARP" # e.g. SHARP_LEFT
-            elif angle > 65: shape = "NORMAL" # means just _LEFT or _RIGHT
-            elif angle > 25: shape = "SLIGHT"
-            
-            # Construct Key
-            # Format: ROUNDABOUT_[SHAPE]_[SIDE]_[CW/CCW]
-            # Exceptions: ROUNDABOUT_STRAIGHT_... (No side?)
-            #             ROUNDABOUT_LEFT_... (Normal)
-            #             ROUNDABOUT_U_TURN_... (No side?)
-            
+            # Infer side_suffix if unspecified (3)
+            # In CCW, 0-180 is Right, 180-360 is Left
+            # In CW, 0-180 is Left, 180-360 is Right
+            inferred_side = side_suffix
+            if side == 3:
+                if cw_ccw == "COUNTERCLOCKWISE":
+                    inferred_side = "RIGHT" if a < 180 else "LEFT"
+                else:
+                    inferred_side = "LEFT" if a < 180 else "RIGHT"
+            else:
+                inferred_side = "LEFT" if side == 1 else "RIGHT"
+
+            shape = "U_TURN"
+            if 22.5 <= a < 67.5:
+                shape = "SHARP"
+            elif 67.5 <= a < 112.5:
+                shape = "NORMAL"
+            elif 112.5 <= a < 157.5:
+                shape = "SLIGHT"
+            elif 157.5 <= a < 202.5:
+                shape = "STRAIGHT"
+            elif 202.5 <= a < 247.5:
+                shape = "SLIGHT"
+            elif 247.5 <= a < 292.5:
+                shape = "NORMAL"
+            elif 292.5 <= a < 337.5:
+                shape = "SHARP"
+
             if shape == "STRAIGHT":
                 return f"ROUNDABOUT_STRAIGHT_{cw_ccw}"
             elif shape == "U_TURN":
                 return f"ROUNDABOUT_U_TURN_{cw_ccw}"
             elif shape == "NORMAL":
-                return f"ROUNDABOUT_{side_suffix}_{cw_ccw}"
+                return f"ROUNDABOUT_{inferred_side}_{cw_ccw}"
             else:
-                # Slight or Sharp
-                return f"ROUNDABOUT_{shape}_{side_suffix}_{cw_ccw}"
+                return f"ROUNDABOUT_{shape}_{inferred_side}_{cw_ccw}"
 
         # Internal Fallback
         return "STRAIGHT"
@@ -215,18 +215,19 @@ class NavApp(BaseApp):
         return s, ""
 
     def _get_progress_height(self) -> int:
-        """Convert distance string to bar height (0..36 px, 300 m = full)"""
+        """Convert distance string to bar height (0..36 px, configured m = full)"""
         val = self.parse_distance(self.distance_label)
         if val < 0:
             return 36 if self.distance_label else 0
         
-        # "Approach Bar" Logic:
-        # >200m: Empty (0px)
-        # 200m -> 0m: Fills up (0px -> 36px)
-        if val > 300: return 0
+        # "Approach Bar" Logic
+        nav_cfg = self.config.get('display', {}).get('center_display', {}).get('navigation', {})
+        max_dist = nav_cfg.get('approach_bar_max_distance', 300)
+        
+        if val > max_dist: return 0
         
         # Calculate fill ratio
-        ratio = (300.0 - val) / 300.0
+        ratio = (max_dist - val) / max_dist
         return int(ratio * 47)
 
     def get_view(self) -> List[Dict]:
@@ -266,17 +267,26 @@ class NavApp(BaseApp):
 
         # 2. Distance (top-right) — only draw if we have real data
         val_str, unit_str = self._split_distance(self.distance_label)
-        needs_bar_redraw = False
         
+        # When bar_h == 0 (no bar), we can safely clear the entire remaining width (w=22, up to x=63).
+        # This handles 4-digit distances that reach into the bar's empty coordinate space.
+        # When bar_h > 0 (bar is drawn), we restrict clear width to w=19 to protect the bar at x=61.
+        clear_w = 22 if bar_h == 0 else 19
+
         if val_str:
             x_pos = 42
-            blank_char = chr(0x1F)
             
-            # Dynamic padding: only pad if the new string is shorter than the last one
-            val_padded = val_str
+            # If the string shrank, surgically clear the area so we don't ghost,
+            # avoiding padding spaces that would overlap the progress bar.
             if len(val_str) < self.last_val_len:
-                val_padded = val_str.ljust(self.last_val_len, blank_char)
-                needs_bar_redraw = True
+                commands.append({
+                    'group': 'dist',
+                    'cmd': 'clear_area',
+                    'x': x_pos,
+                    'y': 8,
+                    'w': clear_w,
+                    'h': 9
+                })
             
             self.last_val_len = len(val_str)
 
@@ -284,51 +294,54 @@ class NavApp(BaseApp):
             commands.append({
                 'group': 'dist',
                 'cmd': 'draw_text',
-                'text': val_padded,
+                'text': val_str,
                 'x': x_pos,
                 'y': 8,
                 'flags': 0x06 # Compact Font
             })
+            
             # Draw units below if present
             if unit_str:
-                unit_padded = unit_str
                 if len(unit_str) < self.last_unit_len:
-                    unit_padded = unit_str.ljust(self.last_unit_len, blank_char)
-                    needs_bar_redraw = True
+                    commands.append({
+                        'group': 'dist',
+                        'cmd': 'clear_area',
+                        'x': x_pos,
+                        'y': 17,
+                        'w': clear_w,
+                        'h': 9
+                    })
                 
                 self.last_unit_len = len(unit_str)
 
                 commands.append({
                     'group': 'dist',
                     'cmd': 'draw_text',
-                    'text': unit_padded,
+                    'text': unit_str,
                     'x': x_pos,
                     'y': 17,
                     'flags': 0x06
                 })
             else:
+                if self.last_unit_len > 0:
+                     commands.append({
+                         'group': 'dist',
+                         'cmd': 'clear_area',
+                         'x': x_pos,
+                         'y': 17,
+                         'w': clear_w,
+                         'h': 9
+                     })
                 self.last_unit_len = 0
         else:
-            # Just push empty padded spaces if it went from something to nothing
-            x_pos = 49
-            blank_char = chr(0x1F)
             if self.last_val_len > 0 or self.last_unit_len > 0:
-                needs_bar_redraw = True
                 commands.append({
                     'group': 'dist',
-                    'cmd': 'draw_text',
-                    'text': blank_char * self.last_val_len,
-                    'x': x_pos,
-                    'y': 10,
-                    'flags': 0x06
-                })
-                commands.append({
-                    'group': 'dist',
-                    'cmd': 'draw_text',
-                    'text': blank_char * self.last_unit_len,
-                    'x': x_pos,
-                    'y': 19,
-                    'flags': 0x06
+                    'cmd': 'clear_area',
+                    'x': 42,
+                    'y': 8,
+                    'w': clear_w,
+                    'h': 18
                 })
             self.last_val_len = 0
             self.last_unit_len = 0
@@ -391,14 +404,6 @@ class NavApp(BaseApp):
                 {'group': 'bar', 'cmd': 'draw_line', 'x': 63, 'y': start_y, 'length': bar_h, 'vertical': True},
             ]
 
-        # If we added padding to the text, we MUST redraw the bar in the same 'dist' group 
-        # to ensure it covers up any padding that might have overwritten the bar's pixels.
-        if needs_bar_redraw:
-            for bc in bar_commands:
-                bc_copy = bc.copy()
-                bc_copy['group'] = 'dist'
-                commands.append(bc_copy)
-        else:
-            commands += bar_commands
+        commands += bar_commands
 
         return commands
