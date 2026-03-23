@@ -133,8 +133,9 @@ echo "? Step 2: Downloading Project Files..."
 
 # Create a temporary directory for cloning
 TEMP_DIR=$(mktemp -d)
-echo "   Cloning repository to temporary folder ($SELECTED_REF)..."
-$GIT_CMD clone -b $SELECTED_REF --depth 1 $REPO_URL "$TEMP_DIR"
+echo "   Cloning repository (optimized sparse-checkout)..."
+$GIT_CMD clone -b "$SELECTED_REF" --depth 1 --filter=blob:none --sparse --no-checkout "$REPO_URL" "$TEMP_DIR"
+(cd "$TEMP_DIR" && $GIT_CMD sparse-checkout set rns-e_can hudiy_client dis_client tp2 hudiy_dataview config.json config/hudiy && $GIT_CMD checkout)
 
 echo "   Installing to $REAL_HOME..."
 
