@@ -489,7 +489,7 @@ class DisplayEngine:
 
                 # Periodic status heartbeat (every 1s)
                 if now - getattr(self, 'last_status_pub', 0) > 1.0:
-                    self.publish_status()
+                    self.publish_status(force=True)
                     self.last_status_pub = now
 
                 time.sleep(0.01)
