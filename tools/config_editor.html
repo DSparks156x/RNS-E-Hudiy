@@ -423,6 +423,7 @@
             "display.text_scrolling.line_offset_ms": { help: "time offset between scroll lines" },
             "display.text_scrolling.start_delay_ms": { help: "Scroll pause time at start of text" },
             "display.text_scrolling.end_delay_ms": { help: "Scroll pause time at end of text" },
+            "display.phone.scroll_wheel_phone_menu": { help: "Enable interacting with phone calls via the MFSW scroll wheel actions (Accept/Reject/End).", type: "boolean" },
             "features.day_night_mode": { help: "Automatically sets day/night in Hudiy. Hudiy state propagates to AA/Carplay", type: "boolean" },
             "features.source_controls": { help: "Auto Pause/Resume when switching from/to tv source.", type: "boolean" },
             "features.debug_mode": { help: "Enable detailed logging for troubleshooting.", type: "boolean" },
@@ -564,22 +565,19 @@
             if (path === 'features.power_management') {
                 bottomKeys.push('auto_shutdown');
             }
+            if (path === 'input_mappings.mfsw') {
+                bottomKeys.push('commands');
+            }
             const hideKeys = (path.includes('long_press') || path.includes('extended_press')) ? ['0,32', '0,64'] : [];
 
             const fields = entries.filter(([k, v]) => (typeof v !== 'object' || v === null || Array.isArray(v)) && !bottomKeys.includes(k) && !hideKeys.includes(k));
-            const nested = entries.filter(([_, v]) => typeof v === 'object' && v !== null && !Array.isArray(v));
+            const nested = entries.filter(([k, v]) => typeof v === 'object' && v !== null && !Array.isArray(v) && !bottomKeys.includes(k));
             const bottomFields = entries.filter(([k, _]) => bottomKeys.includes(k));
 
-            // 1. Render normal direct fields
-            fields.forEach(([key, val]) => {
-                renderNode(`${path}.${key}`, val, container, key);
-            });
-
-            // 2. Render nested groups
-            nested.forEach(([key, val]) => {
+            function renderNestedGroup(key, val, p) {
                 const groupWrapper = document.createElement('div');
                 groupWrapper.className = 'nested-group';
-                const meta = SCHEMA[`${path}.${key}`] || {};
+                const meta = SCHEMA[`${p}.${key}`] || {};
                 const labelText = meta.label || key.replace(/_/g, ' ');
 
                 groupWrapper.innerHTML = `
@@ -587,12 +585,26 @@
                     <div class="nested-content"></div>
                 `;
                 container.appendChild(groupWrapper);
-                renderRecursive(val, `${path}.${key}`, groupWrapper.querySelector('.nested-content'));
+                renderRecursive(val, `${p}.${key}`, groupWrapper.querySelector('.nested-content'));
+            }
+
+            // 1. Render normal direct fields
+            fields.forEach(([key, val]) => {
+                renderNode(`${path}.${key}`, val, container, key);
+            });
+
+            // 2. Render normal nested groups
+            nested.forEach(([key, val]) => {
+                renderNestedGroup(key, val, path);
             });
 
             // 3. Render bottom fields (like scroll_commands)
             bottomFields.forEach(([key, val]) => {
-                renderNode(`${path}.${key}`, val, container, key);
+                if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+                    renderNestedGroup(key, val, path);
+                } else {
+                    renderNode(`${path}.${key}`, val, container, key);
+                }
             });
         }
 

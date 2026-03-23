@@ -663,6 +663,8 @@ class DISController:
         self._phone_action_idx = 0
         self._phone_action_timeout = 0.0
         self._last_phone_data = {}
+        
+        self._scroll_wheel_phone_menu = cfg.get("display", {}).get("phone", {}).get("scroll_wheel_phone_menu", False)
 
         for c, t in zip(self._ctrls, self._no_media):
             if t:
@@ -942,7 +944,8 @@ class DISController:
                         
                     elif topic == b"CAN_0x5C3":
                         payload = bytes.fromhex(data["data_hex"])
-                        if len(payload) > 1 and getattr(self, "_prio", PRIO_NONE) == PRIO_PHONE:
+                        scroll_menu = getattr(self, '_scroll_wheel_phone_menu', False)
+                        if scroll_menu and len(payload) > 1 and getattr(self, "_prio", PRIO_NONE) == PRIO_PHONE:
                             b = payload[1]
                             state = getattr(self, "_last_phone_data", {}).get("state", "IDLE")
                             if b in (0x0B, 0x0C):

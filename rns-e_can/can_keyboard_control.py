@@ -124,6 +124,9 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
         mfsw_cmds_cfg = mfsw_cfg.get('commands') or {}
         mfsw_short_press = mfsw_cfg.get('short_press') or {}
         mfsw_long_press = mfsw_cfg.get('long_press') or {}
+        phone_alt_cfg = mfsw_cfg.get('phone_alt') or {}
+        phone_short = phone_alt_cfg.get('short_press') or {}
+        phone_long = phone_alt_cfg.get('long_press') or {}
 
         # Source Mappings
         source_data = input_cfg.get('source') or {}
@@ -158,6 +161,13 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
                 'volume_scroll_up_long': parse_key(mfsw_long_press.get('volume_scroll_up')),
                 'volume_scroll_down_long': parse_key(mfsw_long_press.get('volume_scroll_down')),
                 'volume_scroll_click_long': parse_key(mfsw_long_press.get('volume_scroll_click'))
+            },
+            
+            'mfsw_phone_alt_map': {
+                'mode_short': parse_key(phone_short.get('mode')),
+                'mode_long': parse_key(phone_long.get('mode')),
+                'ptt_short': parse_key(phone_short.get('ptt')),
+                'ptt_long': parse_key(phone_long.get('ptt'))
             },
             
             'tv_mode_id': int(source_data.get('tv_mode_identifier', '0x00'), 16),
@@ -329,8 +339,19 @@ def handle_mfsw_message(msg, state):
     cmd_byte = int(msg['data_hex'][2:4], 16)
     now = time.time()
     
-    if (state.is_phone_app_active or getattr(state, 'hudiy_phone_active', False)) and cmd_byte in [mfsw_cmds.get('scroll_up'), mfsw_cmds.get('scroll_down'), mfsw_cmds.get('scroll_click')]:
+    scroll_menu = CONFIG.get('display', {}).get('phone', {}).get('scroll_wheel_phone_menu', False)
+    if scroll_menu and (state.is_phone_app_active or getattr(state, 'hudiy_phone_active', False)) and cmd_byte in [mfsw_cmds.get('scroll_up'), mfsw_cmds.get('scroll_down'), mfsw_cmds.get('scroll_click')]:
         return
+
+    phone_active = state.is_phone_app_active or getattr(state, 'hudiy_phone_active', False)
+    alt_map = CONFIG.get('mfsw_phone_alt_map', {})
+
+    def get_action(key_name):
+        if phone_active:
+            val = alt_map.get(key_name)
+            if val is not None:
+                return val
+        return CONFIG['mfsw_map'].get(key_name)
 
     if cmd_byte == mfsw_cmds.get('scroll_up'):
         if not state.mfsw_scroll_locked:
@@ -346,13 +367,13 @@ def handle_mfsw_message(msg, state):
         state.mfsw_mode_press_count += 1
         if not state.mfsw_mode_long_action_fired and state.mfsw_mode_press_count >= CONFIG['long_press_count']:
             logger.info("MFSW Mode Long Press")
-            press_key(CONFIG['mfsw_map'].get('mode_long'))
+            press_key(get_action('mode_long'))
             state.mfsw_mode_long_action_fired = True
     elif cmd_byte == mfsw_cmds.get('ptt_press'):
         state.mfsw_ptt_press_count += 1
         if not state.mfsw_ptt_long_action_fired and state.mfsw_ptt_press_count >= CONFIG['long_press_count']:
             logger.info("MFSW PTT Long Press")
-            press_key(CONFIG['mfsw_map'].get('ptt_long'))
+            press_key(get_action('ptt_long'))
             state.mfsw_ptt_long_action_fired = True
     elif cmd_byte == mfsw_cmds.get('scroll_click'):
         state.mfsw_scroll_click_press_count += 1
@@ -377,11 +398,11 @@ def handle_mfsw_message(msg, state):
     elif cmd_byte in CONFIG['mfsw_release_cmds']:
         if not state.mfsw_mode_long_action_fired and state.mfsw_mode_press_count > 0:
             logger.info("MFSW Mode Short Press")
-            press_key(CONFIG['mfsw_map'].get('mode_short'))
+            press_key(get_action('mode_short'))
         
         if not state.mfsw_ptt_long_action_fired and state.mfsw_ptt_press_count > 0:
             logger.info("MFSW PTT Short Press")
-            press_key(CONFIG['mfsw_map'].get('ptt_short'))
+            press_key(get_action('ptt_short'))
 
         if not state.mfsw_scroll_click_long_action_fired and state.mfsw_scroll_click_press_count > 0:
             logger.info("MFSW Scroll Click Short Press")

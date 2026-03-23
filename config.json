@@ -56,6 +56,9 @@
       "phone_line2_mode": "state",
       "nav_line1_mode": "description",
       "nav_line2_mode": "distance"
+    },
+    "phone": {
+      "scroll_wheel_phone_menu": true
     }
   },
   "features": {
@@ -181,6 +184,16 @@
         "volume_scroll_up": null,
         "volume_scroll_down": null,
         "volume_scroll_click": null
+      },
+      "phone_alt": {
+        "short_press": {
+          "mode": null,
+          "ptt": null
+        },
+        "long_press": {
+          "mode": null,
+          "ptt": null
+        }
       }
     },
     "source": {
