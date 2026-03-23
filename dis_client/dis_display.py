@@ -55,6 +55,7 @@ class DisplayEngine:
             logger.warning(f"Mock Mode/Windows: Could not connect to CAN stream: {e}")
             
         self.t_btn = self._topics('steering_module', '0x2C1')
+        self.t_mfsw = self._topics('mfsw', '0x5C3')
         
         # We need to subscribe to radio topics for the header/footer even without RadioApp active
         #if self.can_connected:
@@ -67,7 +68,7 @@ class DisplayEngine:
         
         # Subscriptions
         if self.can_connected:
-            for t in self.t_btn | self.t_car:
+            for t in self.t_btn | self.t_car | self.t_mfsw:
                 self.sub.subscribe(t.encode())
         
         self.sub_hudiy = self.zmq_ctx.socket(zmq.SUB)
@@ -580,6 +581,11 @@ class DisplayEngine:
                         elif self.btn['up']['p']: self._btn_event('up', False, now)
                         if b & 0x10: self._btn_event('down', True, now)
                         elif self.btn['down']['p']: self._btn_event('down', False, now)
+                    elif t_str in getattr(self, 't_mfsw', set()) and len(payload) > 1:
+                        b = payload[1]
+                        if b == 0x0B: self.process_input('scroll_up')
+                        elif b == 0x0C: self.process_input('scroll_down')
+                        elif b == 0x08: self.process_input('scroll_click')
         except zmq.Again: pass
 
     def _btn_event(self, name, pressed, now):

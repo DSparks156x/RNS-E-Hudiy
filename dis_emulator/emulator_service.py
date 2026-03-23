@@ -124,17 +124,29 @@ class EmulatorBridge:
         btn = data.get('btn')
         state = data.get('state')
         hex_data = "000000"
+        topic = b"CAN_0x2C1"
         
         if state == "pressed":
             if btn == "up":
                 hex_data = "000020"
             elif btn == "down":
                 hex_data = "000010"
+        elif state == "clicked":
+            topic = b"CAN_0x5C3"
+            if btn == "mfsw_up":
+                hex_data = "000B"
+            elif btn == "mfsw_down":
+                hex_data = "000C"
+            elif btn == "mfsw_click":
+                hex_data = "0008"
                 
-        msg = {'data_hex': hex_data}
+        msg = {
+            'data_hex': hex_data,
+            'dlc': len(hex_data) // 2
+        }
         try:
-            self.pub_socket.send_multipart([b"CAN_0x2C1", json.dumps(msg).encode()])
-            logger.debug(f"Mocked CAN input sent: {btn} {state}")
+            self.pub_socket.send_multipart([topic, json.dumps(msg).encode()])
+            logger.debug(f"Mocked CAN input sent: {btn} {state} to {topic}")
         except Exception as e:
             logger.error(f"Failed to send mock CAN: {e}")
 

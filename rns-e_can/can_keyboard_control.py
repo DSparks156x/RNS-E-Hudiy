@@ -58,7 +58,8 @@ class ControlState:
         self.mfsw_scroll_locked = False
         self.mfsw_volume_scroll_locked = False
         self.last_mfsw_scroll_time = 0
-        self.is_pi_source_active = None
+        self.is_phone_app_active = False
+        self.hudiy_phone_active = False
         self.last_status_log_time = time.time()
 
     def reset_mmi_state(self, mmi_command):
@@ -132,6 +133,8 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
         
         CONFIG = {
             'zmq_address': zmq_cfg.get('can_raw_stream'),
+            'zmq_display_status': zmq_cfg.get('dis_display_status'),
+            'zmq_metric_stream': zmq_cfg.get('metric_stream'),
             'can_ids': {k: int(v, 16) for k, v in cfg.get('can_ids', {}).items()},
             'mmi_scroll_cmds': {tuple(map(int, k.split(','))) for k in mmi_scroll_cmds},
             'mmi_short_map': {tuple(map(int, k.split(','))): parse_key(v) for k, v in mmi_short_press.items()},
@@ -180,6 +183,12 @@ def initialize_zmq_subscriber():
         ZMQ_SUB_SOCKET = ZMQ_CONTEXT.socket(zmq.SUB)
         ZMQ_SUB_SOCKET.set(zmq.RCVTIMEO, 1000)
         ZMQ_SUB_SOCKET.connect(CONFIG['zmq_address'])
+        if CONFIG.get('zmq_display_status'):
+            ZMQ_SUB_SOCKET.connect(CONFIG['zmq_display_status'])
+            ZMQ_SUB_SOCKET.setsockopt_string(zmq.SUBSCRIBE, "DIS_DISPLAY_STATUS")
+        if CONFIG.get('zmq_metric_stream'):
+            ZMQ_SUB_SOCKET.connect(CONFIG['zmq_metric_stream'])
+            ZMQ_SUB_SOCKET.setsockopt_string(zmq.SUBSCRIBE, "HUDIY_PHONE")
         
         feature_map = {
             'mmi': 'mmi_controls',
@@ -319,6 +328,10 @@ def handle_mfsw_message(msg, state):
     if not mfsw_cmds: return
     cmd_byte = int(msg['data_hex'][2:4], 16)
     now = time.time()
+    
+    if (state.is_phone_app_active or getattr(state, 'hudiy_phone_active', False)) and cmd_byte in [mfsw_cmds.get('scroll_up'), mfsw_cmds.get('scroll_down'), mfsw_cmds.get('scroll_click')]:
+        return
+
     if cmd_byte == mfsw_cmds.get('scroll_up'):
         if not state.mfsw_scroll_locked:
             press_key(CONFIG['mfsw_map'].get('scroll_up'))
@@ -439,8 +452,17 @@ def main():
     while RUNNING:
         try:
             if ZMQ_SUB_SOCKET.poll(timeout=1000):
-                _, msg_bytes = ZMQ_SUB_SOCKET.recv_multipart()
+                topic_bytes, msg_bytes = ZMQ_SUB_SOCKET.recv_multipart()
+                topic_str = topic_bytes.decode('utf-8')
                 msg_dict = json.loads(msg_bytes.decode('utf-8'))
+                
+                if topic_str == "DIS_DISPLAY_STATUS":
+                    state.is_phone_app_active = (msg_dict.get('app') == 'app_phone' and msg_dict.get('state') == 'READY')
+                    continue
+                elif topic_str == "HUDIY_PHONE":
+                    state.hudiy_phone_active = (msg_dict.get('state') in ["INCOMING", "ALERTING", "ACTIVE"])
+                    continue
+                    
                 can_id = msg_dict.get('arbitration_id')
                 
                 if can_id == CONFIG['can_ids'].get('mmi') and FEATURES.get('mmi_controls', False):

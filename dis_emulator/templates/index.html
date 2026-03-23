@@ -157,6 +157,11 @@
             padding: 11px 15px;
         }
 
+        select option {
+            background: var(--surface-container);
+            color: var(--on-surface);
+        }
+
         .dis-screen-frame {
             background-color: #000000;
             padding: 24px;
@@ -300,6 +305,15 @@
                     <button class="btn" onmousedown="emitInput('down', 'pressed')"
                         onmouseup="emitInput('down', 'released')" onmouseleave="emitInput('down', 'released')">▼
                         DOWN</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>MFSW Controls</h3>
+                <div class="btn-row">
+                    <button class="btn" onclick="emitInput('mfsw_up', 'clicked')">▲ Scroll Up</button>
+                    <button class="btn" onclick="emitInput('mfsw_click', 'clicked')">● Click</button>
+                    <button class="btn" onclick="emitInput('mfsw_down', 'clicked')">▼ Scroll Down</button>
                 </div>
             </div>
 

@@ -652,6 +652,18 @@ class DISController:
         self._center_ready = False
         self._center_msg_t = 0.0
 
+        self._keyboard_device = None
+        try:
+            import uinput
+            self._keyboard_device = uinput.Device([uinput.KEY_P, uinput.KEY_O], name="topdisplay-phone-kb")
+        except Exception:
+            pass
+            
+        self._phone_show_action = False
+        self._phone_action_idx = 0
+        self._phone_action_timeout = 0.0
+        self._last_phone_data = {}
+
         for c, t in zip(self._ctrls, self._no_media):
             if t:
                 c.set_text(t)
@@ -661,8 +673,10 @@ class DISController:
         sub.connect(addr)
         if hasattr(self, '_display_status_addr') and self._display_status_addr != addr:
             sub.connect(self._display_status_addr)
+        if hasattr(self, '_can_sub_addr'):
+            sub.connect(self._can_sub_addr)
             
-        for t in (b"HUDIY_MEDIA", b"HUDIY_PHONE", b"HUDIY_NAV", b"HUDIY_NAV_STATUS", b"DIS_DISPLAY_STATUS"):
+        for t in (b"HUDIY_MEDIA", b"HUDIY_PHONE", b"HUDIY_NAV", b"HUDIY_NAV_STATUS", b"DIS_DISPLAY_STATUS", b"CAN_0x5C3"):
             sub.setsockopt(zmq.SUBSCRIBE, t)
         return sub
 
@@ -714,7 +728,19 @@ class DISController:
             "signal":     str(d.get("signal", "")),
         }
         l1 = self._parse_mode(self._ph_l1_mode, f) if self._ctrl_l1 else ""
-        l2 = self._parse_mode(self._ph_l2_mode, f) if self._ctrl_l2 else ""
+        
+        if getattr(self, '_phone_show_action', False):
+            state = d.get("state", "IDLE")
+            if state in ["INCOMING", "ALERTING", "DIALING"]:
+                action_str = "Accept" if self._phone_action_idx == 0 else "Reject"
+            elif state == "ACTIVE":
+                action_str = "End Call"
+            else:
+                action_str = self._parse_mode(self._ph_l2_mode, f) if self._ctrl_l2 else ""
+            l2 = action_str
+        else:
+            l2 = self._parse_mode(self._ph_l2_mode, f) if self._ctrl_l2 else ""
+            
         return l1, l2
 
     def _nav_fields(self, d):
@@ -832,6 +858,12 @@ class DISController:
                 self._push(*self._no_media)
                 self._no_media_shown = True
 
+            if getattr(self, '_phone_show_action', False) and now > getattr(self, '_phone_show_action_timeout', 0):
+                self._phone_show_action = False
+                if self._call_active:
+                    self._phone_texts = self._phone_fields(self._last_phone_data)
+                    self._resolve()
+
             try:
                 while True: # Drain all pending messages in each iteration
                     parts = self._sub.recv_multipart(flags=zmq.NOBLOCK)
@@ -873,6 +905,13 @@ class DISController:
                         state = data.get("state", "IDLE")
                         was = self._call_active
                         self._call_active = state in CALL_ACTIVE
+                        self._last_phone_data = data
+                        
+                        old_state = getattr(self, "_last_phone_state", "IDLE")
+                        if state != old_state:
+                            self._phone_show_action = False
+                            self._phone_action_idx = 0
+                        self._last_phone_state = state
 
                         if self._call_active:
                             if not was:
@@ -900,7 +939,42 @@ class DISController:
                         if self._center_app != old_app or self._center_ready != old_ready:
                             logger.info("Center Display Status: app=%s, ready=%s", self._center_app, self._center_ready)
                         self._resolve()
-
+                        
+                    elif topic == b"CAN_0x5C3":
+                        payload = bytes.fromhex(data["data_hex"])
+                        if len(payload) > 1 and getattr(self, "_prio", PRIO_NONE) == PRIO_PHONE:
+                            b = payload[1]
+                            state = getattr(self, "_last_phone_data", {}).get("state", "IDLE")
+                            if b in (0x0B, 0x0C):
+                                if not self._phone_show_action:
+                                    self._phone_show_action = True
+                                    self._phone_action_idx = 0
+                                else:
+                                    if state in ["INCOMING", "ALERTING", "DIALING"]:
+                                        self._phone_action_idx = 1 - self._phone_action_idx
+                                self._phone_show_action_timeout = time.monotonic() + 2.0
+                                self._phone_texts = self._phone_fields(self._last_phone_data)
+                                self._resolve()
+                            elif b == 0x08:
+                                if getattr(self, '_phone_show_action', False):
+                                    key = None
+                                    if state in ["INCOMING", "ALERTING", "DIALING"]:
+                                        key = 'KEY_P' if getattr(self, '_phone_action_idx', 0) == 0 else 'KEY_O'
+                                    elif state == "ACTIVE":
+                                        key = 'KEY_O'
+                                        
+                                    if key and getattr(self, '_keyboard_device', None):
+                                        try:
+                                            import uinput
+                                            self._keyboard_device.emit_click(getattr(uinput, key))
+                                            logger.info(f"TopDisplay UI Emitted Action Key: {key}")
+                                        except Exception as e:
+                                            logger.error(f"Failed to emit key {key}: {e}")
+                                    
+                                    self._phone_show_action = False
+                                    self._phone_texts = self._phone_fields(self._last_phone_data)
+                                    self._resolve()
+                                    
             except zmq.Again:
                 err_count = 0
                 sleep_for = max(0.0, min(0.05, deadline - now)) if deadline else 0.05
