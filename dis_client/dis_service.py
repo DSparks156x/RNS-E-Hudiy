@@ -11,7 +11,7 @@ import logging
 from typing import List, Optional
 
 try:
-    from ddp_protocol import DDPProtocol, DDPState, DisMode, DDPError, DDPHandshakeError
+    from ddp_protocol import DDPProtocol, DDPState, DisMode, DDPError, DDPHandshakeError, DDPMessages
 except ImportError:
     print("Error: Could not import DDPProtocol. Make sure ddp_protocol.py is in the same directory.")
     exit(1)
@@ -155,14 +155,19 @@ class DisService:
             claim_y = 0x1B
             claim_h = self.region_height # usually 0x30 or 0x3D
             
+        # We still need payload_ok specific to the region
         if self.region_name in ['full', 'top_centre', 'centre_lower']:
-            payload_busy  = [0x53, 0x88]
-            payload_free  = [0x53, 0x0A]
             payload_ok    = [0x53, 0x8A]
         else:
-            payload_busy  = [0x53, 0x84]
-            payload_free  = [0x53, 0x05]
             payload_ok    = [0x53, 0x85]
+
+        valid_busy_payloads = [
+            DDPMessages.STAT_BUSY_HALF, DDPMessages.STAT_BUSY_WARN_HALF,
+            DDPMessages.STAT_BUSY_FULL, DDPMessages.STAT_BUSY_WARN_FULL
+        ]
+        valid_free_payloads = [
+            DDPMessages.STAT_FREE_HALF, DDPMessages.STAT_FREE_FULL
+        ]
             
         payload_claim = [0x52, 0x05, 0x82, 0x00, claim_y, 0x40, claim_h]
         payload_ready = [0x2E]
@@ -172,31 +177,54 @@ class DisService:
             try:
                 self.ddp.send_data_packet(payload_claim)
                 data = self.ddp._recv_and_ack_data(1000)
-                if not self.ddp.payload_is(data, payload_ok):
-                    raise DDPHandshakeError(f"Claim Handshake 2/2 failed (wait 1x 53 85), got {data}")
+                
+                if data and self.ddp.payload_is(data, payload_ok):
+                    self.screen_is_active = True
+                    self.last_draw_time = time.time()
+                    return True
+                
+                if data and any(self.ddp.payload_is(data, p) for p in valid_busy_payloads):
+                    logger.warning("RED Cluster is busy. Forcing PAUSED state.")
+                    self.ddp._set_state(DDPState.PAUSED)
+                    return False
+
+                raise DDPHandshakeError(f"Claim Handshake 2/2 failed (wait 1x 53 85), got {data}")
             except DDPError as e:
                 logger.error(f"Failed to claim screen (RED path): {e}")
                 return False
         else:
             try:
                 self.ddp.send_data_packet(payload_claim)
+                
+                # Handshake Step 2 (Wait for Busy or OK)
                 data = self.ddp._recv_and_ack_data(1000)
-                if self.ddp.payload_is(data, payload_ok):
+                if data and self.ddp.payload_is(data, payload_ok):
                     self.screen_is_active = True
                     self.last_draw_time = time.time()
                     return True
-                if not self.ddp.payload_is(data, payload_busy):
-                    raise DDPHandshakeError(f"Claim Handshake 2/7 failed (wait 1x 53 84), got {data}")
+                
+                if not data or not any(self.ddp.payload_is(data, p) for p in valid_busy_payloads):
+                    raise DDPHandshakeError(f"Claim Handshake 2/7 failed (wait for Busy), got {data}")
+                
+                # Handshake Step 3 (Wait for Free)
                 data = self.ddp._recv_and_ack_data(1000)
-                if not self.ddp.payload_is(data, payload_free):
-                    raise DDPHandshakeError(f"Claim Handshake 3/7 failed (wait 1x 53 05), got {data}")
+                if not data or not any(self.ddp.payload_is(data, p) for p in valid_free_payloads):
+                    logger.warning(f"Cluster did not release screen within 1s (got {data}). Forcing PAUSED state.")
+                    self.ddp._set_state(DDPState.PAUSED)
+                    return False
+                
+                # Handshake Step 4 (Wait for Re-Init)
                 data = self.ddp._recv_and_ack_data(1000)
-                if not self.ddp.payload_is(data, payload_ready):
-                    raise DDPHandshakeError(f"Claim HandShak 4/7 failed (wait 1x 2E), got {data}")
+                if not data or not self.ddp.payload_is(data, payload_ready):
+                    raise DDPHandshakeError(f"Claim Handshake 4/7 failed (wait 1x 2E), got {data}")
+                
+                # Handshake Step 5/6 (Clear and Claim again)
                 self.ddp.send_data_packet(payload_clear)
                 self.ddp.send_data_packet(payload_claim)
+                
+                # Handshake Step 7 (Wait for OK)
                 data = self.ddp._recv_and_ack_data(1000)
-                if not self.ddp.payload_is(data, payload_ok):
+                if not data or not self.ddp.payload_is(data, payload_ok):
                     logger.warning(f"Got non-standard status {data} after 2nd claim, but proceeding.")
             except DDPError as e:
                 logger.error(f"Failed to claim screen (WHITE path): {e}")

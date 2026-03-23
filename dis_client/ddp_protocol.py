@@ -264,8 +264,9 @@ class DDPProtocol:
 
         # --- Type 0x9_ (Break) ---
         if msg_type_prefix == 0x90:
-            logger.warning("Cluster sent Break (0x9x) -> closing session")
-            self._set_state(DDPState.DISCONNECTED)
+            logger.warning("Cluster sent Break (0x9x) -> Block Rejected / Busy")
+            # Do NOT drop the session. This is just a block rejection, 
+            # often because the cluster is already initialized or busy.
             return True
 
         logger.warning(f"Unknown unhandled packet type {data[0]:02X}")
@@ -759,8 +760,14 @@ class DDPProtocol:
             self.last_ka_sent = time.time()
             return True
 
-        except (DDPHandshakeError, DDPAckTimeoutError, DDPCANError) as e:
-            logger.error(f"Handshake Error: {e}")
+        except (DDPHandshakeError, DDPAckTimeoutError) as e:
+            logger.warning(f"Handshake Error (Timeout or Break): {e}")
+            logger.info("Cluster may already be initialized (e.g. background keep-alive refresh). Assuming READY.")
+            self._set_state(DDPState.READY)
+            self.last_ka_sent = time.time()
+            return True
+        except DDPCANError as e:
+            logger.error(f"Handshake Hardware Error: {e}")
             self._set_state(DDPState.DISCONNECTED)
             return False
         finally:
@@ -809,8 +816,7 @@ class DDPProtocol:
                 self.send_ack(msg_seq)
 
             # --- DETECT PAUSE (Cluster Claims Screen) ---
-            if payload in [DDPMessages.STAT_BUSY_WARN_HALF, DDPMessages.STAT_BUSY_HALF,
-                           DDPMessages.STAT_BUSY_WARN_FULL, DDPMessages.STAT_BUSY_FULL]:
+            if payload in [DDPMessages.STAT_BUSY_WARN_HALF, DDPMessages.STAT_BUSY_WARN_FULL]:
                 
                 if self.state != DDPState.PAUSED:
                     logger.warning(f"Cluster INTERRUPT (Status {payload}). Pausing...")
