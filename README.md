@@ -48,9 +48,9 @@ Feel free to open an issue or message me on forums if you have any questions/sug
     ```
 2.  Run the installer:
     ```bash
-    sudo ./update_rnse.sh -i
+    sudo ./update_rnse.sh
     ```
-    *   **Note**: `update_rnse.sh -i` replaces Hudiy config files. `config.json` is only replaced if it doesn't exist.
+    *   **Note**: `update_rnse.sh` will download the latest install.sh and run it. it will add new options to hudiy configs, and create config.json.  It will create backups of configs it changed.
 3. Configure your CAN interface
     The script will bring up CAN0, but your can interface must be configured, ie your mcp2515 in config.txt etc. 
 4. Configure your Pis config.txt and cmdline.txt as needed.
@@ -73,9 +73,12 @@ Main configuration variables and descriptive guides are defined in the editor's 
 
 Use the update button in the Hudiy menu or run:
 The update button will quit hudiy, wait for the Pi to have internet (Ie, connect to your phones hotspot or home wifi), and then update and reboot.
+Updating will add any new options to all config files, and back up old ones. 
 ```bash
 sudo ./hudiy_client/update_rnse.sh
 ```
+Configs can be overwritten using the restore configs button, or run the restore configs script directly.  It will **replace** all config files and create backups. 
+Config restore uses the configured repo/branch, it can be your own config reference. 
 
 ## Architecture
 
