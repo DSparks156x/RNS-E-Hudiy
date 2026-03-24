@@ -99,7 +99,8 @@
       "services": [
         "dis_service.service",
         "tp2_worker.service"
-      ]
+      ],
+      "minutes": 3
     }
   },
   "can_ids": {

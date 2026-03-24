@@ -31,6 +31,8 @@ def main():
     if not isinstance(services, list):
         services = [services]
 
+    minutes = log_saver.get('minutes', 3)
+
     # Create logs directory
     now = datetime.now()
     date_str = now.strftime('%Y-%m-%d')
@@ -55,7 +57,7 @@ def main():
         print(f"Collecting logs for {service} -> {log_file}")
         
         # Use sudo journalctl to access service logs
-        cmd = ["sudo", "journalctl", "-u", service, "--since", "3 minutes ago"]
+        cmd = ["sudo", "journalctl", "-u", service, "--since", f"{minutes} minutes ago"]
         try:
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode == 0:
