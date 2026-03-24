@@ -5,8 +5,14 @@
     * The can0 interface is put into listen only mode when ignition is off. The TP2 worker and DIS Service also pause themselves when ignition is off, but listen only ensures nothing else causes a problem.
     * Delay is added, what is ideal?
     * Messages being sent causes the radio to remain awake, the TV active message is always sent.  Listen only delay would manipulate how long the radio stays awake. Unsure if it causes wierd issues if bus is kept awake abnormally long by us, or if it could be beneficial. 
+    * logic could be revised/improved for robustness.
 
 ## DIS Stuff
+<<<<<<< HEAD
+=======
+* Nav Screen Fixes
+    * Nav auto switch return no longer works. 
+>>>>>>> 1ee5b55b19028f3f02bd34bc759ebcc46c0d7f89
 * Nav Screen Improvements
     * Add white flash on auto switch to catch attention about upcoming direction.
     * Add arrival time? would need to be added to hudiy api
@@ -40,3 +46,7 @@
     * Perhaps have some presets for common value sets, or manual selection of groups/modules. 
     * Multi module logging could be cool, would you want seperate or combined files though? 
 * 0-60 timing would be cool. lots of possibilites for this though. Should it be in dataview? should it be in the cluster? should it just use vehicle speed from can status messages? Should it also support a GPS module on the pi?
+<<<<<<< HEAD
+=======
+
+>>>>>>> 1ee5b55b19028f3f02bd34bc759ebcc46c0d7f89
