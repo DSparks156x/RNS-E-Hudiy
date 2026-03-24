@@ -30,16 +30,18 @@
             padding: 0;
         }
 
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
         body {
             font-family: 'Inter', system-ui, sans-serif;
             background-color: var(--bg);
             color: var(--text-primary);
             line-height: 1.6;
-            padding: 1rem;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
         }
 
         header {
@@ -56,12 +58,16 @@
             letter-spacing: -0.05em;
         }
 
-        .main-container {
-            width: 100%;
-            max-width: 1200px;
+        .main-container.editor-layout {
+            flex: 1;
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
+            width: 100%;
+            max-width: 1440px;
+            margin: 0 auto;
             gap: 2rem;
+            overflow: hidden;
+            padding: 1rem;
         }
 
         .actions-bar {
@@ -110,10 +116,149 @@
             box-shadow: 0 0 20px var(--accent-glow);
         }
 
+        /* Sidebar Layout */
+        .editor-layout {
+            display: flex;
+            flex-direction: row; /* Force side-by-side on desktop */
+            gap: 2rem;
+            width: 100%;
+            align-items: flex-start;
+        }
+
+        .sidebar {
+            width: 250px;
+            min-width: 250px;
+            max-width: 250px;
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            height: 100%;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        /* Custom Scrollbars */
+        .sidebar::-webkit-scrollbar,
+        .content-area::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar::-webkit-scrollbar-track,
+        .content-area::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb,
+        .content-area::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover,
+        .content-area::-webkit-scrollbar-thumb:hover {
+            background: rgba(56, 189, 248, 0.4);
+        }
+
+        .sidebar-header {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .toc-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .toc-link {
+            display: block;
+            padding: 0.6rem 0.8rem;
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+            word-break: break-word;
+            white-space: normal;
+        }
+
+        .toc-link:hover {
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--accent);
+        }
+
+        .toc-link.active {
+            background: var(--accent);
+            color: #ffffff; /* White text */
+            font-weight: 600;
+        }
+
+        .toc-link.sub-link.active {
+            background: rgba(56, 189, 248, 0.15);
+            color: #ffffff;
+            border-left: 3px solid var(--accent);
+            border-radius: 0 4px 4px 0;
+            padding-left: 0.6rem;
+        }
+
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            min-width: 0;
+            height: 100%;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        /* Search Styles */
+        .search-wrapper {
+            position: relative;
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .search-wrapper svg {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            pointer-events: none;
+        }
+
+        .search-input {
+            padding-left: 2.5rem;
+            background: rgba(15, 23, 42, 0.4);
+        }
+
         #config-form {
             display: grid;
             grid-template-columns: 1fr;
             gap: 2rem;
+        }
+
+        @media (max-width: 900px) {
+            .editor-layout {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                position: static;
+                max-height: none;
+            }
         }
 
         .config-section {
@@ -340,37 +485,53 @@
 
 <body>
 
-    <header>
-        <h1>HUDiy Config</h1>
-        <p class="subtitle">Experience management for your RNS-E interface</p>
-    </header>
+    <div class="main-container editor-layout">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="toc-list" id="toc-list"></div>
+        </nav>
 
-    <div class="main-container">
-        <div class="actions-bar">
-            <input type="file" id="file-input" accept=".json">
-            <button class="btn" onclick="document.getElementById('file-input').click()">
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                </svg>
-                Import JSON
-            </button>
-            <button class="btn primary" onclick="downloadConfig()">
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                </svg>
-                Export config.json
-            </button>
-        </div>
+        <!-- Main Content -->
+        <div class="content-area">
+            <header>
+                <h1>HUDiy Config</h1>
+                <p class="subtitle">Experience management for your RNS-E interface</p>
+            </header>
+            <div class="actions-bar">
+                <!-- Search -->
+                <div class="search-wrapper">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    <input type="text" id="search-input" class="search-input" placeholder="Search parameters or values..." oninput="filterConfig(this.value)">
+                </div>
 
-        <div id="config-form"></div>
+                <input type="file" id="file-input" accept=".json">
+                <button class="btn" onclick="document.getElementById('file-input').click()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    Import JSON
+                </button>
+                <button class="btn primary" onclick="downloadConfig()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Export config.json
+                </button>
+            </div>
 
-        <div class="config-section" id="raw-section"
-            style="display: none; margin-top: 2rem; border-color: var(--success);">
-            <div class="section-header" style="color: var(--success);">Live JSON Preview</div>
-            <div class="section-content">
-                <textarea id="json-output" class="json-raw" readonly></textarea>
+            <div id="config-form"></div>
+
+            <div class="config-section" id="raw-section"
+                style="display: none; margin-top: 2rem; border-color: var(--success);">
+                <div class="section-header" style="color: var(--success);">Live JSON Preview</div>
+                <div class="section-content">
+                    <textarea id="json-output" class="json-raw" readonly></textarea>
+                </div>
             </div>
         </div>
     </div>
@@ -435,6 +596,7 @@
             "features.power_management.gpio_shutdown": { help: "shuts down the pi based on GPIO." },
             "features.power_management.gpio_shutdown.active_low": { help: "shut down when GPIO is low if enabled" },
             // MMI Specific Mappings
+            "input_mappings.mmi": { label: "RNS-E (MMI)" },
             "input_mappings.mmi.cooldown_period": { help: "Min time between distinct button events (sec).", type: "number" },
             "input_mappings.mmi.long_press_message_count": { help: "Messages needed to trigger Long Press.", type: "number" },
             "input_mappings.mmi.extended_long_press_message_count": { help: "Messages needed to trigger Extended Press.", type: "number" },
@@ -538,6 +700,9 @@
             const formContainer = document.getElementById('config-form');
             formContainer.innerHTML = '';
 
+            const tocList = document.getElementById('toc-list');
+            if (tocList) tocList.innerHTML = '';
+
             const SECTIONS = [
                 { id: "core", title: "Update Configuration", keys: ["branch", "repo", "config_restore_repo", "config_restore_branch"] },
                 { id: "display", title: "DIS (Cluster Display)", root: "display" },
@@ -550,8 +715,38 @@
             SECTIONS.forEach(sec => {
                 const sectionEl = document.createElement('div');
                 sectionEl.className = 'config-section';
+                sectionEl.id = `section-${sec.id}`;
                 sectionEl.innerHTML = `<div class="section-header">${sec.title}</div><div class="section-content"></div>`;
                 formContainer.appendChild(sectionEl);
+
+                // Add to ToC
+                if (tocList) {
+                    const itemWrapper = document.createElement('div');
+                    itemWrapper.className = 'toc-section-wrapper';
+
+                    const li = document.createElement('a');
+                    li.className = 'toc-link';
+                    li.href = `#section-${sec.id}`;
+                    li.textContent = sec.title;
+                    li.onclick = (e) => {
+                        e.preventDefault();
+                        document.getElementById(`section-${sec.id}`).scrollIntoView({ behavior: 'smooth' });
+                        document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
+                        li.classList.add('active');
+                    };
+                    itemWrapper.appendChild(li);
+
+                    const sublist = document.createElement('div');
+                    sublist.className = 'toc-sublist';
+                    sublist.style.paddingLeft = '1rem';
+                    sublist.style.display = 'flex';
+                    sublist.style.flexDirection = 'column';
+                    sublist.style.gap = '0.15rem';
+                    sublist.id = `sublist-${sec.root || sec.id}`;
+                    itemWrapper.appendChild(sublist);
+
+                    tocList.appendChild(itemWrapper);
+                }
 
                 const container = sectionEl.querySelector('.section-content');
                 if (sec.keys) {
@@ -561,7 +756,97 @@
                 }
             });
 
+            if (tocList && tocList.firstChild && tocList.firstChild.querySelector('.toc-link')) {
+                tocList.firstChild.querySelector('.toc-link').classList.add('active');
+            }
+
             updateRawJson();
+            if (typeof initScrollSpy === 'function') initScrollSpy();
+        }
+
+        function filterConfig(query) {
+            query = query.toLowerCase();
+            const sections = document.querySelectorAll('.config-section');
+            const tocLinks = document.querySelectorAll('.toc-link');
+
+            sections.forEach(sec => {
+                let sectionVisible = false;
+                const fields = sec.querySelectorAll('.form-group');
+                fields.forEach(f => {
+                    const label = f.querySelector('label')?.innerText.toLowerCase() || "";
+                    const help = f.querySelector('.help-tip')?.innerText.toLowerCase() || "";
+                    const inputs = f.querySelectorAll('input, select');
+                    let matchValue = false;
+                    inputs.forEach(input => {
+                        if (input.type !== 'file' && input.value.toLowerCase().includes(query)) {
+                            matchValue = true;
+                        }
+                    });
+
+                    if (label.includes(query) || help.includes(query) || matchValue) {
+                        f.style.display = 'flex';
+                        sectionVisible = true;
+                    } else {
+                        f.style.display = 'none';
+                    }
+                });
+
+                const nestedGroups = sec.querySelectorAll('.nested-group');
+                nestedGroups.forEach(g => {
+                    let groupVisible = false;
+                    const gFields = g.querySelectorAll('.form-group');
+                    gFields.forEach(f => {
+                        if (f.style.display !== 'none') groupVisible = true;
+                    });
+                    g.style.display = groupVisible ? 'block' : 'none';
+                    if (groupVisible) sectionVisible = true;
+                });
+
+                sec.style.display = sectionVisible ? 'block' : 'none';
+
+                // Update ToC visibility
+                tocLinks.forEach(link => {
+                    if (link.getAttribute('href') === `#section-${sec.id}`) {
+                        link.style.display = sectionVisible ? 'block' : 'none';
+                    }
+                });
+            });
+        }
+
+        let scrollSpyObserver = null;
+
+        function initScrollSpy() {
+            if (scrollSpyObserver) scrollSpyObserver.disconnect();
+
+            const sections = document.querySelectorAll('.config-section, .nested-group');
+            const tocLinks = document.querySelectorAll('.toc-link');
+
+            const observerOptions = {
+                root: document.querySelector('.content-area'),
+                rootMargin: '-5% 0px -85% 0px',
+                threshold: 0
+            };
+
+            scrollSpyObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const id = entry.target.id;
+                        tocLinks.forEach(link => {
+                            if (link.getAttribute('href') === `#${id}`) {
+                                document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
+                                link.classList.add('active');
+                                
+                                // Auto-scroll active link into sidebar view
+                                link.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                            }
+                        });
+                    }
+                });
+            }, observerOptions);
+
+            sections.forEach(sec => {
+                if (sec.id) scrollSpyObserver.observe(sec);
+            });
         }
 
         function renderRecursive(obj, path, container) {
@@ -586,6 +871,9 @@
             function renderNestedGroup(key, val, p) {
                 const groupWrapper = document.createElement('div');
                 groupWrapper.className = 'nested-group';
+                const groupId = `nested-${p}.${key}`.replace(/\./g, '-').replace(/,/g, '-');
+                groupWrapper.id = groupId;
+                
                 const meta = SCHEMA[`${p}.${key}`] || {};
                 const labelText = meta.label || key.replace(/_/g, ' ');
 
@@ -594,6 +882,48 @@
                     <div class="nested-content"></div>
                 `;
                 container.appendChild(groupWrapper);
+
+                // Add to sidebar ToC (Hierarchical)
+                const parentId = p.replace(/\./g, '-').replace(/,/g, '-');
+                let parentSublist = document.getElementById(`sublist-${parentId}`);
+                if (!parentSublist) {
+                     const sectionRoot = p.split('.')[0];
+                     parentSublist = document.getElementById(`sublist-${sectionRoot}`);
+                }
+
+                if (parentSublist) {
+                    const itemWrapper = document.createElement('div');
+                    itemWrapper.className = 'toc-sub-section-wrapper';
+
+                    const subLink = document.createElement('a');
+                    subLink.className = 'toc-link sub-link';
+                    subLink.href = `#${groupId}`;
+                    subLink.textContent = labelText;
+                    subLink.style.fontSize = '0.78rem';
+                    subLink.style.padding = '0.4rem 0.8rem';
+                    subLink.style.opacity = '0.85';
+                    subLink.style.color = 'var(--text-secondary)';
+                    subLink.onclick = (e) => {
+                        e.preventDefault();
+                        groupWrapper.scrollIntoView({ behavior: 'smooth' });
+                        document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
+                        subLink.classList.add('active');
+                    };
+                    itemWrapper.appendChild(subLink);
+
+                    // Create sublist for children Node of THIS group
+                    const childSublist = document.createElement('div');
+                    childSublist.className = 'toc-sublist';
+                    childSublist.style.paddingLeft = '0.75rem'; // Indent further
+                    childSublist.style.display = 'flex';
+                    childSublist.style.flexDirection = 'column';
+                    childSublist.style.gap = '0.15rem';
+                    childSublist.id = `sublist-${p}.${key}`.replace(/\./g, '-').replace(/,/g, '-');
+                    itemWrapper.appendChild(childSublist);
+
+                    parentSublist.appendChild(itemWrapper);
+                }
+
                 renderRecursive(val, `${p}.${key}`, groupWrapper.querySelector('.nested-content'));
             }
 
