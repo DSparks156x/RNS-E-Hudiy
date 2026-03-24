@@ -100,7 +100,8 @@
         "dis_service.service",
         "tp2_worker.service"
       ],
-      "minutes": 3
+      "minutes": 3,
+      "log_directory": "~/logs"
     }
   },
   "can_ids": {

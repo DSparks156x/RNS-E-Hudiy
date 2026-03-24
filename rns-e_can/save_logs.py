@@ -13,8 +13,12 @@ def main():
     config_path = os.path.join(home_dir, 'config.json')
     
     if not os.path.exists(config_path):
-        print(f"Config file not found: {config_path}")
-        return
+        if os.path.exists('/home/pi/config.json'):
+            home_dir = '/home/pi'
+            config_path = os.path.join(home_dir, 'config.json')
+        else:
+            print(f"Config file not found: {config_path}")
+            return
 
     try:
         with open(config_path, 'r') as f:
@@ -36,7 +40,13 @@ def main():
     # Create logs directory
     now = datetime.now()
     date_str = now.strftime('%Y-%m-%d')
-    log_dir = os.path.join(home_dir, 'logs', date_str)
+    log_dir_base = log_saver.get('log_directory', os.path.join(home_dir, 'logs'))
+    if log_dir_base.startswith('~/'):
+        log_dir_base = os.path.join(home_dir, log_dir_base[2:])
+    elif log_dir_base == '~':
+        log_dir_base = home_dir
+        
+    log_dir = os.path.join(log_dir_base, date_str)
     
     try:
         os.makedirs(log_dir, exist_ok=True)

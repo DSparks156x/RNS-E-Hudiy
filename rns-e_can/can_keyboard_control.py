@@ -60,6 +60,7 @@ class ControlState:
         self.last_mfsw_scroll_time = 0
         self.is_phone_app_active = False
         self.hudiy_phone_active = False
+        self.is_pi_source_active = False
         self.last_status_log_time = time.time()
 
     def reset_mmi_state(self, mmi_command):

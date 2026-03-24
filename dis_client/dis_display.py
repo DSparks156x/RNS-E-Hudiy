@@ -583,7 +583,7 @@ class DisplayEngine:
                         elif self.btn['down']['p']: self._btn_event('down', False, now)
                     elif t_str in getattr(self, 't_mfsw', set()) and len(payload) > 1:
                         b = payload[1]
-                        scroll_menu = self.config.get('display', {}).get('phone', {}).get('scroll_wheel_phone_menu', False)
+                        scroll_menu = self.cfg.get('display', {}).get('phone', {}).get('scroll_wheel_phone_menu', False)
                         if scroll_menu or self.pages[self.current_page_idx] != 'app_phone':
                             if b == 0x0B: self.process_input('scroll_up')
                             elif b == 0x0C: self.process_input('scroll_down')
