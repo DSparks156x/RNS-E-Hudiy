@@ -53,41 +53,19 @@ Feel free to open an issue or message me on forums if you have any questions/sug
     *   **Note**: `update_rnse.sh -i` replaces Hudiy config files. `config.json` is only replaced if it doesn't exist.
 3. Configure your CAN interface
     The script will bring up CAN0, but your can interface must be configured, ie your mcp2515 in config.txt etc. 
+4. Configure your Pis config.txt and cmdline.txt as needed.
 ---
 
 ## Configuration
 
-Main configuration is in `config.json`.
+To edit the configuration, use the built-in Config Editor tool:
 
-### General Settings
-*   **Branch**: 
-    *   `testing`: Latest code from `testing`.
-    *   `main`: Latest code from `main`.
-    *   `beta`: Latest beta or release tag. dont yet exist
-    *   `release`: Latest stable release tag. dont yet exist
-*   **Can interfaces**:
-    * Infotainment: Sets the socketcan interface for the infotainment functions. (Default: `can0`).
-    * Diagnostic: Sets the socketcan interface for diagnostic functions.  (Default: `can0`). Diagnostics work on infotainment on at least my car.
-*   **Display**:
-    * Mode: Sets the default display mode. (Default: `nav`). probably will remove.. nav and phone are hidden unless active and have auto switches.
-    * Road-side: Determines roundabout icon rotation. (Default: `right`).
-    * Units: Sets the units for various measurements. (Default: `imperial`). 
-        * Boost_Mode: "relative" to Atmosphere (conventional boost gauge) or "absolute". relative requires diagnostics for atmospheric. 
+1. Open `tools/config_editor.html` on your computer in any web browser.
+2. Click **Import JSON** and select `config.json` from the device.
+3. Modify settings as desired (the editor includes descriptions for each parameter).
+4. Click **Export config.json** to save the updated file, and overwrite the file on the device.
 
-*   **ZMQ**: Configures internal ZMQ streams. (Avoid modifying unless necessary).
-*   **CAN Ids**: Configures specific CAN IDs used by scripts. 
-    *   **Ignition Status**: `2C3` is standard for TTs, `271` for some other platforms.
-    *   **FIS_line/Media/Nav**: Currently unused.
-
-### Features
-*   **Listen only mode**: Puts `can0` into listen-only when ignition is off, otherwise the radio will not go to sleep.
-*   **Road-side**: Determines roundabout icon rotation. 
-    *   `right`: Counterclockwise icons.
-    *   `left`: Clockwise icons.
-*   **Units**: 
-    *   `Speed` and `Ambient Temp`: Currently unused, but if I do anything with speed/0-60 or take over the top lines and display ambient temp I will want it imperial, as I am a pesky american. 🦅🦅🦅🦅
-    *   All other data is displayed as metric, just as the Germans intended. 
-*   **Navigation**: Displays units as delivered by the `hudiy_api`.
+Main configuration variables and descriptive guides are defined in the editor's schema.
 
 ---
 
