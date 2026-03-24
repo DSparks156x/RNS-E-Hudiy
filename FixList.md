@@ -1,8 +1,3 @@
-## Update Stuff
-* Updater Script Config Handling
-   * Make the update/install script back up all configs if they are different, and replace them. rather than leaving them untouched and making you manually update them.
-   * Would back up into a folder with the date - number increment in that folder - config.json/hudiy config folder 
-
 ## Power management stuff
 * GPIO sleep delay
     * Delay added. What is ideal time?
@@ -12,34 +7,29 @@
     * Messages being sent causes the radio to remain awake, the TV active message is always sent.  Listen only delay would manipulate how long the radio stays awake. Unsure if it causes wierd issues if bus is kept awake abnormally long by us, or if it could be beneficial. 
 
 ## DIS Stuff
-* Nav Screen Fixes
-    * Distance display "centering" needs to be removed. left aligned in current pos is fine. centering proportional font is hard.
-    * Nav distance bar rendering wacky. probably could also be scaled dif (start further away)
-    * Nav auto switch return no longer works. 
 * Nav Screen Improvements
     * Add white flash on auto switch to catch attention about upcoming direction.
     * Add arrival time? would need to be added to hudiy api
 * Car info screen Fixes/Improvements
     * Fix Load/IAT decoding
-    * Add coolant to last line? 
     * Refresh rate could be increased - status messages are much faster.. unsure of practical DIS limits
 * General DIS improvements
     * DIS service should report current status on command handling (Still sending/vs committed)
     * DIS display would then wait for commit before updating active screen and sending new payload.... this would allow dropping display updates instead of piling up a backlog and falling behind. 
+    * This might be added.
 * Add top lines to dis display
     * I would likely retain ambient temp in the second line. 
     * First line could be used for upcoming nav direction if active on another screen? perhaps direction + truncated description + distance? or only parts of that. could be used in second line alongside ambient? 
     * Nav screen could have current track title in first line? maybe artist + ambinet second? 
     * Car info could display track stuff, or nav if its active perhaps? or cycle. lots of options
+    * Top lines added, but more features could be added. 
 
 ## Dataview Stuff
 * UI overall scaling could be improved.. works fine on 800x480 down to 800x400, could/should generally be made more responsive though.
-* Diagnostics measuring blocks size needs to be fixed. wayy too large currently.
-* Diagnostics measuring blocks should only show first 4 blocks. Some groups have 8, but most of them are just undocumented status's. not really useful to show them. 
 
 ## Diagnostic/TP2 Backend stuff.
-* DTC functionality only works on some modules (ECU, transmission), others reject/fail. (ABS, HVAC). They likely need a dif protocol or something. 
 * May generally be possible to make group reads a bit faster
+    * Its actually much faster now, but drops a lot. need to make more reliable. 
 * Poorly named hudiy_status_service / can_service.py is currently responsible for handling the few powertrain status messages on infotainment bus.  It could be expanded to handle powertrain status messages on the powertrain bus if an interface were added. I currently have no need for this, but it would be a useful feature to have.
 * Generally need to fix the decode of the current status messages/add more. Boost works, but formula is slightly off. Load/IAT are wrong. Coolant temp is either a wierd sensor or wrong. 
 * Several measuring group units need to be fixed. Transmission torque, valve current, awd torque, awd pressure, several other awd status probably. Injection time possibly slightly wrong. 
@@ -50,6 +40,3 @@
     * Perhaps have some presets for common value sets, or manual selection of groups/modules. 
     * Multi module logging could be cool, would you want seperate or combined files though? 
 * 0-60 timing would be cool. lots of possibilites for this though. Should it be in dataview? should it be in the cluster? should it just use vehicle speed from can status messages? Should it also support a GPS module on the pi?
-
-## Smaller uncategorized
-* Steering wheel PTT button. would be cool to use for assistant activation. Not sure this is on canbus, plus other modules use it. Dont remember wether nav or telephone use it. Telephone id pull the fuse on anyways. 
