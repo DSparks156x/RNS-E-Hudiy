@@ -506,6 +506,10 @@
             "interfaces.zmq.metric_stream": {
                 label: "Metric Stream ZMQ",
                 help: "ZMQ address for Hudiy metric stream."
+            },
+            "features.log_saver.services": {
+                label: "Log Saver Services",
+                help: "List of systemd services to save logs for."
             }
         };
 
@@ -698,11 +702,89 @@
                 input.type = 'number';
                 input.step = 'any';
                 input.value = value;
+            } else if (Array.isArray(value)) {
+                // List Editor
+                const listWrapper = document.createElement('div');
+                listWrapper.className = 'list-editor';
+                listWrapper.style.display = 'flex';
+                listWrapper.style.flexDirection = 'column';
+                listWrapper.style.gap = '0.5rem';
+                listWrapper.style.background = 'rgba(15, 23, 42, 0.3)';
+                listWrapper.style.padding = '0.75rem';
+                listWrapper.style.border = '1px dashed var(--border)';
+                listWrapper.style.borderRadius = 'var(--radius-md)';
+
+                function renderItems() {
+                    listWrapper.innerHTML = '';
+                    const items = [...value]; // Create copy that can be updated
+                    if (items.length === 0) {
+                        const emptyTip = document.createElement('div');
+                        emptyTip.style.color = 'var(--text-secondary)';
+                        emptyTip.style.fontSize = '0.8rem';
+                        emptyTip.innerHTML = 'No items';
+                        listWrapper.appendChild(emptyTip);
+                    }
+                    items.forEach((item, index) => {
+                        const itemRow = document.createElement('div');
+                        itemRow.style.display = 'flex';
+                        itemRow.style.gap = '0.5rem';
+
+                        const itemInput = document.createElement('input');
+                        itemInput.type = 'text';
+                        itemInput.value = item || "";
+                        itemInput.style.flex = '1';
+                        itemInput.onchange = (e) => {
+                            value[index] = e.target.value;
+                            setValueByPath(path, value);
+                            showToast(`Updated ${labelText}`);
+                        };
+
+                        const removeBtn = document.createElement('button');
+                        removeBtn.className = 'btn';
+                        removeBtn.style.padding = '0.5rem';
+                        removeBtn.style.width = '2.5rem';
+                        removeBtn.style.background = '#ef4444';
+                        removeBtn.style.border = 'none';
+                        removeBtn.innerHTML = '×';
+                        removeBtn.onclick = () => {
+                            value.splice(index, 1);
+                            setValueByPath(path, value);
+                            renderItems();
+                            showToast(`Item Removed`);
+                        };
+
+                        itemRow.appendChild(itemInput);
+                        itemRow.appendChild(removeBtn);
+                        listWrapper.appendChild(itemRow);
+                    });
+
+                    const addBtn = document.createElement('button');
+                    addBtn.className = 'btn';
+                    addBtn.style.marginTop = '0.5rem';
+                    addBtn.style.justifyContent = 'center';
+                    addBtn.style.padding = '0.5rem';
+                    addBtn.innerHTML = '+ Add Item';
+                    addBtn.onclick = () => {
+                        value.push('');
+                        setValueByPath(path, value);
+                        renderItems();
+                        // Focus on added input
+                        setTimeout(() => {
+                            const inputs = listWrapper.querySelectorAll('input');
+                            if (inputs.length > 0) inputs[inputs.length - 1].focus();
+                        }, 50);
+                    };
+                    listWrapper.appendChild(addBtn);
+                }
+
+                renderItems();
+                group.appendChild(listWrapper);
+                container.appendChild(group);
+                return; // List handled
             } else {
                 input = document.createElement('input');
                 input.type = 'text';
-                input.value = Array.isArray(value) ? JSON.stringify(value) : (value || "");
-                if (Array.isArray(value)) input.disabled = true;
+                input.value = value || "";
             }
 
             input.onchange = (e) => {

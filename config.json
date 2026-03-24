@@ -94,7 +94,13 @@
     "source_controls": false,
     "system_actions": true,
     "car_time_zone": "America/Denver",
-    "debug_mode": false
+    "debug_mode": false,
+    "log_saver": {
+      "services": [
+        "dis_service.service",
+        "tp2_worker.service"
+      ]
+    }
   },
   "can_ids": {
     "light_status": "0x635",
@@ -141,7 +147,7 @@
         "0,1": null
       },
       "extended_press": {
-        "1,0": null,
+        "1,0": "python3 /home/pi/rns-e_can/save_logs.py",
         "2,0": "sudo shutdown -h now",
         "64,0": null,
         "128,0": null,
