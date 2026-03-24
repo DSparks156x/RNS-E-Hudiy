@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RNS-E HUDiy Config Editor</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --input-bg: #0f172a;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.2);
+            --border: #334155;
+            --success: #10b981;
+            --radius-lg: 12px;
+            --radius-md: 8px;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-primary);
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            width: 100%;
+            max-width: 1200px;
+            margin: 2rem 0;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: clamp(2rem, 5vw, 3rem);
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: -0.05em;
+        }
+
+        .main-container.editor-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+            max-width: 1440px;
+            margin: 0 auto;
+            gap: 2rem;
+            overflow: hidden;
+            padding: 1rem;
+        }
+
+        .actions-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            background: var(--card-bg);
+            padding: 1rem;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            position: sticky;
+            top: 1rem;
+            z-index: 100;
+            backdrop-filter: blur(8px);
+            background: rgba(30, 41, 59, 0.8);
+        }
+
+        .btn {
+            background: var(--border);
+            color: var(--text-primary);
+            border: none;
+            padding: 0.8rem 1.4rem;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.9rem;
+        }
+
+        .btn:hover {
+            background: #475569;
+            transform: translateY(-2px);
+        }
+
+        .btn.primary {
+            background: var(--accent);
+            color: var(--bg);
+        }
+
+        .btn.primary:hover {
+            background: #7dd3fc;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        /* Sidebar Layout */
+        .editor-layout {
+            display: flex;
+            flex-direction: row; /* Force side-by-side on desktop */
+            gap: 2rem;
+            width: 100%;
+            align-items: flex-start;
+        }
+
+        .sidebar {
+            width: 250px;
+            min-width: 250px;
+            max-width: 250px;
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            height: 100%;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        /* Custom Scrollbars */
+        .sidebar::-webkit-scrollbar,
+        .content-area::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar::-webkit-scrollbar-track,
+        .content-area::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb,
+        .content-area::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover,
+        .content-area::-webkit-scrollbar-thumb:hover {
+            background: rgba(56, 189, 248, 0.4);
+        }
+
+        .sidebar-header {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .toc-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .toc-link {
+            display: block;
+            padding: 0.6rem 0.8rem;
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+            word-break: break-word;
+            white-space: normal;
+        }
+
+        .toc-link:hover {
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--accent);
+        }
+
+        .toc-link.active {
+            background: var(--accent);
+            color: #ffffff; /* White text */
+            font-weight: 600;
+        }
+
+        .toc-link.sub-link.active {
+            background: rgba(56, 189, 248, 0.15);
+            color: #ffffff;
+            border-left: 3px solid var(--accent);
+            border-radius: 0 4px 4px 0;
+            padding-left: 0.6rem;
+        }
+
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            min-width: 0;
+            height: 100%;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        /* Search Styles */
+        .search-wrapper {
+            position: relative;
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .search-wrapper svg {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            pointer-events: none;
+        }
+
+        .search-input {
+            padding-left: 2.5rem;
+            background: rgba(15, 23, 42, 0.4);
+        }
+
+        #config-form {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 900px) {
+            .editor-layout {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                position: static;
+                max-height: none;
+            }
+        }
+
+        .config-section {
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .section-header {
+            background: rgba(51, 65, 85, 0.4);
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 0.1em;
+        }
+
+        .section-content {
+            padding: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr));
+            gap: 2rem;
+        }
+
+        /* Nested Groups */
+        .nested-group {
+            grid-column: 1 / -1;
+            background: rgba(15, 23, 42, 0.3);
+            border: 1px dashed var(--border);
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            margin-top: 0.5rem;
+        }
+
+        .nested-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nested-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .nested-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .label-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-transform: capitalize;
+        }
+
+        .help-tip {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            line-height: 1.4;
+        }
+
+        input,
+        select {
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            padding: 0.75rem 1rem;
+            font-size: 0.95rem;
+            font-family: 'JetBrains Mono', monospace;
+            width: 100%;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: #1e293b;
+        }
+
+        .json-raw {
+            width: 100%;
+            height: 300px;
+            font-family: 'JetBrains Mono', monospace;
+            background: #000;
+            color: #10b981;
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            font-size: 0.85rem;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--accent);
+            color: var(--bg);
+            padding: 0.8rem 2rem;
+            border-radius: 99px;
+            font-weight: 700;
+            box-shadow: 0 10px 25px rgba(56, 189, 248, 0.4);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1000;
+            opacity: 0;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* Detailed Help Styles */
+        .help-icon {
+            cursor: pointer;
+            color: var(--accent);
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.2rem;
+            height: 1.2rem;
+            background: rgba(56, 189, 248, 0.1);
+            border-radius: 50%;
+            transition: all 0.2s;
+            vertical-align: middle;
+            margin-left: 0.5rem;
+        }
+
+        .help-icon:hover {
+            background: var(--accent);
+            color: var(--bg);
+        }
+
+        .detailed-help-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .detailed-help-modal {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .detailed-help-text {
+            white-space: pre-wrap;
+            margin-bottom: 2rem;
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 640px) {
+            header {
+                margin: 1rem 0;
+            }
+
+            .section-content {
+                padding: 1rem;
+                gap: 1.5rem;
+            }
+
+            .nested-group {
+                padding: 0.75rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="main-container editor-layout">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="toc-list" id="toc-list"></div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="content-area">
+            <header>
+                <h1>HUDiy Config</h1>
+                <p class="subtitle">Experience management for your RNS-E interface</p>
+            </header>
+            <div class="actions-bar">
+                <!-- Search -->
+                <div class="search-wrapper">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    <input type="text" id="search-input" class="search-input" placeholder="Search parameters or values..." oninput="filterConfig(this.value)">
+                </div>
+
+                <input type="file" id="file-input" accept=".json">
+                <button class="btn" onclick="document.getElementById('file-input').click()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    Import JSON
+                </button>
+                <button class="btn primary" onclick="downloadConfig()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Export config.json
+                </button>
+            </div>
+
+            <div id="config-form"></div>
+
+            <div class="config-section" id="raw-section"
+                style="display: none; margin-top: 2rem; border-color: var(--success);">
+                <div class="section-header" style="color: var(--success);">Live JSON Preview</div>
+                <div class="section-content">
+                    <textarea id="json-output" class="json-raw" readonly></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">Saved Successfully</div>
+
+    <div id="detailed-help-overlay" class="detailed-help-overlay" onclick="closeDetailedHelp()">
+        <div class="detailed-help-modal" onclick="event.stopPropagation()">
+            <div class="nested-title" id="help-modal-title">Detailed Help</div>
+            <div class="detailed-help-text" id="help-modal-text"></div>
+            <button class="btn" onclick="closeDetailedHelp()"
+                style="width: 100%; justify-content: center;">Close</button>
+        </div>
+    </div>
+
+    <script>
+        let currentConfig = {};
+
+        const SCHEMA = {
+            "branch": {
+                label: "update branch",
+                help: "Branch used for updates.",
+                type: "text",
+                options: ["testing", "release", "beta"],
+                detailedHelp: "Testing Branch - Latest experimental possibly broken changes, used by me for testing.\n\nRelease Branch - Latest relatively well tested good release.\n\nBeta Branch - Latest less tested release or Release if newer. may or may not really get used"
+            },
+            "repo": { label: "update repo", help: "Repo used for updates.", type: "text" },
+            "config_restore_repo": { help: "Repo used for configure restore.", type: "text" },
+            "config_restore_branch": {
+                help: "Branch used for config restore.",
+                type: "text",
+                options: ["testing", "release", "beta"],
+                detailedHelp: "Testing Branch - Latest experimental possibly broken changes, used by me for testing.\n\nRelease Branch - Latest relatively well tested good release.\n\nBeta Branch - Latest less tested release or Release if newer. may or may not really get used"
+            },
+            "display.center_display.enabled": { help: "Enable or disable the cluster display service.", type: "boolean" },
+            "display.center_display.mode": { help: "Initial display mode.", type: "select", options: ["nav", "media", "car"] },
+            "display.center_display.navigation.auto_switch": { help: "Automatic switching to Nav app.", type: "boolean" },
+            "display.center_display.navigation.auto_switch_approach_threshold": { help: "Auto switch distance (meters).", type: "number" },
+            "display.center_display.navigation.auto_switch_return_threshold": { help: "Switch back distance (meters).", type: "number" },
+            "display.center_display.navigation.auto_switch_return_delay": { help: "Switch back delay (seconds).", type: "number" },
+            "display.center_display.navigation.approach_bar_max_distance": { help: "Distance visual fill starts (meters).", type: "number" },
+            "display.road_side": { help: "Side of the road you drive on.", type: "select", options: ["left", "right"] },
+            "display.units.speed": { help: "Velocity units.", type: "select", options: ["imperial", "metric"] },
+            "display.units.ambient_temp": { help: "Temperature readout units.", type: "select", options: ["imperial", "metric"] },
+            "display.units.boost": { help: "Boost Units.", type: "select", options: ["imperial", "metric"] },
+            "display.units.boost_mode": { help: "Absolute manifold pressure or manifold minus atmosphere", type: "select", options: ["absolute", "relative"] },
+            "display.text_scrolling.continuous": { help: "Loop long text indefinitely.", type: "boolean" },
+            "display.text_scrolling.continuous_gap": { help: "space between end and start of scroll text" },
+            "display.text_scrolling.speed_ms": { help: "Delay between scroll steps (ms).", type: "number" },
+            "display.text_scrolling.line_offset_ms": { help: "time offset between scroll lines" },
+            "display.text_scrolling.start_delay_ms": { help: "Scroll pause time at start of text" },
+            "display.text_scrolling.end_delay_ms": { help: "Scroll pause time at end of text" },
+            "display.phone.scroll_wheel_phone_menu": { help: "Enable interacting with phone calls via the MFSW scroll wheel actions (Accept/Reject/End).", type: "boolean" },
+            "features.day_night_mode": { help: "Automatically sets day/night in Hudiy. Hudiy state propagates to AA/Carplay", type: "boolean" },
+            "features.source_controls": { help: "Auto Pause/Resume when switching from/to tv source.", type: "boolean" },
+            "features.debug_mode": { help: "Enable detailed logging for troubleshooting.", type: "boolean" },
+            "features.car_time_zone": { help: "Timezone for system clock.", type: "text" },
+            "features.time_sync.threshold_minutes": { help: "Max allowable drift before sync (min).", type: "number" },
+            "features.power_management.auto_shutdown": { label: "Ignition Auto Shutdown" },
+            "features.power_management.auto_shutdown.delay_seconds": { help: "Wait time before shutdown (sec).", type: "number" },
+            "features.power_management.listen_only_mode": { label: "Infotainment CAN Listen Only Mode", help: "puts infotainment can interface into listen only after off." },
+            "features.power_management.gpio_shutdown": { help: "shuts down the pi based on GPIO." },
+            "features.power_management.gpio_shutdown.active_low": { help: "shut down when GPIO is low if enabled" },
+            // MMI Specific Mappings
+            "input_mappings.mmi": { label: "RNS-E (MMI)" },
+            "input_mappings.mmi.cooldown_period": { help: "Min time between distinct button events (sec).", type: "number" },
+            "input_mappings.mmi.long_press_message_count": { help: "Messages needed to trigger Long Press.", type: "number" },
+            "input_mappings.mmi.extended_long_press_message_count": { help: "Messages needed to trigger Extended Press.", type: "number" },
+            // MMI Press Types
+            "input_mappings.mmi.short_press.1,0": { label: "Previous Track", help: "Pattern: 1,0" },
+            "input_mappings.mmi.short_press.2,0": { label: "Next Track", help: "Pattern: 2,0" },
+            "input_mappings.mmi.short_press.0,16": { label: "Knob Press", help: "Pattern: 0,16" },
+            "input_mappings.mmi.short_press.64,0": { label: "Top Left Quad", help: "Pattern: 64,0" },
+            "input_mappings.mmi.short_press.128,0": { label: "Bottom Left Quad", help: "Pattern: 128,0" },
+            "input_mappings.mmi.short_press.0,32": { label: "Knob CCW", help: "Pattern: 0,32" },
+            "input_mappings.mmi.short_press.0,64": { label: "Knob CW", help: "Pattern: 0,64" },
+            "input_mappings.mmi.short_press.0,2": { label: "Return", help: "Pattern: 0,2" },
+            "input_mappings.mmi.short_press.0,1": { label: "Setup", help: "Pattern: 0,1" },
+            // Long Press
+            "input_mappings.mmi.long_press.1,0": { label: "Previous Track", help: "Pattern: 1,0" },
+            "input_mappings.mmi.long_press.2,0": { label: "Next Track", help: "Pattern: 2,0" },
+            "input_mappings.mmi.long_press.0,16": { label: "Knob Press", help: "Pattern: 0,16" },
+            "input_mappings.mmi.long_press.64,0": { label: "Top Left Quad", help: "Pattern: 64,0" },
+            "input_mappings.mmi.long_press.128,0": { label: "Bottom Left Quad", help: "Pattern: 128,0" },
+            "input_mappings.mmi.long_press.0,2": { label: "Return", help: "Pattern: 0,2" },
+            "input_mappings.mmi.long_press.0,1": { label: "Setup", help: "Pattern: 0,1" },
+            // Extended Press
+            "input_mappings.mmi.extended_press.1,0": { label: "Previous Track", help: "Pattern: 1,0" },
+            "input_mappings.mmi.extended_press.2,0": { label: "Next Track", help: "Pattern: 2,0" },
+            "input_mappings.mmi.extended_press.0,16": { label: "Knob Press", help: "Pattern: 0,16" },
+            "input_mappings.mmi.extended_press.64,0": { label: "Top Left Quad", help: "Pattern: 64,0" },
+            "input_mappings.mmi.extended_press.128,0": { label: "Bottom Left Quad", help: "Pattern: 128,0" },
+            "input_mappings.mmi.extended_press.0,2": { label: "Return", help: "Pattern: 0,2" },
+            "input_mappings.mmi.extended_press.0,1": { label: "Setup", help: "Pattern: 0,1" },
+            // Interfaces
+            "interfaces.can": { label: "CAN interfaces" },
+            "interfaces.can.infotainment": { help: "SocketCAN interface for infotainment." },
+            "interfaces.can.diagnostic": {
+                help: "SocketCAN interface used for diagnostics",
+                detailedHelp: "This is the interface diagnostic functions are done on. It does not necessarily have to be the OBD2 port CANbus. It should work over infotainment on most gateways as far as im aware."
+            },
+            "interfaces.zmq.dis_display_status": {
+                label: "DIS Display Status ZMQ",
+                help: "ZMQ address for DIS display status updates."
+            },
+            "interfaces.zmq.can_raw_stream": {
+                label: "CAN Raw Stream ZMQ",
+                help: "ZMQ address for raw CAN stream."
+            },
+            "interfaces.zmq.send_address": {
+                label: "CAN Send Address ZMQ",
+                help: "ZMQ address for sending CAN frames."
+            },
+            "interfaces.zmq.system_events": {
+                label: "System Events ZMQ",
+                help: "ZMQ address for system events."
+            },
+            "interfaces.zmq.dis_draw": {
+                label: "DIS Draw ZMQ",
+                help: "ZMQ address for DIS drawing commands."
+            },
+            "interfaces.zmq.dis_status": {
+                label: "DIS Status ZMQ",
+                help: "ZMQ address for DIS status."
+            },
+            "interfaces.zmq.tp2_stream": {
+                label: "TP2 Stream ZMQ",
+                help: "ZMQ address for TP2 stream."
+            },
+            "interfaces.zmq.tp2_command": {
+                label: "TP2 Command ZMQ",
+                help: "ZMQ address for TP2 commands."
+            },
+            "interfaces.zmq.metric_stream": {
+                label: "Metric Stream ZMQ",
+                help: "ZMQ address for Hudiy metric stream."
+            },
+            "features.log_saver.services": {
+                label: "Log Saver Services",
+                help: "List of systemd services to save logs for."
+            },
+            "features.log_saver.minutes": {
+                label: "Log Duration (Minutes)",
+                help: "How far back to save logs in minutes.",
+                type: "number"
+            }
+        };
+
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    currentConfig = JSON.parse(e.target.result);
+                    renderForm();
+                    showToast("Configuration Loaded");
+                } catch (err) {
+                    alert("Invalid JSON file");
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        function renderForm() {
+            const formContainer = document.getElementById('config-form');
+            formContainer.innerHTML = '';
+
+            const tocList = document.getElementById('toc-list');
+            if (tocList) tocList.innerHTML = '';
+
+            const SECTIONS = [
+                { id: "core", title: "Update Configuration", keys: ["branch", "repo", "config_restore_repo", "config_restore_branch"] },
+                { id: "display", title: "DIS (Cluster Display)", root: "display" },
+                { id: "features", title: "Enhanced Features", root: "features" },
+                { id: "can", title: "CAN Bus IDs", root: "can_ids" },
+                { id: "io", title: "Input Mappings", root: "input_mappings" },
+                { id: "net", title: "Network Interfaces", root: "interfaces" }
+            ];
+
+            SECTIONS.forEach(sec => {
+                const sectionEl = document.createElement('div');
+                sectionEl.className = 'config-section';
+                sectionEl.id = `section-${sec.id}`;
+                sectionEl.innerHTML = `<div class="section-header">${sec.title}</div><div class="section-content"></div>`;
+                formContainer.appendChild(sectionEl);
+
+                // Add to ToC
+                if (tocList) {
+                    const itemWrapper = document.createElement('div');
+                    itemWrapper.className = 'toc-section-wrapper';
+
+                    const li = document.createElement('a');
+                    li.className = 'toc-link';
+                    li.href = `#section-${sec.id}`;
+                    li.textContent = sec.title;
+                    li.onclick = (e) => {
+                        e.preventDefault();
+                        document.getElementById(`section-${sec.id}`).scrollIntoView({ behavior: 'smooth' });
+                        document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
+                        li.classList.add('active');
+                    };
+                    itemWrapper.appendChild(li);
+
+                    const sublist = document.createElement('div');
+                    sublist.className = 'toc-sublist';
+                    sublist.style.paddingLeft = '1rem';
+                    sublist.style.display = 'flex';
+                    sublist.style.flexDirection = 'column';
+                    sublist.style.gap = '0.15rem';
+                    sublist.id = `sublist-${sec.root || sec.id}`;
+                    itemWrapper.appendChild(sublist);
+
+                    tocList.appendChild(itemWrapper);
+                }
+
+                const container = sectionEl.querySelector('.section-content');
+                if (sec.keys) {
+                    sec.keys.forEach(k => renderNode(k, currentConfig[k], container, k));
+                } else if (sec.root) {
+                    renderRecursive(currentConfig[sec.root], sec.root, container);
+                }
+            });
+
+            if (tocList && tocList.firstChild && tocList.firstChild.querySelector('.toc-link')) {
+                tocList.firstChild.querySelector('.toc-link').classList.add('active');
+            }
+
+            updateRawJson();
+            if (typeof initScrollSpy === 'function') initScrollSpy();
+        }
+
+        function filterConfig(query) {
+            query = query.toLowerCase();
+            const sections = document.querySelectorAll('.config-section');
+            const tocLinks = document.querySelectorAll('.toc-link');
+
+            sections.forEach(sec => {
+                let sectionVisible = false;
+                const fields = sec.querySelectorAll('.form-group');
+                fields.forEach(f => {
+                    const label = f.querySelector('label')?.innerText.toLowerCase() || "";
+                    const help = f.querySelector('.help-tip')?.innerText.toLowerCase() || "";
+                    const inputs = f.querySelectorAll('input, select');
+                    let matchValue = false;
+                    inputs.forEach(input => {
+                        if (input.type !== 'file' && input.value.toLowerCase().includes(query)) {
+                            matchValue = true;
+                        }
+                    });
+
+                    if (label.includes(query) || help.includes(query) || matchValue) {
+                        f.style.display = 'flex';
+                        sectionVisible = true;
+                    } else {
+                        f.style.display = 'none';
+                    }
+                });
+
+                const nestedGroups = sec.querySelectorAll('.nested-group');
+                nestedGroups.forEach(g => {
+                    let groupVisible = false;
+                    const gFields = g.querySelectorAll('.form-group');
+                    gFields.forEach(f => {
+                        if (f.style.display !== 'none') groupVisible = true;
+                    });
+                    g.style.display = groupVisible ? 'block' : 'none';
+                    if (groupVisible) sectionVisible = true;
+                });
+
+                sec.style.display = sectionVisible ? 'block' : 'none';
+
+                // Update ToC visibility
+                tocLinks.forEach(link => {
+                    if (link.getAttribute('href') === `#section-${sec.id}`) {
+                        link.style.display = sectionVisible ? 'block' : 'none';
+                    }
+                });
+            });
+        }
+
+        let scrollSpyObserver = null;
+
+        function initScrollSpy() {
+            if (scrollSpyObserver) scrollSpyObserver.disconnect();
+
+            const sections = document.querySelectorAll('.config-section, .nested-group');
+            const tocLinks = document.querySelectorAll('.toc-link');
+
+            const observerOptions = {
+                root: document.querySelector('.content-area'),
+                rootMargin: '-5% 0px -85% 0px',
+                threshold: 0
+            };
+
+            scrollSpyObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const id = entry.target.id;
+                        tocLinks.forEach(link => {
+                            if (link.getAttribute('href') === `#${id}`) {
+                                document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
+                                link.classList.add('active');
+                                
+                                // Auto-scroll active link into sidebar view
+                                link.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                            }
+                        });
+                    }
+                });
+            }, observerOptions);
+
+            sections.forEach(sec => {
+                if (sec.id) scrollSpyObserver.observe(sec);
+            });
+        }
+
+        function renderRecursive(obj, path, container) {
+            if (!obj) return;
+
+            const entries = Object.entries(obj);
+
+            // Separate direct fields, nested objects, and special fields to be moved to bottom
+            const bottomKeys = ['scroll_commands'];
+            if (path === 'features.power_management') {
+                bottomKeys.push('auto_shutdown');
+            }
+            if (path === 'input_mappings.mfsw') {
+                bottomKeys.push('commands');
+            }
+            const hideKeys = (path.includes('long_press') || path.includes('extended_press')) ? ['0,32', '0,64'] : [];
+
+            const fields = entries.filter(([k, v]) => (typeof v !== 'object' || v === null || Array.isArray(v)) && !bottomKeys.includes(k) && !hideKeys.includes(k));
+            const nested = entries.filter(([k, v]) => typeof v === 'object' && v !== null && !Array.isArray(v) && !bottomKeys.includes(k));
+            const bottomFields = entries.filter(([k, _]) => bottomKeys.includes(k));
+
+            function renderNestedGroup(key, val, p) {
+                const groupWrapper = document.createElement('div');
+                groupWrapper.className = 'nested-group';
+                const groupId = `nested-${p}.${key}`.replace(/\./g, '-').replace(/,/g, '-');
+                groupWrapper.id = groupId;
+                
+                const meta = SCHEMA[`${p}.${key}`] || {};
+                const labelText = meta.label || key.replace(/_/g, ' ');
+
+                groupWrapper.innerHTML = `
+                    <div class="nested-title">${labelText}</div>
+                    <div class="nested-content"></div>
+                `;
+                container.appendChild(groupWrapper);
+
+                // Add to sidebar ToC (Hierarchical)
+                const parentId = p.replace(/\./g, '-').replace(/,/g, '-');
+                let parentSublist = document.getElementById(`sublist-${parentId}`);
+                if (!parentSublist) {
+                     const sectionRoot = p.split('.')[0];
+                     parentSublist = document.getElementById(`sublist-${sectionRoot}`);
+                }
+
+                if (parentSublist) {
+                    const itemWrapper = document.createElement('div');
+                    itemWrapper.className = 'toc-sub-section-wrapper';
+
+                    const subLink = document.createElement('a');
+                    subLink.className = 'toc-link sub-link';
+                    subLink.href = `#${groupId}`;
+                    subLink.textContent = labelText;
+                    subLink.style.fontSize = '0.78rem';
+                    subLink.style.padding = '0.4rem 0.8rem';
+                    subLink.style.opacity = '0.85';
+                    subLink.style.color = 'var(--text-secondary)';
+                    subLink.onclick = (e) => {
+                        e.preventDefault();
+                        groupWrapper.scrollIntoView({ behavior: 'smooth' });
+                        document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
+                        subLink.classList.add('active');
+                    };
+                    itemWrapper.appendChild(subLink);
+
+                    // Create sublist for children Node of THIS group
+                    const childSublist = document.createElement('div');
+                    childSublist.className = 'toc-sublist';
+                    childSublist.style.paddingLeft = '0.75rem'; // Indent further
+                    childSublist.style.display = 'flex';
+                    childSublist.style.flexDirection = 'column';
+                    childSublist.style.gap = '0.15rem';
+                    childSublist.id = `sublist-${p}.${key}`.replace(/\./g, '-').replace(/,/g, '-');
+                    itemWrapper.appendChild(childSublist);
+
+                    parentSublist.appendChild(itemWrapper);
+                }
+
+                renderRecursive(val, `${p}.${key}`, groupWrapper.querySelector('.nested-content'));
+            }
+
+            // 1. Render normal direct fields
+            fields.forEach(([key, val]) => {
+                renderNode(`${path}.${key}`, val, container, key);
+            });
+
+            // 2. Render normal nested groups
+            nested.forEach(([key, val]) => {
+                renderNestedGroup(key, val, path);
+            });
+
+            // 3. Render bottom fields (like scroll_commands)
+            bottomFields.forEach(([key, val]) => {
+                if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+                    renderNestedGroup(key, val, path);
+                } else {
+                    renderNode(`${path}.${key}`, val, container, key);
+                }
+            });
+        }
+
+        function renderNode(path, value, container, shortKey) {
+            const meta = SCHEMA[path] || {};
+            const group = document.createElement('div');
+            group.className = 'form-group';
+
+            const labelText = meta.label || shortKey.replace(/_/g, ' ');
+            const helpText = meta.help || "";
+            const detailedHelp = meta.detailedHelp || "";
+
+            group.innerHTML = `
+                <div class="label-wrapper">
+                    <label>
+                        ${labelText}
+                        ${detailedHelp ? `<span class="help-icon" onclick="showDetailedHelp('${labelText}', \`${detailedHelp.replace(/'/g, "\\'")}\`)">?</span>` : ''}
+                    </label>
+                    ${helpText ? `<span class="help-tip">${helpText}</span>` : ''}
+                </div>
+            `;
+
+            let input;
+            if (meta.type === 'select') {
+                input = document.createElement('select');
+                meta.options.forEach(opt => {
+                    const o = document.createElement('option');
+                    o.value = opt;
+                    o.textContent = opt;
+                    if (opt === value) o.selected = true;
+                    input.appendChild(o);
+                });
+            } else if (meta.options && meta.type === 'text') {
+                // Select or Custom
+                const wrapper = document.createElement('div');
+                wrapper.style.display = 'flex';
+                wrapper.style.gap = '0.5rem';
+
+                input = document.createElement('input');
+                input.type = 'text';
+                input.value = value || "";
+                input.style.flex = "1";
+
+                const select = document.createElement('select');
+                select.style.width = "auto";
+                select.innerHTML = '<option value="">Custom...</option>';
+                let isPreset = false;
+                meta.options.forEach(opt => {
+                    const o = document.createElement('option');
+                    o.value = opt;
+                    o.textContent = opt;
+                    if (opt === value) {
+                        o.selected = true;
+                        isPreset = true;
+                    }
+                    select.appendChild(o);
+                });
+
+                // Set initial visibility
+                input.style.display = isPreset ? 'none' : 'block';
+
+                select.onchange = (e) => {
+                    if (e.target.value) {
+                        input.value = e.target.value;
+                        input.style.display = 'none';
+                    } else {
+                        input.style.display = 'block';
+                        input.focus();
+                    }
+                    // Trigger update
+                    setValueByPath(path, input.value || "");
+                    showToast(`Updated ${labelText}`);
+                };
+
+                input.onchange = (e) => {
+                    setValueByPath(path, e.target.value);
+                    showToast(`Updated ${labelText}`);
+                };
+
+                wrapper.appendChild(select);
+                wrapper.appendChild(input);
+                group.appendChild(wrapper);
+                container.appendChild(group);
+                return; // Group handled
+            } else if (typeof value === 'boolean') {
+                input = document.createElement('select');
+                input.innerHTML = `<option value="true">Enabled</option><option value="false">Disabled</option>`;
+                input.value = value.toString();
+            } else if (typeof value === 'number') {
+                input = document.createElement('input');
+                input.type = 'number';
+                input.step = 'any';
+                input.value = value;
+            } else if (Array.isArray(value)) {
+                // List Editor
+                const listWrapper = document.createElement('div');
+                listWrapper.className = 'list-editor';
+                listWrapper.style.display = 'flex';
+                listWrapper.style.flexDirection = 'column';
+                listWrapper.style.gap = '0.5rem';
+                listWrapper.style.background = 'rgba(15, 23, 42, 0.3)';
+                listWrapper.style.padding = '0.75rem';
+                listWrapper.style.border = '1px dashed var(--border)';
+                listWrapper.style.borderRadius = 'var(--radius-md)';
+
+                function renderItems() {
+                    listWrapper.innerHTML = '';
+                    const items = [...value]; // Create copy that can be updated
+                    if (items.length === 0) {
+                        const emptyTip = document.createElement('div');
+                        emptyTip.style.color = 'var(--text-secondary)';
+                        emptyTip.style.fontSize = '0.8rem';
+                        emptyTip.innerHTML = 'No items';
+                        listWrapper.appendChild(emptyTip);
+                    }
+                    items.forEach((item, index) => {
+                        const itemRow = document.createElement('div');
+                        itemRow.style.display = 'flex';
+                        itemRow.style.gap = '0.5rem';
+
+                        const itemInput = document.createElement('input');
+                        itemInput.type = 'text';
+                        itemInput.value = item || "";
+                        itemInput.style.flex = '1';
+                        itemInput.onchange = (e) => {
+                            value[index] = e.target.value;
+                            setValueByPath(path, value);
+                            showToast(`Updated ${labelText}`);
+                        };
+
+                        const removeBtn = document.createElement('button');
+                        removeBtn.className = 'btn';
+                        removeBtn.style.padding = '0.5rem';
+                        removeBtn.style.width = '2.5rem';
+                        removeBtn.style.background = '#ef4444';
+                        removeBtn.style.border = 'none';
+                        removeBtn.innerHTML = '×';
+                        removeBtn.onclick = () => {
+                            value.splice(index, 1);
+                            setValueByPath(path, value);
+                            renderItems();
+                            showToast(`Item Removed`);
+                        };
+
+                        itemRow.appendChild(itemInput);
+                        itemRow.appendChild(removeBtn);
+                        listWrapper.appendChild(itemRow);
+                    });
+
+                    const addBtn = document.createElement('button');
+                    addBtn.className = 'btn';
+                    addBtn.style.marginTop = '0.5rem';
+                    addBtn.style.justifyContent = 'center';
+                    addBtn.style.padding = '0.5rem';
+                    addBtn.innerHTML = '+ Add Item';
+                    addBtn.onclick = () => {
+                        value.push('');
+                        setValueByPath(path, value);
+                        renderItems();
+                        // Focus on added input
+                        setTimeout(() => {
+                            const inputs = listWrapper.querySelectorAll('input');
+                            if (inputs.length > 0) inputs[inputs.length - 1].focus();
+                        }, 50);
+                    };
+                    listWrapper.appendChild(addBtn);
+                }
+
+                renderItems();
+                group.appendChild(listWrapper);
+                container.appendChild(group);
+                return; // List handled
+            } else {
+                input = document.createElement('input');
+                input.type = 'text';
+                input.value = value || "";
+            }
+
+            input.onchange = (e) => {
+                let v = e.target.value;
+                if (input.type === 'number') v = parseFloat(v);
+                if (input.tagName === 'SELECT' && (v === 'true' || v === 'false')) v = (v === 'true');
+
+                setValueByPath(path, v);
+                showToast(`Updated ${labelText}`);
+            };
+
+            group.appendChild(input);
+            container.appendChild(group);
+        }
+
+        function setValueByPath(path, value) {
+            const parts = path.split('.');
+            let obj = currentConfig;
+            for (let i = 0; i < parts.length - 1; i++) {
+                obj = obj[parts[i]];
+            }
+            obj[parts[parts.length - 1]] = value;
+            updateRawJson();
+        }
+
+        function updateRawJson() {
+            const raw = document.getElementById('json-output');
+            raw.value = JSON.stringify(currentConfig, null, 2);
+            document.getElementById('raw-section').style.display = 'block';
+        }
+
+        function downloadConfig() {
+            const blob = new Blob([JSON.stringify(currentConfig, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'config.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2000);
+        }
+
+        function showDetailedHelp(title, text) {
+            document.getElementById('help-modal-title').textContent = title;
+            document.getElementById('help-modal-text').textContent = text;
+            document.getElementById('detailed-help-overlay').style.display = 'flex';
+        }
+
+        function closeDetailedHelp() {
+            document.getElementById('detailed-help-overlay').style.display = 'none';
+        }
+    </script>
+</body>
+
+</html>

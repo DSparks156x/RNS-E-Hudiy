@@ -133,8 +133,9 @@ echo "? Step 2: Downloading Project Files..."
 
 # Create a temporary directory for cloning
 TEMP_DIR=$(mktemp -d)
-echo "   Cloning repository to temporary folder ($SELECTED_REF)..."
-$GIT_CMD clone -b $SELECTED_REF --depth 1 $REPO_URL "$TEMP_DIR"
+echo "   Cloning repository (optimized sparse-checkout)..."
+$GIT_CMD clone -b "$SELECTED_REF" --depth 1 --filter=blob:none --sparse --no-checkout "$REPO_URL" "$TEMP_DIR"
+(cd "$TEMP_DIR" && $GIT_CMD sparse-checkout set rns-e_can hudiy_client dis_client tp2 hudiy_dataview config.json config/hudiy && $GIT_CMD checkout)
 
 echo "   Installing to $REAL_HOME..."
 
@@ -613,6 +614,25 @@ Group=input
 [Install]
 WantedBy=multi-user.target"
 
+# 8. dis_top_display (No delay, reactive)
+write_service "dis_top_display.service" "[Unit]
+Description=DIS Top Display Service
+Requires=can_handler.service
+After=can_handler.service
+BindsTo=can_handler.service
+
+[Service]
+ExecStart=/usr/bin/python3 ${REAL_HOME}/dis_client/dis_top_display_service.py
+WorkingDirectory=${REAL_HOME}/dis_client
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=5
+User=${REAL_USER}
+Group=input
+
+[Install]
+WantedBy=multi-user.target"
+
 # --- Clean up old service ---
 if [ -f "/etc/systemd/system/configure-can0.service" ]; then
     $SYSTEMCTL disable configure-can0.service 2>/dev/null
@@ -628,7 +648,7 @@ $SYSTEMCTL enable --now systemd-networkd
 echo "   Enabling and Starting Application Services..."
 $SYSTEMCTL enable --now can_handler.service can_base_function.service tp2_worker.service \
                         can_keyboard_control.service dark_mode_api.service hudiy_data_api.service \
-                        hudiy_dataview.service hudiy_status_service.service
+                        hudiy_dataview.service hudiy_status_service.service dis_top_display.service
 
 # Start delayed services non-blocking
 $SYSTEMCTL enable --now --no-block dis_service.service dis_display.service

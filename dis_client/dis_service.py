@@ -11,7 +11,7 @@ import logging
 from typing import List, Optional
 
 try:
-    from ddp_protocol import DDPProtocol, DDPState, DisMode, DDPError, DDPHandshakeError
+    from ddp_protocol import DDPProtocol, DDPState, DisMode, DDPError, DDPHandshakeError, DDPMessages
 except ImportError:
     print("Error: Could not import DDPProtocol. Make sure ddp_protocol.py is in the same directory.")
     exit(1)
@@ -27,9 +27,22 @@ logger = logging.getLogger(__name__)
 
 class DisService:
     def __init__(self, config_path='/home/pi/config.json'):
+        # --- EXPERIMENTAL FLAGS ---
+        # Set to True to disable the new 42-byte DDP block batching for raw bitmaps. 
+        # Batching speeds up GIFs drastically by combining rows into single CAN frames,
+        # but some clusters may need pacing=False (unbatched) to prevent tearing.
+        self.UNSAFE_BATCHING_BYPASS = False
+
         try:
             with open(config_path) as f:
                 self.config = json.load(f)
+            logger.info(f"Configuration loaded from: {config_path}")
+                
+            if self.config.get('features', {}).get('debug_mode', False):
+                logger.setLevel(logging.DEBUG)
+                logging.getLogger().setLevel(logging.DEBUG)
+                logger.debug("Debug mode enabled via config.json")
+                
         except FileNotFoundError:
             logger.critical(f"FATAL: config.json not found at {config_path}")
             exit(1)
@@ -45,7 +58,7 @@ class DisService:
 
         self.context = zmq.Context()
         self.draw_socket = self.context.socket(zmq.PULL)
-        self.draw_socket.setsockopt(zmq.RCVHWM, 100) # Increased to match sender
+        self.draw_socket.setsockopt(zmq.RCVHWM, 1000) # Increased to prevent drops during GIF bursts
         _zmq = self.config.get('interfaces', {}).get('zmq', {})
         try:
             self.draw_socket.bind(_zmq.get('dis_draw', 'ipc:///run/rnse_control/dis_draw.ipc'))
@@ -61,8 +74,9 @@ class DisService:
         _zmq = self.config.get('interfaces', {}).get('zmq', {})
         self.status_pub = self.context.socket(zmq.PUB)
         try:
-            self.status_pub.bind(_zmq.get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc'))
-            logger.info("ZMQ status pub socket bound.")
+            addr = _zmq.get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc')
+            self.status_pub.bind(addr)
+            logger.info(f"ZMQ status pub socket bound to: {addr}")
         except Exception as e:
             logger.warning(f"Could not bind status pub socket: {e}")
 
@@ -88,6 +102,38 @@ class DisService:
 
         if not self.ENABLE_INACTIVITY_RELEASE and value:
             logger.info("Inactivity auto-release is DISABLED (screen will stay claimed forever)")
+        self._broadcast_status()
+
+    def _broadcast_status(self, force=False):
+        """Broadcast current DDP state via ZMQ."""
+        now = time.time()
+        current_state = getattr(self.ddp, 'state', None)
+        
+        if not force and current_state == getattr(self, 'last_pub_state', None) and (now - getattr(self, 'last_status_cast', 0) < 1.0):
+            return
+
+        state_str = "DISCONNECTED"
+        if current_state == DDPState.READY:
+            state_str = "READY"
+        elif current_state == DDPState.PAUSED:
+            state_str = "PAUSED"
+        elif current_state == DDPState.SESSION_ACTIVE:
+            state_str = "INITIALIZING"
+        
+        msg = f"DIS_STATE {state_str}"
+        try:
+            if current_state != getattr(self, 'last_pub_state', None):
+                logger.info(f"ZMQ Broadcast (State Change): {msg}")
+            elif (now - getattr(self, 'last_heartbeat_log', 0) > 5.0):
+                logger.info(f"ZMQ Broadcast (Heartbeat): {msg}")
+                self.last_heartbeat_log = now
+                
+            self.status_pub.send_string(msg, flags=zmq.NOBLOCK)
+        except Exception as e:
+            logger.warning(f"ZMQ: Failed to send status: {e}")
+
+        self.last_pub_state = current_state
+        self.last_status_cast = now
 
     def parse_time(self, t: str) -> int:
         if not t: return 0
@@ -109,14 +155,19 @@ class DisService:
             claim_y = 0x1B
             claim_h = self.region_height # usually 0x30 or 0x3D
             
+        # We still need payload_ok specific to the region
         if self.region_name in ['full', 'top_centre', 'centre_lower']:
-            payload_busy  = [0x53, 0x88]
-            payload_free  = [0x53, 0x0A]
             payload_ok    = [0x53, 0x8A]
         else:
-            payload_busy  = [0x53, 0x84]
-            payload_free  = [0x53, 0x05]
             payload_ok    = [0x53, 0x85]
+
+        valid_busy_payloads = [
+            DDPMessages.STAT_BUSY_HALF, DDPMessages.STAT_BUSY_WARN_HALF,
+            DDPMessages.STAT_BUSY_FULL, DDPMessages.STAT_BUSY_WARN_FULL
+        ]
+        valid_free_payloads = [
+            DDPMessages.STAT_FREE_HALF, DDPMessages.STAT_FREE_FULL
+        ]
             
         payload_claim = [0x52, 0x05, 0x82, 0x00, claim_y, 0x40, claim_h]
         payload_ready = [0x2E]
@@ -126,31 +177,54 @@ class DisService:
             try:
                 self.ddp.send_data_packet(payload_claim)
                 data = self.ddp._recv_and_ack_data(1000)
-                if not self.ddp.payload_is(data, payload_ok):
-                    raise DDPHandshakeError(f"Claim Handshake 2/2 failed (wait 1x 53 85), got {data}")
+                
+                if data and self.ddp.payload_is(data, payload_ok):
+                    self.screen_is_active = True
+                    self.last_draw_time = time.time()
+                    return True
+                
+                if data and any(self.ddp.payload_is(data, p) for p in valid_busy_payloads):
+                    logger.warning("RED Cluster is busy. Forcing PAUSED state.")
+                    self.ddp._set_state(DDPState.PAUSED)
+                    return False
+
+                raise DDPHandshakeError(f"Claim Handshake 2/2 failed (wait 1x 53 85), got {data}")
             except DDPError as e:
                 logger.error(f"Failed to claim screen (RED path): {e}")
                 return False
         else:
             try:
                 self.ddp.send_data_packet(payload_claim)
+                
+                # Handshake Step 2 (Wait for Busy or OK)
                 data = self.ddp._recv_and_ack_data(1000)
-                if self.ddp.payload_is(data, payload_ok):
+                if data and self.ddp.payload_is(data, payload_ok):
                     self.screen_is_active = True
                     self.last_draw_time = time.time()
                     return True
-                if not self.ddp.payload_is(data, payload_busy):
-                    raise DDPHandshakeError(f"Claim Handshake 2/7 failed (wait 1x 53 84), got {data}")
+                
+                if not data or not any(self.ddp.payload_is(data, p) for p in valid_busy_payloads):
+                    raise DDPHandshakeError(f"Claim Handshake 2/7 failed (wait for Busy), got {data}")
+                
+                # Handshake Step 3 (Wait for Free)
                 data = self.ddp._recv_and_ack_data(1000)
-                if not self.ddp.payload_is(data, payload_free):
-                    raise DDPHandshakeError(f"Claim Handshake 3/7 failed (wait 1x 53 05), got {data}")
+                if not data or not any(self.ddp.payload_is(data, p) for p in valid_free_payloads):
+                    logger.warning(f"Cluster did not release screen within 1s (got {data}). Forcing PAUSED state.")
+                    self.ddp._set_state(DDPState.PAUSED)
+                    return False
+                
+                # Handshake Step 4 (Wait for Re-Init)
                 data = self.ddp._recv_and_ack_data(1000)
-                if not self.ddp.payload_is(data, payload_ready):
-                    raise DDPHandshakeError(f"Claim HandShak 4/7 failed (wait 1x 2E), got {data}")
+                if not data or not self.ddp.payload_is(data, payload_ready):
+                    raise DDPHandshakeError(f"Claim Handshake 4/7 failed (wait 1x 2E), got {data}")
+                
+                # Handshake Step 5/6 (Clear and Claim again)
                 self.ddp.send_data_packet(payload_clear)
                 self.ddp.send_data_packet(payload_claim)
+                
+                # Handshake Step 7 (Wait for OK)
                 data = self.ddp._recv_and_ack_data(1000)
-                if not self.ddp.payload_is(data, payload_ok):
+                if not data or not self.ddp.payload_is(data, payload_ok):
                     logger.warning(f"Got non-standard status {data} after 2nd claim, but proceeding.")
             except DDPError as e:
                 logger.error(f"Failed to claim screen (WHITE path): {e}")
@@ -164,6 +238,7 @@ class DisService:
     def clear_screen_payload(self):
         logger.info(f"Queueing Region Clear for {self.region_name}")
         payload = [0x52, 0x05, 0x02, 0x00, self.region_y_offset, 0x40, self.region_height]
+        payload += [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
         if not self.ddp.send_ddp_frame(payload):
             logger.error("Failed to send clear payload.")
 
@@ -212,13 +287,9 @@ class DisService:
         abs_y = y + self.region_y_offset
         payload = [0x52, 0x05, 0x00, x, abs_y, w, h]
         bytes_per_row = (w + 7) // 8
-        rows_per_chunk = 37 // bytes_per_row
-        if rows_per_chunk < 1: rows_per_chunk = 1
-        for i in range(0, h, rows_per_chunk):
-            start_byte = i * bytes_per_row
-            rows_to_send = min(rows_per_chunk, h - i)
-            chunk_data = data[start_byte:start_byte + (rows_to_send * bytes_per_row)]
-            payload += [0x55, len(chunk_data) + 3, mode_flag, 0x00, i] + chunk_data
+        for i in range(0, h):
+            row_data = list(data[i * bytes_per_row : (i + 1) * bytes_per_row])
+            payload += [0x55, len(row_data) + 3, mode_flag, 0x00, i] + row_data
         payload += [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
         return payload
 
@@ -229,22 +300,25 @@ class DisService:
         w, h, data = icon['w'], icon['h'], icon['data']
         abs_y = y + self.region_y_offset
         
-        # 1. Set window
+        # 1. Set window (pacing=False: don't pause between clip and first chunk)
         payload_clip = [0x52, 0x05, 0x00, x, abs_y, w, h]
-        if not self.ddp.send_ddp_frame(payload_clip): return
+        if not self.ddp.send_ddp_frame(payload_clip, pacing=False): return
         
-        # 2. Send chunks
+        # 2. Send rows, grouped into DDP blocks.
+        # Each row needs its own 0x55 header (5 bytes) + bytes_per_row data bytes.
+        # We pack as many rows as fit in one 42-byte DDP block so they share a single ACK,
+        # drastically cutting the number of ACK round-trips vs one-row-per-frame.
         bytes_per_row = (w + 7) // 8
-        rows_per_chunk = 37 // bytes_per_row
-        if rows_per_chunk < 1: rows_per_chunk = 1
-        for i in range(0, h, rows_per_chunk):
-            start_byte = i * bytes_per_row
-            rows_to_send = min(rows_per_chunk, h - i)
-            chunk_data = data[start_byte:start_byte + (rows_to_send * bytes_per_row)]
-            payload_bmp = [0x55, len(chunk_data) + 3, mode_flag, 0x00, i] + chunk_data
-            if not self.ddp.send_ddp_frame(payload_bmp): break
+        cmd_size = 5 + bytes_per_row          # size of one 0x55 row command
+        rows_per_block = max(1, 42 // cmd_size) # rows that fit in one 42-byte block
+        for base in range(0, h, rows_per_block):
+            block_payload = []
+            for i in range(base, min(base + rows_per_block, h)):
+                row_data = list(data[i * bytes_per_row : (i + 1) * bytes_per_row])
+                block_payload += [0x55, len(row_data) + 3, mode_flag, 0x00, i] + row_data
+            if not self.ddp.send_ddp_frame(block_payload, pacing=False): break
             
-        # 3. Reset window
+        # 3. Reset window (pacing=True: give cluster time to render before next command)
         self.ddp.send_ddp_frame([0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height])
 
     def get_line_payload(self, x: int, y: int, length: int, vertical: bool = True) -> List[int]:
@@ -274,14 +348,14 @@ class DisService:
     def clear_screen(self):
         logger.info("Executing full clear_screen command...")
         payload_clear = [0x52, 0x05, 0x02, 0x00, self.region_y_offset, 0x40, self.region_height]
+        payload_reset = [0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height]
         payload_commit = [0x39]
-        if not self.ddp.send_ddp_frame(payload_clear + payload_commit):
+        if not self.ddp.send_ddp_frame(payload_clear + payload_reset + payload_commit):
             logger.error("clear_screen: Failed to send frame.")
             
 
     def handle_redraw(self):
-        if not self.command_cache: return
-        logger.info("Restoring screen content after interruption...")
+        logger.info("Restoring screen content after interruption or clearing...")
         self.clear_screen_payload() 
         sorted_cmds = sorted(self.command_cache.values(), key=lambda item: (item.get('y',0), item.get('x',0)))
         
@@ -340,7 +414,25 @@ class DisService:
                     time.sleep(0.5)
                     continue
 
+                # --- DIS ENABLED CHECK ---
+                if not self.config.get('display', {}).get('center_display', {}).get('enabled', True):
+                    # Enter dormant loop: drain draw_socket and wait
+                    try:
+                        while True:
+                            self.draw_socket.recv_json(flags=zmq.NOBLOCK)
+                    except zmq.Again:
+                        pass
+                    
+                    if getattr(self, 'last_enable_log', 0) < time.time() - 3600:
+                        logger.info("DIS Service is DISABLED in config.json. Standing by...")
+                        self.last_enable_log = time.time()
+                    
+                    time.sleep(1.0)
+                    continue
+
                 # --- NORMAL OPERATION (IGNITION ON) ---
+                self._broadcast_status()
+
                 if self.ddp.state == DDPState.DISCONNECTED:
                     self.screen_is_active = False
                     if self.ddp.detect_and_open_session():
@@ -367,12 +459,11 @@ class DisService:
                     except zmq.Again:
                         pass
                     time.sleep(0.05)
-                    continue
                 elif self.ddp.state == DDPState.READY:
                     self.ddp.send_keepalive_if_needed()
                     self.ddp.poll_bus_events()
-                    if self.ddp.state != DDPState.READY:
-                        continue 
+                    self._broadcast_status()
+                    if self.ddp.state != DDPState.READY: pass
                     if not self.screen_is_active and self.command_cache:
                          logger.info("Auto-Restore triggered.")
                          if self.claim_nav_screen():
@@ -433,68 +524,145 @@ class DisService:
                             # We combine related commands (like wipe + text) into a single 
                             # DDP frame IF they fit in one block (42 bytes). This eliminates 
                             # the 20ms inter-block pacing delay causing flicker.
-                            if had_clear:
-                                self.handle_redraw()
-                            else:
-                                current_payload = []
-                                for cmd in cmds:
-                                    c = cmd.get('command')
-                                    p = []
-                                    if c == 'draw_text':
+                            current_payload = []
+                            # must_colocate: True when current_payload ends with a clear_area
+                            # whose paired draw command has not yet been appended.
+                            # While True, the next drawable payload is always added to the
+                            # same frame as the clear (no 42-byte split allowed) and the
+                            # combined pair is flushed immediately afterward.
+                            must_colocate = False
+                            for cmd in cmds:
+                                c = cmd.get('command')
+                                p = []
+                                if c == 'clear':
+                                    if current_payload:
+                                        self.ddp.send_ddp_frame(current_payload)
+                                        current_payload = []
+                                        self.ddp.poll_bus_events()
+                                        self.ddp.send_keepalive_if_needed()
+                                    self.clear_screen()
+                                    must_colocate = False
+                                    continue
+                                elif c == 'clear_payload':
+                                    if current_payload:
+                                        self.ddp.send_ddp_frame(current_payload)
+                                        current_payload = []
+                                        self.ddp.poll_bus_events()
+                                        self.ddp.send_keepalive_if_needed()
+                                    self.clear_screen_payload()
+                                    must_colocate = False
+                                    continue
+                                elif c == 'set_region':
+                                    if current_payload:
+                                        self.ddp.send_ddp_frame(current_payload)
+                                        current_payload = []
+                                        self.ddp.poll_bus_events()
+                                        self.ddp.send_keepalive_if_needed()
+                                    must_colocate = False
+                                    continue
+                                elif c == 'draw_text':
                                         p = self.get_text_payload(cmd.get('text', ''), cmd.get('x', 0), cmd.get('y', 0), cmd.get('flags', 0x06))
-                                    elif c == 'draw_bitmap':
-                                        if current_payload:
-                                            self.ddp.send_ddp_frame(current_payload)
-                                            current_payload = []
-                                        self.draw_bitmap(cmd.get('x', 0), cmd.get('y', 0), cmd.get('icon_name'))
-                                        continue
-                                    elif c == 'draw_line':
-                                        p = self.get_line_payload(cmd.get('x', 0), cmd.get('y', 0), cmd.get('length', 0), cmd.get('vertical', True))
-                                    elif c == 'clear_area':
-                                        p = self.get_clear_area_payload(cmd.get('x', 0), cmd.get('y', 0), cmd.get('w', 64), cmd.get('h', 9))
-                                    elif c == 'commit':
-                                        if current_payload:
-                                            self.ddp.send_ddp_frame(current_payload)
-                                            current_payload = []
-                                            # Poll after drawing to keep session alive during burst
-                                            self.ddp.poll_bus_events()
-                                            self.ddp.send_keepalive_if_needed()
-                                        self.commit_frame()
-                                        continue
-                                    elif c == 'draw_raw_bitmap':
-                                        if current_payload:
-                                            self.ddp.send_ddp_frame(current_payload)
-                                            current_payload = []
-                                        try:
-                                            raw_bytes = bytes.fromhex(cmd.get('data_hex', ''))
-                                            w, h, x, y = cmd.get('w', 64), cmd.get('h', 88), cmd.get('x', 0), cmd.get('y', 0)
-                                            mode_flag = cmd.get('mode_flag', 0x02)
-                                            abs_y = y + self.region_y_offset
+                                elif c == 'draw_bitmap':
+                                    if current_payload:
+                                        self.ddp.send_ddp_frame(current_payload)
+                                        current_payload = []
+                                    must_colocate = False
+                                    self.draw_bitmap(cmd.get('x', 0), cmd.get('y', 0), cmd.get('icon_name'))
+                                    continue
+                                elif c == 'draw_line':
+                                    p = self.get_line_payload(cmd.get('x', 0), cmd.get('y', 0), cmd.get('length', 0), cmd.get('vertical', True))
+                                elif c == 'clear_area':
+                                    # Flush whatever was pending BEFORE starting the clear,
+                                    # so the clear begins a fresh frame with its paired draw.
+                                    if current_payload:
+                                        self.ddp.send_ddp_frame(current_payload)
+                                        current_payload = []
+                                        self.ddp.poll_bus_events()
+                                        self.ddp.send_keepalive_if_needed()
+                                    p = self.get_clear_area_payload(cmd.get('x', 0), cmd.get('y', 0), cmd.get('w', 64), cmd.get('h', 9))
+                                    current_payload = p
+                                    must_colocate = True  # next draw must share this frame
+                                    continue
+                                elif c == 'commit':
+                                    if current_payload:
+                                        self.ddp.send_ddp_frame(current_payload)
+                                        current_payload = []
+                                        # Poll after drawing to keep session alive during burst
+                                        self.ddp.poll_bus_events()
+                                        self.ddp.send_keepalive_if_needed()
+                                    must_colocate = False
+                                    self.commit_frame()
+                                    continue
+                                elif c == 'draw_raw_bitmap':
+                                    try:
+                                        raw_bytes = bytes.fromhex(cmd.get('data_hex', ''))
+                                        w, h, x, y = cmd.get('w', 64), cmd.get('h', 88), cmd.get('x', 0), cmd.get('y', 0)
+                                        mode_flag = cmd.get('mode_flag', 0x02)
+                                        abs_y = y + self.region_y_offset
+                                        
+                                        if self.UNSAFE_BATCHING_BYPASS:
+                                            # If we are NOT batching, we flush the current payload to clear the queue,
+                                            # then manually frame-out the clip, rows, and reset using pacing=False 
+                                            # to aggressively override the 20ms cluster delay. This is known to cause 
+                                            # tearing on some clusters if abused, but keeps frames cohesive.
+                                            if current_payload:
+                                                self.ddp.send_ddp_frame(current_payload)
+                                                current_payload = []
+                                            must_colocate = False
+                                            
                                             payload_clip = [0x52, 0x05, 0x00, x, abs_y, w, h]
-                                            if self.ddp.send_ddp_frame(payload_clip):
+                                            if self.ddp.send_ddp_frame(payload_clip, pacing=False):
                                                 bytes_per_row = (w + 7) // 8
-                                                rows_per_chunk = 37 // bytes_per_row
-                                                if rows_per_chunk < 1: rows_per_chunk = 1
-                                                for i in range(0, h, rows_per_chunk):
-                                                    start_byte = i * bytes_per_row
-                                                    rows_to_send = min(rows_per_chunk, h - i)
-                                                    chunk_data = list(raw_bytes[start_byte : start_byte + (rows_to_send * bytes_per_row)])
-                                                    payload_bmp = [0x55, len(chunk_data) + 3, mode_flag, 0x00, i] + chunk_data
-                                                    if not self.ddp.send_ddp_frame(payload_bmp): break
+                                                cmd_size = 5 + bytes_per_row
+                                                rows_per_block = max(1, 42 // cmd_size)
+                                                for base in range(0, h, rows_per_block):
+                                                    block_payload = []
+                                                    for i in range(base, min(base + rows_per_block, h)):
+                                                        row_data = list(raw_bytes[i * bytes_per_row : (i + 1) * bytes_per_row])
+                                                        block_payload += [0x55, len(row_data) + 3, mode_flag, 0x00, i] + row_data
+                                                    if not self.ddp.send_ddp_frame(block_payload, pacing=False): break
                                                 self.ddp.send_ddp_frame([0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height])
-                                        except Exception as e:
-                                            logger.error(f"Failed drawing raw bitmap: {e}")
-                                        continue
-                                    
-                                    if p:
-                                        if current_payload and (len(current_payload) + len(p) > 42):
-                                            self.ddp.send_ddp_frame(current_payload)
-                                            current_payload = p
-                                            # Poll after drawing to keep session alive during burst
-                                            self.ddp.poll_bus_events()
-                                            self.ddp.send_keepalive_if_needed()
                                         else:
-                                            current_payload += p
+                                            # EXPERIMENTAL BATCHING: Intelligently chunk into 42-byte payloads
+                                            # to share blocks natively while preventing CAN buffer overflows.
+                                            bytes_per_row = (w + 7) // 8
+                                            cmd_parts = [[0x52, 0x05, 0x00, x, abs_y, w, h]]
+                                            for i in range(0, h):
+                                                row_data = list(raw_bytes[i * bytes_per_row : (i + 1) * bytes_per_row])
+                                                cmd_parts.append([0x55, len(row_data) + 3, mode_flag, 0x00, i] + row_data)
+                                            cmd_parts.append([0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height])
+                                            
+                                            for part in cmd_parts:
+                                                if current_payload and (len(current_payload) + len(part) > 42):
+                                                    self.ddp.send_ddp_frame(current_payload)
+                                                    current_payload = []
+                                                    self.ddp.poll_bus_events()
+                                                    self.ddp.send_keepalive_if_needed()
+                                                    must_colocate = False
+                                                current_payload += part
+                                            
+                                            p = []  # Bypass generic append since we injected parts manually
+                                    except Exception as e:
+                                        logger.error(f"Failed parsing raw bitmap: {e}")
+                                
+                                if p:
+                                    if must_colocate:
+                                        # This draw is the atomic pair for the preceding clear.
+                                        # Append regardless of size, then flush the combined pair.
+                                        current_payload += p
+                                        must_colocate = False
+                                        self.ddp.send_ddp_frame(current_payload)
+                                        current_payload = []
+                                        self.ddp.poll_bus_events()
+                                        self.ddp.send_keepalive_if_needed()
+                                    elif current_payload and (len(current_payload) + len(p) > 42):
+                                        self.ddp.send_ddp_frame(current_payload)
+                                        current_payload = p
+                                        # Poll after drawing to keep session alive during burst
+                                        self.ddp.poll_bus_events()
+                                        self.ddp.send_keepalive_if_needed()
+                                    else:
+                                        current_payload += p
 
                                 if current_payload:
                                     self.ddp.send_ddp_frame(current_payload)
@@ -511,25 +679,6 @@ class DisService:
                 
                 # Broadcast true service state instead of just screen_is_active
                 # dis_display uses READY to know when it can send commands. DDPState.READY is the true indicator.
-                now_time = time.time()
-                current_state = getattr(self.ddp, 'state', None)
-                if current_state != getattr(self, 'last_pub_state', None) or (now_time - getattr(self, 'last_status_cast', 0) > 1.0):
-                    if current_state != getattr(self, 'last_pub_state', None):
-                        logger.info(f"DDPState Broadcasting new state: {current_state}")
-                    self.last_pub_state = current_state
-                    self.last_status_cast = now_time
-                    
-                    state_str = "DISCONNECTED"
-                    if current_state == DDPState.READY:
-                        state_str = "READY"
-                    elif current_state == DDPState.PAUSED:
-                        state_str = "PAUSED"
-                    elif current_state == DDPState.SESSION_ACTIVE:
-                        state_str = "INITIALIZING"
-                    
-                    try:
-                        self.status_pub.send_string(f"DIS_STATE {state_str}", flags=zmq.NOBLOCK)
-                    except: pass
 
                 time.sleep(0.01)
             except Exception as e:

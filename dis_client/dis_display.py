@@ -55,6 +55,7 @@ class DisplayEngine:
             logger.warning(f"Mock Mode/Windows: Could not connect to CAN stream: {e}")
             
         self.t_btn = self._topics('steering_module', '0x2C1')
+        self.t_mfsw = self._topics('mfsw', '0x5C3')
         
         # We need to subscribe to radio topics for the header/footer even without RadioApp active
         #if self.can_connected:
@@ -67,7 +68,7 @@ class DisplayEngine:
         
         # Subscriptions
         if self.can_connected:
-            for t in self.t_btn | self.t_car:
+            for t in self.t_btn | self.t_car | self.t_mfsw:
                 self.sub.subscribe(t.encode())
         
         self.sub_hudiy = self.zmq_ctx.socket(zmq.SUB)
@@ -113,20 +114,47 @@ class DisplayEngine:
         if self.hudiy_connected:
             self.poller.register(self.sub_hudiy, zmq.POLLIN)
 
-        self.service_ready = False
+        self.service_ready = False # Default to False: proven ready by dis_service
         self.sub_status = self.zmq_ctx.socket(zmq.SUB)
         try:
             if mock:
-                 self.service_ready = True
+                 self.sub_status.connect("tcp://127.0.0.1:5562")
+                 logger.info("MOCK MODE: dis_status (Ready/Paused) sub on TCP 5562")
             else:
                  _zmq = self.cfg.get('interfaces', {}).get('zmq', {})
                  if not _zmq:
                      _zmq = self.cfg.get('zmq', {})
                  self.sub_status.connect(_zmq.get('dis_status', 'ipc:///run/rnse_control/dis_status.ipc'))
-                 self.sub_status.subscribe(b"DIS_STATE")
-                 self.poller.register(self.sub_status, zmq.POLLIN)
+            
+            self.sub_status.subscribe("") # Subscribe to everything to be sure
+            self.poller.register(self.sub_status, zmq.POLLIN)
         except Exception as e:
             logger.warning(f"Could not connect to dis_status: {e}")
+
+        # --- Display Status Publication (for App Awareness) ---
+        self.pub_status = self.zmq_ctx.socket(zmq.PUB)
+        try:
+            if mock:
+                self.pub_status.bind("tcp://127.0.0.1:5561")
+                logger.info("MOCK MODE: dis_display_status bound to TCP 5561")
+            else:
+                _zmq = self.cfg.get('interfaces', {}).get('zmq', {})
+                if not _zmq:
+                    _zmq = self.cfg.get('zmq', {})
+                addr = _zmq.get('dis_display_status', 'ipc:///run/rnse_control/dis_display_status.ipc')
+                self.pub_status.bind(addr)
+                logger.info(f"dis_display_status (for top service) bound to {addr}")
+        except Exception as e:
+            logger.warning(f"Could not bind dis_display_status socket: {e}")
+
+        if not mock:
+            # TP2 Command Socket (for atmospheric pressure subscription)
+            self.tp2_cmd = self.zmq_ctx.socket(zmq.REQ)
+            self.tp2_cmd.setsockopt(zmq.RCVTIMEO, 1000)
+            self.tp2_cmd.setsockopt(zmq.LINGER, 0)
+            _tp2_addr = self.cfg.get('interfaces', {}).get('zmq', {}).get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
+            self.tp2_cmd.connect(_tp2_addr)
+            self.last_tp2_sync = 0
 
         self.nav_active = False # Default inactive
 
@@ -155,11 +183,21 @@ class DisplayEngine:
         # --- Advanced Nav Auto-Switching ---
         self.pre_nav_app_name = None
         self.auto_switch_back_at = 0
-        self.last_maneuver_id = None
+        
+        # Load Navigation Auto-Switch Config
+        center_display_cfg = self.cfg.get('display', {}).get('center_display', {})
+        nav_cfg = center_display_cfg.get('navigation', {})
+        self.nav_auto_switch = nav_cfg.get('auto_switch', True)
+        self.nav_approach_threshold = nav_cfg.get('auto_switch_approach_threshold', 500)
+        self.nav_return_threshold = nav_cfg.get('auto_switch_return_threshold', 1000)
+        self.nav_return_delay = nav_cfg.get('auto_switch_return_delay', 10)
 
         # --- Phone Auto-Switching ---
         self.phone_active = False
         self.pre_phone_app_name = None
+
+        # --- Input Rate Limiting ---
+        self.press_history = [] # Timestamps of recent app switches
 
     def load_settings(self):
         default = {'startup_app': 'app_media_player', 'remember_last': False, 'last_app': 'app_media_player'}
@@ -170,6 +208,33 @@ class DisplayEngine:
                     default.update(data)
         except Exception as e: logger.error(f"Failed to load settings: {e}")
         return default
+
+    def publish_status(self, force=False):
+        """Broadcast current app and ready state for top-display awareness."""
+        if not hasattr(self, 'pub_status'):
+            return
+        
+        try:
+            state_str = "READY" if getattr(self, 'service_ready', False) else "PAUSED"
+            app_name = self.pages[self.current_page_idx]
+            
+            payload = {
+                "state": state_str,
+                "app": app_name,
+                "timestamp": time.time()
+            }
+
+            # Avoid redundant publishes unless forced (e.g. heartbeat or app switch)
+            if not force:
+                current_id = (state_str, app_name)
+                if getattr(self, '_last_published_id', None) == current_id:
+                    return
+                self._last_published_id = current_id
+
+            #logger.info(f"Broadcasting Display Status: {app_name} ({state_str})")
+            self.pub_status.send_multipart([b"DIS_DISPLAY_STATUS", json.dumps(payload).encode()])
+        except Exception as e:
+            logger.error(f"Failed to publish display status: {e}")
 
     def save_settings(self):
         try:
@@ -187,11 +252,26 @@ class DisplayEngine:
 
     def switch_page(self, delta):
         """Cycles to the next/prev page in the list, skipping inactive apps."""
-        # Throttle page switching to avoid accidental double-taps causing rapid jumps
-        now = time.time()
-        if hasattr(self, 'last_switch') and (now - self.last_switch < 0.2):
+        if not getattr(self, 'service_ready', False):
             return
-        self.last_switch = now
+
+        now = time.time()
+        
+        # --- Burst-Aware Rate Limiting ---
+        # Keep only presses from the last 1.5 seconds
+        self.press_history = [t for t in self.press_history if now - t < 1.5]
+        
+        # Calculate dynamic throttle: 
+        # - Default 0.2s for responsiveness
+        # - If 3+ presses in 1.5s, slow down to 0.7s
+        recent_count = len(self.press_history)
+        min_interval = 0.7 if recent_count >= 3 else 0.2
+        
+        last_s = self.press_history[-1] if self.press_history else 0
+        if (now - last_s < min_interval):
+            return
+            
+        self.press_history.append(now)
 
         count = len(self.pages)
         start_idx = self.current_page_idx
@@ -224,6 +304,7 @@ class DisplayEngine:
             self.save_settings()
             
         self.force_redraw(send_clear=True)
+        self.publish_status()
 
     def switch_to_app(self, app_name):
         """Direct jump to an app by name."""
@@ -238,10 +319,15 @@ class DisplayEngine:
         self.current_app.on_enter()
         logger.info(f"Auto-Switched to App: {app_name}")
         self.force_redraw(send_clear=True)
+        self.publish_status()
 
     def process_input(self, action):
+        # Ignore stalk inputs if the display is paused
+        if not getattr(self, 'service_ready', False):
+            # logger.info(f"Ignoring input {action} while paused")
+            return
+        
         # Override standard logic: Up/Down Tap cycles pages
-        # Holds are passed to app (but currently User requested ignores)
         
         if action == 'tap_up':
             self.auto_switch_back_at = 0 
@@ -276,9 +362,11 @@ class DisplayEngine:
         if send_clear:
             self._send_draw({'command': 'clear'})
             self._send_draw({'command': 'commit'})
+        self.publish_status()
 
     def run(self):
         logger.info("DIS Engine V5.8 Running")
+        self.publish_status()
         time.sleep(1.0) 
         self.force_redraw(send_clear=True)
         self.last_loop = time.time()
@@ -310,35 +398,51 @@ class DisplayEngine:
                                             self.nav_active = active
                                             logger.info(f"Nav Active State Changed: {active}")
                                             
-                                            if active:
+                                            if active and getattr(self, 'nav_auto_switch', True):
                                                 # Auto-switch TO nav
-                                                self.switch_to_app('app_nav')
-                                            else:
+                                                nav_app = self.apps['app_nav']
+                                                meters = nav_app.meters
+                                                dist_label = nav_app.distance_label
+                                                current_name = self.pages[self.current_page_idx]
+
+                                                if current_name != 'app_nav':
+                                                    self.pre_nav_app_name = current_name
+                                                    self.switch_to_app('app_nav')
+                                                    
+                                                    # If far away (or unknown), start auto-return timer immediately
+                                                    return_threshold = getattr(self, 'nav_return_threshold', 1000)
+                                                    return_delay = getattr(self, 'nav_return_delay', 10)
+                                                    if meters > return_threshold or meters == -1:
+                                                        self.auto_switch_back_at = time.time() + return_delay
+                                                    else:
+                                                        self.auto_switch_back_at = 0
+                                                else:
+                                                    logger.debug(f"Nav activated but already on app_nav. meters={meters}")
+                                            elif not active:
                                                 # Auto-switch AWAY from nav if currently on it
                                                 current_name = self.pages[self.current_page_idx]
                                                 if current_name == 'app_nav':
-                                                    self.switch_to_app('app_media_player')
+                                                    if self.pre_nav_app_name:
+                                                        self.switch_to_app(self.pre_nav_app_name)
+                                                    else:
+                                                        self.switch_to_app('app_media_player')
                                             
-                                            # Reset auto-switch state when nav status changes
-                                            self.auto_switch_back_at = 0
-                                            self.last_maneuver_id = None
-                                            self.pre_nav_app_name = None
+                                                # Clean up toggle state when nav deactivated
+                                                self.auto_switch_back_at = 0
+                                                self.pre_nav_app_name = None
 
                                     # Update NavApp even if not current, for distance monitoring
-                                    # We skip if it's HUDIY_NAV_STATUS as NavApp doesn't use it
                                     if topic.startswith(b'HUDIY_NAV') and topic != b'HUDIY_NAV_STATUS':
                                         nav_app = self.apps['app_nav']
-                                        
-                                        # Only update if it's NOT the current app (to avoid double update)
-                                        if self.current_app != nav_app:
-                                            nav_app.update_hudiy(topic, data)
-                                        
+                                        nav_app.update_hudiy(topic, data)
                                         self._handle_nav_auto_switch(nav_app)
 
                                     if topic == b'HUDIY_PHONE':
                                         self._handle_phone_status(data)
 
-                                    self.current_app.update_hudiy(topic, data)
+                                    # Update current app if it wasn't already updated (NavApp above)
+                                    if not (topic.startswith(b'HUDIY_NAV') and topic != b'HUDIY_NAV_STATUS'):
+                                        self.current_app.update_hudiy(topic, data)
                                 except json.JSONDecodeError: pass
                     except zmq.Again: pass
 
@@ -346,14 +450,19 @@ class DisplayEngine:
                     try:
                         while True:
                             msg = self.sub_status.recv_string(flags=zmq.NOBLOCK)
+                            #logger.info(f"DEBUG: sub_status RX: {msg}")
                             if msg.startswith("DIS_STATE"):
-                                state = msg.split(" ")[1]
-                                is_ready = (state == "READY")
-                                if self.service_ready != is_ready:
-                                    self.service_ready = is_ready
-                                    logger.info(f"DIS Service State Changed to: {state}. Ready={self.service_ready}")
-                                    if self.service_ready:
-                                        self.force_redraw(send_clear=True)
+                                try:
+                                    state = msg.split(" ")[1]
+                                    is_ready = (state == "READY")
+                                    if self.service_ready != is_ready:
+                                        self.service_ready = is_ready
+                                        logger.info(f"DIS Service State Changed to: {state}. Ready={self.service_ready}")
+                                        if self.service_ready:
+                                            self.force_redraw(send_clear=True)
+                                        self.publish_status()
+                                except Exception as split_err:
+                                    logger.error(f"Failed to parse DIS_STATE message '{msg}': {split_err}")
                     except zmq.Again: pass
 
                 if self.sub in socks: self._handle_can()
@@ -366,49 +475,71 @@ class DisplayEngine:
                         self.switch_to_app(self.pre_nav_app_name)
                         self.pre_nav_app_name = None
 
+                # Periodic TP2 SYNC for Atmospheric Pressure (Module 01, Group 113)
+                if hasattr(self, 'tp2_cmd') and now - self.last_tp2_sync > 10.0:
+                    self.last_tp2_sync = now
+                    try:
+                        sync_msg = {
+                            "cmd": "SYNC",
+                            "client_id": "dis_display",
+                            "module": 1,
+                            "groups": [],
+                            "low_priority_groups": [113]
+                        }
+                        self.tp2_cmd.send_json(sync_msg, flags=zmq.NOBLOCK)
+                        # We don't wait for reply to avoid blocking DIS loop
+                        try:
+                            self.tp2_cmd.recv_json(flags=zmq.NOBLOCK)
+                        except zmq.Again:
+                            pass
+                    except Exception as e:
+                        logger.debug(f"TP2 Sync failed: {e}")
+
                 self._check_buttons()
                 self._draw()
+
+                # Periodic status heartbeat (every 1s)
+                if now - getattr(self, 'last_status_pub', 0) > 1.0:
+                    self.publish_status(force=True)
+                    self.last_status_pub = now
+
                 time.sleep(0.01)
             except KeyboardInterrupt: break
             except Exception as e: logger.error(f"Err: {e}", exc_info=True); time.sleep(1)
 
     def _handle_nav_auto_switch(self, nav_app):
         # Distance-based Auto-Switch Logic
-        if not self.nav_active: return
+        if not getattr(self, 'nav_auto_switch', True) or not self.nav_active or not getattr(self, 'service_ready', False): return
         
-        man_id = f"{nav_app.description}_{nav_app.maneuver_type}"
-        meters = nav_app.parse_distance(nav_app.distance_label)
+        meters = nav_app.meters
         current_name = self.pages[self.current_page_idx]
+        now = time.time()
 
         if current_name != 'app_nav':
-            # Threshold to switch TO Nav: 200m
-            if 0 <= meters <= 500 and man_id != self.last_maneuver_id:
-                logger.info(f"Maneuver Alert: {meters}m. Switching to Nav.")
+            # Threshold to switch TO Nav
+            approach_threshold = getattr(self, 'nav_approach_threshold', 500)
+            if 0 <= meters <= approach_threshold:
+                logger.info(f"Distance Alert: {meters}m. Switching to Nav.")
                 self.pre_nav_app_name = current_name
-                self.last_maneuver_id = man_id
                 self.auto_switch_back_at = 0
                 self.switch_to_app('app_nav')
         elif self.pre_nav_app_name:
             # Currently on Nav via auto-switch, check for switch back
-            if man_id != self.last_maneuver_id:
-                # Direction changed!
-                if meters > 1000:
-                    # New maneuver is far away, trigger auto-return timer
-                    if self.auto_switch_back_at == 0:
-                        logger.info(f"Maneuver finished, next ({meters}m) > 1000m. Returning to {self.pre_nav_app_name} in 10s.")
-                        self.auto_switch_back_at = time.time() + 6.0
-                else:
-                    # New maneuver is close, stay on nav and reset timer
-                    self.auto_switch_back_at = 0
-                
-                # Update tracker so we don't spam timer/logs
-                self.last_maneuver_id = man_id
-            else:
-                # Same maneuver, keep timer reset if we stay/get close
-                if 0 <= meters <= 1000:
+            return_threshold = getattr(self, 'nav_return_threshold', 1000)
+            return_delay = getattr(self, 'nav_return_delay', 10)
+            
+            if meters > return_threshold or meters == -1:
+                if self.auto_switch_back_at == 0:
+                    logger.info(f"Distance {meters}m (or unknown). Returning to {self.pre_nav_app_name} in {return_delay}s.")
+                    self.auto_switch_back_at = now + return_delay
+            elif 0 <= meters <= return_threshold:
+                if self.auto_switch_back_at != 0:
+                    logger.info(f"Distance {meters}m <= {return_threshold}m, clearing return timer.")
                     self.auto_switch_back_at = 0
 
     def _handle_phone_status(self, data):
+        if not getattr(self, 'service_ready', False): return
+
         state = data.get('state', 'IDLE')
         # Interesting if INCOMING, ALERTING, or ACTIVE
         interesting = state in ['INCOMING', 'ALERTING', 'ACTIVE']
@@ -450,6 +581,13 @@ class DisplayEngine:
                         elif self.btn['up']['p']: self._btn_event('up', False, now)
                         if b & 0x10: self._btn_event('down', True, now)
                         elif self.btn['down']['p']: self._btn_event('down', False, now)
+                    elif t_str in getattr(self, 't_mfsw', set()) and len(payload) > 1:
+                        b = payload[1]
+                        scroll_menu = self.config.get('display', {}).get('phone', {}).get('scroll_wheel_phone_menu', False)
+                        if scroll_menu or self.pages[self.current_page_idx] != 'app_phone':
+                            if b == 0x0B: self.process_input('scroll_up')
+                            elif b == 0x0C: self.process_input('scroll_down')
+                            elif b == 0x08: self.process_input('scroll_click')
         except zmq.Again: pass
 
     def _btn_event(self, name, pressed, now):

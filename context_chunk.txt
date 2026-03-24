@@ -1,0 +1,200 @@
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,589 [DEBUG] (DIS Svc) <- 0x6C1: B1
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,591 [DEBUG] (DIS Svc) <- Received expected [177]
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,724 [DEBUG] (DIS Svc) -> 0x6C0: 21 52 05 02 00 30 40 09
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,724 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,724 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  8    21 52 05 02 00 30 40 09
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,726 [DEBUG] (DIS Svc) -> 0x6C0: 22 52 05 00 00 1B 40 30
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,726 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,726 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  8    22 52 05 00 00 1b 40 30
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,728 [DEBUG] (DIS Svc) -> 0x6C0: 13 57 03 26 00 15
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,728 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,728 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  6    13 57 03 26 00 15
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,739 [DEBUG] (DIS Svc) <- 0x6C1: B4
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,742 [DEBUG] (DIS Svc) <- Received expected [180]
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,762 [DEBUG] (DIS Svc) <- 0x6C1: 1B 0B 03 57
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,764 [DEBUG] (DIS Svc) <- Swallowing background Graphics ACK [11, 3, 87]
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,764 [DEBUG] (DIS Svc) -> 0x6C0: 14 39
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,764 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,764 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  2    14 39
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,769 [DEBUG] (DIS Svc) <- 0x6C1: B5
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,771 [DEBUG] (DIS Svc) <- Received expected [181]
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,919 [DEBUG] (DIS Svc) <- 0x6C1: 1B 0B 03 57
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,921 [DEBUG] (DIS Svc) <- Swallowing background Graphics ACK [11, 3, 87]
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,993 [DEBUG] (DIS Svc) <- 0x6C1: A3
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,995 [DEBUG] (DIS Svc) Cluster sent Keep-Alive [163] -> replying A1
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,995 [DEBUG] (DIS Svc) -> 0x6C0: A1 0F 8A FF 4A FF
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,995 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:04 cownav python3[1981]: 2026-03-11 13:23:04,995 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  6    a1 0f 8a ff 4a ff
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,070 [DEBUG] (DIS Svc) <- 0x6C1: 1B 0B 03 57
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,073 [DEBUG] (DIS Svc) <- Swallowing background Graphics ACK [11, 3, 87]
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,218 [DEBUG] (DIS Svc) <- 0x6C1: A8
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,220 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,220 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,231 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,300 [DEBUG] (DIS Svc) <- 0x6C1: A0 0F 8A FF 4A FF
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,302 [INFO] (DIS Svc) Found White DIS passive open (A0 0F...).
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,302 [DEBUG] (DIS Svc) -> 0x6C0: A1 0F 8A FF 4A FF
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,302 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,302 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  6    a1 0f 8a ff 4a ff
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,304 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,304 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,305 [INFO] (DIS Svc) DDPState Broadcasting new state: DDPState.SESSION_ACTIVE
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,315 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,315 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,315 [DEBUG] (DIS Svc) Using WHITE DIS payload set.
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,315 [DEBUG] (DIS Svc) -> 0x6C0: 10 15 01 01 02 00 00
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,315 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,315 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  7    10 15 01 01 02 00 00
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,319 [DEBUG] (DIS Svc) <- 0x6C1: 90
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,321 [WARNING] (DIS Svc) Unknown unhandled packet type 90
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,823 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,823 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,823 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,823 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,823 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:23:08 cownav python3[1981]: 2026-03-11 13:23:08,824 [INFO] (DIS Svc) DDPState Broadcasting new state: DDPState.DISCONNECTED
+Mar 11 13:23:08 cownav python3[1981]: 2026-03-11 13:23:08,834 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 11 13:23:08 cownav python3[1981]: 2026-03-11 13:23:08,834 [DEBUG] (DIS Svc) <- 0x6C1: A3
+Mar 11 13:23:08 cownav python3[1981]: 2026-03-11 13:23:08,837 [DEBUG] (DIS Svc) <- 0x6C1: A3
+Mar 11 13:23:08 cownav python3[1981]: 2026-03-11 13:23:08,839 [DEBUG] (DIS Svc) <- 0x6C1: A3
+Mar 11 13:23:09 cownav python3[1981]: 2026-03-11 13:23:09,299 [DEBUG] (DIS Svc) <- 0x6C1: A3
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,299 [DEBUG] (DIS Svc) <- 0x6C1: A3
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,401 [INFO] (DIS Svc) No Red DIS broadcast. Assuming White DIS, attempting Active Open.
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,402 [INFO] (DIS Svc) ACTIVE WHITE: Sending A0...
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,402 [DEBUG] (DIS Svc) -> 0x6C0: A0 0F 8A FF 4A FF
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,402 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,402 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  6    a0 0f 8a ff 4a ff
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,409 [DEBUG] (DIS Svc) <- 0x6C1: A1 0F 8A FF 4A FF
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,412 [DEBUG] (DIS Svc) <- Received expected [161, 15, 138, 255, 74, 255]
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,412 [INFO] (DIS Svc) A1 received
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,412 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,412 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,412 [INFO] (DIS Svc) DDPState Broadcasting new state: DDPState.SESSION_ACTIVE
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,422 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,422 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,422 [DEBUG] (DIS Svc) Using WHITE DIS payload set.
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,423 [DEBUG] (DIS Svc) -> 0x6C0: 10 15 01 01 02 00 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,423 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,423 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  7    10 15 01 01 02 00 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,429 [DEBUG] (DIS Svc) <- 0x6C1: B1
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,432 [DEBUG] (DIS Svc) <- Received expected [177]
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,432 [INFO] (DIS Svc) Init Step 1 (Capabilities Query) sent!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,439 [DEBUG] (DIS Svc) <- 0x6C1: 10 00 01
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,442 [DEBUG] (DIS Svc) Sending ACK B1
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,442 [DEBUG] (DIS Svc) -> 0x6C0: B1
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,442 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,442 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  1    b1
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,445 [INFO] (DIS Svc) Init 2/x passed!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,445 [DEBUG] (DIS Svc) -> 0x6C0: 11 01 01 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,445 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,445 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  4    11 01 01 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,450 [DEBUG] (DIS Svc) <- 0x6C1: B2
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,452 [DEBUG] (DIS Svc) <- Received expected [178]
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,452 [INFO] (DIS Svc) Init 3/x passed!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,452 [DEBUG] (DIS Svc) -> 0x6C0: 12 08
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,452 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,452 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  2    12 08
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,459 [DEBUG] (DIS Svc) <- 0x6C1: B3
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,461 [DEBUG] (DIS Svc) <- Received expected [179]
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,461 [INFO] (DIS Svc) Init 4/x passed!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,470 [DEBUG] (DIS Svc) <- 0x6C1: 21 09 20 0B 50 09 24 4A
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,472 [INFO] (DIS Svc) Handshake Fork: Got PL_LOG_11 (ALT)
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,472 [INFO] (DIS Svc) Following Path C (White Long)...
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,472 [DEBUG] (DIS Svc) -> 0x6C0: 13 01 01 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,472 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,472 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  4    13 01 01 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,480 [DEBUG] (DIS Svc) <- 0x6C1: B4
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,482 [DEBUG] (DIS Svc) <- Received expected [180]
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,482 [INFO] (DIS Svc) Init 5/x passed!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,490 [DEBUG] (DIS Svc) <- 0x6C1: 12 30 39 00 32 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,492 [DEBUG] (DIS Svc) Sending ACK B3
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,492 [DEBUG] (DIS Svc) -> 0x6C0: B3
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,492 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,493 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  1    b3
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,495 [INFO] (DIS Svc) Init 6/x passed (ALT)!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,495 [DEBUG] (DIS Svc) -> 0x6C0: 14 08
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,495 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,495 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  2    14 08
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,499 [DEBUG] (DIS Svc) <- 0x6C1: B5
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,501 [DEBUG] (DIS Svc) <- Received expected [181]
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,501 [INFO] (DIS Svc) Init 7/x passed!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,510 [DEBUG] (DIS Svc) <- 0x6C1: 23 09 20 0B 50 09 24 4A
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,512 [INFO] (DIS Svc) Init 8/x passed (ALT)!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,512 [DEBUG] (DIS Svc) -> 0x6C0: 15 20 3B A0 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,512 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,512 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  5    15 20 3b a0 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,519 [DEBUG] (DIS Svc) <- 0x6C1: B6
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,521 [DEBUG] (DIS Svc) <- Received expected [182]
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,521 [INFO] (DIS Svc) Init 9/x passed!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,530 [DEBUG] (DIS Svc) <- 0x6C1: 14 30 39 00 32 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,532 [DEBUG] (DIS Svc) Sending ACK B5
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,532 [DEBUG] (DIS Svc) -> 0x6C0: B5
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,532 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,532 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  1    b5
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,534 [INFO] (DIS Svc) Init 10/x passed (ALT)!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,540 [DEBUG] (DIS Svc) <- 0x6C1: 15 21 3B A0 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,542 [DEBUG] (DIS Svc) Sending ACK B6
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,542 [DEBUG] (DIS Svc) -> 0x6C0: B6
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,542 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,542 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  1    b6
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,544 [INFO] (DIS Svc) Init 11/x passed!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,544 [DEBUG] (DIS Svc) -> 0x6C0: 16 20 3B A0 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,544 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,544 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  5    16 20 3b a0 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,549 [DEBUG] (DIS Svc) <- 0x6C1: B7
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,551 [DEBUG] (DIS Svc) <- Received expected [183]
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,551 [INFO] (DIS Svc) Init 12/x passed!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,560 [DEBUG] (DIS Svc) <- 0x6C1: 16 21 3B A0 00
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,562 [DEBUG] (DIS Svc) Sending ACK B7
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,562 [DEBUG] (DIS Svc) -> 0x6C0: B7
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,562 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,562 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  1    b7
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,564 [INFO] (DIS Svc) Init 13/x passed!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,564 [DEBUG] (DIS Svc) -> 0x6C0: 17 33
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,564 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,564 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  2    17 33
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,570 [DEBUG] (DIS Svc) <- 0x6C1: B8
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,572 [DEBUG] (DIS Svc) <- Received expected [184]
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,572 [INFO] (DIS Svc) Init 14/x passed!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,572 [DEBUG] (DIS Svc) -> 0x6C0: 18 33
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,572 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,572 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  2    18 33
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,579 [DEBUG] (DIS Svc) <- 0x6C1: B9
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,582 [DEBUG] (DIS Svc) <- Received expected [185]
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,582 [INFO] (DIS Svc) Init 15/x passed!
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,582 [INFO] (DIS Svc) Sending final A3 Keep-Alive to complete handshake...
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,582 [DEBUG] (DIS Svc) -> 0x6C0: A3
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,582 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,582 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  1    a3
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,590 [DEBUG] (DIS Svc) <- 0x6C1: A1 0F 8A FF 4A FF
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,592 [DEBUG] (DIS Svc) <- Received expected [161, 15, 138, 255, 74, 255]
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,592 [INFO] (DIS Svc) DDP Initialization COMPLETE
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,592 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,592 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,592 [INFO] (DIS Svc) DDPState Broadcasting new state: DDPState.READY
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,602 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,602 [DEBUG] (DIS Svc) -> 0x6C0: 19 52 05 82 00 1B 40 30
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,602 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,602 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  8    19 52 05 82 00 1b 40 30
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,610 [DEBUG] (DIS Svc) <- 0x6C1: BA
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,612 [DEBUG] (DIS Svc) <- Received expected [186]
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,619 [DEBUG] (DIS Svc) <- 0x6C1: 17 53 84
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,622 [DEBUG] (DIS Svc) Sending ACK B8
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,622 [DEBUG] (DIS Svc) -> 0x6C0: B8
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,622 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,622 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  1    b8
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,639 [DEBUG] (DIS Svc) <- 0x6C1: 18 53 05
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,642 [DEBUG] (DIS Svc) Sending ACK B9
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,642 [DEBUG] (DIS Svc) -> 0x6C0: B9
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,642 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,642 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  1    b9
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,659 [DEBUG] (DIS Svc) <- 0x6C1: 19 2E
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,662 [DEBUG] (DIS Svc) Sending ACK BA
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,662 [DEBUG] (DIS Svc) -> 0x6C0: BA
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,662 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,662 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  1    ba
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,664 [DEBUG] (DIS Svc) -> 0x6C0: 1A 2F
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,664 [DEBUG] (DIS Svc) We've been asked to write a message to the bus
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,664 [DEBUG] (DIS Svc) sending: Timestamp:        0.000000    ID:      6c0    S Rx                DL:  2    1a 2f
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,669 [DEBUG] (DIS Svc) <- 0x6C1: BB
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,671 [DEBUG] (DIS Svc) <- Received expected [187]

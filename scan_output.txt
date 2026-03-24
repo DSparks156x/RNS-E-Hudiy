@@ -1,0 +1,917 @@
+Mar 11 13:22:15 cownav python3[1981]: 2026-03-11 13:22:15,282 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:22:15 cownav python3[1981]: 2026-03-11 13:22:15,282 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:22:15 cownav python3[1981]: 2026-03-11 13:22:15,292 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:22:15 cownav python3[1981]: 2026-03-11 13:22:15,511 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:22:15 cownav python3[1981]: 2026-03-11 13:22:15,511 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,220 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,220 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,304 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,304 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,315 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,823 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,823 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,823 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:23:05 cownav python3[1981]: 2026-03-11 13:23:05,823 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,412 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,412 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,422 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,592 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:23:10 cownav python3[1981]: 2026-03-11 13:23:10,592 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:23:11 cownav python3[1981]: 2026-03-11 13:23:11,281 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:11 cownav python3[1981]: 2026-03-11 13:23:11,281 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:23:11 cownav python3[1981]: 2026-03-11 13:23:11,354 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:11 cownav python3[1981]: 2026-03-11 13:23:11,354 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:11 cownav python3[1981]: 2026-03-11 13:23:11,364 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:11 cownav python3[1981]: 2026-03-11 13:23:11,861 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:11 cownav python3[1981]: 2026-03-11 13:23:11,861 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:23:11 cownav python3[1981]: 2026-03-11 13:23:11,861 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:23:11 cownav python3[1981]: 2026-03-11 13:23:11,861 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:23:11 cownav python3[1981]: 2026-03-11 13:23:11,861 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:23:11 cownav python3[1981]: 2026-03-11 13:23:11,861 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:23:14 cownav python3[1981]: 2026-03-11 13:23:14,877 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:14 cownav python3[1981]: 2026-03-11 13:23:14,877 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:14 cownav python3[1981]: 2026-03-11 13:23:14,898 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:14 cownav python3[1981]: 2026-03-11 13:23:14,925 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:14 cownav python3[1981]: 2026-03-11 13:23:14,925 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:23:14 cownav python3[1981]: 2026-03-11 13:23:14,925 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:23:14 cownav python3[1981]: 2026-03-11 13:23:14,925 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:23:14 cownav python3[1981]: 2026-03-11 13:23:14,925 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:23:14 cownav python3[1981]: 2026-03-11 13:23:14,925 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:23:19 cownav python3[1981]: 2026-03-11 13:23:19,452 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:19 cownav python3[1981]: 2026-03-11 13:23:19,452 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:19 cownav python3[1981]: 2026-03-11 13:23:19,463 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:19 cownav python3[1981]: 2026-03-11 13:23:19,632 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:23:19 cownav python3[1981]: 2026-03-11 13:23:19,632 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:23:20 cownav python3[1981]: 2026-03-11 13:23:20,340 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:20 cownav python3[1981]: 2026-03-11 13:23:20,340 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:23:20 cownav python3[1981]: 2026-03-11 13:23:20,415 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:20 cownav python3[1981]: 2026-03-11 13:23:20,415 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:20 cownav python3[1981]: 2026-03-11 13:23:20,426 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:20 cownav python3[1981]: 2026-03-11 13:23:20,932 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:20 cownav python3[1981]: 2026-03-11 13:23:20,932 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:23:20 cownav python3[1981]: 2026-03-11 13:23:20,932 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:23:20 cownav python3[1981]: 2026-03-11 13:23:20,932 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:23:20 cownav python3[1981]: 2026-03-11 13:23:20,932 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:23:20 cownav python3[1981]: 2026-03-11 13:23:20,932 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:23:23 cownav python3[1981]: 2026-03-11 13:23:23,949 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:23 cownav python3[1981]: 2026-03-11 13:23:23,949 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:23 cownav python3[1981]: 2026-03-11 13:23:23,959 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:23 cownav python3[1981]: 2026-03-11 13:23:23,986 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:23 cownav python3[1981]: 2026-03-11 13:23:23,986 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:23:23 cownav python3[1981]: 2026-03-11 13:23:23,986 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:23:23 cownav python3[1981]: 2026-03-11 13:23:23,986 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:23:23 cownav python3[1981]: 2026-03-11 13:23:23,986 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:23:23 cownav python3[1981]: 2026-03-11 13:23:23,986 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:23:28 cownav python3[1981]: 2026-03-11 13:23:28,512 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:28 cownav python3[1981]: 2026-03-11 13:23:28,512 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:28 cownav python3[1981]: 2026-03-11 13:23:28,523 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:28 cownav python3[1981]: 2026-03-11 13:23:28,692 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:23:28 cownav python3[1981]: 2026-03-11 13:23:28,692 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:23:29 cownav python3[1981]: 2026-03-11 13:23:29,391 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:29 cownav python3[1981]: 2026-03-11 13:23:29,391 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:23:29 cownav python3[1981]: 2026-03-11 13:23:29,475 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:29 cownav python3[1981]: 2026-03-11 13:23:29,475 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:29 cownav python3[1981]: 2026-03-11 13:23:29,486 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:29 cownav python3[1981]: 2026-03-11 13:23:29,992 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:29 cownav python3[1981]: 2026-03-11 13:23:29,992 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:23:29 cownav python3[1981]: 2026-03-11 13:23:29,992 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:23:29 cownav python3[1981]: 2026-03-11 13:23:29,992 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:23:29 cownav python3[1981]: 2026-03-11 13:23:29,992 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:23:29 cownav python3[1981]: 2026-03-11 13:23:29,992 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:23:33 cownav python3[1981]: 2026-03-11 13:23:33,007 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:33 cownav python3[1981]: 2026-03-11 13:23:33,007 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:33 cownav python3[1981]: 2026-03-11 13:23:33,028 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:33 cownav python3[1981]: 2026-03-11 13:23:33,054 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:33 cownav python3[1981]: 2026-03-11 13:23:33,054 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:23:33 cownav python3[1981]: 2026-03-11 13:23:33,054 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:23:33 cownav python3[1981]: 2026-03-11 13:23:33,054 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:23:33 cownav python3[1981]: 2026-03-11 13:23:33,054 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:23:33 cownav python3[1981]: 2026-03-11 13:23:33,054 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:23:37 cownav python3[1981]: 2026-03-11 13:23:37,584 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:37 cownav python3[1981]: 2026-03-11 13:23:37,584 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:37 cownav python3[1981]: 2026-03-11 13:23:37,595 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:37 cownav python3[1981]: 2026-03-11 13:23:37,792 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:23:37 cownav python3[1981]: 2026-03-11 13:23:37,792 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:23:38 cownav python3[1981]: 2026-03-11 13:23:38,465 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:38 cownav python3[1981]: 2026-03-11 13:23:38,465 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:23:38 cownav python3[1981]: 2026-03-11 13:23:38,535 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:38 cownav python3[1981]: 2026-03-11 13:23:38,536 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:38 cownav python3[1981]: 2026-03-11 13:23:38,556 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:39 cownav python3[1981]: 2026-03-11 13:23:39,042 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:39 cownav python3[1981]: 2026-03-11 13:23:39,042 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:23:39 cownav python3[1981]: 2026-03-11 13:23:39,042 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:23:39 cownav python3[1981]: 2026-03-11 13:23:39,042 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:23:39 cownav python3[1981]: 2026-03-11 13:23:39,042 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:23:39 cownav python3[1981]: 2026-03-11 13:23:39,042 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:23:42 cownav python3[1981]: 2026-03-11 13:23:42,057 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:42 cownav python3[1981]: 2026-03-11 13:23:42,057 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:42 cownav python3[1981]: 2026-03-11 13:23:42,068 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:42 cownav python3[1981]: 2026-03-11 13:23:42,095 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:42 cownav python3[1981]: 2026-03-11 13:23:42,095 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:23:42 cownav python3[1981]: 2026-03-11 13:23:42,095 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:23:42 cownav python3[1981]: 2026-03-11 13:23:42,095 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:23:42 cownav python3[1981]: 2026-03-11 13:23:42,095 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:23:42 cownav python3[1981]: 2026-03-11 13:23:42,095 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:23:46 cownav python3[1981]: 2026-03-11 13:23:46,623 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:46 cownav python3[1981]: 2026-03-11 13:23:46,623 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:46 cownav python3[1981]: 2026-03-11 13:23:46,634 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:46 cownav python3[1981]: 2026-03-11 13:23:46,814 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:23:46 cownav python3[1981]: 2026-03-11 13:23:46,814 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:23:47 cownav python3[1981]: 2026-03-11 13:23:47,522 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:47 cownav python3[1981]: 2026-03-11 13:23:47,522 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:23:47 cownav python3[1981]: 2026-03-11 13:23:47,595 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:47 cownav python3[1981]: 2026-03-11 13:23:47,595 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:47 cownav python3[1981]: 2026-03-11 13:23:47,606 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:48 cownav python3[1981]: 2026-03-11 13:23:48,104 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:48 cownav python3[1981]: 2026-03-11 13:23:48,104 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:23:48 cownav python3[1981]: 2026-03-11 13:23:48,104 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:23:48 cownav python3[1981]: 2026-03-11 13:23:48,104 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:23:48 cownav python3[1981]: 2026-03-11 13:23:48,104 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:23:48 cownav python3[1981]: 2026-03-11 13:23:48,104 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:23:51 cownav python3[1981]: 2026-03-11 13:23:51,121 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:51 cownav python3[1981]: 2026-03-11 13:23:51,121 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:51 cownav python3[1981]: 2026-03-11 13:23:51,131 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:51 cownav python3[1981]: 2026-03-11 13:23:51,158 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:51 cownav python3[1981]: 2026-03-11 13:23:51,158 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:23:51 cownav python3[1981]: 2026-03-11 13:23:51,158 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:23:51 cownav python3[1981]: 2026-03-11 13:23:51,158 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:23:51 cownav python3[1981]: 2026-03-11 13:23:51,158 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:23:51 cownav python3[1981]: 2026-03-11 13:23:51,158 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:23:55 cownav python3[1981]: 2026-03-11 13:23:55,683 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:55 cownav python3[1981]: 2026-03-11 13:23:55,683 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:55 cownav python3[1981]: 2026-03-11 13:23:55,694 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:55 cownav python3[1981]: 2026-03-11 13:23:55,872 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:23:55 cownav python3[1981]: 2026-03-11 13:23:55,872 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:23:56 cownav python3[1981]: 2026-03-11 13:23:56,572 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:56 cownav python3[1981]: 2026-03-11 13:23:56,572 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:23:56 cownav python3[1981]: 2026-03-11 13:23:56,655 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:23:56 cownav python3[1981]: 2026-03-11 13:23:56,655 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:23:56 cownav python3[1981]: 2026-03-11 13:23:56,665 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:23:57 cownav python3[1981]: 2026-03-11 13:23:57,162 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:23:57 cownav python3[1981]: 2026-03-11 13:23:57,162 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:23:57 cownav python3[1981]: 2026-03-11 13:23:57,162 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:23:57 cownav python3[1981]: 2026-03-11 13:23:57,162 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:23:57 cownav python3[1981]: 2026-03-11 13:23:57,162 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:23:57 cownav python3[1981]: 2026-03-11 13:23:57,162 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:00 cownav python3[1981]: 2026-03-11 13:24:00,178 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:00 cownav python3[1981]: 2026-03-11 13:24:00,178 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:00 cownav python3[1981]: 2026-03-11 13:24:00,188 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:00 cownav python3[1981]: 2026-03-11 13:24:00,215 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:00 cownav python3[1981]: 2026-03-11 13:24:00,215 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:24:00 cownav python3[1981]: 2026-03-11 13:24:00,215 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:24:00 cownav python3[1981]: 2026-03-11 13:24:00,215 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:24:00 cownav python3[1981]: 2026-03-11 13:24:00,215 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:24:00 cownav python3[1981]: 2026-03-11 13:24:00,216 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:04 cownav python3[1981]: 2026-03-11 13:24:04,743 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:04 cownav python3[1981]: 2026-03-11 13:24:04,743 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:04 cownav python3[1981]: 2026-03-11 13:24:04,755 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:04 cownav python3[1981]: 2026-03-11 13:24:04,933 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:24:04 cownav python3[1981]: 2026-03-11 13:24:04,933 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:24:05 cownav python3[1981]: 2026-03-11 13:24:05,645 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:05 cownav python3[1981]: 2026-03-11 13:24:05,645 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:24:05 cownav python3[1981]: 2026-03-11 13:24:05,715 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:05 cownav python3[1981]: 2026-03-11 13:24:05,715 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:05 cownav python3[1981]: 2026-03-11 13:24:05,727 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:06 cownav python3[1981]: 2026-03-11 13:24:06,222 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:06 cownav python3[1981]: 2026-03-11 13:24:06,222 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:24:06 cownav python3[1981]: 2026-03-11 13:24:06,222 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:24:06 cownav python3[1981]: 2026-03-11 13:24:06,222 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:24:06 cownav python3[1981]: 2026-03-11 13:24:06,222 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:24:06 cownav python3[1981]: 2026-03-11 13:24:06,222 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:09 cownav python3[1981]: 2026-03-11 13:24:09,238 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:09 cownav python3[1981]: 2026-03-11 13:24:09,238 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:09 cownav python3[1981]: 2026-03-11 13:24:09,258 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:09 cownav python3[1981]: 2026-03-11 13:24:09,286 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:09 cownav python3[1981]: 2026-03-11 13:24:09,286 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:24:09 cownav python3[1981]: 2026-03-11 13:24:09,286 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:24:09 cownav python3[1981]: 2026-03-11 13:24:09,286 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:24:09 cownav python3[1981]: 2026-03-11 13:24:09,286 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:24:09 cownav python3[1981]: 2026-03-11 13:24:09,286 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:13 cownav python3[1981]: 2026-03-11 13:24:13,815 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:13 cownav python3[1981]: 2026-03-11 13:24:13,815 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:13 cownav python3[1981]: 2026-03-11 13:24:13,826 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:13 cownav python3[1981]: 2026-03-11 13:24:13,993 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:24:13 cownav python3[1981]: 2026-03-11 13:24:13,993 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:24:14 cownav python3[1981]: 2026-03-11 13:24:14,685 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:14 cownav python3[1981]: 2026-03-11 13:24:14,686 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:24:14 cownav python3[1981]: 2026-03-11 13:24:14,776 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:14 cownav python3[1981]: 2026-03-11 13:24:14,776 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:14 cownav python3[1981]: 2026-03-11 13:24:14,787 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:15 cownav python3[1981]: 2026-03-11 13:24:15,292 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:15 cownav python3[1981]: 2026-03-11 13:24:15,292 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:24:15 cownav python3[1981]: 2026-03-11 13:24:15,292 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:24:15 cownav python3[1981]: 2026-03-11 13:24:15,292 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:24:15 cownav python3[1981]: 2026-03-11 13:24:15,292 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:24:15 cownav python3[1981]: 2026-03-11 13:24:15,292 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:18 cownav python3[1981]: 2026-03-11 13:24:18,310 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:18 cownav python3[1981]: 2026-03-11 13:24:18,310 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:18 cownav python3[1981]: 2026-03-11 13:24:18,330 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:18 cownav python3[1981]: 2026-03-11 13:24:18,358 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:18 cownav python3[1981]: 2026-03-11 13:24:18,358 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:24:18 cownav python3[1981]: 2026-03-11 13:24:18,358 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:24:18 cownav python3[1981]: 2026-03-11 13:24:18,358 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:24:18 cownav python3[1981]: 2026-03-11 13:24:18,358 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:24:18 cownav python3[1981]: 2026-03-11 13:24:18,358 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:22 cownav python3[1981]: 2026-03-11 13:24:22,883 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:22 cownav python3[1981]: 2026-03-11 13:24:22,883 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:22 cownav python3[1981]: 2026-03-11 13:24:22,893 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:23 cownav python3[1981]: 2026-03-11 13:24:23,092 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:24:23 cownav python3[1981]: 2026-03-11 13:24:23,092 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:24:23 cownav python3[1981]: 2026-03-11 13:24:23,795 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:23 cownav python3[1981]: 2026-03-11 13:24:23,795 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:24:23 cownav python3[1981]: 2026-03-11 13:24:23,895 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:23 cownav python3[1981]: 2026-03-11 13:24:23,895 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:23 cownav python3[1981]: 2026-03-11 13:24:23,905 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:24 cownav python3[1981]: 2026-03-11 13:24:24,402 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:24 cownav python3[1981]: 2026-03-11 13:24:24,402 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:24:24 cownav python3[1981]: 2026-03-11 13:24:24,402 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:24:24 cownav python3[1981]: 2026-03-11 13:24:24,402 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:24:24 cownav python3[1981]: 2026-03-11 13:24:24,402 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:24:24 cownav python3[1981]: 2026-03-11 13:24:24,402 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:27 cownav python3[1981]: 2026-03-11 13:24:27,418 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:27 cownav python3[1981]: 2026-03-11 13:24:27,418 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:27 cownav python3[1981]: 2026-03-11 13:24:27,438 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:27 cownav python3[1981]: 2026-03-11 13:24:27,465 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:27 cownav python3[1981]: 2026-03-11 13:24:27,465 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:24:27 cownav python3[1981]: 2026-03-11 13:24:27,465 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:24:27 cownav python3[1981]: 2026-03-11 13:24:27,465 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:24:27 cownav python3[1981]: 2026-03-11 13:24:27,465 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:24:27 cownav python3[1981]: 2026-03-11 13:24:27,466 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:31 cownav python3[1981]: 2026-03-11 13:24:31,993 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:31 cownav python3[1981]: 2026-03-11 13:24:31,993 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:32 cownav python3[1981]: 2026-03-11 13:24:32,004 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:32 cownav python3[1981]: 2026-03-11 13:24:32,193 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:24:32 cownav python3[1981]: 2026-03-11 13:24:32,193 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:24:32 cownav python3[1981]: 2026-03-11 13:24:32,900 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:32 cownav python3[1981]: 2026-03-11 13:24:32,900 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:24:32 cownav python3[1981]: 2026-03-11 13:24:32,956 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:32 cownav python3[1981]: 2026-03-11 13:24:32,956 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:32 cownav python3[1981]: 2026-03-11 13:24:32,977 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:33 cownav python3[1981]: 2026-03-11 13:24:33,472 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:33 cownav python3[1981]: 2026-03-11 13:24:33,472 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:24:33 cownav python3[1981]: 2026-03-11 13:24:33,472 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:24:33 cownav python3[1981]: 2026-03-11 13:24:33,472 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:24:33 cownav python3[1981]: 2026-03-11 13:24:33,472 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:24:33 cownav python3[1981]: 2026-03-11 13:24:33,472 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:36 cownav python3[1981]: 2026-03-11 13:24:36,488 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:36 cownav python3[1981]: 2026-03-11 13:24:36,488 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:36 cownav python3[1981]: 2026-03-11 13:24:36,500 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:36 cownav python3[1981]: 2026-03-11 13:24:36,527 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:36 cownav python3[1981]: 2026-03-11 13:24:36,527 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:24:36 cownav python3[1981]: 2026-03-11 13:24:36,527 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:24:36 cownav python3[1981]: 2026-03-11 13:24:36,527 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:24:36 cownav python3[1981]: 2026-03-11 13:24:36,527 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:24:36 cownav python3[1981]: 2026-03-11 13:24:36,527 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:41 cownav python3[1981]: 2026-03-11 13:24:41,053 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:41 cownav python3[1981]: 2026-03-11 13:24:41,053 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:41 cownav python3[1981]: 2026-03-11 13:24:41,063 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:41 cownav python3[1981]: 2026-03-11 13:24:41,253 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:24:41 cownav python3[1981]: 2026-03-11 13:24:41,253 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:24:41 cownav python3[1981]: 2026-03-11 13:24:41,931 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:41 cownav python3[1981]: 2026-03-11 13:24:41,931 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:24:42 cownav python3[1981]: 2026-03-11 13:24:42,025 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:42 cownav python3[1981]: 2026-03-11 13:24:42,026 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:42 cownav python3[1981]: 2026-03-11 13:24:42,036 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:42 cownav python3[1981]: 2026-03-11 13:24:42,533 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:42 cownav python3[1981]: 2026-03-11 13:24:42,533 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:24:42 cownav python3[1981]: 2026-03-11 13:24:42,533 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:24:42 cownav python3[1981]: 2026-03-11 13:24:42,533 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:24:42 cownav python3[1981]: 2026-03-11 13:24:42,533 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:24:42 cownav python3[1981]: 2026-03-11 13:24:42,533 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:45 cownav python3[1981]: 2026-03-11 13:24:45,549 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:45 cownav python3[1981]: 2026-03-11 13:24:45,549 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:45 cownav python3[1981]: 2026-03-11 13:24:45,570 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:45 cownav python3[1981]: 2026-03-11 13:24:45,597 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:45 cownav python3[1981]: 2026-03-11 13:24:45,597 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:24:45 cownav python3[1981]: 2026-03-11 13:24:45,597 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:24:45 cownav python3[1981]: 2026-03-11 13:24:45,597 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:24:45 cownav python3[1981]: 2026-03-11 13:24:45,597 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:24:45 cownav python3[1981]: 2026-03-11 13:24:45,597 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:50 cownav python3[1981]: 2026-03-11 13:24:50,123 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:50 cownav python3[1981]: 2026-03-11 13:24:50,123 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:50 cownav python3[1981]: 2026-03-11 13:24:50,133 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:50 cownav python3[1981]: 2026-03-11 13:24:50,333 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:24:50 cownav python3[1981]: 2026-03-11 13:24:50,333 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:24:51 cownav python3[1981]: 2026-03-11 13:24:51,038 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:51 cownav python3[1981]: 2026-03-11 13:24:51,039 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:24:51 cownav python3[1981]: 2026-03-11 13:24:51,145 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:51 cownav python3[1981]: 2026-03-11 13:24:51,145 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:51 cownav python3[1981]: 2026-03-11 13:24:51,156 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:51 cownav python3[1981]: 2026-03-11 13:24:51,652 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:51 cownav python3[1981]: 2026-03-11 13:24:51,652 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:24:51 cownav python3[1981]: 2026-03-11 13:24:51,652 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:24:51 cownav python3[1981]: 2026-03-11 13:24:51,652 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:24:51 cownav python3[1981]: 2026-03-11 13:24:51,652 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:24:51 cownav python3[1981]: 2026-03-11 13:24:51,652 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:54 cownav python3[1981]: 2026-03-11 13:24:54,668 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:54 cownav python3[1981]: 2026-03-11 13:24:54,668 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:54 cownav python3[1981]: 2026-03-11 13:24:54,689 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:54 cownav python3[1981]: 2026-03-11 13:24:54,716 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:24:54 cownav python3[1981]: 2026-03-11 13:24:54,716 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:24:54 cownav python3[1981]: 2026-03-11 13:24:54,716 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:24:54 cownav python3[1981]: 2026-03-11 13:24:54,716 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:24:54 cownav python3[1981]: 2026-03-11 13:24:54,716 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:24:54 cownav python3[1981]: 2026-03-11 13:24:54,716 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:24:59 cownav python3[1981]: 2026-03-11 13:24:59,243 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:24:59 cownav python3[1981]: 2026-03-11 13:24:59,243 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:24:59 cownav python3[1981]: 2026-03-11 13:24:59,254 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:24:59 cownav python3[1981]: 2026-03-11 13:24:59,453 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:24:59 cownav python3[1981]: 2026-03-11 13:24:59,453 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:25:00 cownav python3[1981]: 2026-03-11 13:25:00,145 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:00 cownav python3[1981]: 2026-03-11 13:25:00,145 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:25:00 cownav python3[1981]: 2026-03-11 13:25:00,265 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:00 cownav python3[1981]: 2026-03-11 13:25:00,265 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:00 cownav python3[1981]: 2026-03-11 13:25:00,275 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:00 cownav python3[1981]: 2026-03-11 13:25:00,772 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:00 cownav python3[1981]: 2026-03-11 13:25:00,772 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:00 cownav python3[1981]: 2026-03-11 13:25:00,772 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:00 cownav python3[1981]: 2026-03-11 13:25:00,772 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:00 cownav python3[1981]: 2026-03-11 13:25:00,773 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:00 cownav python3[1981]: 2026-03-11 13:25:00,773 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:25:03 cownav python3[1981]: 2026-03-11 13:25:03,788 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:03 cownav python3[1981]: 2026-03-11 13:25:03,788 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:03 cownav python3[1981]: 2026-03-11 13:25:03,809 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:03 cownav python3[1981]: 2026-03-11 13:25:03,837 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:03 cownav python3[1981]: 2026-03-11 13:25:03,837 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:03 cownav python3[1981]: 2026-03-11 13:25:03,837 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:03 cownav python3[1981]: 2026-03-11 13:25:03,837 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:03 cownav python3[1981]: 2026-03-11 13:25:03,837 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:03 cownav python3[1981]: 2026-03-11 13:25:03,837 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:25:08 cownav python3[1981]: 2026-03-11 13:25:08,363 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:08 cownav python3[1981]: 2026-03-11 13:25:08,363 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:08 cownav python3[1981]: 2026-03-11 13:25:08,374 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:08 cownav python3[1981]: 2026-03-11 13:25:08,713 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:25:08 cownav python3[1981]: 2026-03-11 13:25:08,713 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:25:09 cownav python3[1981]: 2026-03-11 13:25:09,424 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:09 cownav python3[1981]: 2026-03-11 13:25:09,424 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:25:09 cownav python3[1981]: 2026-03-11 13:25:09,507 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:09 cownav python3[1981]: 2026-03-11 13:25:09,507 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:09 cownav python3[1981]: 2026-03-11 13:25:09,520 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:10 cownav python3[1981]: 2026-03-11 13:25:10,014 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:10 cownav python3[1981]: 2026-03-11 13:25:10,014 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:10 cownav python3[1981]: 2026-03-11 13:25:10,014 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:10 cownav python3[1981]: 2026-03-11 13:25:10,014 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:10 cownav python3[1981]: 2026-03-11 13:25:10,014 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:10 cownav python3[1981]: 2026-03-11 13:25:10,014 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:25:13 cownav python3[1981]: 2026-03-11 13:25:13,029 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:13 cownav python3[1981]: 2026-03-11 13:25:13,029 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:13 cownav python3[1981]: 2026-03-11 13:25:13,050 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:13 cownav python3[1981]: 2026-03-11 13:25:13,077 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:13 cownav python3[1981]: 2026-03-11 13:25:13,077 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:13 cownav python3[1981]: 2026-03-11 13:25:13,077 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:13 cownav python3[1981]: 2026-03-11 13:25:13,077 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:13 cownav python3[1981]: 2026-03-11 13:25:13,077 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:13 cownav python3[1981]: 2026-03-11 13:25:13,077 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:25:17 cownav python3[1981]: 2026-03-11 13:25:17,603 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:17 cownav python3[1981]: 2026-03-11 13:25:17,603 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:17 cownav python3[1981]: 2026-03-11 13:25:17,613 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:17 cownav python3[1981]: 2026-03-11 13:25:17,814 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:25:17 cownav python3[1981]: 2026-03-11 13:25:17,814 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:25:18 cownav python3[1981]: 2026-03-11 13:25:18,505 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:18 cownav python3[1981]: 2026-03-11 13:25:18,505 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:25:18 cownav python3[1981]: 2026-03-11 13:25:18,625 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:18 cownav python3[1981]: 2026-03-11 13:25:18,625 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:18 cownav python3[1981]: 2026-03-11 13:25:18,636 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:19 cownav python3[1981]: 2026-03-11 13:25:19,134 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:19 cownav python3[1981]: 2026-03-11 13:25:19,134 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:19 cownav python3[1981]: 2026-03-11 13:25:19,134 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:19 cownav python3[1981]: 2026-03-11 13:25:19,134 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:19 cownav python3[1981]: 2026-03-11 13:25:19,134 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:19 cownav python3[1981]: 2026-03-11 13:25:19,134 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:25:22 cownav python3[1981]: 2026-03-11 13:25:22,150 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:22 cownav python3[1981]: 2026-03-11 13:25:22,150 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:22 cownav python3[1981]: 2026-03-11 13:25:22,160 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:22 cownav python3[1981]: 2026-03-11 13:25:22,186 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:22 cownav python3[1981]: 2026-03-11 13:25:22,187 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:22 cownav python3[1981]: 2026-03-11 13:25:22,187 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:22 cownav python3[1981]: 2026-03-11 13:25:22,187 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:22 cownav python3[1981]: 2026-03-11 13:25:22,187 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:22 cownav python3[1981]: 2026-03-11 13:25:22,187 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:25:26 cownav python3[1981]: 2026-03-11 13:25:26,715 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:26 cownav python3[1981]: 2026-03-11 13:25:26,715 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:26 cownav python3[1981]: 2026-03-11 13:25:26,726 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:26 cownav python3[1981]: 2026-03-11 13:25:26,893 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:25:26 cownav python3[1981]: 2026-03-11 13:25:26,893 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:25:27 cownav python3[1981]: 2026-03-11 13:25:27,591 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:27 cownav python3[1981]: 2026-03-11 13:25:27,591 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:25:27 cownav python3[1981]: 2026-03-11 13:25:27,675 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:27 cownav python3[1981]: 2026-03-11 13:25:27,676 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:27 cownav python3[1981]: 2026-03-11 13:25:27,686 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:28 cownav python3[1981]: 2026-03-11 13:25:28,192 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:28 cownav python3[1981]: 2026-03-11 13:25:28,192 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:28 cownav python3[1981]: 2026-03-11 13:25:28,192 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:28 cownav python3[1981]: 2026-03-11 13:25:28,193 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:28 cownav python3[1981]: 2026-03-11 13:25:28,193 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:28 cownav python3[1981]: 2026-03-11 13:25:28,193 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:25:31 cownav python3[1981]: 2026-03-11 13:25:31,209 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:31 cownav python3[1981]: 2026-03-11 13:25:31,209 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:31 cownav python3[1981]: 2026-03-11 13:25:31,219 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:31 cownav python3[1981]: 2026-03-11 13:25:31,246 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:31 cownav python3[1981]: 2026-03-11 13:25:31,246 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:31 cownav python3[1981]: 2026-03-11 13:25:31,246 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:31 cownav python3[1981]: 2026-03-11 13:25:31,246 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:31 cownav python3[1981]: 2026-03-11 13:25:31,246 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:31 cownav python3[1981]: 2026-03-11 13:25:31,246 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:25:35 cownav python3[1981]: 2026-03-11 13:25:35,773 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:35 cownav python3[1981]: 2026-03-11 13:25:35,774 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:35 cownav python3[1981]: 2026-03-11 13:25:35,784 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:35 cownav python3[1981]: 2026-03-11 13:25:35,953 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:25:35 cownav python3[1981]: 2026-03-11 13:25:35,953 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:25:36 cownav python3[1981]: 2026-03-11 13:25:36,646 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:36 cownav python3[1981]: 2026-03-11 13:25:36,646 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:25:36 cownav python3[1981]: 2026-03-11 13:25:36,745 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:36 cownav python3[1981]: 2026-03-11 13:25:36,745 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:36 cownav python3[1981]: 2026-03-11 13:25:36,756 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:37 cownav python3[1981]: 2026-03-11 13:25:37,252 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:37 cownav python3[1981]: 2026-03-11 13:25:37,252 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:37 cownav python3[1981]: 2026-03-11 13:25:37,252 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:37 cownav python3[1981]: 2026-03-11 13:25:37,252 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:37 cownav python3[1981]: 2026-03-11 13:25:37,252 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:37 cownav python3[1981]: 2026-03-11 13:25:37,252 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:25:40 cownav python3[1981]: 2026-03-11 13:25:40,268 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:40 cownav python3[1981]: 2026-03-11 13:25:40,268 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:40 cownav python3[1981]: 2026-03-11 13:25:40,279 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:40 cownav python3[1981]: 2026-03-11 13:25:40,305 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:40 cownav python3[1981]: 2026-03-11 13:25:40,305 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:40 cownav python3[1981]: 2026-03-11 13:25:40,305 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:40 cownav python3[1981]: 2026-03-11 13:25:40,305 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:40 cownav python3[1981]: 2026-03-11 13:25:40,305 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:40 cownav python3[1981]: 2026-03-11 13:25:40,305 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:25:44 cownav python3[1981]: 2026-03-11 13:25:44,834 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:44 cownav python3[1981]: 2026-03-11 13:25:44,834 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:44 cownav python3[1981]: 2026-03-11 13:25:44,844 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:45 cownav python3[1981]: 2026-03-11 13:25:45,013 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:25:45 cownav python3[1981]: 2026-03-11 13:25:45,013 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:25:45 cownav python3[1981]: 2026-03-11 13:25:45,745 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:45 cownav python3[1981]: 2026-03-11 13:25:45,745 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:25:45 cownav python3[1981]: 2026-03-11 13:25:45,807 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:45 cownav python3[1981]: 2026-03-11 13:25:45,807 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:45 cownav python3[1981]: 2026-03-11 13:25:45,827 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:46 cownav python3[1981]: 2026-03-11 13:25:46,314 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:46 cownav python3[1981]: 2026-03-11 13:25:46,314 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:46 cownav python3[1981]: 2026-03-11 13:25:46,314 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:46 cownav python3[1981]: 2026-03-11 13:25:46,314 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:46 cownav python3[1981]: 2026-03-11 13:25:46,314 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:46 cownav python3[1981]: 2026-03-11 13:25:46,314 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:25:49 cownav python3[1981]: 2026-03-11 13:25:49,330 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:49 cownav python3[1981]: 2026-03-11 13:25:49,330 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:49 cownav python3[1981]: 2026-03-11 13:25:49,346 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:49 cownav python3[1981]: 2026-03-11 13:25:49,373 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:49 cownav python3[1981]: 2026-03-11 13:25:49,373 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:49 cownav python3[1981]: 2026-03-11 13:25:49,373 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:49 cownav python3[1981]: 2026-03-11 13:25:49,373 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:49 cownav python3[1981]: 2026-03-11 13:25:49,373 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:49 cownav python3[1981]: 2026-03-11 13:25:49,373 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:25:53 cownav python3[1981]: 2026-03-11 13:25:53,894 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:53 cownav python3[1981]: 2026-03-11 13:25:53,894 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:53 cownav python3[1981]: 2026-03-11 13:25:53,904 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:54 cownav python3[1981]: 2026-03-11 13:25:54,094 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:25:54 cownav python3[1981]: 2026-03-11 13:25:54,094 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:25:54 cownav python3[1981]: 2026-03-11 13:25:54,791 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:54 cownav python3[1981]: 2026-03-11 13:25:54,791 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:25:54 cownav python3[1981]: 2026-03-11 13:25:54,855 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:54 cownav python3[1981]: 2026-03-11 13:25:54,856 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:54 cownav python3[1981]: 2026-03-11 13:25:54,866 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:55 cownav python3[1981]: 2026-03-11 13:25:55,374 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:55 cownav python3[1981]: 2026-03-11 13:25:55,374 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:55 cownav python3[1981]: 2026-03-11 13:25:55,374 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:55 cownav python3[1981]: 2026-03-11 13:25:55,374 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:55 cownav python3[1981]: 2026-03-11 13:25:55,374 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:55 cownav python3[1981]: 2026-03-11 13:25:55,374 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:25:58 cownav python3[1981]: 2026-03-11 13:25:58,389 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:25:58 cownav python3[1981]: 2026-03-11 13:25:58,389 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:25:58 cownav python3[1981]: 2026-03-11 13:25:58,410 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:25:58 cownav python3[1981]: 2026-03-11 13:25:58,436 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:25:58 cownav python3[1981]: 2026-03-11 13:25:58,436 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:25:58 cownav python3[1981]: 2026-03-11 13:25:58,436 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:25:58 cownav python3[1981]: 2026-03-11 13:25:58,436 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:25:58 cownav python3[1981]: 2026-03-11 13:25:58,436 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:25:58 cownav python3[1981]: 2026-03-11 13:25:58,436 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:26:02 cownav python3[1981]: 2026-03-11 13:26:02,963 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:02 cownav python3[1981]: 2026-03-11 13:26:02,963 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:02 cownav python3[1981]: 2026-03-11 13:26:02,974 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:03 cownav python3[1981]: 2026-03-11 13:26:03,173 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:26:03 cownav python3[1981]: 2026-03-11 13:26:03,173 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:26:03 cownav python3[1981]: 2026-03-11 13:26:03,892 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:03 cownav python3[1981]: 2026-03-11 13:26:03,892 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:26:03 cownav python3[1981]: 2026-03-11 13:26:03,987 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:03 cownav python3[1981]: 2026-03-11 13:26:03,987 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:03 cownav python3[1981]: 2026-03-11 13:26:03,998 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:04 cownav python3[1981]: 2026-03-11 13:26:04,493 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:04 cownav python3[1981]: 2026-03-11 13:26:04,493 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:26:04 cownav python3[1981]: 2026-03-11 13:26:04,493 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:26:04 cownav python3[1981]: 2026-03-11 13:26:04,493 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:26:04 cownav python3[1981]: 2026-03-11 13:26:04,493 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:26:04 cownav python3[1981]: 2026-03-11 13:26:04,493 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:26:07 cownav python3[1981]: 2026-03-11 13:26:07,509 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:07 cownav python3[1981]: 2026-03-11 13:26:07,509 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:07 cownav python3[1981]: 2026-03-11 13:26:07,530 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:07 cownav python3[1981]: 2026-03-11 13:26:07,558 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:07 cownav python3[1981]: 2026-03-11 13:26:07,558 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:26:07 cownav python3[1981]: 2026-03-11 13:26:07,558 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:26:07 cownav python3[1981]: 2026-03-11 13:26:07,558 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:26:07 cownav python3[1981]: 2026-03-11 13:26:07,558 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:26:07 cownav python3[1981]: 2026-03-11 13:26:07,558 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:26:12 cownav python3[1981]: 2026-03-11 13:26:12,084 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:12 cownav python3[1981]: 2026-03-11 13:26:12,084 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:12 cownav python3[1981]: 2026-03-11 13:26:12,095 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:12 cownav python3[1981]: 2026-03-11 13:26:12,294 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:26:12 cownav python3[1981]: 2026-03-11 13:26:12,294 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:26:12 cownav python3[1981]: 2026-03-11 13:26:12,988 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:12 cownav python3[1981]: 2026-03-11 13:26:12,988 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:26:13 cownav python3[1981]: 2026-03-11 13:26:13,047 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:13 cownav python3[1981]: 2026-03-11 13:26:13,047 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:13 cownav python3[1981]: 2026-03-11 13:26:13,060 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:13 cownav python3[1981]: 2026-03-11 13:26:13,553 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:13 cownav python3[1981]: 2026-03-11 13:26:13,553 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:26:13 cownav python3[1981]: 2026-03-11 13:26:13,553 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:26:13 cownav python3[1981]: 2026-03-11 13:26:13,553 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:26:13 cownav python3[1981]: 2026-03-11 13:26:13,553 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:26:13 cownav python3[1981]: 2026-03-11 13:26:13,553 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:26:16 cownav python3[1981]: 2026-03-11 13:26:16,569 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:16 cownav python3[1981]: 2026-03-11 13:26:16,569 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:16 cownav python3[1981]: 2026-03-11 13:26:16,589 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:16 cownav python3[1981]: 2026-03-11 13:26:16,616 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:16 cownav python3[1981]: 2026-03-11 13:26:16,616 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:26:16 cownav python3[1981]: 2026-03-11 13:26:16,616 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:26:16 cownav python3[1981]: 2026-03-11 13:26:16,616 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:26:16 cownav python3[1981]: 2026-03-11 13:26:16,616 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:26:16 cownav python3[1981]: 2026-03-11 13:26:16,616 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:26:21 cownav python3[1981]: 2026-03-11 13:26:21,145 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:21 cownav python3[1981]: 2026-03-11 13:26:21,145 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:21 cownav python3[1981]: 2026-03-11 13:26:21,156 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:21 cownav python3[1981]: 2026-03-11 13:26:21,364 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:26:21 cownav python3[1981]: 2026-03-11 13:26:21,364 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:26:22 cownav python3[1981]: 2026-03-11 13:26:22,068 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:22 cownav python3[1981]: 2026-03-11 13:26:22,068 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:26:22 cownav python3[1981]: 2026-03-11 13:26:22,156 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:22 cownav python3[1981]: 2026-03-11 13:26:22,156 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:22 cownav python3[1981]: 2026-03-11 13:26:22,167 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:22 cownav python3[1981]: 2026-03-11 13:26:22,673 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:22 cownav python3[1981]: 2026-03-11 13:26:22,673 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:26:22 cownav python3[1981]: 2026-03-11 13:26:22,673 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:26:22 cownav python3[1981]: 2026-03-11 13:26:22,673 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:26:22 cownav python3[1981]: 2026-03-11 13:26:22,673 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:26:22 cownav python3[1981]: 2026-03-11 13:26:22,673 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:26:25 cownav python3[1981]: 2026-03-11 13:26:25,689 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:25 cownav python3[1981]: 2026-03-11 13:26:25,689 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:25 cownav python3[1981]: 2026-03-11 13:26:25,710 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:25 cownav python3[1981]: 2026-03-11 13:26:25,737 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:25 cownav python3[1981]: 2026-03-11 13:26:25,737 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:26:25 cownav python3[1981]: 2026-03-11 13:26:25,738 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:26:25 cownav python3[1981]: 2026-03-11 13:26:25,738 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:26:25 cownav python3[1981]: 2026-03-11 13:26:25,738 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:26:25 cownav python3[1981]: 2026-03-11 13:26:25,738 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:26:30 cownav python3[1981]: 2026-03-11 13:26:30,264 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:30 cownav python3[1981]: 2026-03-11 13:26:30,264 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:30 cownav python3[1981]: 2026-03-11 13:26:30,274 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:30 cownav python3[1981]: 2026-03-11 13:26:30,493 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:26:30 cownav python3[1981]: 2026-03-11 13:26:30,493 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:26:31 cownav python3[1981]: 2026-03-11 13:26:31,184 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:31 cownav python3[1981]: 2026-03-11 13:26:31,184 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:26:31 cownav python3[1981]: 2026-03-11 13:26:31,276 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:31 cownav python3[1981]: 2026-03-11 13:26:31,276 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:31 cownav python3[1981]: 2026-03-11 13:26:31,287 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:31 cownav python3[1981]: 2026-03-11 13:26:31,793 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:31 cownav python3[1981]: 2026-03-11 13:26:31,793 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:26:31 cownav python3[1981]: 2026-03-11 13:26:31,793 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:26:31 cownav python3[1981]: 2026-03-11 13:26:31,793 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:26:31 cownav python3[1981]: 2026-03-11 13:26:31,793 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:26:31 cownav python3[1981]: 2026-03-11 13:26:31,793 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:26:34 cownav python3[1981]: 2026-03-11 13:26:34,809 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:34 cownav python3[1981]: 2026-03-11 13:26:34,809 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:34 cownav python3[1981]: 2026-03-11 13:26:34,830 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:34 cownav python3[1981]: 2026-03-11 13:26:34,856 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:34 cownav python3[1981]: 2026-03-11 13:26:34,857 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:26:34 cownav python3[1981]: 2026-03-11 13:26:34,857 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:26:34 cownav python3[1981]: 2026-03-11 13:26:34,857 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:26:34 cownav python3[1981]: 2026-03-11 13:26:34,857 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:26:34 cownav python3[1981]: 2026-03-11 13:26:34,857 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:26:39 cownav python3[1981]: 2026-03-11 13:26:39,387 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:39 cownav python3[1981]: 2026-03-11 13:26:39,387 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:39 cownav python3[1981]: 2026-03-11 13:26:39,398 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:39 cownav python3[1981]: 2026-03-11 13:26:39,593 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:26:39 cownav python3[1981]: 2026-03-11 13:26:39,594 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:26:40 cownav python3[1981]: 2026-03-11 13:26:40,306 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:40 cownav python3[1981]: 2026-03-11 13:26:40,306 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:26:40 cownav python3[1981]: 2026-03-11 13:26:40,406 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:40 cownav python3[1981]: 2026-03-11 13:26:40,406 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:40 cownav python3[1981]: 2026-03-11 13:26:40,417 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:40 cownav python3[1981]: 2026-03-11 13:26:40,914 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:40 cownav python3[1981]: 2026-03-11 13:26:40,914 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:26:40 cownav python3[1981]: 2026-03-11 13:26:40,914 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:26:40 cownav python3[1981]: 2026-03-11 13:26:40,914 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:26:40 cownav python3[1981]: 2026-03-11 13:26:40,914 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:26:40 cownav python3[1981]: 2026-03-11 13:26:40,914 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:26:43 cownav python3[1981]: 2026-03-11 13:26:43,931 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:43 cownav python3[1981]: 2026-03-11 13:26:43,931 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:43 cownav python3[1981]: 2026-03-11 13:26:43,952 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:43 cownav python3[1981]: 2026-03-11 13:26:43,978 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:43 cownav python3[1981]: 2026-03-11 13:26:43,979 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:26:43 cownav python3[1981]: 2026-03-11 13:26:43,979 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:26:43 cownav python3[1981]: 2026-03-11 13:26:43,979 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:26:43 cownav python3[1981]: 2026-03-11 13:26:43,979 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:26:43 cownav python3[1981]: 2026-03-11 13:26:43,979 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:26:48 cownav python3[1981]: 2026-03-11 13:26:48,504 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:48 cownav python3[1981]: 2026-03-11 13:26:48,504 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:48 cownav python3[1981]: 2026-03-11 13:26:48,514 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:48 cownav python3[1981]: 2026-03-11 13:26:48,714 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:26:48 cownav python3[1981]: 2026-03-11 13:26:48,714 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:26:49 cownav python3[1981]: 2026-03-11 13:26:49,410 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:49 cownav python3[1981]: 2026-03-11 13:26:49,410 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:26:49 cownav python3[1981]: 2026-03-11 13:26:49,526 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:49 cownav python3[1981]: 2026-03-11 13:26:49,527 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:49 cownav python3[1981]: 2026-03-11 13:26:49,537 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:50 cownav python3[1981]: 2026-03-11 13:26:50,033 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:50 cownav python3[1981]: 2026-03-11 13:26:50,033 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:26:50 cownav python3[1981]: 2026-03-11 13:26:50,033 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:26:50 cownav python3[1981]: 2026-03-11 13:26:50,033 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:26:50 cownav python3[1981]: 2026-03-11 13:26:50,033 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:26:50 cownav python3[1981]: 2026-03-11 13:26:50,033 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:26:53 cownav python3[1981]: 2026-03-11 13:26:53,050 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:53 cownav python3[1981]: 2026-03-11 13:26:53,050 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:53 cownav python3[1981]: 2026-03-11 13:26:53,070 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:53 cownav python3[1981]: 2026-03-11 13:26:53,096 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:53 cownav python3[1981]: 2026-03-11 13:26:53,096 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:26:53 cownav python3[1981]: 2026-03-11 13:26:53,097 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:26:53 cownav python3[1981]: 2026-03-11 13:26:53,097 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:26:53 cownav python3[1981]: 2026-03-11 13:26:53,097 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:26:53 cownav python3[1981]: 2026-03-11 13:26:53,097 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:26:57 cownav python3[1981]: 2026-03-11 13:26:57,624 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:57 cownav python3[1981]: 2026-03-11 13:26:57,624 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:57 cownav python3[1981]: 2026-03-11 13:26:57,635 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:57 cownav python3[1981]: 2026-03-11 13:26:57,834 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:26:57 cownav python3[1981]: 2026-03-11 13:26:57,834 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:26:58 cownav python3[1981]: 2026-03-11 13:26:58,523 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:58 cownav python3[1981]: 2026-03-11 13:26:58,524 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:26:58 cownav python3[1981]: 2026-03-11 13:26:58,586 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:26:58 cownav python3[1981]: 2026-03-11 13:26:58,587 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:26:58 cownav python3[1981]: 2026-03-11 13:26:58,597 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:26:59 cownav python3[1981]: 2026-03-11 13:26:59,093 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:26:59 cownav python3[1981]: 2026-03-11 13:26:59,093 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:26:59 cownav python3[1981]: 2026-03-11 13:26:59,093 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:26:59 cownav python3[1981]: 2026-03-11 13:26:59,093 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:26:59 cownav python3[1981]: 2026-03-11 13:26:59,093 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:26:59 cownav python3[1981]: 2026-03-11 13:26:59,093 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:27:02 cownav python3[1981]: 2026-03-11 13:27:02,110 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:02 cownav python3[1981]: 2026-03-11 13:27:02,110 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:02 cownav python3[1981]: 2026-03-11 13:27:02,131 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:02 cownav python3[1981]: 2026-03-11 13:27:02,159 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:02 cownav python3[1981]: 2026-03-11 13:27:02,159 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:27:02 cownav python3[1981]: 2026-03-11 13:27:02,159 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:02 cownav python3[1981]: 2026-03-11 13:27:02,159 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:27:02 cownav python3[1981]: 2026-03-11 13:27:02,159 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:27:02 cownav python3[1981]: 2026-03-11 13:27:02,159 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:27:06 cownav python3[1981]: 2026-03-11 13:27:06,685 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:06 cownav python3[1981]: 2026-03-11 13:27:06,685 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:06 cownav python3[1981]: 2026-03-11 13:27:06,696 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:06 cownav python3[1981]: 2026-03-11 13:27:06,893 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:27:06 cownav python3[1981]: 2026-03-11 13:27:06,893 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:27:07 cownav python3[1981]: 2026-03-11 13:27:07,596 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:07 cownav python3[1981]: 2026-03-11 13:27:07,596 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:27:07 cownav python3[1981]: 2026-03-11 13:27:07,706 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:07 cownav python3[1981]: 2026-03-11 13:27:07,706 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:07 cownav python3[1981]: 2026-03-11 13:27:07,717 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:08 cownav python3[1981]: 2026-03-11 13:27:08,214 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:08 cownav python3[1981]: 2026-03-11 13:27:08,214 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:27:08 cownav python3[1981]: 2026-03-11 13:27:08,214 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:08 cownav python3[1981]: 2026-03-11 13:27:08,214 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:27:08 cownav python3[1981]: 2026-03-11 13:27:08,214 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:27:08 cownav python3[1981]: 2026-03-11 13:27:08,214 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:27:11 cownav python3[1981]: 2026-03-11 13:27:11,230 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:11 cownav python3[1981]: 2026-03-11 13:27:11,231 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:11 cownav python3[1981]: 2026-03-11 13:27:11,241 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:11 cownav python3[1981]: 2026-03-11 13:27:11,268 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:11 cownav python3[1981]: 2026-03-11 13:27:11,268 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:27:11 cownav python3[1981]: 2026-03-11 13:27:11,268 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:11 cownav python3[1981]: 2026-03-11 13:27:11,268 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:27:11 cownav python3[1981]: 2026-03-11 13:27:11,268 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:27:11 cownav python3[1981]: 2026-03-11 13:27:11,268 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:27:15 cownav python3[1981]: 2026-03-11 13:27:15,794 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:15 cownav python3[1981]: 2026-03-11 13:27:15,794 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:15 cownav python3[1981]: 2026-03-11 13:27:15,805 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:15 cownav python3[1981]: 2026-03-11 13:27:15,994 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:27:15 cownav python3[1981]: 2026-03-11 13:27:15,994 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:27:16 cownav python3[1981]: 2026-03-11 13:27:16,697 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:16 cownav python3[1981]: 2026-03-11 13:27:16,697 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:27:16 cownav python3[1981]: 2026-03-11 13:27:16,766 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:16 cownav python3[1981]: 2026-03-11 13:27:16,766 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:16 cownav python3[1981]: 2026-03-11 13:27:16,787 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:17 cownav python3[1981]: 2026-03-11 13:27:17,273 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:17 cownav python3[1981]: 2026-03-11 13:27:17,273 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:27:17 cownav python3[1981]: 2026-03-11 13:27:17,273 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:17 cownav python3[1981]: 2026-03-11 13:27:17,274 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:27:17 cownav python3[1981]: 2026-03-11 13:27:17,274 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:27:17 cownav python3[1981]: 2026-03-11 13:27:17,274 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:27:20 cownav python3[1981]: 2026-03-11 13:27:20,289 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:20 cownav python3[1981]: 2026-03-11 13:27:20,289 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:20 cownav python3[1981]: 2026-03-11 13:27:20,303 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:20 cownav python3[1981]: 2026-03-11 13:27:20,332 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:20 cownav python3[1981]: 2026-03-11 13:27:20,332 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:27:20 cownav python3[1981]: 2026-03-11 13:27:20,332 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:20 cownav python3[1981]: 2026-03-11 13:27:20,332 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:27:20 cownav python3[1981]: 2026-03-11 13:27:20,332 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:27:20 cownav python3[1981]: 2026-03-11 13:27:20,332 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:27:24 cownav python3[1981]: 2026-03-11 13:27:24,854 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:24 cownav python3[1981]: 2026-03-11 13:27:24,854 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:24 cownav python3[1981]: 2026-03-11 13:27:24,865 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:25 cownav python3[1981]: 2026-03-11 13:27:25,044 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:27:25 cownav python3[1981]: 2026-03-11 13:27:25,044 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:27:25 cownav python3[1981]: 2026-03-11 13:27:25,716 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:25 cownav python3[1981]: 2026-03-11 13:27:25,717 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:27:25 cownav python3[1981]: 2026-03-11 13:27:25,717 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:25 cownav python3[1981]: 2026-03-11 13:27:25,717 [WARNING] (DIS Svc) Timeout waiting for ACK BB after sending 1A
+Mar 11 13:27:25 cownav python3[1981]: 2026-03-11 13:27:25,717 [ERROR] (DIS Svc) Failed to send DDP frame: Timeout waiting for ACK BB. Session closing.
+Mar 11 13:27:25 cownav python3[1981]: 2026-03-11 13:27:25,826 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:25 cownav python3[1981]: 2026-03-11 13:27:25,826 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:25 cownav python3[1981]: 2026-03-11 13:27:25,837 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:26 cownav python3[1981]: 2026-03-11 13:27:26,334 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:26 cownav python3[1981]: 2026-03-11 13:27:26,334 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:27:26 cownav python3[1981]: 2026-03-11 13:27:26,334 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:26 cownav python3[1981]: 2026-03-11 13:27:26,334 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:27:26 cownav python3[1981]: 2026-03-11 13:27:26,334 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:27:26 cownav python3[1981]: 2026-03-11 13:27:26,334 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:27:29 cownav python3[1981]: 2026-03-11 13:27:29,350 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:29 cownav python3[1981]: 2026-03-11 13:27:29,351 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:29 cownav python3[1981]: 2026-03-11 13:27:29,371 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:29 cownav python3[1981]: 2026-03-11 13:27:29,398 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:29 cownav python3[1981]: 2026-03-11 13:27:29,398 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:27:29 cownav python3[1981]: 2026-03-11 13:27:29,398 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:29 cownav python3[1981]: 2026-03-11 13:27:29,398 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:27:29 cownav python3[1981]: 2026-03-11 13:27:29,398 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:27:29 cownav python3[1981]: 2026-03-11 13:27:29,398 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:27:33 cownav python3[1981]: 2026-03-11 13:27:33,924 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:33 cownav python3[1981]: 2026-03-11 13:27:33,924 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:33 cownav python3[1981]: 2026-03-11 13:27:33,935 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:34 cownav python3[1981]: 2026-03-11 13:27:34,154 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:27:34 cownav python3[1981]: 2026-03-11 13:27:34,154 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:27:34 cownav python3[1981]: 2026-03-11 13:27:34,897 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:34 cownav python3[1981]: 2026-03-11 13:27:34,897 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:27:34 cownav python3[1981]: 2026-03-11 13:27:34,946 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:34 cownav python3[1981]: 2026-03-11 13:27:34,946 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:34 cownav python3[1981]: 2026-03-11 13:27:34,957 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:35 cownav python3[1981]: 2026-03-11 13:27:35,453 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:35 cownav python3[1981]: 2026-03-11 13:27:35,453 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:27:35 cownav python3[1981]: 2026-03-11 13:27:35,453 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:35 cownav python3[1981]: 2026-03-11 13:27:35,453 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:27:35 cownav python3[1981]: 2026-03-11 13:27:35,453 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:27:35 cownav python3[1981]: 2026-03-11 13:27:35,453 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:27:38 cownav python3[1981]: 2026-03-11 13:27:38,469 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:38 cownav python3[1981]: 2026-03-11 13:27:38,469 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:38 cownav python3[1981]: 2026-03-11 13:27:38,490 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:38 cownav python3[1981]: 2026-03-11 13:27:38,516 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:38 cownav python3[1981]: 2026-03-11 13:27:38,516 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:27:38 cownav python3[1981]: 2026-03-11 13:27:38,516 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:38 cownav python3[1981]: 2026-03-11 13:27:38,516 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:27:38 cownav python3[1981]: 2026-03-11 13:27:38,516 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:27:38 cownav python3[1981]: 2026-03-11 13:27:38,516 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:27:43 cownav python3[1981]: 2026-03-11 13:27:43,044 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:43 cownav python3[1981]: 2026-03-11 13:27:43,044 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:43 cownav python3[1981]: 2026-03-11 13:27:43,054 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:43 cownav python3[1981]: 2026-03-11 13:27:43,254 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:27:43 cownav python3[1981]: 2026-03-11 13:27:43,254 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:27:43 cownav python3[1981]: 2026-03-11 13:27:43,946 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:43 cownav python3[1981]: 2026-03-11 13:27:43,946 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:27:44 cownav python3[1981]: 2026-03-11 13:27:44,007 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:44 cownav python3[1981]: 2026-03-11 13:27:44,007 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:44 cownav python3[1981]: 2026-03-11 13:27:44,018 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:44 cownav python3[1981]: 2026-03-11 13:27:44,513 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:44 cownav python3[1981]: 2026-03-11 13:27:44,513 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:27:44 cownav python3[1981]: 2026-03-11 13:27:44,514 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:44 cownav python3[1981]: 2026-03-11 13:27:44,514 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:27:44 cownav python3[1981]: 2026-03-11 13:27:44,514 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:27:44 cownav python3[1981]: 2026-03-11 13:27:44,514 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:27:47 cownav python3[1981]: 2026-03-11 13:27:47,529 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:47 cownav python3[1981]: 2026-03-11 13:27:47,529 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:47 cownav python3[1981]: 2026-03-11 13:27:47,550 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:47 cownav python3[1981]: 2026-03-11 13:27:47,578 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:47 cownav python3[1981]: 2026-03-11 13:27:47,578 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:27:47 cownav python3[1981]: 2026-03-11 13:27:47,578 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:47 cownav python3[1981]: 2026-03-11 13:27:47,578 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:27:47 cownav python3[1981]: 2026-03-11 13:27:47,578 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:27:47 cownav python3[1981]: 2026-03-11 13:27:47,578 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:27:52 cownav python3[1981]: 2026-03-11 13:27:52,104 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:52 cownav python3[1981]: 2026-03-11 13:27:52,104 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:52 cownav python3[1981]: 2026-03-11 13:27:52,115 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:52 cownav python3[1981]: 2026-03-11 13:27:52,316 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:27:52 cownav python3[1981]: 2026-03-11 13:27:52,316 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:27:53 cownav python3[1981]: 2026-03-11 13:27:53,026 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:53 cownav python3[1981]: 2026-03-11 13:27:53,026 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:27:53 cownav python3[1981]: 2026-03-11 13:27:53,126 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:53 cownav python3[1981]: 2026-03-11 13:27:53,127 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:53 cownav python3[1981]: 2026-03-11 13:27:53,137 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:53 cownav python3[1981]: 2026-03-11 13:27:53,633 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:53 cownav python3[1981]: 2026-03-11 13:27:53,633 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:27:53 cownav python3[1981]: 2026-03-11 13:27:53,633 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:53 cownav python3[1981]: 2026-03-11 13:27:53,633 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:27:53 cownav python3[1981]: 2026-03-11 13:27:53,633 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:27:53 cownav python3[1981]: 2026-03-11 13:27:53,633 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:27:56 cownav python3[1981]: 2026-03-11 13:27:56,650 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:27:56 cownav python3[1981]: 2026-03-11 13:27:56,650 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:27:56 cownav python3[1981]: 2026-03-11 13:27:56,660 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:27:56 cownav python3[1981]: 2026-03-11 13:27:56,688 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:27:56 cownav python3[1981]: 2026-03-11 13:27:56,688 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:27:56 cownav python3[1981]: 2026-03-11 13:27:56,688 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:27:56 cownav python3[1981]: 2026-03-11 13:27:56,688 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:27:56 cownav python3[1981]: 2026-03-11 13:27:56,688 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:27:56 cownav python3[1981]: 2026-03-11 13:27:56,688 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:28:01 cownav python3[1981]: 2026-03-11 13:28:01,214 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:28:01 cownav python3[1981]: 2026-03-11 13:28:01,214 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:28:01 cownav python3[1981]: 2026-03-11 13:28:01,225 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:28:01 cownav python3[1981]: 2026-03-11 13:28:01,394 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:28:01 cownav python3[1981]: 2026-03-11 13:28:01,394 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:28:02 cownav python3[1981]: 2026-03-11 13:28:02,086 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:28:02 cownav python3[1981]: 2026-03-11 13:28:02,086 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:28:02 cownav python3[1981]: 2026-03-11 13:28:02,189 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:28:02 cownav python3[1981]: 2026-03-11 13:28:02,189 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:28:02 cownav python3[1981]: 2026-03-11 13:28:02,199 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:28:02 cownav python3[1981]: 2026-03-11 13:28:02,693 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:28:02 cownav python3[1981]: 2026-03-11 13:28:02,693 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:28:02 cownav python3[1981]: 2026-03-11 13:28:02,693 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:28:02 cownav python3[1981]: 2026-03-11 13:28:02,694 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:28:02 cownav python3[1981]: 2026-03-11 13:28:02,694 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:28:02 cownav python3[1981]: 2026-03-11 13:28:02,694 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:28:05 cownav python3[1981]: 2026-03-11 13:28:05,710 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:28:05 cownav python3[1981]: 2026-03-11 13:28:05,710 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:28:05 cownav python3[1981]: 2026-03-11 13:28:05,731 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:28:05 cownav python3[1981]: 2026-03-11 13:28:05,758 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:28:05 cownav python3[1981]: 2026-03-11 13:28:05,758 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:28:05 cownav python3[1981]: 2026-03-11 13:28:05,758 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:28:05 cownav python3[1981]: 2026-03-11 13:28:05,758 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:28:05 cownav python3[1981]: 2026-03-11 13:28:05,758 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:28:05 cownav python3[1981]: 2026-03-11 13:28:05,759 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:28:10 cownav python3[1981]: 2026-03-11 13:28:10,286 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:28:10 cownav python3[1981]: 2026-03-11 13:28:10,286 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:28:10 cownav python3[1981]: 2026-03-11 13:28:10,297 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:28:10 cownav python3[1981]: 2026-03-11 13:28:10,494 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:28:10 cownav python3[1981]: 2026-03-11 13:28:10,494 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:28:11 cownav python3[1981]: 2026-03-11 13:28:11,196 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:28:11 cownav python3[1981]: 2026-03-11 13:28:11,196 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:28:11 cownav python3[1981]: 2026-03-11 13:28:11,306 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:28:11 cownav python3[1981]: 2026-03-11 13:28:11,306 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:28:11 cownav python3[1981]: 2026-03-11 13:28:11,317 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:28:11 cownav python3[1981]: 2026-03-11 13:28:11,815 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:28:11 cownav python3[1981]: 2026-03-11 13:28:11,815 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:28:11 cownav python3[1981]: 2026-03-11 13:28:11,815 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:28:11 cownav python3[1981]: 2026-03-11 13:28:11,815 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:28:11 cownav python3[1981]: 2026-03-11 13:28:11,815 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:28:11 cownav python3[1981]: 2026-03-11 13:28:11,815 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:28:14 cownav python3[1981]: 2026-03-11 13:28:14,831 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:28:14 cownav python3[1981]: 2026-03-11 13:28:14,831 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:28:14 cownav python3[1981]: 2026-03-11 13:28:14,841 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:28:14 cownav python3[1981]: 2026-03-11 13:28:14,868 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:28:14 cownav python3[1981]: 2026-03-11 13:28:14,868 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:28:14 cownav python3[1981]: 2026-03-11 13:28:14,868 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:28:14 cownav python3[1981]: 2026-03-11 13:28:14,868 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:28:14 cownav python3[1981]: 2026-03-11 13:28:14,868 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:28:14 cownav python3[1981]: 2026-03-11 13:28:14,868 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:28:19 cownav python3[1981]: 2026-03-11 13:28:19,395 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:28:19 cownav python3[1981]: 2026-03-11 13:28:19,395 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:28:19 cownav python3[1981]: 2026-03-11 13:28:19,406 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:28:19 cownav python3[1981]: 2026-03-11 13:28:19,588 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:28:19 cownav python3[1981]: 2026-03-11 13:28:19,588 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:28:20 cownav python3[1981]: 2026-03-11 13:28:20,297 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:28:20 cownav python3[1981]: 2026-03-11 13:28:20,297 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:28:20 cownav python3[1981]: 2026-03-11 13:28:20,356 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:28:20 cownav python3[1981]: 2026-03-11 13:28:20,357 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:28:20 cownav python3[1981]: 2026-03-11 13:28:20,367 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:28:20 cownav python3[1981]: 2026-03-11 13:28:20,876 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:28:20 cownav python3[1981]: 2026-03-11 13:28:20,876 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:28:20 cownav python3[1981]: 2026-03-11 13:28:20,876 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:28:20 cownav python3[1981]: 2026-03-11 13:28:20,876 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:28:20 cownav python3[1981]: 2026-03-11 13:28:20,876 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:28:20 cownav python3[1981]: 2026-03-11 13:28:20,876 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:28:23 cownav python3[1981]: 2026-03-11 13:28:23,892 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:28:23 cownav python3[1981]: 2026-03-11 13:28:23,892 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:28:23 cownav python3[1981]: 2026-03-11 13:28:23,913 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:28:23 cownav python3[1981]: 2026-03-11 13:28:23,940 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:28:23 cownav python3[1981]: 2026-03-11 13:28:23,941 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:28:23 cownav python3[1981]: 2026-03-11 13:28:23,941 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:28:23 cownav python3[1981]: 2026-03-11 13:28:23,941 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:28:23 cownav python3[1981]: 2026-03-11 13:28:23,941 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:28:23 cownav python3[1981]: 2026-03-11 13:28:23,941 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:28:28 cownav python3[1981]: 2026-03-11 13:28:28,465 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:28:28 cownav python3[1981]: 2026-03-11 13:28:28,465 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:28:28 cownav python3[1981]: 2026-03-11 13:28:28,475 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:28:28 cownav python3[1981]: 2026-03-11 13:28:28,675 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 11 13:28:28 cownav python3[1981]: 2026-03-11 13:28:28,675 [INFO] (DIS Svc) DDP READY.
+Mar 11 13:28:29 cownav python3[1981]: 2026-03-11 13:28:29,377 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:28:29 cownav python3[1981]: 2026-03-11 13:28:29,377 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 11 13:28:29 cownav python3[1981]: 2026-03-11 13:28:29,477 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:28:29 cownav python3[1981]: 2026-03-11 13:28:29,477 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:28:29 cownav python3[1981]: 2026-03-11 13:28:29,488 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:28:29 cownav python3[1981]: 2026-03-11 13:28:29,994 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:28:29 cownav python3[1981]: 2026-03-11 13:28:29,994 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:28:29 cownav python3[1981]: 2026-03-11 13:28:29,994 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:28:29 cownav python3[1981]: 2026-03-11 13:28:29,994 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:28:29 cownav python3[1981]: 2026-03-11 13:28:29,994 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:28:29 cownav python3[1981]: 2026-03-11 13:28:29,994 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 11 13:28:33 cownav python3[1981]: 2026-03-11 13:28:33,010 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 11 13:28:33 cownav python3[1981]: 2026-03-11 13:28:33,010 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 11 13:28:33 cownav python3[1981]: 2026-03-11 13:28:33,031 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 11 13:28:33 cownav python3[1981]: 2026-03-11 13:28:33,059 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 11 13:28:33 cownav python3[1981]: 2026-03-11 13:28:33,059 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 11 13:28:33 cownav python3[1981]: 2026-03-11 13:28:33,059 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 11 13:28:33 cownav python3[1981]: 2026-03-11 13:28:33,059 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 11 13:28:33 cownav python3[1981]: 2026-03-11 13:28:33,059 [ERROR] (DIS Svc) Handshake Error: Timeout waiting for ACK B1
+Mar 11 13:28:33 cownav python3[1981]: 2026-03-11 13:28:33,059 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.

@@ -59,9 +59,11 @@ class TP2Service:
         self.pub = self.context.socket(zmq.PUB)
         self.pub.bind(self.addr_pub)
         
-        # Replier (Commands) - Moved to Command Thread
         self.rep = self.context.socket(zmq.REP)
         self.rep.bind(self.addr_rep)
+        
+        # Initial status push
+        self._publish_status()
         
         # Connection Management
         self.sessions = {}
@@ -75,6 +77,13 @@ class TP2Service:
         # State Tracking
         self.last_ignition_state = None 
 
+    def _publish_status(self):
+        try:
+            payload = {"enabled": self.running}
+            self.pub.send_multipart([b"HUDIY_TP2_STATUS", json.dumps(payload).encode()])
+            logger.info(f"Published TP2 Status: {payload}")
+        except Exception as e:
+            logger.error(f"Failed to publish TP2 status: {e}")
     def _get_or_create_session(self, module_id):
         # NOTE: Must be called within Lock
         if module_id in self.sessions:
@@ -201,6 +210,7 @@ class TP2Service:
                             self.last_ignition_state = kl15
                             status = "Enabled" if self.running else "Disabled"
                             logger.info(f"Ignition Change: TP2 Service {status}")
+                            self._publish_status()
                             
                         # If steady, we respect the current self.running state (which might be manually toggled)
                         
@@ -315,6 +325,7 @@ class TP2Service:
                         self.running = not self.running
                         status = "Enabled" if self.running else "Disabled"
                     logger.info(f"(Cmd) Service {status}")
+                    self._publish_status()
                     response = {"status": "ok", "message": f"Service {status}", "enabled": self.running}
 
                 self.rep.send_json(response)
@@ -457,13 +468,13 @@ class TP2Service:
                         proto = session['protocol']
                         logger.info(f"Polling Mod 0x{mod_id:02X} for DTCs...")
                         try:
-                            # 0x18 Read By Status
-                            resp = proto.send_kvp_request([0x18, 0x00, 0xFF, 0x00])
+                            # 0x18 Read By Status - VCDS uses sub-function 0x02
+                            resp = proto.send_kvp_request([0x18, 0x02, 0xFF, 0x00])
                             
-                            # Fallback 1: Some modules don't like mask 0xFF, use 0x00
+                            # Fallback 1: Try sub-function 0x00 (Read All)
                             if resp and len(resp) >= 3 and resp[0] == 0x7F and resp[1] == 0x18:
-                                logger.info(f"Mod 0x{mod_id:02X} 0x18 0xFF rejected (NRC {resp[2]}), trying 0x18 0x00")
-                                resp_alt = proto.send_kvp_request([0x18, 0x00, 0x00, 0x00])
+                                logger.info(f"Mod 0x{mod_id:02X} 0x18 0x02 rejected (NRC {resp[2]}), trying 0x18 0x00")
+                                resp_alt = proto.send_kvp_request([0x18, 0x00, 0xFF, 0x00])
                                 if resp_alt: resp = resp_alt
 
                             # Fallback 2: Try older KWP 0x13
@@ -515,7 +526,8 @@ class TP2Service:
                                         dtc_list.append({
                                             'code': f"{code:04X}", # Need pure hex format or 5 digit code
                                             'code_dec': str(code).zfill(5), # VAG codes are typically 5 or 6 digit decimal
-                                            'status': status
+                                            'status': status,
+                                            'status_decoded': TP2Coding.decode_dtc_status(status)
                                         })
                                 else:
                                     logger.warning(f"Mod 0x{mod_id:02X} DTC Response length mismatch. Expected {count*bytes_per_dtc}, got {len(dtc_data)}")
@@ -526,11 +538,13 @@ class TP2Service:
                                     hi = (int(dtc_code) >> 8) & 0xFF
                                     lo = int(dtc_code) & 0xFF
                                     try:
-                                        # Try requesting specific freeze frame for this DTC
-                                        ff_resp = proto.send_kvp_request([0x12, 0x00, hi, lo])
+                                        # VCDS uses 5-byte format: [0x12, 0x00, 0x04, hi, lo]
+                                        ff_resp = proto.send_kvp_request([0x12, 0x00, 0x04, hi, lo])
                                         if ff_resp and ff_resp[0] == 0x52:
                                             # successful freeze frame read, attach raw hex string
                                             dtc_item['freeze_frame_raw'] = [f"{b:02X}" for b in ff_resp[1:]]
+                                            # Also attach decoded fields
+                                            dtc_item['freeze_frame'] = TP2Coding.decode_freeze_frame(ff_resp)
                                         elif ff_resp and ff_resp[0] == 0x7F:
                                             logger.debug(f"Mod 0x{mod_id:02X} Rejected Freeze Frame for {dtc_item['code']}: {ff_resp}")
                                     except Exception as ff_e:
@@ -674,8 +688,8 @@ class TP2Service:
                     if active_list:
                          session['idx'] += 1
                 
-                # Rate Limiting
-                time.sleep(0.05) # Faster for responsiveness, thread handles command blocking
+                # Rate Limiting - Throttled by T3 in protocol, so we can run faster here
+                time.sleep(0.01) 
 
             except KeyboardInterrupt:
                 logger.info("Stopping TP2 Service...")

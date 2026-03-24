@@ -82,9 +82,6 @@ class DDPProtocol:
     """
 
     # --- CAN & Protocol Constants ---
-    CAN_ID_SEND = 0x6C0
-    CAN_ID_RECV = 0x6C1
-    CAN_MASK_RECV = 0x7FF
     CAN_PACING_DELAY_S = 0.002  # Critical 2ms pacing delay for packets
 
     # -- Keep-Alive (KA) Payloads --
@@ -123,7 +120,13 @@ class DDPProtocol:
         self.channel = config.get('can_channel', 'can0')
         self.bitrate = config.get('can_bitrate', 100000)
         
-        logger.debug(f"CAN config: {{'bitrate': {self.bitrate}, 'interface': 'socketcan', 'channel': '{self.channel}'}}")
+        # Allow overriding DDP IDs for modules like Telephone (0x6C5/0x6C4)
+        # Defaults to Navigation (0x6C0/0x6C1)
+        self.tx_id = config.get('ddp_tx_id', 0x6C0)
+        self.rx_id = config.get('ddp_rx_id', 0x6C1)
+        self.rx_mask = config.get('ddp_rx_mask', 0x7FF)
+        
+        logger.debug(f"CAN config: {{'bitrate': {self.bitrate}, 'interface': 'socketcan', 'channel': '{self.channel}', 'tx': 0x{self.tx_id:X}, 'rx': 0x{self.rx_id:X}}}")
         
         try:
             self.bus = can.Bus(
@@ -133,7 +136,7 @@ class DDPProtocol:
                 timeout=0.01  # Non-blocking
             )
             self.bus.set_filters([
-                {"can_id": self.CAN_ID_RECV, "can_mask": self.CAN_MASK_RECV, "extended": False}
+                {"can_id": self.rx_id, "can_mask": self.rx_mask, "extended": False}
             ])
         except Exception as e:
             logger.error(f"Failed to open CAN-Bus '{self.channel}': {e}")
@@ -147,20 +150,25 @@ class DDPProtocol:
             self.bus.shutdown()
 
     # --- State and Helper Functions ---
-
     def _set_state(self, new_state: DDPState):
         """Centralized state transition function."""
         if self.state == new_state:
             return
         
         logger.info(f"State transition: {self.state.name} -> {new_state.name}")
+        old_state = self.state
         self.state = new_state
+
+        if new_state == DDPState.READY and old_state == DDPState.PAUSED:
+            logger.info("Resuming from PAUSE.")
         
         # Reset context on disconnection
         if new_state == DDPState.DISCONNECTED:
             self.dis_mode = DisMode.UNKNOWN
             self.i_am_opener = False
             self.send_seq_num = 0
+            # Wait for cluster to finish clean up
+            time.sleep(0.5)
 
     def payload_is(self, data: List[int], expected_payload: List[int]) -> bool:
         """Helper to check payload regardless of the sequence number (first byte)."""
@@ -182,12 +190,12 @@ class DDPProtocol:
             raise DDPCANError(f"CAN Send Error: {e}")
 
     def _recv(self, timeout_s: float = 0.01) -> Optional[List[int]]:
-        """Receives and logs a single CAN message from the bus (ID 0x6C1)."""
+        """Receives and logs a single CAN message from the bus (ID)."""
         msg = self.bus.recv(timeout_s)
         if msg:
-            if msg.arbitration_id == self.CAN_ID_RECV:
+            if msg.arbitration_id == self.rx_id:
                 data = list(msg.data)
-                logger.debug("<- 0x%03X: %s", self.CAN_ID_RECV, ' '.join(f'{b:02X}' for b in data))
+                logger.debug("<- 0x%03X: %s", self.rx_id, ' '.join(f'{b:02X}' for b in data))
                 time.sleep(self.CAN_PACING_DELAY_S)
                 return data
         return None
@@ -197,7 +205,7 @@ class DDPProtocol:
         ack_seq = (received_seq_num + 1) % 16
         ack_packet = [self.PKT_TYPE_ACK + ack_seq]
         logger.debug(f"Sending ACK {ack_packet[0]:02X}")
-        self.send_can(self.CAN_ID_SEND, ack_packet)
+        self.send_can(self.tx_id, ack_packet)
 
     def _handle_incoming_packet(self, data: List[int]) -> bool:
         """
@@ -226,7 +234,7 @@ class DDPProtocol:
             if data[0] == self.KA_KEEP_PING[0]:
                 logger.debug(f"Cluster sent Keep-Alive {data} -> replying A1")
                 reply = self.KA_RED_ACCEPT if self.dis_mode == DisMode.RED else self.KA_WHITE_ACCEPT
-                self.send_can(self.CAN_ID_SEND, reply)
+                self.send_can(self.tx_id, reply)
                 return True
             
             # Cluster Pong (to our Ping)
@@ -249,8 +257,17 @@ class DDPProtocol:
             payload = data[1:]
             if payload == DDPMessages.STAT_GRAPHIC_ACK_WHITE or payload == DDPMessages.STAT_GRAPHIC_ACK_RED:
                 logger.debug(f"<- Swallowing background Graphics ACK {payload}")
+                if msg_type_prefix in [0x00, self.PKT_TYPE_DATA_END]:
+                    self.send_ack(data[0] & self.PKT_SEQ_MASK)
                 return True
             return False # Not handled, it's data for the caller
+
+        # --- Type 0x9_ (Break) ---
+        if msg_type_prefix == 0x90:
+            logger.warning("Cluster sent Break (0x9x) -> Block Rejected / Busy")
+            # Do NOT drop the session. This is just a block rejection, 
+            # often because the cluster is already initialized or busy.
+            return True
 
         logger.warning(f"Unknown unhandled packet type {data[0]:02X}")
         return True # Treat as handled to avoid breaking loops
@@ -333,7 +350,7 @@ class DDPProtocol:
         first_byte = packet_type + self.send_seq_num
         packet = [first_byte] + data
         
-        self.send_can(self.CAN_ID_SEND, packet)
+        self.send_can(self.tx_id, packet)
         
         expected_ack_byte = self.PKT_TYPE_ACK + (self.send_seq_num + 1) % 16
         self.send_seq_num = (self.send_seq_num + 1) % 16
@@ -350,11 +367,17 @@ class DDPProtocol:
 
     # --- Public API Methods ---
 
-    def send_ddp_frame(self, payload: List[int]) -> bool:
+    def send_ddp_frame(self, payload: List[int], pacing: bool = True) -> bool:
         """
         Sends a full DDP data payload.
         CRITICAL: Splits large payloads into multiple 'Blocks' of max 42 bytes.
         AND enforces an inter-block delay to allow the cluster to process buffer.
+
+        pacing: If False, suppresses the 20ms WHITE DIS inter-block delay.
+                Use pacing=False for consecutive bitmap chunk sends so the cluster
+                receives all row data without gaps. Re-enable for the final
+                reset-window command so the cluster has time to process before
+                the next logical draw command arrives.
         """
         if self.state != DDPState.READY:
             logger.warning("Attempted to send frame while not READY. Ignoring.")
@@ -383,7 +406,9 @@ class DDPProtocol:
                 # 3. INTER-BLOCK PACING
                 # Critical for White DIS: Pause after ACK to let the cluster CPU catch up.
                 # This creates the "piece by piece" transmission style of RNS-E.
-                if self.dis_mode == DisMode.WHITE:
+                # pacing=False skips this to allow rapid streaming of related chunks
+                # (e.g. consecutive rows of a bitmap) without inter-chunk delays.
+                if pacing and self.dis_mode == DisMode.WHITE:
                     time.sleep(0.02) # 20ms delay between blocks
             
         except (DDPAckTimeoutError, DDPCANError) as e:
@@ -399,7 +424,7 @@ class DDPProtocol:
         data = self._recv_specific(self.KA_WHITE_OPEN, 1000)
         if data == self.KA_WHITE_OPEN:
             logger.info("Cluster opened -> sending A1")
-            self.send_can(self.CAN_ID_SEND, self.KA_WHITE_ACCEPT)
+            self.send_can(self.tx_id, self.KA_WHITE_ACCEPT)
             self.i_am_opener = False
             self._set_state(DDPState.SESSION_ACTIVE)
             self.dis_mode = DisMode.WHITE
@@ -409,7 +434,7 @@ class DDPProtocol:
     def _white_dis_active_open(self) -> bool:
         """(Private) Actively initiates the White DIS session by sending A0."""
         logger.info("ACTIVE WHITE: Sending A0...")
-        self.send_can(self.CAN_ID_SEND, self.KA_WHITE_OPEN)
+        self.send_can(self.tx_id, self.KA_WHITE_OPEN)
         if self._recv_specific(self.KA_WHITE_ACCEPT, 500):
             logger.info("A1 received")
             self.i_am_opener = True
@@ -425,11 +450,11 @@ class DDPProtocol:
         try:
             # Step 1: Send A1 0F
             logger.info("RED DIS: Sending A1 0F...")
-            self.send_can(self.CAN_ID_SEND, self.KA_RED_OPEN)
+            self.send_can(self.tx_id, self.KA_RED_OPEN)
             
             # Step 2: Send A3 right after
             logger.info("RED DIS: Sending A3...")
-            self.send_can(self.CAN_ID_SEND, self.KA_KEEP_PING)
+            self.send_can(self.tx_id, self.KA_KEEP_PING)
             
             # Step 3: Wait for cluster's A1 0F reply
             if not self._recv_specific(self.KA_RED_ACCEPT, 500):
@@ -439,7 +464,7 @@ class DDPProtocol:
             # Step 4: Exchange A3 / A1 0F four times
             for i in range(4):
                 logger.info(f"RED DIS: Sending A3 (Loop {i+1}/4)...")
-                self.send_can(self.CAN_ID_SEND, self.KA_KEEP_PING)
+                self.send_can(self.tx_id, self.KA_KEEP_PING)
                 if not self._recv_specific(self.KA_RED_ACCEPT, 500):
                     raise DDPHandshakeError(f"Cluster did not reply on loop {i+1}")
                 logger.info(f"RED DIS: Received A1 0F (Loop {i+1}/4).")
@@ -480,10 +505,22 @@ class DDPProtocol:
             # --- White DIS (Passive) Detection ---
             if data == self.KA_WHITE_OPEN:
                 logger.info("Found White DIS passive open (A0 0F...).")
-                self.send_can(self.CAN_ID_SEND, self.KA_WHITE_ACCEPT)
+                self.send_can(self.tx_id, self.KA_WHITE_ACCEPT)
                 self.i_am_opener = False
                 self._set_state(DDPState.SESSION_ACTIVE)
                 self.dis_mode = DisMode.WHITE
+                return True
+            
+            # --- Existing Session (A3 Ping) Detection ---
+            if data[0] == self.KA_KEEP_PING[0]:
+                logger.info("Found existing session via A3 ping. Replying A1.")
+                # If we haven't seen RED PRESENT, assume WHITE for the ACK
+                reply = self.KA_RED_ACCEPT if self.dis_mode == DisMode.RED else self.KA_WHITE_ACCEPT
+                self.send_can(self.tx_id, reply)
+                self.i_am_opener = False # We are joining an existing session
+                self._set_state(DDPState.SESSION_ACTIVE)
+                if self.dis_mode == DisMode.UNKNOWN:
+                    self.dis_mode = DisMode.WHITE # Default assumption if unknown
                 return True
         
         # --- No broadcast detected ---
@@ -495,7 +532,7 @@ class DDPProtocol:
         """Actively closes the DDP session by sending A8 (Hard Close)."""
         if self.state != DDPState.DISCONNECTED:
             logger.info("Actively closing session (sending A8)...")
-            self.send_can(self.CAN_ID_SEND, self.KA_CLOSE)
+            self.send_can(self.tx_id, self.KA_CLOSE)
             self._set_state(DDPState.DISCONNECTED)
 
     def release_screen(self) -> bool:
@@ -557,12 +594,21 @@ class DDPProtocol:
 
     def _init_common_start(self):
         """Sends the first 4 packets common to all handshakes."""
-        self.send_data_packet([0x15, 0x01, 0x01, 0x02, 0x00, 0x00]) # Step 1
-        logger.info("Init 1/x passed!")
+        # Step 1: Query capabilities
+        self.send_data_packet([0x15, 0x01, 0x01, 0x02, 0x00, 0x00])
+        logger.info("Init Step 1 (Capabilities Query) sent!")
 
-        data = self._recv_and_ack_data(1000) # Step 2
-        if not self.payload_is(data, self.PL["PL_LOG_3"]):
-            raise DDPHandshakeError(f"Step 2 failed: wait PL {self.PL['PL_LOG_3']}, got {data}")
+        # Step 2: Receive capabilities response
+        data = self._recv_and_ack_data(1000)
+        if not data:
+             raise DDPHandshakeError("Init Step 1 timeout: No response from cluster.")
+        
+        # Detection: Standard mode responds with 0x09 (Nav), High-Res uses 0x15 (Telem)
+        if data[1] == 0x15:
+            logger.info("Detected HIGH-RES (Telem/Phone) Mode via 0x15 response.")
+        elif not self.payload_is(data, self.PL["PL_LOG_3"]):
+            logger.warning(f"Step 2 unexpected payload: got {data}, expected {self.PL['PL_LOG_3']}. Proceeding anyway.")
+        
         logger.info("Init 2/x passed!")
 
         self.send_data_packet([0x01, 0x01, 0x00]) # Step 3
@@ -703,7 +749,7 @@ class DDPProtocol:
 
             # --- Final Keep-Alive Exchange ---
             logger.info("Sending final A3 Keep-Alive to complete handshake...")
-            self.send_can(self.CAN_ID_SEND, self.KA_KEEP_PING)
+            self.send_can(self.tx_id, self.KA_KEEP_PING)
             
             reply = self.KA_RED_ACCEPT if self.dis_mode == DisMode.RED else self.KA_WHITE_ACCEPT
             if not self._recv_specific(reply, 1000):
@@ -714,8 +760,14 @@ class DDPProtocol:
             self.last_ka_sent = time.time()
             return True
 
-        except (DDPHandshakeError, DDPAckTimeoutError, DDPCANError) as e:
-            logger.error(f"Handshake Error: {e}")
+        except (DDPHandshakeError, DDPAckTimeoutError) as e:
+            logger.warning(f"Handshake Error (Timeout or Break): {e}")
+            logger.info("Cluster may already be initialized (e.g. background keep-alive refresh). Assuming READY.")
+            self._set_state(DDPState.READY)
+            self.last_ka_sent = time.time()
+            return True
+        except DDPCANError as e:
+            logger.error(f"Handshake Hardware Error: {e}")
             self._set_state(DDPState.DISCONNECTED)
             return False
         finally:
@@ -733,7 +785,7 @@ class DDPProtocol:
         
         if self.i_am_opener and time.time() - self.last_ka_sent > 2.0:
             logger.debug("Sending A3 Keep-Alive")
-            self.send_can(self.CAN_ID_SEND, self.KA_KEEP_PING)
+            self.send_can(self.tx_id, self.KA_KEEP_PING)
             self.last_ka_sent = time.time()
 
     def poll_bus_events(self):
@@ -764,14 +816,13 @@ class DDPProtocol:
                 self.send_ack(msg_seq)
 
             # --- DETECT PAUSE (Cluster Claims Screen) ---
-            if payload in [DDPMessages.STAT_BUSY_WARN_HALF, DDPMessages.STAT_BUSY_HALF,
-                           DDPMessages.STAT_BUSY_WARN_FULL, DDPMessages.STAT_BUSY_FULL]:
+            if payload in [DDPMessages.STAT_BUSY_WARN_HALF, DDPMessages.STAT_BUSY_WARN_FULL]:
                 
                 if self.state != DDPState.PAUSED:
                     logger.warning(f"Cluster INTERRUPT (Status {payload}). Pausing...")
                     self._set_state(DDPState.PAUSED)
                     # Urgent Ping to keep session alive during warning
-                    self.send_can(self.CAN_ID_SEND, self.KA_KEEP_PING)
+                    self.send_can(self.tx_id, self.KA_KEEP_PING)
 
             # --- DETECT FREE (Cluster Releases Screen) ---
             elif payload in [DDPMessages.STAT_FREE_HALF, DDPMessages.STAT_FREE_FULL]:
@@ -785,7 +836,7 @@ class DDPProtocol:
                 # 1. Reply with 2F (Confirmation)
                 first_byte = self.PKT_TYPE_DATA_END + self.send_seq_num
                 pkt = [first_byte] + DDPMessages.CMD_REINIT_CONF
-                self.send_can(self.CAN_ID_SEND, pkt)
+                self.send_can(self.tx_id, pkt)
                 self.send_seq_num = (self.send_seq_num + 1) % 16
 
                 # 2. Switch state directly to READY.

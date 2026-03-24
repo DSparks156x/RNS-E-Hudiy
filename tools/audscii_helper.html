@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AUDSCII Font Helper</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #38bdf8; /* DIS Blue */
+            --border: #334155;
+            --highlight: #facc15;
+            --ascii-white: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            margin-bottom: 0.5rem;
+            color: var(--accent);
+        }
+
+        p {
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            max-width: 600px;
+            text-align: center;
+        }
+
+        .legend {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 2rem;
+            background: var(--card-bg);
+            padding: 0.75rem 1.5rem;
+            border-radius: 99px;
+            border: 1px solid var(--border);
+            font-size: 0.85rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .dot.dis { background: var(--accent); }
+        .dot.ascii { background: var(--ascii-white); }
+
+        .controls {
+            margin-bottom: 2rem;
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            gap: 1rem;
+        }
+
+        input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+            color: white;
+            font-size: 1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 1rem;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .cell {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform 0.2s, border-color 0.2s;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .cell:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+        }
+
+        .cell.highlight {
+            border-color: var(--highlight);
+            box-shadow: 0 0 15px rgba(250, 204, 21, 0.3);
+        }
+
+        canvas {
+            image-rendering: pixelated;
+            margin-bottom: 0.5rem;
+            background: #000;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .id-val {
+            font-family: monospace;
+            font-weight: bold;
+            color: var(--accent);
+            font-size: 1.1rem;
+            margin: 0.25rem 0;
+        }
+
+        .info {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: var(--ascii-white);
+            text-align: center;
+        }
+
+        .char-label {
+            position: absolute;
+            top: 4px;
+            right: 8px;
+            font-weight: bold;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .idx-label {
+            position: absolute;
+            top: 6px;
+            left: 8px;
+            color: #475569;
+            font-size: 0.6rem;
+            font-family: monospace;
+        }
+
+        #status {
+            margin-top: 2rem;
+            color: #475569;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>AUDSCII Helper</h1>
+    <p>Displays the mapping between standard ASCII characters and the Audi cluster internal IDs. Hover/Click to inspect.</p>
+
+    <div class="legend">
+        <div class="legend-item">
+            <span class="dot ascii"></span>
+            <span>White = ASCII Hex</span>
+        </div>
+        <div class="legend-item">
+            <span class="dot dis"></span>
+            <span>Blue = DIS Hex</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <input type="text" id="search" placeholder="Type a character, ASCII hex (0x61), or DIS hex to find it...">
+    </div>
+
+    <div class="grid" id="main-grid"></div>
+
+    <script>
+        // Data bundled from icons.py and font_data.js
+        const audscii_trans = [
+            0x00,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x2F,0x20,0x20,0x20,0x20,0x20,0x20,
+            0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x1C,0x20,0xD7,0x65,
+            0x20,0x21,0x22,0x23,0x24,0x25,0x26,0x27,0x28,0x29,0x2A,0x2B,0x2C,0x2D,0x2E,0x2F,
+            0x30,0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x3A,0x3B,0x3C,0x3D,0x3E,0x3F,
+            0x40,0x41,0x42,0x43,0x44,0x45,0x46,0x47,0x48,0x49,0x4A,0x4B,0x4C,0x4D,0x4E,0x4F,
+            0x50,0x51,0x52,0x53,0x54,0x55,0x56,0x57,0x58,0x59,0x5A,0x5B,0x5C,0x5D,0x5E,0x66,
+            0x20,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,
+            0x10,0x71,0x72,0x73,0x74,0x75,0x76,0x77,0x78,0x79,0x7A,0x7B,0x7C,0x7D,0x7E,0x20,
+            0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,
+            0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,
+            0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0xA2,0xA0,0x20,0x20,0x2D,0x20,0x7E,
+            0x6B,0xB4,0xB2,0xB3,0x20,0xB8,0x20,0x20,0x20,0xB1,0xB0,0x20,0x20,0x20,0x20,0xB9,
+            0xC1,0xC0,0xD0,0xE0,0x5F,0xE1,0xE2,0x8B,0xC3,0xC2,0xD2,0xD3,0xC5,0xC4,0xD4,0xD5,
+            0xCE,0x8A,0xC7,0xC6,0xD6,0xE6,0x60,0x20,0xE7,0xC9,0xC8,0xD8,0x61,0xE5,0xE8,0x8D,
+            0x81,0x80,0x90,0xF0,0x91,0xF1,0xF2,0x9B,0x83,0x82,0x92,0x93,0x85,0x84,0x94,0x95,
+            0xEF,0x9A,0x87,0x86,0x96,0xF6,0x97,0xBA,0xF7,0x89,0x88,0x98,0x99,0xF5,0xF8,0x20
+        ];
+
+        const FONT_DATA = { "0": [4, 0, 0, 0, 0, 0, 0, 0], "1": [5, 0, 0, 24, 4, 28, 36, 28], "2": [5, 32, 32, 56, 36, 36, 36, 56], "3": [5, 0, 0, 24, 36, 32, 36, 24], "4": [5, 4, 4, 28, 36, 36, 36, 28], "5": [5, 0, 0, 24, 36, 60, 32, 28], "6": [4, 8, 16, 56, 16, 16, 16, 16], "7": [5, 0, 0, 24, 36, 60, 4, 56], "8": [5, 32, 32, 56, 36, 36, 36, 36], "9": [2, 32, 0, 32, 32, 32, 32, 32], "10": [4, 8, 0, 8, 8, 8, 40, 16], "11": [5, 32, 32, 36, 40, 48, 40, 36], "12": [4, 32, 32, 32, 32, 32, 32, 24], "13": [6, 0, 0, 60, 42, 42, 42, 42], "14": [5, 0, 0, 56, 36, 36, 36, 36], "15": [5, 0, 0, 24, 36, 36, 36, 24], "16": [5, 0, 0, 24, 36, 56, 32, 32], "17": [6, 0, 2, 4, 40, 16, 0, 0], "18": [6, 0, 0, 0, 0, 0, 62, 0], "19": [6, 20, 20, 20, 20, 20, 20, 20], "20": [6, 34, 20, 28, 20, 28, 20, 34], "21": [6, 8, 28, 42, 62, 42, 28, 8], "22": [6, 28, 42, 42, 54, 34, 42, 28], "23": [3, 0, 0, 0, 0, 0, 0, 0], "24": [6, 0, 8, 28, 42, 8, 8, 0], "25": [6, 0, 8, 8, 42, 28, 8, 0], "26": [6, 0, 8, 4, 62, 4, 8, 0], "27": [6, 0, 8, 16, 62, 16, 8, 0], "28": [2, 0, 0, 0, 0, 0, 0, 0], "29": [4, 16, 8, 56, 0, 56, 32, 16], "30": [6, 0, 0, 8, 28, 62, 0, 0], "31": [6, 0, 0, 62, 28, 8, 0, 0], "32": [2, 0, 0, 0, 0, 0, 0, 0], "33": [2, 32, 32, 32, 32, 32, 0, 32], "34": [4, 40, 40, 0, 0, 0, 0, 0], "35": [6, 20, 20, 62, 20, 62, 20, 20], "36": [6, 8, 30, 40, 28, 10, 60, 8], "37": [6, 48, 50, 4, 8, 16, 38, 6], "38": [6, 24, 36, 40, 16, 42, 36, 26], "39": [2, 32, 32, 0, 0, 0, 0, 0], "40": [3, 16, 0, 32, 32, 32, 32, 16], "41": [3, 32, 16, 16, 16, 16, 16, 32], "42": [4, 0, 40, 16, 56, 16, 40, 0], "43": [6, 0, 8, 8, 62, 8, 8, 0], "44": [3, 0, 0, 0, 0, 48, 16, 32], "45": [4, 0, 0, 0, 56, 0, 0, 0], "46": [3, 0, 0, 0, 0, 0, 48, 48], "47": [4, 8, 8, 16, 16, 16, 32, 32], "48": [5, 24, 36, 36, 36, 36, 36, 24], "49": [3, 16, 48, 16, 16, 16, 16, 16], "50": [5, 24, 36, 4, 24, 32, 32, 60], "51": [5, 24, 36, 4, 24, 4, 36, 24], "52": [5, 36, 36, 36, 60, 4, 4, 4], "53": [5, 60, 32, 32, 56, 4, 36, 24], "54": [5, 24, 32, 32, 56, 36, 36, 24], "55": [5, 60, 4, 8, 16, 16, 16, 16], "56": [5, 24, 36, 36, 24, 36, 36, 24], "57": [5, 24, 36, 36, 24, 4, 4, 24], "58": [3, 0, 48, 48, 0, 48, 48, 0], "59": [3, 0, 48, 48, 0, 48, 16, 32], "60": [4, 0, 8, 16, 32, 16, 8, 0], "61": [4, 0, 0, 56, 0, 56, 0, 0], "62": [4, 0, 32, 16, 8, 16, 32, 0], "63": [5, 24, 36, 4, 8, 16, 0, 16], "64": [6, 28, 34, 46, 42, 46, 32, 28], "65": [5, 24, 36, 36, 60, 36, 36, 36], "66": [5, 56, 36, 36, 56, 36, 36, 56], "67": [5, 24, 36, 32, 32, 32, 36, 24], "68": [5, 48, 40, 36, 36, 36, 40, 48], "69": [4, 56, 32, 32, 48, 32, 32, 56], "70": [4, 56, 32, 32, 48, 32, 32, 32], "71": [5, 24, 36, 32, 44, 36, 36, 28], "72": [5, 36, 36, 36, 60, 36, 36, 36], "73": [4, 56, 16, 16, 16, 16, 16, 56], "74": [4, 24, 8, 8, 8, 8, 40, 16], "75": [5, 36, 40, 48, 32, 48, 40, 36], "76": [4, 32, 32, 32, 32, 32, 32, 56], "77": [6, 34, 54, 42, 42, 34, 34, 34], "78": [5, 36, 36, 52, 44, 36, 36, 36], "79": [5, 24, 36, 36, 36, 36, 36, 24], "80": [5, 56, 36, 36, 56, 32, 32, 32], "81": [5, 24, 36, 36, 36, 36, 40, 20], "82": [5, 56, 36, 36, 56, 48, 40, 36], "83": [5, 24, 36, 32, 24, 4, 36, 24], "84": [4, 56, 16, 16, 16, 16, 16, 16], "85": [5, 36, 36, 36, 36, 36, 36, 24], "86": [6, 34, 34, 34, 34, 34, 20, 8], "87": [6, 34, 34, 34, 42, 42, 42, 20], "88": [4, 40, 40, 16, 16, 16, 40, 40], "89": [4, 40, 40, 40, 56, 16, 16, 16], "90": [4, 56, 8, 8, 16, 32, 32, 56], "91": [3, 48, 32, 32, 32, 32, 32, 48], "92": [4, 32, 32, 16, 16, 16, 8, 8], "93": [3, 48, 16, 16, 16, 16, 16, 48], "94": [6, 8, 20, 34, 0, 0, 0, 0], "95": [5, 36, 24, 36, 36, 60, 36, 36], "96": [5, 36, 24, 36, 36, 36, 36, 24], "97": [5, 36, 0, 36, 36, 36, 36, 24], "98": [5, 48, 16, 32, 0, 0, 0, 0], "99": [5, 0, 0, 0, 0, 0, 48, 48], "100": [6, 0, 0, 0, 0, 48, 16, 32], "101": [6, 0, 0, 0, 0, 0, 0, 0], "102": [5, 0, 0, 0, 0, 0, 0, 60], "103": [6, 0, 0, 0, 34, 20, 8, 0], "104": [6, 0, 0, 0, 63, 0, 0, 0], "105": [5, 32, 48, 56, 60, 56, 48, 32], "106": [5, 48, 48, 60, 60, 60, 48, 48], "107": [6, 12, 18, 18, 12, 0, 0, 0], "108": [5, 0, 0, 0, 0, 0, 0, 0], "109": [5, 0, 40, 16, 56, 16, 40, 0], "110": [5, 32, 16, 8, 4, 8, 16, 32], "111": [3, 0, 0, 0, 0, 0, 0, 0], "112": [6, 32, 48, 56, 60, 56, 48, 32], "113": [5, 0, 0, 24, 36, 28, 4, 4], "114": [4, 0, 0, 16, 40, 32, 32, 32], "115": [4, 0, 0, 24, 32, 56, 8, 48], "116": [4, 16, 16, 56, 16, 16, 16, 8], "117": [5, 0, 0, 40, 40, 40, 40, 28], "118": [4, 0, 0, 40, 40, 40, 16, 16], "119": [6, 0, 0, 42, 42, 42, 20, 20], "120": [4, 0, 0, 40, 40, 16, 40, 40], "121": [4, 0, 0, 40, 40, 16, 16, 32], "122": [4, 0, 0, 56, 8, 16, 32, 56], "123": [4, 8, 16, 16, 32, 16, 16, 8], "124": [2, 32, 32, 32, 32, 32, 32, 32], "125": [4, 32, 16, 16, 8, 16, 16, 32], "126": [6, 0, 62, 0, 0, 0, 0, 0], "127": [6, 42, 28, 54, 8, 54, 28, 42], "128": [5, 4, 8, 24, 4, 28, 36, 28], "129": [5, 32, 16, 24, 4, 28, 36, 28], "130": [5, 4, 8, 24, 36, 60, 32, 28], "131": [5, 32, 16, 24, 36, 60, 32, 28], "132": [2, 16, 32, 0, 32, 32, 32, 32], "133": [3, 32, 16, 0, 16, 16, 16, 16], "134": [5, 4, 8, 24, 36, 36, 36, 24], "135": [5, 32, 16, 24, 36, 36, 36, 24], "136": [5, 8, 16, 0, 40, 40, 40, 28], "137": [5, 32, 16, 0, 40, 40, 40, 28], "138": [5, 20, 40, 36, 52, 44, 36, 36], "139": [5, 24, 36, 32, 36, 24, 8, 16], "140": [5, 28, 32, 24, 4, 56, 8, 16], "141": [6, 24, 36, 36, 44, 34, 34, 44], "142": [2, 32, 0, 32, 32, 32, 32, 32], "143": [6, 38, 34, 34, 34, 34, 42, 36], "144": [5, 24, 36, 24, 4, 28, 36, 28], "145": [5, 36, 0, 24, 4, 28, 36, 28], "146": [5, 24, 36, 24, 36, 60, 32, 28], "147": [5, 36, 0, 24, 36, 60, 32, 28], "148": [3, 16, 40, 0, 16, 16, 16, 16], "149": [3, 40, 0, 16, 16, 16, 16, 16], "150": [5, 24, 36, 24, 36, 36, 36, 24], "151": [5, 36, 0, 24, 36, 36, 36, 24], "152": [5, 16, 40, 0, 40, 40, 40, 28], "153": [5, 40, 0, 40, 40, 40, 40, 28], "154": [5, 20, 40, 56, 36, 36, 36, 36], "155": [5, 24, 36, 32, 36, 24, 8, 16], "156": [4, 24, 32, 56, 8, 48, 16, 32], "157": [5, 20, 8, 24, 36, 60, 4, 56], "158": [4, 0, 0, 48, 16, 16, 16, 56], "159": [6, 34, 0, 34, 34, 34, 42, 36], "160": [5, 24, 4, 28, 36, 28, 0, 0], "161": [6, 2, 2, 4, 20, 40, 40, 22], "162": [6, 28, 34, 42, 50, 42, 34, 28], "163": [6, 50, 52, 8, 16, 32, 54, 54], "164": [5, 20, 8, 28, 32, 44, 36, 28], "165": [5, 20, 8, 24, 36, 60, 32, 28], "166": [5, 40, 16, 56, 36, 36, 36, 36], "167": [6, 18, 36, 24, 36, 36, 36, 24], "168": [6, 0, 0, 62, 20, 20, 20, 18], "169": [5, 48, 32, 44, 40, 60, 8, 12], "170": [5, 12, 16, 56, 16, 16, 56, 52], "171": [6, 0, 62, 34, 34, 34, 62, 0], "172": [6, 0, 8, 16, 62, 16, 8, 0], "173": [6, 0, 8, 28, 42, 8, 8, 0], "174": [6, 0, 8, 4, 62, 4, 8, 0], "175": [6, 0, 8, 8, 42, 28, 8, 0], "176": [5, 24, 36, 36, 36, 24, 0, 0], "177": [3, 16, 48, 16, 16, 16, 0, 0], "178": [5, 24, 36, 24, 32, 60, 0, 0], "179": [4, 48, 8, 48, 8, 48, 0, 0], "180": [4, 0, 16, 56, 16, 0, 56, 0], "181": [4, 16, 0, 56, 16, 16, 16, 56], "182": [5, 8, 16, 56, 36, 36, 36, 36], "183": [6, 18, 36, 0, 40, 40, 40, 28], "184": [6, 0, 0, 20, 20, 30, 16, 32], "185": [5, 8, 0, 8, 16, 32, 36, 24], "186": [4, 0, 16, 0, 56, 0, 16, 0], "187": [4, 16, 40, 16, 0, 0, 0, 0], "188": [6, 18, 52, 24, 16, 42, 14, 2], "189": [6, 18, 52, 30, 18, 38, 8, 14], "190": [6, 34, 20, 36, 16, 42, 14, 34], "191": [6, 12, 18, 40, 20, 10, 36, 24], "192": [5, 4, 8, 24, 36, 60, 36, 36], "193": [5, 32, 16, 24, 36, 60, 36, 36], "194": [4, 8, 16, 56, 32, 48, 32, 56], "195": [4, 32, 16, 56, 32, 48, 32, 56], "196": [4, 8, 16, 56, 16, 16, 16, 56], "197": [4, 32, 16, 56, 16, 16, 16, 56], "198": [5, 4, 8, 24, 36, 36, 36, 24], "199": [5, 32, 16, 24, 36, 36, 36, 24], "200": [5, 4, 8, 36, 36, 36, 36, 24], "201": [5, 32, 16, 36, 36, 36, 36, 24], "202": [5, 40, 16, 56, 36, 56, 48, 40], "203": [5, 20, 8, 24, 36, 32, 36, 24], "204": [5, 20, 8, 28, 32, 24, 4, 56], "205": [4, 40, 16, 56, 8, 16, 32, 56], "206": [6, 24, 20, 18, 58, 18, 20, 24], "207": [4, 32, 32, 40, 32, 32, 32, 56], "208": [5, 24, 36, 24, 36, 60, 36, 36], "209": [5, 0, 0, 0, 0, 0, 0, 0], "210": [4, 16, 40, 56, 32, 48, 32, 56], "211": [4, 40, 0, 56, 32, 48, 32, 56], "212": [4, 16, 40, 56, 16, 16, 16, 56], "213": [4, 40, 0, 56, 16, 16, 16, 56], "214": [5, 24, 36, 24, 36, 36, 36, 24], "215": [6, 0, 0, 0, 0, 0, 0, 0], "216": [5, 24, 36, 0, 36, 36, 36, 24], "217": [6, 2, 2, 10, 26, 62, 24, 8], "218": [4, 40, 16, 48, 40, 32, 32, 32], "219": [5, 20, 8, 24, 36, 32, 36, 24], "220": [4, 40, 16, 24, 32, 56, 8, 48], "221": [4, 40, 16, 56, 8, 16, 32, 56], "222": [6, 4, 6, 28, 44, 52, 36, 28], "223": [4, 32, 32, 40, 32, 32, 32, 32], "224": [5, 20, 40, 24, 36, 60, 36, 36], "225": [5, 8, 20, 24, 36, 60, 36, 36], "226": [5, 28, 40, 40, 60, 40, 40, 44], "227": [5, 28, 40, 40, 44, 40, 40, 28], "228": [4, 16, 40, 0, 40, 40, 16, 32], "229": [4, 8, 16, 40, 40, 56, 16, 16], "230": [5, 20, 40, 24, 36, 36, 36, 24], "231": [6, 6, 28, 42, 42, 42, 28, 48], "232": [5, 32, 56, 36, 36, 36, 56, 32], "233": [6, 0, 0, 44, 18, 18, 2, 2], "234": [5, 8, 16, 56, 36, 56, 48, 40], "235": [5, 4, 8, 24, 36, 32, 36, 24], "236": [5, 4, 8, 28, 32, 24, 4, 56], "237": [4, 8, 16, 56, 8, 16, 32, 56], "238": [4, 56, 16, 16, 56, 16, 16, 16], "239": [5, 20, 8, 20, 44, 36, 36, 24], "240": [5, 20, 40, 24, 4, 28, 36, 28], "241": [5, 8, 20, 24, 4, 28, 36, 28], "242": [6, 0, 0, 52, 10, 30, 40, 30], "243": [6, 0, 0, 20, 42, 46, 40, 22], "244": [6, 8, 20, 0, 42, 42, 42, 20], "245": [4, 8, 16, 0, 40, 40, 16, 32], "246": [5, 20, 40, 24, 36, 36, 36, 24], "247": [6, 2, 28, 38, 42, 50, 28, 32], "248": [5, 32, 40, 52, 36, 52, 40, 32], "249": [5, 0, 0, 56, 20, 20, 4, 4], "250": [4, 8, 16, 48, 40, 32, 32, 32], "251": [5, 4, 8, 24, 36, 32, 36, 24], "252": [4, 8, 16, 24, 32, 56, 8, 48], "253": [4, 8, 16, 56, 8, 16, 32, 56], "254": [5, 16, 16, 56, 20, 24, 48, 8], "255": [0, 0, 0, 0, 0, 0, 0, 0] };
+
+        const grid = document.getElementById('main-grid');
+        const searchInput = document.getElementById('search');
+
+        function renderGrid(filter = '') {
+            grid.innerHTML = '';
+            const lowerFilter = filter.toLowerCase();
+
+            for (let i = 0; i < 256; i++) {
+                const targetId = audscii_trans[i];
+                
+                // Hide 0x20 mappings (except for the actual space at ASCII 32)
+                if (targetId === 0x20 && i !== 32) {
+                    continue;
+                }
+
+                const char = String.fromCharCode(i);
+                const asciiHex = '0x' + i.toString(16).toUpperCase().padStart(2, '0');
+                const disHex = '0x' + targetId.toString(16).toUpperCase().padStart(2, '0');
+                
+                // Filtering
+                if (filter && 
+                    !char.includes(filter) && 
+                    !i.toString().includes(filter) && 
+                    !asciiHex.toLowerCase().includes(lowerFilter) &&
+                    !disHex.toLowerCase().includes(lowerFilter)) {
+                    continue;
+                }
+
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                if (filter && (char === filter || asciiHex.toLowerCase() === lowerFilter || disHex.toLowerCase() === lowerFilter)) {
+                    cell.classList.add('highlight');
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = 6 * 4;
+                canvas.height = 8 * 4;
+                drawGlyph(canvas, targetId);
+
+                // Construct structure
+                const idxLabel = document.createElement('div');
+                idxLabel.className = 'idx-label';
+                idxLabel.innerText = i; // Small decimal for reference
+                
+                const charLabel = document.createElement('div');
+                charLabel.className = 'char-label';
+                charLabel.innerText = getPrintable(i);
+                
+                const idVal = document.createElement('div');
+                idVal.className = 'id-val';
+                idVal.innerText = disHex;
+                
+                const info = document.createElement('div');
+                info.className = 'info';
+                info.innerText = asciiHex;
+
+                cell.appendChild(idxLabel);
+                cell.appendChild(charLabel);
+                cell.appendChild(canvas);
+                cell.appendChild(idVal);
+                cell.appendChild(info);
+
+                grid.appendChild(cell);
+            }
+            const status = document.getElementById('status');
+            if (status) status.innerText = `Loaded ${Object.keys(FONT_DATA).length} font entries. Showing ${grid.children.length} results.`;
+        }
+
+        function getPrintable(i) {
+            if (i < 32 || i === 127) return '•';
+            if (i === 32) return 'SPC';
+            return String.fromCharCode(i);
+        }
+
+        function drawGlyph(canvas, id) {
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const data = FONT_DATA[id.toString()];
+            if (!data) {
+                ctx.strokeStyle = '#ef4444';
+                ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
+                return;
+            }
+
+            const width = data[0];
+            const scale = 4;
+            ctx.fillStyle = '#38bdf8'; // Audi Blue
+
+            for (let row = 0; row < Math.min(data.length - 1, 7); row++) {
+                const rowByte = data[row + 1];
+                for (let col = 0; col < width; col++) {
+                    if ((rowByte >> (5 - col)) & 1) {
+                        ctx.fillRect(col * scale, (row + 1) * scale, scale, scale);
+                    }
+                }
+            }
+        }
+
+        searchInput.addEventListener('input', (e) => {
+            renderGrid(e.target.value);
+        });
+
+        // Initialize
+        renderGrid();
+    </script>
+    <div id="status"></div>
+</body>
+</html>

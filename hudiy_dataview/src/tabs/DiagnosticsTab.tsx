@@ -3,11 +3,20 @@ import { useSocket } from '../hooks/useSocket';
 import { useHudiyTheme } from '../hooks/useHudiyTheme';
 import { Keypad } from '../components/Keypad';
 
+interface FreezeFrameItem {
+    label: string;
+    value: any;
+    unit?: string;
+    known?: boolean;
+}
+
 interface DTC {
     code: string;
-    code_dec: number;
+    code_dec: string;
     status: number;
+    status_decoded?: string[];
     freeze_frame_raw?: string[];
+    freeze_frame?: FreezeFrameItem[];
 }
 
 const KNOWN_MODULES = [
@@ -190,12 +199,28 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
         if (!values || values.length === 0) return <div style={styles.emptyGroup}>No Data</div>;
         return (
             <div style={styles.groupFields}>
-                {values.map((v, i) => (
-                    <div key={i} style={{ ...styles.fieldBox, border: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}` }}>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.onSurface }}>{v.value}</div>
-                        <div style={{ fontSize: '0.8rem', color: theme.onSurfaceVariant || '#aaa' }}>{v.unit || '-'}</div>
-                    </div>
-                ))}
+                {values.slice(0, 4).map((v, i) => {
+                    let dispVal = String(v.value);
+                    if (typeof v.value === 'number') {
+                        // For numbers, try to keep some precision but stay within 5 chars
+                        if (dispVal.length > 5) {
+                            const fixed = v.value.toFixed(1);
+                            dispVal = fixed.length <= 5 ? fixed : Math.round(v.value).toString();
+                        }
+                    }
+                    dispVal = dispVal.substring(0, 5);
+
+                    return (
+                        <div key={i} style={{ ...styles.fieldBox, border: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}` }}>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: theme.onSurface, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                                {dispVal}
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: theme.onSurfaceVariant || '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'center' }}>
+                                {v.unit || '-'}
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
         );
     };
@@ -291,7 +316,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                 {/* Left Side: DTCs (and Keypad overlay) */}
                 <div style={{ ...styles.panel, backgroundColor: theme.surfaceContainer || 'rgba(0,0,0,0.3)', flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', boxSizing: 'border-box', position: 'relative' }}>
                     <h3 style={{ marginTop: 0, borderBottom: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}`, paddingBottom: '8px', flexShrink: 0 }}>Fault Codes</h3>
-                    <div style={{ overflowY: 'auto', flexGrow: 1, minHeight: 0 }}>
+                    <div className="pretty-scroll" style={{ flexGrow: 1, minHeight: 0, paddingRight: '4px' }}>
                         {dtcs.length === 0 && !loadingDTCs && !dtcError && <div style={{ padding: '10px', opacity: 0.7 }}>No fault codes found.</div>}
                         {loadingDTCs && <div style={{ padding: '10px', opacity: 0.7 }}>Querying module...</div>}
                         {dtcError && <div style={{ padding: '10px', color: 'rgba(255, 60, 60, 0.9)' }}>Error: {dtcError}</div>}
@@ -302,16 +327,38 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                                         <span style={{ fontFamily: 'monospace', fontSize: '1.2rem', fontWeight: 'bold', marginRight: '6px' }}>{dtc.code_dec}</span>
                                         <span style={{ fontSize: '0.9rem', opacity: 0.7 }}>(Hex: {dtc.code})</span>
                                     </div>
-                                    <span style={{ fontSize: '0.9rem', opacity: 0.7 }}>Status: 0x{dtc.status.toString(16).padStart(2, '0')}</span>
+                                    <span style={{ fontSize: '0.9rem', opacity: 0.7 }}>
+                                        {dtc.status_decoded ? dtc.status_decoded.join(', ') : `Status: 0x${dtc.status.toString(16).padStart(2, '0')}`}
+                                    </span>
                                 </div>
-                                {dtc.freeze_frame_raw && dtc.freeze_frame_raw.length > 0 && (
-                                    <div style={{ marginTop: '8px', padding: '6px', backgroundColor: theme.surfaceDim || 'rgba(0,0,0,0.2)', borderRadius: '4px' }}>
-                                        <span style={{ fontSize: '0.8rem', opacity: 0.6, display: 'block', marginBottom: '4px' }}>Freeze Frame (Raw Hex)</span>
-                                        <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: theme.primary, wordBreak: 'break-all' }}>
-                                            {dtc.freeze_frame_raw.join(' ')}
-                                        </span>
-                                    </div>
-                                )}
+                                {(() => {
+                                    if (dtc.freeze_frame && dtc.freeze_frame.length > 0) {
+                                        return (
+                                            <div style={{ marginTop: '8px', padding: '10px', backgroundColor: theme.surfaceVariant || 'rgba(0,0,0,0.4)', borderRadius: '12px', border: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}` }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
+                                                    {dtc.freeze_frame.map((item, ffIdx) => (
+                                                        <div key={ffIdx} style={{ display: 'flex', flexDirection: 'column' }}>
+                                                            <span style={{ fontSize: '0.75rem', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.label}</span>
+                                                            <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: theme.primary }}>
+                                                                {item.value} {item.unit || ''}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    } else if (dtc.freeze_frame_raw && dtc.freeze_frame_raw.length > 0) {
+                                        return (
+                                            <div style={{ marginTop: '8px', padding: '6px', backgroundColor: theme.surfaceDim || 'rgba(0,0,0,0.2)', borderRadius: '4px' }}>
+                                                <span style={{ fontSize: '0.8rem', opacity: 0.6, display: 'block', marginBottom: '4px' }}>Freeze Frame (Raw Hex)</span>
+                                                <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: theme.primary, wordBreak: 'break-all' }}>
+                                                    {dtc.freeze_frame_raw.join(' ')}
+                                                </span>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                             </div>
                         ))}
                     </div>
@@ -340,7 +387,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                 <div style={{ ...styles.panel, backgroundColor: theme.surfaceContainer || 'rgba(0,0,0,0.3)', flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', boxSizing: 'border-box' }}>
                     <h3 style={{ marginTop: 0, borderBottom: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}`, paddingBottom: '8px', flexShrink: 0 }}>Measuring Groups</h3>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flexGrow: 1, overflowY: 'auto', minHeight: 0, height: '100%', paddingRight: '5px' }}>
+                    <div className="pretty-scroll" style={{ display: 'flex', flexDirection: 'column', gap: '10px', flexGrow: 1, minHeight: 0, height: '100%', paddingRight: '4px' }}>
                         {/* Group 1 */}
                         <div style={styles.groupRow}>
                             <input
@@ -408,7 +455,7 @@ const styles: Record<string, React.CSSProperties> = {
         display: 'flex',
         alignItems: 'stretch',
         gap: '10px',
-        flexGrow: 1,
+        flex: 1,
         minHeight: 0
     },
     groupInput: {
@@ -437,11 +484,14 @@ const styles: Record<string, React.CSSProperties> = {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '5px',
+        padding: '0px 2px',
         backgroundColor: 'rgba(0,0,0,0.1)',
         overflow: 'hidden',
-        minWidth: 0,
-        minHeight: 0
+        minWidth: '60px',
+        flexBasis: '0',
+        flexGrow: 1,
+        minHeight: '25px',
+        maxHeight: '60px'
     },
     emptyGroup: {
         height: '100%',

@@ -29,6 +29,15 @@ def test_connect():
 def test_disconnect():
     logger.info("Client disconnected from Socket.IO")
 
+@socketio.on('set_dis_state')
+def test_set_dis_state(data):
+    if 'bridge' in globals():
+        state = data.get('state', 'READY')
+        bridge.current_dis_state = state
+        logger.info(f"Emulator DIS state manually set to: {state}")
+        # Immediate broadcast to feel responsive
+        bridge.status_pub.send_string(f"DIS_STATE {state}")
+
 @socketio.on('mock_input')
 def test_mock_input(data):
     if 'bridge' in globals():
@@ -101,21 +110,43 @@ class EmulatorBridge:
         except Exception as e:
             logger.debug(f"TCP 5560 bind skipped: {e}")
 
+        # Status Pub for DIS_STATE (Paused/Ready)
+        self.status_pub = self.context.socket(zmq.PUB)
+        try:
+            self.status_pub.bind("tcp://127.0.0.1:5562")
+            logger.info("ZMQ Mock Status Publisher bound to tcp://127.0.0.1:5562")
+        except Exception as e:
+            logger.error(f"Failed to bind mock status PUB: {e}")
+
+        self.current_dis_state = "READY"
+
     def send_mock_can(self, data):
         btn = data.get('btn')
         state = data.get('state')
         hex_data = "000000"
+        topic = b"CAN_0x2C1"
         
         if state == "pressed":
             if btn == "up":
                 hex_data = "000020"
             elif btn == "down":
                 hex_data = "000010"
+        elif state == "clicked":
+            topic = b"CAN_0x5C3"
+            if btn == "mfsw_up":
+                hex_data = "000B"
+            elif btn == "mfsw_down":
+                hex_data = "000C"
+            elif btn == "mfsw_click":
+                hex_data = "0008"
                 
-        msg = {'data_hex': hex_data}
+        msg = {
+            'data_hex': hex_data,
+            'dlc': len(hex_data) // 2
+        }
         try:
-            self.pub_socket.send_multipart([b"CAN_0x2C1", json.dumps(msg).encode()])
-            logger.debug(f"Mocked CAN input sent: {btn} {state}")
+            self.pub_socket.send_multipart([topic, json.dumps(msg).encode()])
+            logger.debug(f"Mocked CAN input sent: {btn} {state} to {topic}")
         except Exception as e:
             logger.error(f"Failed to send mock CAN: {e}")
 
@@ -136,8 +167,15 @@ class EmulatorBridge:
         poller.register(self.draw_socket, zmq.POLLIN)
         poller.register(self.log_socket, zmq.POLLIN)
         
+        last_status_time = 0
         while True:
             try:
+                now = time.time()
+                # Status Heartbeat (1s)
+                if now - last_status_time > 1.0:
+                    self.status_pub.send_string(f"DIS_STATE {self.current_dis_state}")
+                    last_status_time = now
+                    
                 time.sleep(0.05)
                 socks = dict(poller.poll(50))
                 
@@ -147,6 +185,9 @@ class EmulatorBridge:
                             cmd = self.draw_socket.recv_json(flags=zmq.NOBLOCK)
                             socketio.emit('dis_command', cmd)
                         except zmq.Again:
+                            break
+                        except Exception as e:
+                            logger.error(f"Error parsing JSON command: {e}")
                             break
                             
                 if self.log_socket in socks:
