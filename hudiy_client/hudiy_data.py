@@ -429,7 +429,9 @@ class TP2BridgeHandler(ClientEventHandler):
         if message.result == 1:  # OK
             self.icon_id = message.id
             logger.info(f"Status Icon Registered. ID: {self.icon_id}")
-            self.poll_status(client)
+            # Schedule the first poll with a short delay to ensure the server is fully ready to receive state updates
+            self.timer = threading.Timer(0.5, self.poll_status, [client])
+            self.timer.start()
         else:
             logger.error("Failed to register Status Icon")
 
@@ -545,11 +547,12 @@ class TP2BridgeHandler(ClientEventHandler):
         self.timer.start()
 
 class HudiyData:
-    def __init__(self, config_path='/home/pi/config.json'):
+    def __init__(self, config_path='~/config.json'):
         # --- Load ZMQ Config ---
         config = None
         try:
-            with open(config_path, 'r') as f:
+            expanded_path = os.path.expanduser(config_path)
+            with open(expanded_path, 'r') as f:
                 config = json.load(f)
             _zmq = config.get('interfaces', {}).get('zmq', {})
             zmq_addr = _zmq.get('metric_stream', "ipc:///run/rnse_control/hudiy_stream.ipc")
@@ -696,7 +699,7 @@ class HudiyData:
 
 if __name__ == '__main__':
     try:
-        HudiyData(config_path='/home/pi/config.json').run()
+        HudiyData(config_path='~/config.json').run()
     except Exception as e:
         logger.critical(f"Unhandled exception in main: {e}", exc_info=True)
     finally:
