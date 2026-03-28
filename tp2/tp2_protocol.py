@@ -214,12 +214,54 @@ class TP2Protocol:
         return self._read_multiframe_response()
 
     def _wait_ack(self, seq_num):
-        """Waits for 0xB0 + (seq+1)."""
+        """Waits for 0xB0 + (seq+1), handling Wait frames and Keep-Alives."""
         expected = 0xB0 + ((seq_num + 1) % 16)
-        msg = self._recv(self.rx_id, self.T1_TIMEOUT)
-        if msg and msg[0] == expected:
-            return True
+        
+        # We use a total timeout for the whole wait process
+        timeout_ms = self.T1_TIMEOUT
+        end_time = time.time() + (timeout_ms / 1000.0)
+        
+        while time.time() < end_time:
+            # Calculate remaining time for this poll
+            remaining_ms = int((end_time - time.time()) * 1000)
+            if remaining_ms <= 0: break
+            
+            msg = self._recv(self.rx_id, remaining_ms)
+            if not msg: break
+            
+            # 1. Success (ACK)
+            if msg[0] == expected:
+                return True
+                
+            # 2. Wait Frame (0x9x) - Extend Timeout
+            if (msg[0] & 0xF0) == 0x90:
+                logger.warning(f"TP2: Received Wait Frame 0x{msg[0]:02X} while waiting for ACK. Extending.")
+                end_time += 1.0 # Extend by 1 second
+                continue
+                
+            # 3. Keep Alive (A3) - Reply A1
+            if msg[0] == 0xA3:
+                self._send(self.tx_id, [0xA1])
+                # Don't extend timeout here, just continue waiting
+                continue
+
+            # 4. Disconnect (A8)
+            if msg[0] == 0xA8:
+                logger.info("TP2: Received Disconnect from ECU while waiting for ACK.")
+                self.connected = False
+                return False
+                
+            # 5. ACK for a DIFFERENT sequence? 
+            # This can happen if we missed an earlier ACK or if there's out-of-order delivery
+            if (msg[0] & 0xF0) == 0xB0:
+                logger.warning(f"TP2: Received ACK 0x{msg[0]:02X} but expected 0x{expected:02X}. Potential sync issue.")
+                continue
+
+            # 6. Anything else? Log and ignore if it's on our RX ID
+            logger.debug(f"TP2: Ignored unexpected 0x{msg[0]:02X} while waiting for ACK.")
+            
         return False
+
 
     def _read_multiframe_response(self) -> List[int]:
         """Reassembles incoming KWP response."""
@@ -282,26 +324,44 @@ class TP2Protocol:
                 return buffer[:expected_len] # Trim any padding if present
 
     def send_keep_alive(self):
-        """Sends Keep-Alive Ping (A3) and waits for response (A1)."""
-        if self.tx_id:
-            try:
-                self._send(self.tx_id, [0xA3])
-                resp = self._recv(self.rx_id, self.T1_TIMEOUT)
+        """Sends Keep-Alive Ping (A3) and waits for response (A1/93)."""
+        if not self.tx_id: return False
+        
+        try:
+            self._send(self.tx_id, [0xA3])
+            
+            timeout_ms = self.T1_TIMEOUT
+            end_time = time.time() + (timeout_ms / 1000.0)
+            
+            while time.time() < end_time:
+                remaining_ms = int((end_time - time.time()) * 1000)
+                if remaining_ms <= 0: break
                 
-                if not resp:
-                    logger.warning("TP2: Keep-Alive timeout.")
-                    return False
+                resp = self._recv(self.rx_id, remaining_ms)
+                if not resp: break
+                
+                # 1. Success (A1 or 0x93 seen in logs)
+                if resp[0] == 0xA1 or resp[0] == 0x93:
+                    return True
                     
+                # 2. Wait Frame (0x9x) - Extend Timeout
+                if (resp[0] & 0xF0) == 0x90:
+                    logger.warning(f"TP2: Received Wait Frame 0x{resp[0]:02X} during Keep-Alive. Extending.")
+                    end_time += 1.0
+                    continue
+                    
+                # 3. Disconnect (A8)
                 if resp[0] == 0xA8:
-                     logger.info("TP2: Received Disconnect from ECU during Keep-Alive.")
-                     self.disconnect()
-                     return False
-                     
-                if resp[0] != 0xA1 and resp[0] != 0x93: # 0x93 seen in logs
-                    logger.warning(f"TP2: Keep-Alive failed. Resp: {resp}")
+                    logger.info("TP2: Received Disconnect from ECU during Keep-Alive.")
+                    self.disconnect()
                     return False
-                return True
-            except Exception as e:
-                logger.error(f"TP2: Keep-Alive Error: {e}")
-                return False
-        return False
+                
+                logger.debug(f"TP2: Ignored unexpected 0x{resp[0]:02X} during Keep-Alive.")
+                
+            logger.warning("TP2: Keep-Alive timeout.")
+            return False
+            
+        except Exception as e:
+            logger.error(f"TP2: Keep-Alive Error: {e}")
+            return False
+
