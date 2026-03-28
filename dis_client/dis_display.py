@@ -25,6 +25,8 @@ class DisplayEngine:
         with open(config_path) as f: self.cfg = json.load(f)
         self.settings = self.load_settings()
         
+        center_display_cfg = self.cfg.get('display', {}).get('center_display', {})
+
         # --- Apps Definition (No Menu) ---
         self.apps = {}
         self.apps['app_nav']          = NavApp(self.cfg)
@@ -202,7 +204,6 @@ class DisplayEngine:
         self.auto_switch_back_at = 0
         
         # Load Navigation Auto-Switch Config
-        center_display_cfg = self.cfg.get('display', {}).get('center_display', {})
         nav_cfg = center_display_cfg.get('navigation', {})
         self.nav_auto_switch = nav_cfg.get('auto_switch', True)
         self.nav_approach_threshold = nav_cfg.get('auto_switch_approach_threshold', 500)
