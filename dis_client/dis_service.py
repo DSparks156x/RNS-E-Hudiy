@@ -94,6 +94,7 @@ class DisService:
         # Recovery state
         self.last_claim_attempt = 0.0
         self.claim_retry_count = 0
+        self.init_cleanup_done = False # Track if upfront zombie cleanup was done
 
     @property
     def screen_is_active(self):
@@ -235,6 +236,13 @@ class DisService:
             except DDPError as e:
                 self.claim_retry_count += 1
                 logger.error(f"Failed to claim screen (WHITE path, attempt {self.claim_retry_count}): {e}")
+                
+                # ZOMBIE DETECTION: If we JUST assumed READY from a failed handshake,
+                # and the claim also failed, the cluster's DDP layer is definitely out of sync.
+                # Force a hard-reset IMMEDIATELY rather than waiting for 3 retries.
+                if self.claim_retry_count >= 1 and getattr(self.ddp, 'was_handshake_assumed', False):
+                    logger.warning("Zombie Session detected (Handshake assumed but Claim failed). Escalating to Hard-Reset.")
+                    self.claim_retry_count = 3 # Force trigger below
                 
                 if self.claim_retry_count >= 3:
                     logger.warning("Multiple claim failures. Hard-resetting session (sending A8).")
@@ -449,6 +457,14 @@ class DisService:
                 if self.ddp.state == DDPState.DISCONNECTED:
                     self.screen_is_active = False
                     self.claim_retry_count = 0 
+                    
+                    # Proactive cleanup for first-run or after crash
+                    if not getattr(self, 'init_cleanup_done', False):
+                        logger.info("Service Startup: Sending proactive Close (A8) to clear zombie sessions.")
+                        self.ddp.close_session()
+                        self.init_cleanup_done = True
+                        time.sleep(1.0) # Wait for cluster to settle
+
                     if self.ddp.detect_and_open_session():
                         logger.info(f"Session established (Mode: {self.ddp.dis_mode.name}).")
                     else:

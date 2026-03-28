@@ -168,7 +168,7 @@ class DDPProtocol:
             self.i_am_opener = False
             self.send_seq_num = 0
             # Wait for cluster to finish clean up
-            time.sleep(0.5)
+            time.sleep(1.2)
 
     def payload_is(self, data: List[int], expected_payload: List[int]) -> bool:
         """Helper to check payload regardless of the sequence number (first byte)."""
@@ -178,16 +178,28 @@ class DDPProtocol:
     # --- Low-Level CAN & DDP I/O ---
 
     def send_can(self, can_id: int, data: List[int]):
-        """Sends a raw CAN message to the bus with pacing."""
+        """Sends a raw CAN message to the bus with pacing and Error 105 retry."""
         data_hex = ' '.join(f'{b:02X}' for b in data)
         logger.debug("-> 0x%03X: %s", can_id, data_hex)
-        try:
-            msg = can.Message(arbitration_id=can_id, data=data, is_extended_id=False)
-            self.bus.send(msg)
-            time.sleep(self.CAN_PACING_DELAY_S) # Critical pacing delay
-        except Exception as e:
-            logger.error(f"CAN Send Error: {e}")
-            raise DDPCANError(f"CAN Send Error: {e}")
+        
+        max_retries = 10
+        retry_delay = 0.05 # 50ms
+        
+        for attempt in range(max_retries):
+            try:
+                msg = can.Message(arbitration_id=can_id, data=data, is_extended_id=False)
+                self.bus.send(msg)
+                time.sleep(self.CAN_PACING_DELAY_S) # Critical pacing delay
+                return # Success
+            except Exception as e:
+                # 105 is 'No buffer space available' on SocketCAN
+                if "105" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"CAN Buffer Full (Error 105), retry {attempt+1}/{max_retries}...")
+                    time.sleep(retry_delay)
+                    continue
+                
+                logger.error(f"CAN Send Error: {e}")
+                raise DDPCANError(f"CAN Send Error: {e}")
 
     def _recv(self, timeout_s: float = 0.01) -> Optional[List[int]]:
         """Receives and logs a single CAN message from the bus (ID)."""
@@ -264,9 +276,11 @@ class DDPProtocol:
 
         # --- Type 0x9_ (Break) ---
         if msg_type_prefix == 0x90:
-            logger.warning("Cluster sent Break (0x9x) -> Block Rejected / Busy")
-            # Do NOT drop the session. This is just a block rejection, 
-            # often because the cluster is already initialized or busy.
+            logger.warning(f"Cluster sent Break {data[0]:02X} -> Block Rejected / Busy")
+            # If we are initializing, this is a fatal mismatch for this session
+            if self.state == DDPState.INITIALIZING:
+                logger.error(f"Handshake rejected by cluster ({data[0]:02X}). Resetting.")
+                self._set_state(DDPState.DISCONNECTED)
             return True
 
         logger.warning(f"Unknown unhandled packet type {data[0]:02X}")
@@ -359,7 +373,7 @@ class DDPProtocol:
             return # 0x2x packets are not ACKed
         
         # Wait for the specific ACK
-        if self._recv_specific([expected_ack_byte], 500):
+        if self._recv_specific([expected_ack_byte], 1000):
             return
         else:
             logger.warning(f"Timeout waiting for ACK {expected_ack_byte:02X} after sending {packet[0]:02X}")
@@ -411,8 +425,13 @@ class DDPProtocol:
                 if pacing and self.dis_mode == DisMode.WHITE:
                     time.sleep(0.02) # 20ms delay between blocks
             
-        except (DDPAckTimeoutError, DDPCANError) as e:
-            logger.error(f"Failed to send DDP frame: {e}. Session closing.")
+        except DDPAckTimeoutError as e:
+            logger.error(f"DDP Frame ACK timeout: {e}. Session might be unstable.")
+            # Do NOT disconnect immediately on a data ACK timeout. 
+            # The cluster might still be alive and we can retry the frame.
+            return False
+        except DDPCANError as e:
+            logger.error(f"CAN hardware error: {e}. Session closing.")
             self._set_state(DDPState.DISCONNECTED)
             return False
             
@@ -763,14 +782,18 @@ class DDPProtocol:
         except (DDPHandshakeError, DDPAckTimeoutError) as e:
             logger.warning(f"Handshake Error (Timeout or Break): {e}")
             logger.info("Cluster may already be initialized (e.g. background keep-alive refresh). Assuming READY.")
+            self.was_handshake_assumed = True
             self._set_state(DDPState.READY)
             self.last_ka_sent = time.time()
             return True
         except DDPCANError as e:
+            self.was_handshake_assumed = False
             logger.error(f"Handshake Hardware Error: {e}")
             self._set_state(DDPState.DISCONNECTED)
             return False
         finally:
+            if self.state == DDPState.READY and not getattr(self, 'was_handshake_assumed', False):
+                 self.was_handshake_assumed = False # Handshake was clean
             # Clean up payload dict
             if hasattr(self, 'PL'):
                 del self.PL
