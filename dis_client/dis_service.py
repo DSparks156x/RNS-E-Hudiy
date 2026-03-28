@@ -191,6 +191,7 @@ class DisService:
                 raise DDPHandshakeError(f"Claim Handshake 2/2 failed (wait 1x 53 85), got {data}")
             except DDPError as e:
                 logger.error(f"Failed to claim screen (RED path): {e}")
+                self.ddp._set_state(DDPState.DISCONNECTED)
                 return False
         else:
             try:
@@ -228,6 +229,7 @@ class DisService:
                     logger.warning(f"Got non-standard status {data} after 2nd claim, but proceeding.")
             except DDPError as e:
                 logger.error(f"Failed to claim screen (WHITE path): {e}")
+                self.ddp._set_state(DDPState.DISCONNECTED)
                 return False
             
         logger.info(f"Region Claim '{self.region_name}' handshake successful. Screen is active.")

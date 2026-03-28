@@ -1,0 +1,273 @@
+Mar 28 12:23:56 cownav python3[1987]: 2026-03-28 12:23:56,187 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:24:01 cownav python3[1987]: 2026-03-28 12:24:01,335 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:24:06 cownav python3[1987]: 2026-03-28 12:24:06,557 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:24:11 cownav python3[1987]: 2026-03-28 12:24:11,766 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:24:12 cownav python3[1987]: 2026-03-28 12:24:12,336 [INFO] (DIS Svc) Ignition Changed: OFF
+Mar 28 12:24:12 cownav python3[1987]: 2026-03-28 12:24:12,337 [INFO] (DIS Svc) Ignition OFF -> Stopping DIS Session
+Mar 28 12:24:12 cownav python3[1987]: 2026-03-28 12:24:12,337 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 28 12:24:12 cownav python3[1987]: 2026-03-28 12:24:12,837 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 12:24:28 cownav python3[1987]: 2026-03-28 12:24:28,344 [INFO] (DIS Svc) Ignition Changed: ON
+Mar 28 12:24:28 cownav python3[1987]: 2026-03-28 12:24:28,345 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE DISCONNECTED
+Mar 28 12:24:28 cownav python3[1987]: 2026-03-28 12:24:28,345 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 12:24:28 cownav python3[1987]: 2026-03-28 12:24:28,345 [ERROR] (DIS Svc) Main loop error: Error receiving: Network is down [Error Code 100]
+Mar 28 12:24:28 cownav python3[1987]: Traceback (most recent call last):
+Mar 28 12:24:28 cownav python3[1987]:   File "/usr/lib/python3/dist-packages/can/interfaces/socketcan/socketcan.py", line 542, in capture_message
+Mar 28 12:24:28 cownav python3[1987]:     cf, ancillary_data, msg_flags, addr = sock.recvmsg(
+Mar 28 12:24:28 cownav python3[1987]:                                           ~~~~~~~~~~~~^
+Mar 28 12:24:28 cownav python3[1987]:         constants.CANFD_MTU, RECEIVED_ANCILLARY_BUFFER_SIZE
+Mar 28 12:24:28 cownav python3[1987]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Mar 28 12:24:28 cownav python3[1987]:     )
+Mar 28 12:24:28 cownav python3[1987]:     ^
+Mar 28 12:24:28 cownav python3[1987]: OSError: [Errno 100] Network is down
+Mar 28 12:24:28 cownav python3[1987]: The above exception was the direct cause of the following exception:
+Mar 28 12:24:28 cownav python3[1987]: Traceback (most recent call last):
+Mar 28 12:24:28 cownav python3[1987]:   File "/home/pi/dis_client/dis_service.py", line 438, in run
+Mar 28 12:24:28 cownav python3[1987]:     if self.ddp.detect_and_open_session():
+Mar 28 12:24:28 cownav python3[1987]:        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+Mar 28 12:24:28 cownav python3[1987]:   File "/home/pi/dis_client/ddp_protocol.py", line 496, in detect_and_open_session
+Mar 28 12:24:28 cownav python3[1987]:     data = self._recv(0.1) # Poll every 100ms
+Mar 28 12:24:28 cownav python3[1987]:   File "/home/pi/dis_client/ddp_protocol.py", line 194, in _recv
+Mar 28 12:24:28 cownav python3[1987]:     msg = self.bus.recv(timeout_s)
+Mar 28 12:24:28 cownav python3[1987]:   File "/usr/lib/python3/dist-packages/can/bus.py", line 127, in recv
+Mar 28 12:24:28 cownav python3[1987]:     msg, already_filtered = self._recv_internal(timeout=time_left)
+Mar 28 12:24:28 cownav python3[1987]:                             ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+Mar 28 12:24:28 cownav python3[1987]:   File "/usr/lib/python3/dist-packages/can/interfaces/socketcan/socketcan.py", line 755, in _recv_internal
+Mar 28 12:24:28 cownav python3[1987]:     msg = capture_message(self.socket, get_channel)
+Mar 28 12:24:28 cownav python3[1987]:   File "/usr/lib/python3/dist-packages/can/interfaces/socketcan/socketcan.py", line 550, in capture_message
+Mar 28 12:24:28 cownav python3[1987]:     raise can.CanOperationError(
+Mar 28 12:24:28 cownav python3[1987]:         f"Error receiving: {error.strerror}", error.errno
+Mar 28 12:24:28 cownav python3[1987]:     ) from error
+Mar 28 12:24:28 cownav python3[1987]: can.exceptions.CanOperationError: Error receiving: Network is down [Error Code 100]
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,358 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,368 [INFO] (DIS Svc) Found White DIS passive open (A0 0F...).
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,371 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,371 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,381 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,381 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,381 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,406 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,407 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,907 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,907 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,907 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,907 [INFO] (DIS Svc) Cluster may already be initialized (e.g. background keep-alive refresh). Assuming READY.
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,907 [INFO] (DIS Svc) State transition: DISCONNECTED -> READY
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,907 [INFO] (DIS Svc) DDP READY.
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,907 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE READY
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,919 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,945 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 28 12:24:31 cownav python3[1987]: 2026-03-28 12:24:31,945 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 28 12:24:32 cownav python3[1987]: 2026-03-28 12:24:32,445 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 28 12:24:32 cownav python3[1987]: 2026-03-28 12:24:32,445 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 12:24:32 cownav python3[1987]: 2026-03-28 12:24:32,445 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B1
+Mar 28 12:24:32 cownav python3[1987]: 2026-03-28 12:24:32,445 [WARNING] (DIS Svc) Cannot claim screen, session not READY.
+Mar 28 12:24:32 cownav python3[1987]: 2026-03-28 12:24:32,445 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 12:24:32 cownav python3[1987]: 2026-03-28 12:24:32,456 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 12:24:32 cownav python3[1987]: 2026-03-28 12:24:32,456 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 12:24:33 cownav python3[1987]: 2026-03-28 12:24:33,958 [INFO] (DIS Svc) No Red DIS broadcast. Assuming White DIS, attempting Active Open.
+Mar 28 12:24:33 cownav python3[1987]: 2026-03-28 12:24:33,958 [INFO] (DIS Svc) ACTIVE WHITE: Sending A0...
+Mar 28 12:24:33 cownav python3[1987]: 2026-03-28 12:24:33,966 [INFO] (DIS Svc) A1 received
+Mar 28 12:24:33 cownav python3[1987]: 2026-03-28 12:24:33,966 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 12:24:33 cownav python3[1987]: 2026-03-28 12:24:33,966 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 12:24:33 cownav python3[1987]: 2026-03-28 12:24:33,977 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 12:24:33 cownav python3[1987]: 2026-03-28 12:24:33,977 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 12:24:33 cownav python3[1987]: 2026-03-28 12:24:33,977 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 12:24:33 cownav python3[1987]: 2026-03-28 12:24:33,986 [INFO] (DIS Svc) Init Step 1 (Capabilities Query) sent!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,028 [INFO] (DIS Svc) Init 2/x passed!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,036 [INFO] (DIS Svc) Init 3/x passed!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,046 [INFO] (DIS Svc) Init 4/x passed!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,058 [INFO] (DIS Svc) Handshake Fork: Got out-of-order packet (PL 00 01). Accepting.
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,066 [INFO] (DIS Svc) Handshake Fork: Got PL_LOG_11 (ALT)
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,066 [INFO] (DIS Svc) Following Path C (White Long)...
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,077 [INFO] (DIS Svc) Init 5/x passed!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,088 [INFO] (DIS Svc) Init 6/x passed (ALT)!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,095 [INFO] (DIS Svc) Init 7/x passed!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,106 [INFO] (DIS Svc) Init 8/x passed (ALT)!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,116 [INFO] (DIS Svc) Init 9/x passed!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,129 [INFO] (DIS Svc) Init 10/x passed (ALT)!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,148 [INFO] (DIS Svc) Init 11/x passed!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,155 [INFO] (DIS Svc) Init 12/x passed!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,168 [INFO] (DIS Svc) Init 13/x passed!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,176 [INFO] (DIS Svc) Init 14/x passed!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,186 [INFO] (DIS Svc) Init 15/x passed!
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,186 [INFO] (DIS Svc) Sending final A3 Keep-Alive to complete handshake...
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,196 [INFO] (DIS Svc) DDP Initialization COMPLETE
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,196 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,196 [INFO] (DIS Svc) DDP READY.
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,196 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE READY
+Mar 28 12:24:34 cownav python3[1987]: 2026-03-28 12:24:34,207 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:24:35 cownav python3[1987]: 2026-03-28 12:24:35,241 [ERROR] (DIS Svc) Timeout waiting for a data packet
+Mar 28 12:24:35 cownav python3[1987]: 2026-03-28 12:24:35,241 [WARNING] (DIS Svc) Cluster did not release screen within 1s (got None). Forcing PAUSED state.
+Mar 28 12:24:35 cownav python3[1987]: 2026-03-28 12:24:35,241 [INFO] (DIS Svc) State transition: READY -> PAUSED
+Mar 28 12:24:35 cownav python3[1987]: 2026-03-28 12:24:35,241 [WARNING] (DIS Svc) Cannot claim screen, session not READY.
+Mar 28 12:24:35 cownav python3[1987]: 2026-03-28 12:24:35,242 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 12:24:35 cownav python3[1987]: 2026-03-28 12:24:35,242 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE PAUSED
+Mar 28 12:24:36 cownav python3[1987]: 2026-03-28 12:24:36,301 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE PAUSED
+Mar 28 12:24:41 cownav python3[1987]: 2026-03-28 12:24:41,431 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE PAUSED
+Mar 28 12:24:45 cownav python3[1987]: 2026-03-28 12:24:45,369 [INFO] (DIS Svc) Cluster Status FREE ([83, 5]). Waiting for Re-Init Request (2E)...
+Mar 28 12:24:45 cownav python3[1987]: 2026-03-28 12:24:45,439 [INFO] (DIS Svc) Received Re-Init Request (2E). Sending Confirm (2F).
+Mar 28 12:24:45 cownav python3[1987]: 2026-03-28 12:24:45,441 [INFO] (DIS Svc) State transition: PAUSED -> READY
+Mar 28 12:24:45 cownav python3[1987]: 2026-03-28 12:24:45,441 [INFO] (DIS Svc) Resuming from PAUSE.
+Mar 28 12:24:45 cownav python3[1987]: 2026-03-28 12:24:45,512 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE READY
+Mar 28 12:24:45 cownav python3[1987]: 2026-03-28 12:24:45,514 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:24:45 cownav python3[1987]: 2026-03-28 12:24:45,538 [INFO] (DIS Svc) Inactivity auto-release is DISABLED (screen will stay claimed forever)
+Mar 28 12:24:45 cownav python3[1987]: 2026-03-28 12:24:45,538 [INFO] (DIS Svc) Restoring screen content after interruption or clearing...
+Mar 28 12:24:45 cownav python3[1987]: 2026-03-28 12:24:45,538 [INFO] (DIS Svc) Queueing Region Clear for central
+Mar 28 12:24:45 cownav python3[1987]: 2026-03-28 12:24:45,726 [INFO] (DIS Svc) Executing full clear_screen command...
+Mar 28 12:24:46 cownav python3[1987]: 2026-03-28 12:24:46,521 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:24:51 cownav python3[1987]: 2026-03-28 12:24:51,614 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:24:56 cownav python3[1987]: 2026-03-28 12:24:56,836 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:25:01 cownav python3[1987]: 2026-03-28 12:25:01,873 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:25:06 cownav python3[1987]: 2026-03-28 12:25:06,178 [ERROR] (DIS Svc) CAN Send Error: Failed to transmit: No buffer space available [Error Code 105]
+Mar 28 12:25:06 cownav python3[1987]: 2026-03-28 12:25:06,178 [ERROR] (DIS Svc) Failed to send DDP frame: CAN Send Error: Failed to transmit: No buffer space available [Error Code 105]. Session closing.
+Mar 28 12:25:06 cownav python3[1987]: 2026-03-28 12:25:06,178 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 28 12:25:06 cownav python3[1987]: 2026-03-28 12:25:06,689 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 12:25:06 cownav python3[1987]: 2026-03-28 12:25:06,689 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 12:25:06 cownav python3[1987]: 2026-03-28 12:25:06,746 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 12:25:06 cownav python3[1987]: 2026-03-28 12:25:06,749 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 12:25:06 cownav python3[1987]: 2026-03-28 12:25:06,749 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 12:25:06 cownav python3[1987]: 2026-03-28 12:25:06,759 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 12:25:06 cownav python3[1987]: 2026-03-28 12:25:06,759 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 12:25:06 cownav python3[1987]: 2026-03-28 12:25:06,759 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 12:25:07 cownav python3[1987]: 2026-03-28 12:25:07,268 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 12:25:07 cownav python3[1987]: 2026-03-28 12:25:07,268 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 12:25:07 cownav python3[1987]: 2026-03-28 12:25:07,268 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1
+Mar 28 12:25:07 cownav python3[1987]: 2026-03-28 12:25:07,268 [INFO] (DIS Svc) Cluster may already be initialized (e.g. background keep-alive refresh). Assuming READY.
+Mar 28 12:25:07 cownav python3[1987]: 2026-03-28 12:25:07,268 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 28 12:25:07 cownav python3[1987]: 2026-03-28 12:25:07,268 [INFO] (DIS Svc) DDP READY.
+Mar 28 12:25:07 cownav python3[1987]: 2026-03-28 12:25:07,269 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE READY
+Mar 28 12:25:07 cownav python3[1987]: 2026-03-28 12:25:07,279 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:25:07 cownav python3[1987]: 2026-03-28 12:25:07,799 [ERROR] (DIS Svc) Timeout waiting for [178]
+Mar 28 12:25:07 cownav python3[1987]: 2026-03-28 12:25:07,799 [WARNING] (DIS Svc) Timeout waiting for ACK B2 after sending 11
+Mar 28 12:25:07 cownav python3[1987]: 2026-03-28 12:25:07,799 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B2
+Mar 28 12:25:08 cownav python3[1987]: 2026-03-28 12:25:08,307 [ERROR] (DIS Svc) Timeout waiting for [179]
+Mar 28 12:25:08 cownav python3[1987]: 2026-03-28 12:25:08,307 [WARNING] (DIS Svc) Timeout waiting for ACK B3 after sending 12
+Mar 28 12:25:08 cownav python3[1987]: 2026-03-28 12:25:08,307 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B3
+Mar 28 12:25:08 cownav python3[1987]: 2026-03-28 12:25:08,307 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 12:25:08 cownav python3[1987]: 2026-03-28 12:25:08,308 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:25:08 cownav python3[1987]: 2026-03-28 12:25:08,308 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:25:08 cownav python3[1987]: 2026-03-28 12:25:08,849 [ERROR] (DIS Svc) Timeout waiting for [180]
+Mar 28 12:25:08 cownav python3[1987]: 2026-03-28 12:25:08,849 [WARNING] (DIS Svc) Timeout waiting for ACK B4 after sending 13
+Mar 28 12:25:08 cownav python3[1987]: 2026-03-28 12:25:08,849 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B4
+Mar 28 12:25:09 cownav python3[1987]: 2026-03-28 12:25:09,357 [ERROR] (DIS Svc) Timeout waiting for [181]
+Mar 28 12:25:09 cownav python3[1987]: 2026-03-28 12:25:09,357 [WARNING] (DIS Svc) Timeout waiting for ACK B5 after sending 14
+Mar 28 12:25:09 cownav python3[1987]: 2026-03-28 12:25:09,357 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B5
+Mar 28 12:25:09 cownav python3[1987]: 2026-03-28 12:25:09,357 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 12:25:09 cownav python3[1987]: 2026-03-28 12:25:09,358 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:25:09 cownav python3[1987]: 2026-03-28 12:25:09,899 [ERROR] (DIS Svc) Timeout waiting for [182]
+Mar 28 12:25:09 cownav python3[1987]: 2026-03-28 12:25:09,899 [WARNING] (DIS Svc) Timeout waiting for ACK B6 after sending 15
+Mar 28 12:25:09 cownav python3[1987]: 2026-03-28 12:25:09,899 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B6
+Mar 28 12:25:10 cownav python3[1987]: 2026-03-28 12:25:10,407 [ERROR] (DIS Svc) Timeout waiting for [183]
+Mar 28 12:25:10 cownav python3[1987]: 2026-03-28 12:25:10,407 [WARNING] (DIS Svc) Timeout waiting for ACK B7 after sending 16
+Mar 28 12:25:10 cownav python3[1987]: 2026-03-28 12:25:10,407 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B7
+Mar 28 12:25:10 cownav python3[1987]: 2026-03-28 12:25:10,407 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 12:25:10 cownav python3[1987]: 2026-03-28 12:25:10,408 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:25:10 cownav python3[1987]: 2026-03-28 12:25:10,948 [ERROR] (DIS Svc) Timeout waiting for [184]
+Mar 28 12:25:10 cownav python3[1987]: 2026-03-28 12:25:10,949 [WARNING] (DIS Svc) Timeout waiting for ACK B8 after sending 17
+Mar 28 12:25:10 cownav python3[1987]: 2026-03-28 12:25:10,949 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B8
+Mar 28 12:25:11 cownav python3[1987]: 2026-03-28 12:25:11,457 [ERROR] (DIS Svc) Timeout waiting for [185]
+Mar 28 12:25:11 cownav python3[1987]: 2026-03-28 12:25:11,457 [WARNING] (DIS Svc) Timeout waiting for ACK B9 after sending 18
+Mar 28 12:25:11 cownav python3[1987]: 2026-03-28 12:25:11,457 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B9
+Mar 28 12:25:11 cownav python3[1987]: 2026-03-28 12:25:11,457 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 12:25:11 cownav python3[1987]: 2026-03-28 12:25:11,457 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:25:11 cownav python3[1987]: 2026-03-28 12:25:11,999 [ERROR] (DIS Svc) Timeout waiting for [186]
+Mar 28 12:25:11 cownav python3[1987]: 2026-03-28 12:25:11,999 [WARNING] (DIS Svc) Timeout waiting for ACK BA after sending 19
+Mar 28 12:25:11 cownav python3[1987]: 2026-03-28 12:25:11,999 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK BA
+Mar 28 12:25:12 cownav python3[1987]: 2026-03-28 12:25:12,507 [ERROR] (DIS Svc) Timeout waiting for [187]
+Mar 28 12:25:12 cownav python3[1987]: 2026-03-28 12:25:12,507 [WARNING] (DIS Svc) Timeout waiting for ACK BB after sending 1A
+Mar 28 12:25:12 cownav python3[1987]: 2026-03-28 12:25:12,507 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK BB
+Mar 28 12:25:12 cownav python3[1987]: 2026-03-28 12:25:12,508 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 12:25:12 cownav python3[1987]: 2026-03-28 12:25:12,508 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:25:13 cownav python3[1987]: 2026-03-28 12:25:13,049 [ERROR] (DIS Svc) Timeout waiting for [188]
+Mar 28 12:25:13 cownav python3[1987]: 2026-03-28 12:25:13,049 [WARNING] (DIS Svc) Timeout waiting for ACK BC after sending 1B
+Mar 28 12:25:13 cownav python3[1987]: 2026-03-28 12:25:13,049 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK BC
+Mar 28 12:25:14 cownav python3[1987]: 2026-03-28 12:25:14,099 [ERROR] (DIS Svc) Timeout waiting for a data packet
+Mar 28 12:25:14 cownav python3[1987]: 2026-03-28 12:25:14,099 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Claim Handshake 2/7 failed (wait for Busy), got None
+Mar 28 12:25:14 cownav python3[1987]: 2026-03-28 12:25:14,099 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 12:25:14 cownav python3[1987]: 2026-03-28 12:25:14,099 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:25:14 cownav python3[1987]: 2026-03-28 12:25:14,099 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:25:15 cownav python3[1987]: 2026-03-28 12:25:15,149 [ERROR] (DIS Svc) Timeout waiting for a data packet
+Mar 28 12:25:15 cownav python3[1987]: 2026-03-28 12:25:15,149 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Claim Handshake 2/7 failed (wait for Busy), got None
+Mar 28 12:25:15 cownav python3[1987]: 2026-03-28 12:25:15,168 [INFO] (DIS Svc) Inactivity auto-release is DISABLED (screen will stay claimed forever)
+Mar 28 12:25:19 cownav python3[1987]: 2026-03-28 12:25:19,232 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:25:24 cownav python3[1987]: 2026-03-28 12:25:24,347 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:25:29 cownav python3[1987]: 2026-03-28 12:25:29,392 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:25:34 cownav python3[1987]: 2026-03-28 12:25:34,517 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:25:39 cownav python3[1987]: 2026-03-28 12:25:39,687 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:25:44 cownav python3[1987]: 2026-03-28 12:25:44,825 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:25:49 cownav python3[1987]: 2026-03-28 12:25:49,907 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:25:55 cownav python3[1987]: 2026-03-28 12:25:55,057 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:26:00 cownav python3[1987]: 2026-03-28 12:26:00,157 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:26:05 cownav python3[1987]: 2026-03-28 12:26:05,187 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:26:10 cownav python3[1987]: 2026-03-28 12:26:10,398 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:26:15 cownav python3[1987]: 2026-03-28 12:26:15,494 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:26:20 cownav python3[1987]: 2026-03-28 12:26:20,545 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:26:25 cownav python3[1987]: 2026-03-28 12:26:25,637 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:26:30 cownav python3[1987]: 2026-03-28 12:26:30,752 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:26:35 cownav python3[1987]: 2026-03-28 12:26:35,927 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:26:35 cownav python3[1987]: 2026-03-28 12:26:35,962 [ERROR] (DIS Svc) CAN Send Error: Failed to transmit: No buffer space available [Error Code 105]
+Mar 28 12:26:35 cownav python3[1987]: 2026-03-28 12:26:35,962 [ERROR] (DIS Svc) Failed to send DDP frame: CAN Send Error: Failed to transmit: No buffer space available [Error Code 105]. Session closing.
+Mar 28 12:26:35 cownav python3[1987]: 2026-03-28 12:26:35,962 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,462 [WARNING] (DIS Svc) Attempted to send frame while not READY. Ignoring.
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,462 [ERROR] (DIS Svc) Failed to send commit packet.
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,473 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,473 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,475 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,477 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,477 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,487 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,487 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,487 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,997 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,997 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,997 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,997 [INFO] (DIS Svc) Cluster may already be initialized (e.g. background keep-alive refresh). Assuming READY.
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,997 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,997 [INFO] (DIS Svc) DDP READY.
+Mar 28 12:26:36 cownav python3[1987]: 2026-03-28 12:26:36,997 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE READY
+Mar 28 12:26:37 cownav python3[1987]: 2026-03-28 12:26:37,008 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:26:37 cownav python3[1987]: 2026-03-28 12:26:37,529 [ERROR] (DIS Svc) Timeout waiting for [178]
+Mar 28 12:26:37 cownav python3[1987]: 2026-03-28 12:26:37,529 [WARNING] (DIS Svc) Timeout waiting for ACK B2 after sending 11
+Mar 28 12:26:37 cownav python3[1987]: 2026-03-28 12:26:37,529 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B2
+Mar 28 12:26:38 cownav python3[1987]: 2026-03-28 12:26:38,038 [ERROR] (DIS Svc) Timeout waiting for [179]
+Mar 28 12:26:38 cownav python3[1987]: 2026-03-28 12:26:38,038 [WARNING] (DIS Svc) Timeout waiting for ACK B3 after sending 12
+Mar 28 12:26:38 cownav python3[1987]: 2026-03-28 12:26:38,038 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B3
+Mar 28 12:26:38 cownav python3[1987]: 2026-03-28 12:26:38,038 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 12:26:38 cownav python3[1987]: 2026-03-28 12:26:38,038 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:26:38 cownav python3[1987]: 2026-03-28 12:26:38,580 [ERROR] (DIS Svc) Timeout waiting for [180]
+Mar 28 12:26:38 cownav python3[1987]: 2026-03-28 12:26:38,580 [WARNING] (DIS Svc) Timeout waiting for ACK B4 after sending 13
+Mar 28 12:26:38 cownav python3[1987]: 2026-03-28 12:26:38,580 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B4
+Mar 28 12:26:39 cownav python3[1987]: 2026-03-28 12:26:39,088 [ERROR] (DIS Svc) Timeout waiting for [181]
+Mar 28 12:26:39 cownav python3[1987]: 2026-03-28 12:26:39,088 [WARNING] (DIS Svc) Timeout waiting for ACK B5 after sending 14
+Mar 28 12:26:39 cownav python3[1987]: 2026-03-28 12:26:39,088 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B5
+Mar 28 12:26:39 cownav python3[1987]: 2026-03-28 12:26:39,088 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 12:26:39 cownav python3[1987]: 2026-03-28 12:26:39,088 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:26:39 cownav python3[1987]: 2026-03-28 12:26:39,630 [ERROR] (DIS Svc) Timeout waiting for [182]
+Mar 28 12:26:39 cownav python3[1987]: 2026-03-28 12:26:39,630 [WARNING] (DIS Svc) Timeout waiting for ACK B6 after sending 15
+Mar 28 12:26:39 cownav python3[1987]: 2026-03-28 12:26:39,630 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B6
+Mar 28 12:26:40 cownav python3[1987]: 2026-03-28 12:26:40,138 [ERROR] (DIS Svc) Timeout waiting for [183]
+Mar 28 12:26:40 cownav python3[1987]: 2026-03-28 12:26:40,138 [WARNING] (DIS Svc) Timeout waiting for ACK B7 after sending 16
+Mar 28 12:26:40 cownav python3[1987]: 2026-03-28 12:26:40,138 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B7
+Mar 28 12:26:40 cownav python3[1987]: 2026-03-28 12:26:40,138 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 12:26:40 cownav python3[1987]: 2026-03-28 12:26:40,138 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:26:40 cownav python3[1987]: 2026-03-28 12:26:40,680 [ERROR] (DIS Svc) Timeout waiting for [184]
+Mar 28 12:26:40 cownav python3[1987]: 2026-03-28 12:26:40,680 [WARNING] (DIS Svc) Timeout waiting for ACK B8 after sending 17
+Mar 28 12:26:40 cownav python3[1987]: 2026-03-28 12:26:40,680 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B8
+Mar 28 12:26:41 cownav python3[1987]: 2026-03-28 12:26:41,189 [ERROR] (DIS Svc) Timeout waiting for [185]
+Mar 28 12:26:41 cownav python3[1987]: 2026-03-28 12:26:41,189 [WARNING] (DIS Svc) Timeout waiting for ACK B9 after sending 18
+Mar 28 12:26:41 cownav python3[1987]: 2026-03-28 12:26:41,189 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK B9
+Mar 28 12:26:41 cownav python3[1987]: 2026-03-28 12:26:41,189 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 12:26:41 cownav python3[1987]: 2026-03-28 12:26:41,189 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:26:41 cownav python3[1987]: 2026-03-28 12:26:41,190 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:26:41 cownav python3[1987]: 2026-03-28 12:26:41,740 [ERROR] (DIS Svc) Timeout waiting for [186]
+Mar 28 12:26:41 cownav python3[1987]: 2026-03-28 12:26:41,740 [WARNING] (DIS Svc) Timeout waiting for ACK BA after sending 19
+Mar 28 12:26:41 cownav python3[1987]: 2026-03-28 12:26:41,740 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Timeout waiting for ACK BA
+Mar 28 12:26:42 cownav python3[1987]: 2026-03-28 12:26:42,789 [ERROR] (DIS Svc) Timeout waiting for a data packet
+Mar 28 12:26:42 cownav python3[1987]: 2026-03-28 12:26:42,789 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Claim Handshake 2/7 failed (wait for Busy), got None
+Mar 28 12:26:42 cownav python3[1987]: 2026-03-28 12:26:42,789 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 12:26:42 cownav python3[1987]: 2026-03-28 12:26:42,790 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 12:26:43 cownav python3[1987]: 2026-03-28 12:26:43,840 [ERROR] (DIS Svc) Timeout waiting for a data packet
+Mar 28 12:26:43 cownav python3[1987]: 2026-03-28 12:26:43,840 [ERROR] (DIS Svc) Failed to claim screen (WHITE path): Claim Handshake 2/7 failed (wait for Busy), got None
+Mar 28 12:26:43 cownav python3[1987]: 2026-03-28 12:26:43,859 [INFO] (DIS Svc) Inactivity auto-release is DISABLED (screen will stay claimed forever)
+Mar 28 12:26:46 cownav python3[1987]: 2026-03-28 12:26:46,887 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 12:26:51 cownav python3[1987]: 2026-03-28 12:26:51,917 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
