@@ -137,6 +137,21 @@ echo "   Cloning repository (optimized sparse-checkout)..."
 $GIT_CMD clone -b "$SELECTED_REF" --depth 1 --filter=blob:none --sparse --no-checkout "$REPO_URL" "$TEMP_DIR"
 (cd "$TEMP_DIR" && $GIT_CMD sparse-checkout set rns-e_can hudiy_client dis_client tp2 hudiy_dataview config.json config/hudiy && $GIT_CMD checkout)
 
+# Save version information
+echo "   Saving version information..."
+VERSION_FILE="$REAL_HOME/.hudiy_version.json"
+(
+  cd "$TEMP_DIR" || exit
+  V_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  V_TAG=$(git describe --tags --always 2>/dev/null || echo "N/A")
+  V_HASH=$(git rev-parse HEAD)
+  V_MSG=$(git log -1 --pretty=%B | tr -d '\n' | sed 's/"/\\"/g')
+  
+  # Use python to safely create JSON
+  python3 -c "import json; print(json.dumps({'branch': '$V_BRANCH', 'tag': '$V_TAG', 'commit_hash': '$V_HASH', 'commit_msg': \"$V_MSG\"}, indent=4))" > "$VERSION_FILE"
+)
+chown $REAL_USER:$REAL_USER "$VERSION_FILE"
+
 echo "   Installing to $REAL_HOME..."
 
 # Helper to move folder if it doesn't exist

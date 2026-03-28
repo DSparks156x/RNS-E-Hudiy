@@ -371,6 +371,7 @@ class TP2BridgeHandler(ClientEventHandler):
         
         self.icon_id = None
         self.icon_visible = None # Start with None to force initial update
+        self.version_toast_channel_id = None
         self.client = None
         self.running = True
         self.timer = None
@@ -414,6 +415,20 @@ class TP2BridgeHandler(ClientEventHandler):
         req_act_shutdown = hudiy_api.RegisterActionRequest()
         req_act_shutdown.action = "shutdown_system"
         client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_shutdown.SerializeToString())
+
+        req_act_version = hudiy_api.RegisterActionRequest()
+        req_act_version.action = "check_version"
+        client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_version.SerializeToString())
+
+        req_act_logs = hudiy_api.RegisterActionRequest()
+        req_act_logs.action = "save_logs"
+        client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_logs.SerializeToString())
+        
+        # 1.5 Register Toast Channel for Version Info
+        req_toast = hudiy_api.RegisterToastChannelRequest()
+        req_toast.name = "System Info"
+        req_toast.description = "Version and system details"
+        client.send(hudiy_api.MESSAGE_REGISTER_TOAST_CHANNEL_REQUEST, 0, req_toast.SerializeToString())
         
         # 2. Register Icon
         req_icon = hudiy_api.RegisterStatusIconRequest()
@@ -434,6 +449,13 @@ class TP2BridgeHandler(ClientEventHandler):
             self.timer.start()
         else:
             logger.error("Failed to register Status Icon")
+
+    def on_register_toast_channel_response(self, client, message):
+        if message.result == 1: # OK
+            self.version_toast_channel_id = message.id
+            logger.info(f"Toast Channel Registered. ID: {self.version_toast_channel_id}")
+        else:
+            logger.error(f"Failed to register Toast Channel: {message.result}")
 
     def on_dispatch_action(self, client, message):
         if message.action == "toggle_diagnostics":
@@ -482,6 +504,44 @@ class TP2BridgeHandler(ClientEventHandler):
             logger.info("Hudiy Action: Shutting down system...")
             import subprocess
             subprocess.run(["sudo", "shutdown", "-h", "now"])
+        elif message.action == "check_version":
+            logger.info("Hudiy Action: Check Version")
+            if self.version_toast_channel_id is not None:
+                version_info = "Version info unavailable"
+                try:
+                    v_path = os.path.expanduser("~/.hudiy_version.json")
+                    if os.path.exists(v_path):
+                        with open(v_path, 'r') as f:
+                            data = json.load(f)
+                            version_info = (
+                                f"Branch: {data.get('branch', 'N/A')}\n"
+                                f"Tag: {data.get('tag', 'N/A')}\n"
+                                f"Commit: {data.get('commit_hash', 'N/A')[:8]}\n"
+                                f"Msg: {data.get('commit_msg', 'N/A')}"
+                            )
+                    else:
+                        logger.warning(f"Version file {v_path} not found.")
+                except Exception as e:
+                    logger.error(f"Failed to read version file: {e}")
+
+                msg = hudiy_api.ShowToast()
+                msg.channel_id = self.version_toast_channel_id
+                msg.message = version_info
+                msg.icon_name = "info"
+                msg.icon_font_family = "Material Symbols Rounded"
+                client.send(hudiy_api.MESSAGE_SHOW_TOAST, 0, msg.SerializeToString())
+                logger.info("Sent version info toast.")
+        elif message.action == "save_logs":
+            logger.info("Hudiy Action: Save Logs")
+            import subprocess
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            save_logs_script = os.path.join(script_dir, "..", "rns-e_can", "save_logs.py")
+            
+            if os.path.exists(save_logs_script):
+                logger.info(f"Executing {save_logs_script}...")
+                subprocess.Popen(["python3", save_logs_script])
+            else:
+                logger.error(f"Save logs script not found: {save_logs_script}")
 
     def send_command(self, cmd):
         with self.lock:

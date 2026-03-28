@@ -168,6 +168,24 @@
                 "Hudiy"
             ],
             "iconFontFamily": "Material Symbols Rounded",
+            "iconName": "info",
+            "action": "check_version",
+            "label": "Check Version"
+        },
+        {
+            "categories": [
+                "Hudiy"
+            ],
+            "iconFontFamily": "Material Symbols Rounded",
+            "iconName": "save",
+            "action": "save_logs",
+            "label": "Save Logs"
+        },
+        {
+            "categories": [
+                "Hudiy"
+            ],
+            "iconFontFamily": "Material Symbols Rounded",
             "iconName": "car_repair",
             "action": "toggle_diagnostics",
             "label": "Toggle Diagnostics"

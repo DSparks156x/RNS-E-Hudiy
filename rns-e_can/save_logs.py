@@ -25,54 +25,53 @@ except ImportError as e:
     Client = None # Fail gracefully if Hudiy libraries are missing
 
 class SaveLogsEventHandler(ClientEventHandler):
-    def __init__(self):
+    def __init__(self, date_str, index):
         super().__init__()
-        self.icon_id = None
+        self.date_str = date_str
+        self.index = index
+        self.toast_channel_id = None
         self.running = True
 
     def on_hello_response(self, client, message):
         try:
-            req = hudiy_api.RegisterStatusIconRequest()
-            req.description = "Logs Saved"
-            req.icon_name = "save"
-            req.icon_font_family = "Material Symbols Rounded"
-            client.send(hudiy_api.MESSAGE_REGISTER_STATUS_ICON_REQUEST, 0, req.SerializeToString())
+            # Register toast channel instead of status icon
+            req = hudiy_api.RegisterToastChannelRequest()
+            req.name = "Log Saver"
+            req.description = "Notifications for saved logs"
+            client.send(hudiy_api.MESSAGE_REGISTER_TOAST_CHANNEL_REQUEST, 0, req.SerializeToString())
         except Exception as e:
-            print(f"Error registering icon: {e}")
+            print(f"Error registering toast channel: {e}")
             self.running = False
 
-    def on_register_status_icon_response(self, client, message):
-        if message.result == 1:  # REGISTER_STATUS_ICON_RESULT_OK
-            self.icon_id = message.id
+    def on_register_toast_channel_response(self, client, message):
+        if message.result == hudiy_api.RegisterToastChannelResponse.REGISTER_TOAST_CHANNEL_RESULT_OK:
+            self.toast_channel_id = message.id
             try:
-                msg = hudiy_api.ChangeStatusIconState()
-                msg.id = self.icon_id
-                msg.visible = True
-                client.send(hudiy_api.MESSAGE_CHANGE_STATUS_ICON_STATE, 0, msg.SerializeToString())
-                # Start a timer to hide and unregister the icon after 1 second
-                threading.Timer(1.0, self.hide_and_exit, [client]).start()
+                # Show toast with date and increment
+                msg = hudiy_api.ShowToast()
+                msg.channel_id = self.toast_channel_id
+                msg.message = f"Logs saved: {self.date_str} #{self.index}"
+                msg.icon_name = "save"
+                msg.icon_font_family = "Material Symbols Rounded"
+                client.send(hudiy_api.MESSAGE_SHOW_TOAST, 0, msg.SerializeToString())
+                
+                # Start a timer to unregister the channel and exit after 3 seconds (gives time for toast to be sent)
+                threading.Timer(5.0, self.unregister_and_exit, [client]).start()
             except Exception as e:
-                print(f"Error showing icon: {e}")
+                print(f"Error showing toast: {e}")
                 self.running = False
         else:
-            print("Failed to register Status Icon")
+            print("Failed to register Toast Channel")
             self.running = False
 
-    def hide_and_exit(self, client):
+    def unregister_and_exit(self, client):
         try:
-            if self.icon_id is not None:
-                # Hide
-                msg = hudiy_api.ChangeStatusIconState()
-                msg.id = self.icon_id
-                msg.visible = False
-                client.send(hudiy_api.MESSAGE_CHANGE_STATUS_ICON_STATE, 0, msg.SerializeToString())
-
-                # Unregister
-                unreg = hudiy_api.UnregisterStatusIcon()
-                unreg.id = self.icon_id
-                client.send(hudiy_api.MESSAGE_UNREGISTER_STATUS_ICON, 0, unreg.SerializeToString())
+            if self.toast_channel_id is not None:
+                unreg = hudiy_api.UnregisterToastChannel()
+                unreg.id = self.toast_channel_id
+                client.send(hudiy_api.MESSAGE_UNREGISTER_TOAST_CHANNEL, 0, unreg.SerializeToString())
         except Exception as e:
-            print(f"Error hiding/unregistering icon: {e}")
+            print(f"Error unregistering toast channel: {e}")
         finally:
             self.running = False
 
@@ -158,7 +157,7 @@ def main():
     if any_saved and Client is not None:
         print("Triggering Hudiy status icon...")
         client = Client("save_logs")
-        handler = SaveLogsEventHandler()
+        handler = SaveLogsEventHandler(date_str, index)
         client.set_event_handler(handler)
         try:
             client.connect('127.0.0.1', 44405)
@@ -167,9 +166,9 @@ def main():
                 if not client.wait_for_message():
                     break
             client.disconnect()
-            print("Hudiy icon triggered successfully.")
+            print("Hudiy notification triggered successfully.")
         except Exception as e:
-            print(f"Failed to show Hudiy icon: {e}")
+            print(f"Failed to show Hudiy notification: {e}")
 
 
 if __name__ == '__main__':
