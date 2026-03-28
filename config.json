@@ -30,6 +30,10 @@
         "auto_switch_return_threshold": 1000,
         "auto_switch_return_delay": 10,
         "approach_bar_max_distance": 300
+      },
+      "coverart": {
+        "brief": true,
+        "appcycle": false
       }
     },
     "road_side": "right",

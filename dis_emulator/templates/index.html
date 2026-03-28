@@ -341,6 +341,25 @@
             </div>
 
             <div class="control-group">
+                <h3>Media Playlist</h3>
+                <div class="btn-row">
+                    <button class="btn" onclick="prevTrack()" style="flex: 1;">⏮ Prev</button>
+                    <button class="btn" onclick="nextTrack()" style="flex: 1;">Next ⏭</button>
+                </div>
+                <p style="font-size: 10px; color: var(--text-muted); margin-top: 8px;">
+                    Cycles through preset tracks with album art from teststuff/albumcovers
+                </p>
+            </div>
+
+            <div class="control-group">
+                <h3>Custom Image</h3>
+                <input type="text" id="custom-image-path" placeholder="C:\path\to\image.png" value="">
+                <div class="btn-row">
+                    <button class="btn" onclick="sendCustomImage()" style="flex: 1; background: rgba(0, 255, 0, 0.1); border: 1px solid rgba(0, 255, 0, 0.3); color: #0f0;">Send to DIS</button>
+                </div>
+            </div>
+
+            <div class="control-group">
                 <h3>Hudiy: Media</h3>
                 <input type="text" id="mock-media-title" placeholder="Song Title" value="Lateralus">
                 <input type="text" id="mock-media-artist" placeholder="Artist" value="TOOL">
@@ -462,6 +481,25 @@
         function emitHudiy(topic, payload) {
             if (socket && socket.connected) {
                 socket.emit('mock_hudiy', { topic: topic, payload: payload });
+            }
+        }
+
+        function nextTrack() {
+            if (socket && socket.connected) {
+                socket.emit('next_track');
+            }
+        }
+
+        function prevTrack() {
+            if (socket && socket.connected) {
+                socket.emit('prev_track');
+            }
+        }
+
+        function sendCustomImage() {
+            const path = document.getElementById('custom-image-path').value;
+            if (socket && socket.connected && path) {
+                socket.emit('custom_image', { path: path });
             }
         }
 
@@ -742,6 +780,13 @@
             });
             socket.on('dis_command', (cmd) => {
                 handleCommand(cmd);
+            });
+            socket.on('track_changed', (data) => {
+                document.getElementById('mock-media-title').value = data.title || "";
+                document.getElementById('mock-media-artist').value = data.artist || "";
+                document.getElementById('mock-media-album').value = data.album || "";
+                // Reset time when track changes
+                document.getElementById('mock-media-time').value = "0:00 / 3:45";
             });
             addLog("Emulator Initialized");
         }

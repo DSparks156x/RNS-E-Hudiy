@@ -7,6 +7,14 @@ from flask_socketio import SocketIO
 import os
 import threading
 import time
+import sys
+import io
+from PIL import Image
+
+# Add dis_client to path for dis_image
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(script_dir, '..', 'dis_client'))
+import dis_image
 
 # Configuration
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'config.json')
@@ -47,6 +55,22 @@ def test_mock_input(data):
 def test_mock_hudiy(data):
     if 'bridge' in globals():
         bridge.send_mock_hudiy(data)
+
+@socketio.on('next_track')
+def test_next_track():
+    if 'bridge' in globals():
+        bridge.next_track()
+
+@socketio.on('prev_track')
+def test_prev_track():
+    if 'bridge' in globals():
+        bridge.prev_track()
+
+@socketio.on('custom_image')
+def test_custom_image(data):
+    if 'bridge' in globals():
+        path = data.get('path')
+        bridge.send_custom_image(path)
 
 class EmulatorBridge:
     def __init__(self, config_path):
@@ -119,6 +143,36 @@ class EmulatorBridge:
             logger.error(f"Failed to bind mock status PUB: {e}")
 
         self.current_dis_state = "READY"
+        
+        # Playlist state
+        self.album_covers_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'teststuff', 'albumcovers')
+        self.playlist = [
+            {
+                "title": "One More Time",
+                "artist": "Daft Punk",
+                "album": "Discovery",
+                "file": "Daft_Punk-Discovery.png"
+            },
+            {
+                "title": "Around the World",
+                "artist": "Daft Punk",
+                "album": "Alive 2007",
+                "file": "Daft_Punk_Alive_2007.JPG"
+            },
+            {
+                "title": "Everlong",
+                "artist": "Foo Fighters",
+                "album": "The Colour And The Shape",
+                "file": "FooFighters-TheColourAndTheShape.jpg"
+            },
+            {
+                "title": "Every Breath You Take",
+                "artist": "The Police",
+                "album": "Synchronicity",
+                "file": "ThePolice.jpg"
+            }
+        ]
+        self.current_track_idx = 0
 
     def send_mock_can(self, data):
         btn = data.get('btn')
@@ -158,6 +212,68 @@ class EmulatorBridge:
             logger.debug(f"Mocked Hudiy data sent to {topic}")
         except Exception as e:
             logger.error(f"Failed to send mock Hudiy: {e}")
+
+    def next_track(self):
+        self.current_track_idx = (self.current_track_idx + 1) % len(self.playlist)
+        self.send_current_track()
+
+    def prev_track(self):
+        self.current_track_idx = (self.current_track_idx - 1) % len(self.playlist)
+        self.send_current_track()
+
+    def send_current_track(self):
+        track = self.playlist[self.current_track_idx]
+        logger.info(f"Emulator: Switching to track {self.current_track_idx}: {track['title']}")
+        
+        # 1. Send Media Metadata
+        self.send_mock_hudiy({
+            'topic': 'HUDIY_MEDIA',
+            'payload': {
+                'title': track['title'],
+                'artist': track['artist'],
+                'album': track['album'],
+                'position': '0:00',
+                'duration': '3:45',
+                'playing': True
+            }
+        })
+        
+        # 3. Synchronize Web UI
+        socketio.emit('track_changed', {
+            'title': track['title'],
+            'artist': track['artist'],
+            'album': track['album']
+        })
+        
+        # 2. Process and Send Cover Art
+        img_path = os.path.join(self.album_covers_dir, track['file'])
+        self.send_image_file(img_path, is_new_track=True)
+
+    def send_custom_image(self, path):
+        if not path or not os.path.exists(path):
+            logger.error(f"Custom image path not found: {path}")
+            socketio.emit('dis_command', {'command': 'debug_log', 'text': f"Error: File not found: {path}"})
+            return
+        
+        logger.info(f"Emulator: Sending custom image: {path}")
+        self.send_image_file(path, is_new_track=False)
+
+    def send_image_file(self, path, is_new_track=False):
+        try:
+            img = Image.open(path)
+            processed = dis_image.process_image(img)
+            bitmap = dis_image.image_to_bitmap(processed)
+            
+            cover_data = {
+                'bitmap_hex': bitmap.hex(),
+                'is_new_track': is_new_track,
+                'timestamp': time.time()
+            }
+            self.hudiy_pub.send_multipart([b'HUDIY_COVERART', json.dumps(cover_data).encode('utf-8')])
+            logger.info(f"Emulator: Published Cover Art for {os.path.basename(path)}")
+        except Exception as e:
+            logger.error(f"Failed to process image {path}: {e}")
+            socketio.emit('dis_command', {'command': 'debug_log', 'text': f"Error: Processing failed: {e}"})
 
     def run(self):
         logger.info("ZMQ Bridge Thread Started")

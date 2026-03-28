@@ -12,6 +12,8 @@ import logging
 import sys
 import os
 import threading
+import io
+from PIL import Image
 from queue import Queue, Empty
 import zmq
 
@@ -23,6 +25,10 @@ try:
     
     from common.Client import Client, ClientEventHandler
     import common.Api_pb2 as hudiy_api
+    
+    # Add root to path for dis_client
+    sys.path.insert(0, os.path.join(script_dir, '..'))
+    import dis_client.dis_image as dis_image
 except ImportError as e:
     print(f"FATAL: Could not import Hudiy client libraries: {e}")
     sys.exit(1)
@@ -71,6 +77,7 @@ class HudiyEventHandler(ClientEventHandler):
         super().__init__() 
         self.safe_pub = safe_publisher
         self.last_media = None
+        self.last_coverart_hash = None
         
         # Initialize Data Objects
         self.current_media_data = {
@@ -122,10 +129,39 @@ class HudiyEventHandler(ClientEventHandler):
         })
         
         if new_meta != self.last_media:
+            is_new_track = True
             self.last_media = new_meta
             logger.info(f"🎵 {message.artist} - {message.title}")
+        else:
+            is_new_track = False
             
         self.publish_and_write_media(self.current_media_data)
+        
+        # --- Cover Art Processing ---
+        cover_art_bytes = getattr(message, 'coverart', None)
+        if cover_art_bytes and len(cover_art_bytes) > 0:
+            import hashlib
+            current_hash = hashlib.md5(cover_art_bytes).hexdigest()
+            
+            if current_hash != self.last_coverart_hash:
+                self.last_coverart_hash = current_hash
+                try:
+                    img = Image.open(io.BytesIO(cover_art_bytes))
+                    processed = dis_image.process_image(img, bg_fill='black')
+                    bitmap = dis_image.image_to_bitmap(processed)
+                    
+                    cover_data = {
+                        'bitmap_hex': bitmap.hex(),
+                        'is_new_track': is_new_track,
+                        'timestamp': time.time()
+                    }
+                    self.safe_pub.publish(b'HUDIY_COVERART', cover_data)
+                    logger.info(f"Published Cover Art ({len(cover_art_bytes)} bytes raw -> DIS bitmap)")
+                except Exception as e:
+                    logger.error(f"Failed to process cover art: {e}")
+        elif is_new_track:
+            # If new track but no cover art, send an empty cover art message to clear/update
+            self.safe_pub.publish(b'HUDIY_COVERART', {'bitmap_hex': '', 'is_new_track': True, 'timestamp': time.time()})
 
     def on_media_status(self, client, message):
         pos = getattr(message, 'position_label', '0:00')

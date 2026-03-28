@@ -11,6 +11,7 @@ from apps.nav import NavApp
 from apps.phone import PhoneApp
 from apps.settings import SettingsApp
 from apps.car_info import CarInfoApp
+from apps.coverart import CoverArtApp
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
@@ -32,9 +33,24 @@ class DisplayEngine:
         self.apps['app_car']          = CarInfoApp(self.cfg)
         # Settings still exists if needed, but not in cycle
         self.apps['app_settings']     = SettingsApp(self) 
+        self.apps['app_coverart']     = CoverArtApp(self.cfg) 
 
         # --- Page Cycle Definition ---
         self.pages = ['app_nav', 'app_media_player', 'app_phone', 'app_car']
+        
+        # Load Cover Art Configuration
+        coverart_cfg = center_display_cfg.get('coverart', {})
+        self.coverart_brief = coverart_cfg.get('brief', True)
+        self.coverart_appcycle = coverart_cfg.get('appcycle', False)
+        
+        if self.coverart_appcycle:
+            # Insert after media player if it exists
+            if 'app_media_player' in self.pages:
+                idx = self.pages.index('app_media_player')
+                self.pages.insert(idx + 1, 'app_coverart')
+            else:
+                self.pages.append('app_coverart')
+
         self.current_page_idx = 0
 
         self.zmq_ctx = zmq.Context()
@@ -94,7 +110,7 @@ class DisplayEngine:
             logger.warning(f"Mock Mode/Windows: Could not connect to metric_stream: {e}")
             
         if self.hudiy_connected:
-            for t in [b'HUDIY_MEDIA', b'HUDIY_NAV', b'HUDIY_PHONE', b'HUDIY_NAV_STATUS', b'HUDIY_DIAG']: 
+            for t in [b'HUDIY_MEDIA', b'HUDIY_NAV', b'HUDIY_PHONE', b'HUDIY_NAV_STATUS', b'HUDIY_DIAG', b'HUDIY_COVERART']: 
                 self.sub_hudiy.subscribe(t)
 
         self.draw = self.zmq_ctx.socket(zmq.PUSH)
@@ -182,6 +198,7 @@ class DisplayEngine:
 
         # --- Advanced Nav Auto-Switching ---
         self.pre_nav_app_name = None
+        self.pre_cover_app_name = None
         self.auto_switch_back_at = 0
         
         # Load Navigation Auto-Switch Config
@@ -311,7 +328,7 @@ class DisplayEngine:
         if app_name not in self.pages: return
         
         idx = self.pages.index(app_name)
-        if idx == self.current_page_idx: return
+        if idx == self.current_page_idx and self.current_app == self.apps[app_name]: return
         
         self.current_page_idx = idx
         self.current_app.on_leave()
@@ -333,11 +350,13 @@ class DisplayEngine:
             self.auto_switch_back_at = 0 
             self.pre_nav_app_name = None
             self.pre_phone_app_name = None
+            self.pre_cover_app_name = None
             self.switch_page(-1) # Previous
         elif action == 'tap_down':
             self.auto_switch_back_at = 0 
             self.pre_nav_app_name = None
             self.pre_phone_app_name = None
+            self.pre_cover_app_name = None
             self.switch_page(1)  # Next
         else:
             # Pass holds or other events to app if needed
@@ -440,6 +459,23 @@ class DisplayEngine:
                                     if topic == b'HUDIY_PHONE':
                                         self._handle_phone_status(data)
 
+                                    if topic == b'HUDIY_COVERART':
+                                        self.apps['app_coverart'].update_hudiy(topic, data)
+                                        if data.get('is_new_track', False) and getattr(self, 'service_ready', False) and getattr(self, 'coverart_brief', True):
+                                            current_name = self.pages[self.current_page_idx]
+                                            # If we're not already on coverart (how would we be? it's not in rotation)
+                                            # and not on phone (phone priority)
+                                            if not self.phone_active:
+                                                logger.info("New track detected: Auto-switching to Cover Art app for 5s.")
+                                                if self.pre_cover_app_name is None:
+                                                    self.pre_cover_app_name = current_name
+                                                
+                                                self.current_app.on_leave()
+                                                self.current_app = self.apps['app_coverart']
+                                                self.current_app.on_enter()
+                                                self.auto_switch_back_at = time.time() + 5.0
+                                                self.force_redraw(send_clear=True)
+
                                     # Update current app if it wasn't already updated (NavApp above)
                                     if not (topic.startswith(b'HUDIY_NAV') and topic != b'HUDIY_NAV_STATUS'):
                                         self.current_app.update_hudiy(topic, data)
@@ -470,10 +506,16 @@ class DisplayEngine:
                 # Handle Auto-Switch Back Timer
                 if self.auto_switch_back_at > 0 and now > self.auto_switch_back_at:
                     self.auto_switch_back_at = 0
-                    if self.pages[self.current_page_idx] == 'app_nav' and self.pre_nav_app_name:
+                    current_name = self.pages[self.current_page_idx]
+                    
+                    if current_name == 'app_nav' and self.pre_nav_app_name:
                         logger.info(f"Auto-switching back to {self.pre_nav_app_name}")
                         self.switch_to_app(self.pre_nav_app_name)
                         self.pre_nav_app_name = None
+                    elif self.current_app == self.apps['app_coverart'] and self.pre_cover_app_name:
+                        logger.info(f"Cover Art timeout: Returning to {self.pre_cover_app_name}")
+                        self.switch_to_app(self.pre_cover_app_name)
+                        self.pre_cover_app_name = None
 
                 # Periodic TP2 SYNC for Atmospheric Pressure (Module 01, Group 113)
                 if hasattr(self, 'tp2_cmd') and now - self.last_tp2_sync > 10.0:
@@ -670,6 +712,16 @@ class DisplayEngine:
                             success = self._send_draw({'command': 'draw_line', 'x': item.get('x', 0), 'y': item.get('y', 0), 'length': item.get('length', 0), 'vertical': item.get('vertical', True)})
                         elif cmd == 'clear_area':
                             success = self._send_draw({'command': 'clear_area', 'x': item.get('x', 0), 'y': item.get('y', 0), 'w': item.get('w', 0), 'h': item.get('h', 0)})
+                        elif cmd == 'draw_raw_bitmap':
+                            success = self._send_draw({
+                                'command': 'draw_raw_bitmap',
+                                'data_hex': item.get('data_hex', ''),
+                                'w': item.get('w', 64),
+                                'h': item.get('h', 48),
+                                'x': item.get('x', 0),
+                                'y': item.get('y', 0),
+                                'mode_flag': item.get('mode_flag', 0x02)
+                            })
                         
                         if not success:
                             all_sent = False
