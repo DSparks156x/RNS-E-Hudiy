@@ -371,7 +371,7 @@ class TP2BridgeHandler(ClientEventHandler):
         
         self.icon_id = None
         self.icon_visible = None # Start with None to force initial update
-        self.version_toast_channel_id = None
+        self.version_notification_channel_id = None
         self.client = None
         self.running = True
         self.timer = None
@@ -424,11 +424,11 @@ class TP2BridgeHandler(ClientEventHandler):
         req_act_logs.action = "save_logs"
         client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_logs.SerializeToString())
         
-        # 1.5 Register Toast Channel for Version Info
-        req_toast = hudiy_api.RegisterToastChannelRequest()
-        req_toast.name = "System Info"
-        req_toast.description = "Version and system details"
-        client.send(hudiy_api.MESSAGE_REGISTER_TOAST_CHANNEL_REQUEST, 0, req_toast.SerializeToString())
+        # 1.5 Register Notification Channel for Version Info
+        req_notif = hudiy_api.RegisterNotificationChannelRequest()
+        req_notif.name = "System Info"
+        req_notif.description = "Version and system details"
+        client.send(hudiy_api.MESSAGE_REGISTER_NOTIFICATION_CHANNEL_REQUEST, 0, req_notif.SerializeToString())
         
         # 2. Register Icon
         req_icon = hudiy_api.RegisterStatusIconRequest()
@@ -450,12 +450,12 @@ class TP2BridgeHandler(ClientEventHandler):
         else:
             logger.error("Failed to register Status Icon")
 
-    def on_register_toast_channel_response(self, client, message):
+    def on_register_notification_channel_response(self, client, message):
         if message.result == 1: # OK
-            self.version_toast_channel_id = message.id
-            logger.info(f"Toast Channel Registered. ID: {self.version_toast_channel_id}")
+            self.version_notification_channel_id = message.id
+            logger.info(f"Notification Channel Registered. ID: {self.version_notification_channel_id}")
         else:
-            logger.error(f"Failed to register Toast Channel: {message.result}")
+            logger.error(f"Failed to register Notification Channel: {message.result}")
 
     def on_dispatch_action(self, client, message):
         if message.action == "toggle_diagnostics":
@@ -506,31 +506,32 @@ class TP2BridgeHandler(ClientEventHandler):
             subprocess.run(["sudo", "shutdown", "-h", "now"])
         elif message.action == "check_version":
             logger.info("Hudiy Action: Check Version")
-            if self.version_toast_channel_id is not None:
-                version_info = "Version info unavailable"
+            if self.version_notification_channel_id is not None:
+                version_title = "Version Info"
+                version_desc = "Unavailable"
                 try:
                     v_path = os.path.expanduser("~/.hudiy_version.json")
                     if os.path.exists(v_path):
                         with open(v_path, 'r') as f:
                             data = json.load(f)
-                            version_info = (
-                                f"Branch: {data.get('branch', 'N/A')}\n"
-                                f"Tag: {data.get('tag', 'N/A')}\n"
-                                f"Commit: {data.get('commit_hash', 'N/A')[:8]}\n"
-                                f"Msg: {data.get('commit_msg', 'N/A')}"
-                            )
+                            version_title = f"{data.get('branch', 'N/A')} @ {data.get('tag', 'N/A')}"
+                            hash_short = data.get('commit_hash', 'N/A')[:7]
+                            version_desc = f"[{hash_short}] {data.get('commit_msg', 'N/A')}"
                     else:
                         logger.warning(f"Version file {v_path} not found.")
                 except Exception as e:
                     logger.error(f"Failed to read version file: {e}")
 
-                msg = hudiy_api.ShowToast()
-                msg.channel_id = self.version_toast_channel_id
-                msg.message = version_info
+                msg = hudiy_api.ShowNotification()
+                msg.channel_id = self.version_notification_channel_id
+                msg.title = version_title
+                msg.description = version_desc
                 msg.icon_name = "info"
                 msg.icon_font_family = "Material Symbols Rounded"
-                client.send(hudiy_api.MESSAGE_SHOW_TOAST, 0, msg.SerializeToString())
-                logger.info("Sent version info toast.")
+                msg.action = "" # No further action required on click
+                msg.play_sound = False
+                client.send(hudiy_api.MESSAGE_SHOW_NOTIFICATION, 0, msg.SerializeToString())
+                logger.info("Sent version info notification.")
         elif message.action == "save_logs":
             logger.info("Hudiy Action: Save Logs")
             import subprocess
