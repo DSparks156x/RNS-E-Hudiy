@@ -149,7 +149,7 @@
         "0,1": null
       },
       "extended_press": {
-        "1,0": "python3 /home/pi/rns-e_can/save_logs.py",
+        "1,0": "python3 ~/rns-e_can/save_logs.py",
         "2,0": "sudo shutdown -h now",
         "64,0": null,
         "128,0": null,
