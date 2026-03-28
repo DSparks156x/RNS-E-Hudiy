@@ -761,9 +761,11 @@ class DDPProtocol:
             return True
 
         except (DDPHandshakeError, DDPAckTimeoutError) as e:
-            logger.warning(f"Handshake Error (Timeout or Break): {e}. Resetting session.")
-            self._set_state(DDPState.DISCONNECTED)
-            return False
+            logger.warning(f"Handshake Error (Timeout or Break): {e}")
+            logger.info("Cluster may already be initialized (e.g. background keep-alive refresh). Assuming READY.")
+            self._set_state(DDPState.READY)
+            self.last_ka_sent = time.time()
+            return True
         except DDPCANError as e:
             logger.error(f"Handshake Hardware Error: {e}")
             self._set_state(DDPState.DISCONNECTED)

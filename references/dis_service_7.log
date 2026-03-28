@@ -1,0 +1,431 @@
+Mar 28 13:33:27 cownav python3[1989]: 2026-03-28 13:33:27,045 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:33:30 cownav python3[1989]: 2026-03-28 13:33:30,055 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:33:30 cownav python3[1989]: 2026-03-28 13:33:30,056 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:33:30 cownav python3[1989]: 2026-03-28 13:33:30,058 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:33:30 cownav python3[1989]: 2026-03-28 13:33:30,060 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:33:30 cownav python3[1989]: 2026-03-28 13:33:30,060 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:33:30 cownav python3[1989]: 2026-03-28 13:33:30,070 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:33:30 cownav python3[1989]: 2026-03-28 13:33:30,070 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:33:30 cownav python3[1989]: 2026-03-28 13:33:30,070 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:33:30 cownav python3[1989]: 2026-03-28 13:33:30,588 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:33:30 cownav python3[1989]: 2026-03-28 13:33:30,589 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:33:30 cownav python3[1989]: 2026-03-28 13:33:30,589 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:33:30 cownav python3[1989]: 2026-03-28 13:33:30,589 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:33:31 cownav python3[1989]: 2026-03-28 13:33:31,089 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:33:34 cownav python3[1989]: 2026-03-28 13:33:34,100 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:33:34 cownav python3[1989]: 2026-03-28 13:33:34,100 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:33:34 cownav python3[1989]: 2026-03-28 13:33:34,102 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:33:34 cownav python3[1989]: 2026-03-28 13:33:34,104 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:33:34 cownav python3[1989]: 2026-03-28 13:33:34,104 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:33:34 cownav python3[1989]: 2026-03-28 13:33:34,115 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:33:34 cownav python3[1989]: 2026-03-28 13:33:34,115 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:33:34 cownav python3[1989]: 2026-03-28 13:33:34,115 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:33:34 cownav python3[1989]: 2026-03-28 13:33:34,633 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:33:34 cownav python3[1989]: 2026-03-28 13:33:34,633 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:33:34 cownav python3[1989]: 2026-03-28 13:33:34,633 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:33:34 cownav python3[1989]: 2026-03-28 13:33:34,633 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:33:35 cownav python3[1989]: 2026-03-28 13:33:35,133 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:33:38 cownav python3[1989]: 2026-03-28 13:33:38,144 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:33:38 cownav python3[1989]: 2026-03-28 13:33:38,144 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:33:38 cownav python3[1989]: 2026-03-28 13:33:38,146 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:33:38 cownav python3[1989]: 2026-03-28 13:33:38,148 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:33:38 cownav python3[1989]: 2026-03-28 13:33:38,148 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:33:38 cownav python3[1989]: 2026-03-28 13:33:38,159 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:33:38 cownav python3[1989]: 2026-03-28 13:33:38,159 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:33:38 cownav python3[1989]: 2026-03-28 13:33:38,159 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:33:38 cownav python3[1989]: 2026-03-28 13:33:38,677 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:33:38 cownav python3[1989]: 2026-03-28 13:33:38,677 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:33:38 cownav python3[1989]: 2026-03-28 13:33:38,677 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:33:38 cownav python3[1989]: 2026-03-28 13:33:38,677 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:33:39 cownav python3[1989]: 2026-03-28 13:33:39,177 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:33:42 cownav python3[1989]: 2026-03-28 13:33:42,188 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:33:42 cownav python3[1989]: 2026-03-28 13:33:42,188 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:33:42 cownav python3[1989]: 2026-03-28 13:33:42,190 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:33:42 cownav python3[1989]: 2026-03-28 13:33:42,193 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:33:42 cownav python3[1989]: 2026-03-28 13:33:42,193 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:33:42 cownav python3[1989]: 2026-03-28 13:33:42,203 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:33:42 cownav python3[1989]: 2026-03-28 13:33:42,203 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:33:42 cownav python3[1989]: 2026-03-28 13:33:42,203 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:33:42 cownav python3[1989]: 2026-03-28 13:33:42,721 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:33:42 cownav python3[1989]: 2026-03-28 13:33:42,721 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:33:42 cownav python3[1989]: 2026-03-28 13:33:42,721 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:33:42 cownav python3[1989]: 2026-03-28 13:33:42,721 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:33:43 cownav python3[1989]: 2026-03-28 13:33:43,221 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:33:46 cownav python3[1989]: 2026-03-28 13:33:46,233 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:33:46 cownav python3[1989]: 2026-03-28 13:33:46,233 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:33:46 cownav python3[1989]: 2026-03-28 13:33:46,235 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:33:46 cownav python3[1989]: 2026-03-28 13:33:46,237 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:33:46 cownav python3[1989]: 2026-03-28 13:33:46,238 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:33:46 cownav python3[1989]: 2026-03-28 13:33:46,248 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:33:46 cownav python3[1989]: 2026-03-28 13:33:46,248 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:33:46 cownav python3[1989]: 2026-03-28 13:33:46,248 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:33:46 cownav python3[1989]: 2026-03-28 13:33:46,766 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:33:46 cownav python3[1989]: 2026-03-28 13:33:46,766 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:33:46 cownav python3[1989]: 2026-03-28 13:33:46,766 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:33:46 cownav python3[1989]: 2026-03-28 13:33:46,766 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:33:47 cownav python3[1989]: 2026-03-28 13:33:47,266 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:33:50 cownav python3[1989]: 2026-03-28 13:33:50,277 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:33:50 cownav python3[1989]: 2026-03-28 13:33:50,277 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:33:50 cownav python3[1989]: 2026-03-28 13:33:50,279 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:33:50 cownav python3[1989]: 2026-03-28 13:33:50,282 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:33:50 cownav python3[1989]: 2026-03-28 13:33:50,282 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:33:50 cownav python3[1989]: 2026-03-28 13:33:50,292 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:33:50 cownav python3[1989]: 2026-03-28 13:33:50,292 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:33:50 cownav python3[1989]: 2026-03-28 13:33:50,292 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:33:50 cownav python3[1989]: 2026-03-28 13:33:50,810 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:33:50 cownav python3[1989]: 2026-03-28 13:33:50,810 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:33:50 cownav python3[1989]: 2026-03-28 13:33:50,811 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:33:50 cownav python3[1989]: 2026-03-28 13:33:50,811 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:33:51 cownav python3[1989]: 2026-03-28 13:33:51,311 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:33:54 cownav python3[1989]: 2026-03-28 13:33:54,322 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:33:54 cownav python3[1989]: 2026-03-28 13:33:54,322 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:33:54 cownav python3[1989]: 2026-03-28 13:33:54,324 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:33:54 cownav python3[1989]: 2026-03-28 13:33:54,326 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:33:54 cownav python3[1989]: 2026-03-28 13:33:54,326 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:33:54 cownav python3[1989]: 2026-03-28 13:33:54,337 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:33:54 cownav python3[1989]: 2026-03-28 13:33:54,337 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:33:54 cownav python3[1989]: 2026-03-28 13:33:54,337 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:33:54 cownav python3[1989]: 2026-03-28 13:33:54,855 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:33:54 cownav python3[1989]: 2026-03-28 13:33:54,855 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:33:54 cownav python3[1989]: 2026-03-28 13:33:54,855 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:33:54 cownav python3[1989]: 2026-03-28 13:33:54,855 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:33:55 cownav python3[1989]: 2026-03-28 13:33:55,355 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:33:58 cownav python3[1989]: 2026-03-28 13:33:58,366 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:33:58 cownav python3[1989]: 2026-03-28 13:33:58,366 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:33:58 cownav python3[1989]: 2026-03-28 13:33:58,368 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:33:58 cownav python3[1989]: 2026-03-28 13:33:58,370 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:33:58 cownav python3[1989]: 2026-03-28 13:33:58,371 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:33:58 cownav python3[1989]: 2026-03-28 13:33:58,381 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:33:58 cownav python3[1989]: 2026-03-28 13:33:58,381 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:33:58 cownav python3[1989]: 2026-03-28 13:33:58,381 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:33:58 cownav python3[1989]: 2026-03-28 13:33:58,899 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:33:58 cownav python3[1989]: 2026-03-28 13:33:58,899 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:33:58 cownav python3[1989]: 2026-03-28 13:33:58,899 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:33:58 cownav python3[1989]: 2026-03-28 13:33:58,899 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:33:59 cownav python3[1989]: 2026-03-28 13:33:59,399 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:02 cownav python3[1989]: 2026-03-28 13:34:02,410 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:02 cownav python3[1989]: 2026-03-28 13:34:02,410 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:02 cownav python3[1989]: 2026-03-28 13:34:02,412 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:34:02 cownav python3[1989]: 2026-03-28 13:34:02,415 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:02 cownav python3[1989]: 2026-03-28 13:34:02,415 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:02 cownav python3[1989]: 2026-03-28 13:34:02,425 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:02 cownav python3[1989]: 2026-03-28 13:34:02,425 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:02 cownav python3[1989]: 2026-03-28 13:34:02,425 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:02 cownav python3[1989]: 2026-03-28 13:34:02,943 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:34:02 cownav python3[1989]: 2026-03-28 13:34:02,943 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:02 cownav python3[1989]: 2026-03-28 13:34:02,943 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:02 cownav python3[1989]: 2026-03-28 13:34:02,944 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:03 cownav python3[1989]: 2026-03-28 13:34:03,444 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:06 cownav python3[1989]: 2026-03-28 13:34:06,455 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:06 cownav python3[1989]: 2026-03-28 13:34:06,455 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:06 cownav python3[1989]: 2026-03-28 13:34:06,457 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:34:06 cownav python3[1989]: 2026-03-28 13:34:06,459 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:06 cownav python3[1989]: 2026-03-28 13:34:06,459 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:06 cownav python3[1989]: 2026-03-28 13:34:06,469 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:06 cownav python3[1989]: 2026-03-28 13:34:06,470 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:06 cownav python3[1989]: 2026-03-28 13:34:06,470 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:06 cownav python3[1989]: 2026-03-28 13:34:06,988 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:34:06 cownav python3[1989]: 2026-03-28 13:34:06,988 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:06 cownav python3[1989]: 2026-03-28 13:34:06,988 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:06 cownav python3[1989]: 2026-03-28 13:34:06,988 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:07 cownav python3[1989]: 2026-03-28 13:34:07,488 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:10 cownav python3[1989]: 2026-03-28 13:34:10,499 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:10 cownav python3[1989]: 2026-03-28 13:34:10,499 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:10 cownav python3[1989]: 2026-03-28 13:34:10,502 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:34:10 cownav python3[1989]: 2026-03-28 13:34:10,504 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:10 cownav python3[1989]: 2026-03-28 13:34:10,504 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:10 cownav python3[1989]: 2026-03-28 13:34:10,514 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:10 cownav python3[1989]: 2026-03-28 13:34:10,514 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:10 cownav python3[1989]: 2026-03-28 13:34:10,514 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:11 cownav python3[1989]: 2026-03-28 13:34:11,033 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:34:11 cownav python3[1989]: 2026-03-28 13:34:11,033 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:11 cownav python3[1989]: 2026-03-28 13:34:11,033 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:11 cownav python3[1989]: 2026-03-28 13:34:11,033 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:11 cownav python3[1989]: 2026-03-28 13:34:11,533 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:14 cownav python3[1989]: 2026-03-28 13:34:14,544 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:14 cownav python3[1989]: 2026-03-28 13:34:14,544 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:14 cownav python3[1989]: 2026-03-28 13:34:14,547 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:34:14 cownav python3[1989]: 2026-03-28 13:34:14,549 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:14 cownav python3[1989]: 2026-03-28 13:34:14,549 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:14 cownav python3[1989]: 2026-03-28 13:34:14,559 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:14 cownav python3[1989]: 2026-03-28 13:34:14,559 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:14 cownav python3[1989]: 2026-03-28 13:34:14,559 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:15 cownav python3[1989]: 2026-03-28 13:34:15,078 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:34:15 cownav python3[1989]: 2026-03-28 13:34:15,078 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:15 cownav python3[1989]: 2026-03-28 13:34:15,078 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:15 cownav python3[1989]: 2026-03-28 13:34:15,078 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:15 cownav python3[1989]: 2026-03-28 13:34:15,578 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:18 cownav python3[1989]: 2026-03-28 13:34:18,589 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:18 cownav python3[1989]: 2026-03-28 13:34:18,589 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:18 cownav python3[1989]: 2026-03-28 13:34:18,591 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:34:18 cownav python3[1989]: 2026-03-28 13:34:18,594 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:18 cownav python3[1989]: 2026-03-28 13:34:18,594 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:18 cownav python3[1989]: 2026-03-28 13:34:18,604 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:18 cownav python3[1989]: 2026-03-28 13:34:18,604 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:18 cownav python3[1989]: 2026-03-28 13:34:18,604 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:19 cownav python3[1989]: 2026-03-28 13:34:19,122 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:34:19 cownav python3[1989]: 2026-03-28 13:34:19,122 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:19 cownav python3[1989]: 2026-03-28 13:34:19,122 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:19 cownav python3[1989]: 2026-03-28 13:34:19,122 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:19 cownav python3[1989]: 2026-03-28 13:34:19,623 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:22 cownav python3[1989]: 2026-03-28 13:34:22,634 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:22 cownav python3[1989]: 2026-03-28 13:34:22,634 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:22 cownav python3[1989]: 2026-03-28 13:34:22,636 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:34:22 cownav python3[1989]: 2026-03-28 13:34:22,638 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:22 cownav python3[1989]: 2026-03-28 13:34:22,638 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:22 cownav python3[1989]: 2026-03-28 13:34:22,649 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:22 cownav python3[1989]: 2026-03-28 13:34:22,649 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:22 cownav python3[1989]: 2026-03-28 13:34:22,649 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:23 cownav python3[1989]: 2026-03-28 13:34:23,167 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:34:23 cownav python3[1989]: 2026-03-28 13:34:23,167 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:23 cownav python3[1989]: 2026-03-28 13:34:23,167 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:23 cownav python3[1989]: 2026-03-28 13:34:23,167 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:23 cownav python3[1989]: 2026-03-28 13:34:23,667 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:26 cownav python3[1989]: 2026-03-28 13:34:26,678 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:26 cownav python3[1989]: 2026-03-28 13:34:26,678 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:26 cownav python3[1989]: 2026-03-28 13:34:26,680 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:34:26 cownav python3[1989]: 2026-03-28 13:34:26,683 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:26 cownav python3[1989]: 2026-03-28 13:34:26,683 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:26 cownav python3[1989]: 2026-03-28 13:34:26,693 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:26 cownav python3[1989]: 2026-03-28 13:34:26,693 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:26 cownav python3[1989]: 2026-03-28 13:34:26,693 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:27 cownav python3[1989]: 2026-03-28 13:34:27,211 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:34:27 cownav python3[1989]: 2026-03-28 13:34:27,211 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:27 cownav python3[1989]: 2026-03-28 13:34:27,211 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:27 cownav python3[1989]: 2026-03-28 13:34:27,211 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:27 cownav python3[1989]: 2026-03-28 13:34:27,711 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:30 cownav python3[1989]: 2026-03-28 13:34:30,722 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:30 cownav python3[1989]: 2026-03-28 13:34:30,723 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:30 cownav python3[1989]: 2026-03-28 13:34:30,725 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:34:30 cownav python3[1989]: 2026-03-28 13:34:30,727 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:30 cownav python3[1989]: 2026-03-28 13:34:30,727 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:30 cownav python3[1989]: 2026-03-28 13:34:30,737 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:30 cownav python3[1989]: 2026-03-28 13:34:30,738 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:30 cownav python3[1989]: 2026-03-28 13:34:30,738 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:31 cownav python3[1989]: 2026-03-28 13:34:31,256 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:34:31 cownav python3[1989]: 2026-03-28 13:34:31,256 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:31 cownav python3[1989]: 2026-03-28 13:34:31,256 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:31 cownav python3[1989]: 2026-03-28 13:34:31,256 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:31 cownav python3[1989]: 2026-03-28 13:34:31,756 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:34 cownav python3[1989]: 2026-03-28 13:34:34,767 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:34 cownav python3[1989]: 2026-03-28 13:34:34,767 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:34 cownav python3[1989]: 2026-03-28 13:34:34,769 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:34:34 cownav python3[1989]: 2026-03-28 13:34:34,772 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:34 cownav python3[1989]: 2026-03-28 13:34:34,772 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:34 cownav python3[1989]: 2026-03-28 13:34:34,783 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:34 cownav python3[1989]: 2026-03-28 13:34:34,783 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:34 cownav python3[1989]: 2026-03-28 13:34:34,783 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:35 cownav python3[1989]: 2026-03-28 13:34:35,301 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:34:35 cownav python3[1989]: 2026-03-28 13:34:35,301 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:35 cownav python3[1989]: 2026-03-28 13:34:35,301 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:35 cownav python3[1989]: 2026-03-28 13:34:35,301 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:35 cownav python3[1989]: 2026-03-28 13:34:35,801 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:38 cownav python3[1989]: 2026-03-28 13:34:38,812 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:38 cownav python3[1989]: 2026-03-28 13:34:38,812 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:38 cownav python3[1989]: 2026-03-28 13:34:38,814 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:34:38 cownav python3[1989]: 2026-03-28 13:34:38,817 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:38 cownav python3[1989]: 2026-03-28 13:34:38,817 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:38 cownav python3[1989]: 2026-03-28 13:34:38,827 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:38 cownav python3[1989]: 2026-03-28 13:34:38,827 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:38 cownav python3[1989]: 2026-03-28 13:34:38,827 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:39 cownav python3[1989]: 2026-03-28 13:34:39,345 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:34:39 cownav python3[1989]: 2026-03-28 13:34:39,345 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:39 cownav python3[1989]: 2026-03-28 13:34:39,345 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:39 cownav python3[1989]: 2026-03-28 13:34:39,345 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:39 cownav python3[1989]: 2026-03-28 13:34:39,845 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:42 cownav python3[1989]: 2026-03-28 13:34:42,856 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:42 cownav python3[1989]: 2026-03-28 13:34:42,856 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:42 cownav python3[1989]: 2026-03-28 13:34:42,859 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:34:42 cownav python3[1989]: 2026-03-28 13:34:42,861 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:42 cownav python3[1989]: 2026-03-28 13:34:42,861 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:42 cownav python3[1989]: 2026-03-28 13:34:42,871 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:42 cownav python3[1989]: 2026-03-28 13:34:42,871 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:42 cownav python3[1989]: 2026-03-28 13:34:42,871 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:43 cownav python3[1989]: 2026-03-28 13:34:43,389 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:34:43 cownav python3[1989]: 2026-03-28 13:34:43,389 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:43 cownav python3[1989]: 2026-03-28 13:34:43,389 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:43 cownav python3[1989]: 2026-03-28 13:34:43,389 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:43 cownav python3[1989]: 2026-03-28 13:34:43,890 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:46 cownav python3[1989]: 2026-03-28 13:34:46,901 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:46 cownav python3[1989]: 2026-03-28 13:34:46,901 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:46 cownav python3[1989]: 2026-03-28 13:34:46,903 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:34:46 cownav python3[1989]: 2026-03-28 13:34:46,905 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:46 cownav python3[1989]: 2026-03-28 13:34:46,906 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:46 cownav python3[1989]: 2026-03-28 13:34:46,916 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:46 cownav python3[1989]: 2026-03-28 13:34:46,916 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:46 cownav python3[1989]: 2026-03-28 13:34:46,916 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:47 cownav python3[1989]: 2026-03-28 13:34:47,434 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:34:47 cownav python3[1989]: 2026-03-28 13:34:47,435 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:47 cownav python3[1989]: 2026-03-28 13:34:47,435 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:47 cownav python3[1989]: 2026-03-28 13:34:47,435 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:47 cownav python3[1989]: 2026-03-28 13:34:47,935 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:50 cownav python3[1989]: 2026-03-28 13:34:50,945 [INFO] (DIS Svc) Ignition Changed: OFF
+Mar 28 13:34:50 cownav python3[1989]: 2026-03-28 13:34:50,945 [INFO] (DIS Svc) Ignition OFF -> Stopping DIS Session
+Mar 28 13:34:50 cownav python3[1989]: 2026-03-28 13:34:50,945 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,448 [INFO] (DIS Svc) Ignition Changed: ON
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,448 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE DISCONNECTED
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,448 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,450 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,453 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,453 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,463 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,463 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,463 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,474 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,474 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,974 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,974 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,974 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:54 cownav python3[1989]: 2026-03-28 13:34:54,974 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:34:57 cownav python3[1989]: 2026-03-28 13:34:57,985 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:34:57 cownav python3[1989]: 2026-03-28 13:34:57,985 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:34:57 cownav python3[1989]: 2026-03-28 13:34:57,987 [INFO] (DIS Svc) Found White DIS passive open (A0 0F...).
+Mar 28 13:34:57 cownav python3[1989]: 2026-03-28 13:34:57,989 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:34:57 cownav python3[1989]: 2026-03-28 13:34:57,990 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:34:58 cownav python3[1989]: 2026-03-28 13:34:58,000 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:34:58 cownav python3[1989]: 2026-03-28 13:34:58,000 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:34:58 cownav python3[1989]: 2026-03-28 13:34:58,000 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:34:58 cownav python3[1989]: 2026-03-28 13:34:58,025 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 28 13:34:58 cownav python3[1989]: 2026-03-28 13:34:58,025 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:34:58 cownav python3[1989]: 2026-03-28 13:34:58,526 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 28 13:34:58 cownav python3[1989]: 2026-03-28 13:34:58,526 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:34:58 cownav python3[1989]: 2026-03-28 13:34:58,526 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:34:58 cownav python3[1989]: 2026-03-28 13:34:58,526 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:35:01 cownav python3[1989]: 2026-03-28 13:35:01,537 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:35:01 cownav python3[1989]: 2026-03-28 13:35:01,537 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:35:01 cownav python3[1989]: 2026-03-28 13:35:01,539 [INFO] (DIS Svc) Found White DIS passive open (A0 0F...).
+Mar 28 13:35:01 cownav python3[1989]: 2026-03-28 13:35:01,541 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:35:01 cownav python3[1989]: 2026-03-28 13:35:01,541 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:35:01 cownav python3[1989]: 2026-03-28 13:35:01,551 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:35:01 cownav python3[1989]: 2026-03-28 13:35:01,552 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:35:01 cownav python3[1989]: 2026-03-28 13:35:01,552 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:35:01 cownav python3[1989]: 2026-03-28 13:35:01,577 [WARNING] (DIS Svc) Cluster sent A8 (Close) -> closing session
+Mar 28 13:35:01 cownav python3[1989]: 2026-03-28 13:35:01,577 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:35:02 cownav python3[1989]: 2026-03-28 13:35:02,077 [WARNING] (DIS Svc) Session closed while waiting for specific packet
+Mar 28 13:35:02 cownav python3[1989]: 2026-03-28 13:35:02,077 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:35:02 cownav python3[1989]: 2026-03-28 13:35:02,077 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:35:02 cownav python3[1989]: 2026-03-28 13:35:02,077 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:35:05 cownav python3[1989]: 2026-03-28 13:35:05,088 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:35:05 cownav python3[1989]: 2026-03-28 13:35:05,088 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,591 [INFO] (DIS Svc) No Red DIS broadcast. Assuming White DIS, attempting Active Open.
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,591 [INFO] (DIS Svc) ACTIVE WHITE: Sending A0...
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,599 [INFO] (DIS Svc) A1 received
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,599 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,599 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,609 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,609 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,609 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,618 [INFO] (DIS Svc) Init Step 1 (Capabilities Query) sent!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,651 [INFO] (DIS Svc) Init 2/x passed!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,658 [INFO] (DIS Svc) Init 3/x passed!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,668 [INFO] (DIS Svc) Init 4/x passed!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,680 [INFO] (DIS Svc) Handshake Fork: Got out-of-order packet (PL 00 01). Accepting.
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,689 [INFO] (DIS Svc) Handshake Fork: Got PL_LOG_11 (ALT)
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,689 [INFO] (DIS Svc) Following Path C (White Long)...
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,698 [INFO] (DIS Svc) Init 5/x passed!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,711 [INFO] (DIS Svc) Init 6/x passed (ALT)!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,719 [INFO] (DIS Svc) Init 7/x passed!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,729 [INFO] (DIS Svc) Init 8/x passed (ALT)!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,738 [INFO] (DIS Svc) Init 9/x passed!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,751 [INFO] (DIS Svc) Init 10/x passed (ALT)!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,771 [INFO] (DIS Svc) Init 11/x passed!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,778 [INFO] (DIS Svc) Init 12/x passed!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,791 [INFO] (DIS Svc) Init 13/x passed!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,798 [INFO] (DIS Svc) Init 14/x passed!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,809 [INFO] (DIS Svc) Init 15/x passed!
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,809 [INFO] (DIS Svc) Sending final A3 Keep-Alive to complete handshake...
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,820 [INFO] (DIS Svc) DDP Initialization COMPLETE
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,820 [INFO] (DIS Svc) State transition: INITIALIZING -> READY
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,820 [INFO] (DIS Svc) DDP READY.
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,820 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE READY
+Mar 28 13:35:06 cownav python3[1989]: 2026-03-28 13:35:06,830 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 13:35:07 cownav python3[1989]: 2026-03-28 13:35:07,864 [ERROR] (DIS Svc) Timeout waiting for a data packet
+Mar 28 13:35:07 cownav python3[1989]: 2026-03-28 13:35:07,864 [WARNING] (DIS Svc) Cluster did not release screen within 1s (got None). Forcing PAUSED state.
+Mar 28 13:35:07 cownav python3[1989]: 2026-03-28 13:35:07,864 [INFO] (DIS Svc) State transition: READY -> PAUSED
+Mar 28 13:35:07 cownav python3[1989]: 2026-03-28 13:35:07,864 [WARNING] (DIS Svc) Cannot claim screen, session not READY.
+Mar 28 13:35:07 cownav python3[1989]: 2026-03-28 13:35:07,864 [ERROR] (DIS Svc) Failed to claim screen.
+Mar 28 13:35:07 cownav python3[1989]: 2026-03-28 13:35:07,865 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE PAUSED
+Mar 28 13:35:08 cownav python3[1989]: 2026-03-28 13:35:08,904 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE PAUSED
+Mar 28 13:35:13 cownav python3[1989]: 2026-03-28 13:35:13,908 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE PAUSED
+Mar 28 13:35:15 cownav python3[1989]: 2026-03-28 13:35:15,513 [INFO] (DIS Svc) Cluster Status FREE ([83, 5]). Waiting for Re-Init Request (2E)...
+Mar 28 13:35:15 cownav python3[1989]: 2026-03-28 13:35:15,588 [INFO] (DIS Svc) Received Re-Init Request (2E). Sending Confirm (2F).
+Mar 28 13:35:15 cownav python3[1989]: 2026-03-28 13:35:15,590 [INFO] (DIS Svc) State transition: PAUSED -> READY
+Mar 28 13:35:15 cownav python3[1989]: 2026-03-28 13:35:15,591 [INFO] (DIS Svc) Resuming from PAUSE.
+Mar 28 13:35:15 cownav python3[1989]: 2026-03-28 13:35:15,651 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE READY
+Mar 28 13:35:15 cownav python3[1989]: 2026-03-28 13:35:15,653 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 13:35:15 cownav python3[1989]: 2026-03-28 13:35:15,681 [INFO] (DIS Svc) Inactivity auto-release is DISABLED (screen will stay claimed forever)
+Mar 28 13:35:15 cownav python3[1989]: 2026-03-28 13:35:15,681 [INFO] (DIS Svc) Restoring screen content after interruption or clearing...
+Mar 28 13:35:15 cownav python3[1989]: 2026-03-28 13:35:15,681 [INFO] (DIS Svc) Queueing Region Clear for central
+Mar 28 13:35:15 cownav python3[1989]: 2026-03-28 13:35:15,880 [INFO] (DIS Svc) Executing full clear_screen command...
+Mar 28 13:35:19 cownav python3[1989]: 2026-03-28 13:35:19,739 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 13:35:24 cownav python3[1989]: 2026-03-28 13:35:24,804 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 13:35:29 cownav python3[1989]: 2026-03-28 13:35:29,828 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 13:35:34 cownav python3[1989]: 2026-03-28 13:35:34,881 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 13:35:35 cownav python3[1989]: 2026-03-28 13:35:35,279 [INFO] (DIS Svc) Executing full clear_screen command...
+Mar 28 13:35:37 cownav python3[1989]: 2026-03-28 13:35:37,559 [INFO] (DIS Svc) Executing full clear_screen command...
+Mar 28 13:35:40 cownav python3[1989]: 2026-03-28 13:35:40,199 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 13:35:45 cownav python3[1989]: 2026-03-28 13:35:45,306 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 13:35:48 cownav python3[1989]: 2026-03-28 13:35:48,121 [WARNING] (DIS Svc) Cluster INTERRUPT (Status [83, 4]). Pausing...
+Mar 28 13:35:48 cownav python3[1989]: 2026-03-28 13:35:48,121 [INFO] (DIS Svc) State transition: READY -> PAUSED
+Mar 28 13:35:48 cownav python3[1989]: 2026-03-28 13:35:48,123 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE PAUSED
+Mar 28 13:35:48 cownav python3[1989]: 2026-03-28 13:35:48,138 [INFO] (DIS Svc) Service PAUSED by Cluster. Waiting for release...
+Mar 28 13:35:51 cownav python3[1989]: 2026-03-28 13:35:51,201 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE PAUSED
+Mar 28 13:35:56 cownav python3[1989]: 2026-03-28 13:35:56,405 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE PAUSED
+Mar 28 13:35:59 cownav python3[1989]: 2026-03-28 13:35:59,218 [INFO] (DIS Svc) Cluster Status FREE ([83, 5]). Waiting for Re-Init Request (2E)...
+Mar 28 13:35:59 cownav python3[1989]: 2026-03-28 13:35:59,283 [INFO] (DIS Svc) Received Re-Init Request (2E). Sending Confirm (2F).
+Mar 28 13:35:59 cownav python3[1989]: 2026-03-28 13:35:59,286 [INFO] (DIS Svc) State transition: PAUSED -> READY
+Mar 28 13:35:59 cownav python3[1989]: 2026-03-28 13:35:59,286 [INFO] (DIS Svc) Resuming from PAUSE.
+Mar 28 13:35:59 cownav python3[1989]: 2026-03-28 13:35:59,346 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE READY
+Mar 28 13:35:59 cownav python3[1989]: 2026-03-28 13:35:59,348 [INFO] (DIS Svc) Auto-Restore triggered.
+Mar 28 13:35:59 cownav python3[1989]: 2026-03-28 13:35:59,373 [INFO] (DIS Svc) Inactivity auto-release is DISABLED (screen will stay claimed forever)
+Mar 28 13:35:59 cownav python3[1989]: 2026-03-28 13:35:59,373 [INFO] (DIS Svc) Restoring screen content after interruption or clearing...
+Mar 28 13:35:59 cownav python3[1989]: 2026-03-28 13:35:59,373 [INFO] (DIS Svc) Queueing Region Clear for central
+Mar 28 13:35:59 cownav python3[1989]: 2026-03-28 13:35:59,590 [INFO] (DIS Svc) Executing full clear_screen command...
+Mar 28 13:36:02 cownav python3[1989]: 2026-03-28 13:36:02,429 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 13:36:07 cownav python3[1989]: 2026-03-28 13:36:07,543 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 13:36:12 cownav python3[1989]: 2026-03-28 13:36:12,720 [INFO] (DIS Svc) ZMQ Broadcast (Heartbeat): DIS_STATE READY
+Mar 28 13:36:13 cownav python3[1989]: 2026-03-28 13:36:13,867 [ERROR] (DIS Svc) CAN Send Error: Failed to transmit: No buffer space available [Error Code 105]
+Mar 28 13:36:13 cownav python3[1989]: 2026-03-28 13:36:13,867 [ERROR] (DIS Svc) Failed to send DDP frame: CAN Send Error: Failed to transmit: No buffer space available [Error Code 105]. Session closing.
+Mar 28 13:36:13 cownav python3[1989]: 2026-03-28 13:36:13,867 [INFO] (DIS Svc) State transition: READY -> DISCONNECTED
+Mar 28 13:36:14 cownav python3[1989]: 2026-03-28 13:36:14,367 [WARNING] (DIS Svc) Attempted to send frame while not READY. Ignoring.
+Mar 28 13:36:14 cownav python3[1989]: 2026-03-28 13:36:14,367 [WARNING] (DIS Svc) Attempted to send frame while not READY. Ignoring.
+Mar 28 13:36:14 cownav python3[1989]: 2026-03-28 13:36:14,367 [ERROR] (DIS Svc) Failed to send commit packet.
+Mar 28 13:36:14 cownav python3[1989]: 2026-03-28 13:36:14,378 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:36:14 cownav python3[1989]: 2026-03-28 13:36:14,378 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:36:14 cownav python3[1989]: 2026-03-28 13:36:14,929 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:36:14 cownav python3[1989]: 2026-03-28 13:36:14,931 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:36:14 cownav python3[1989]: 2026-03-28 13:36:14,931 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:36:14 cownav python3[1989]: 2026-03-28 13:36:14,942 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:36:14 cownav python3[1989]: 2026-03-28 13:36:14,942 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:36:14 cownav python3[1989]: 2026-03-28 13:36:14,942 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:36:15 cownav python3[1989]: 2026-03-28 13:36:15,451 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:36:15 cownav python3[1989]: 2026-03-28 13:36:15,451 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:36:15 cownav python3[1989]: 2026-03-28 13:36:15,451 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:36:15 cownav python3[1989]: 2026-03-28 13:36:15,451 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:36:15 cownav python3[1989]: 2026-03-28 13:36:15,951 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:36:18 cownav python3[1989]: 2026-03-28 13:36:18,962 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:36:18 cownav python3[1989]: 2026-03-28 13:36:18,963 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:36:18 cownav python3[1989]: 2026-03-28 13:36:18,965 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:36:18 cownav python3[1989]: 2026-03-28 13:36:18,967 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:36:18 cownav python3[1989]: 2026-03-28 13:36:18,967 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:36:18 cownav python3[1989]: 2026-03-28 13:36:18,977 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:36:18 cownav python3[1989]: 2026-03-28 13:36:18,977 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:36:18 cownav python3[1989]: 2026-03-28 13:36:18,977 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:36:19 cownav python3[1989]: 2026-03-28 13:36:19,496 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:36:19 cownav python3[1989]: 2026-03-28 13:36:19,496 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:36:19 cownav python3[1989]: 2026-03-28 13:36:19,496 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:36:19 cownav python3[1989]: 2026-03-28 13:36:19,496 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:36:19 cownav python3[1989]: 2026-03-28 13:36:19,996 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.
+Mar 28 13:36:23 cownav python3[1989]: 2026-03-28 13:36:23,007 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE DISCONNECTED
+Mar 28 13:36:23 cownav python3[1989]: 2026-03-28 13:36:23,007 [INFO] (DIS Svc) Detecting cluster type (Red or White)...
+Mar 28 13:36:23 cownav python3[1989]: 2026-03-28 13:36:23,009 [INFO] (DIS Svc) Found existing session via A3 ping. Replying A1.
+Mar 28 13:36:23 cownav python3[1989]: 2026-03-28 13:36:23,012 [INFO] (DIS Svc) State transition: DISCONNECTED -> SESSION_ACTIVE
+Mar 28 13:36:23 cownav python3[1989]: 2026-03-28 13:36:23,012 [INFO] (DIS Svc) Session established (Mode: WHITE).
+Mar 28 13:36:23 cownav python3[1989]: 2026-03-28 13:36:23,022 [INFO] (DIS Svc) ZMQ Broadcast (State Change): DIS_STATE INITIALIZING
+Mar 28 13:36:23 cownav python3[1989]: 2026-03-28 13:36:23,022 [INFO] (DIS Svc) Starting DDP Step 2 Initialization for WHITE DIS...
+Mar 28 13:36:23 cownav python3[1989]: 2026-03-28 13:36:23,022 [INFO] (DIS Svc) State transition: SESSION_ACTIVE -> INITIALIZING
+Mar 28 13:36:23 cownav python3[1989]: 2026-03-28 13:36:23,540 [ERROR] (DIS Svc) Timeout waiting for [177]
+Mar 28 13:36:23 cownav python3[1989]: 2026-03-28 13:36:23,540 [WARNING] (DIS Svc) Timeout waiting for ACK B1 after sending 10
+Mar 28 13:36:23 cownav python3[1989]: 2026-03-28 13:36:23,540 [WARNING] (DIS Svc) Handshake Error (Timeout or Break): Timeout waiting for ACK B1. Resetting session.
+Mar 28 13:36:23 cownav python3[1989]: 2026-03-28 13:36:23,540 [INFO] (DIS Svc) State transition: INITIALIZING -> DISCONNECTED
+Mar 28 13:36:24 cownav python3[1989]: 2026-03-28 13:36:24,040 [ERROR] (DIS Svc) DDP Initialization failed. Retrying.

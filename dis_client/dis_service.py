@@ -90,6 +90,10 @@ class DisService:
         self.region_name = 'central'
         self.region_y_offset = 0x1B
         self.region_height = 0x30
+        
+        # Recovery state
+        self.last_claim_attempt = 0.0
+        self.claim_retry_count = 0
 
     @property
     def screen_is_active(self):
@@ -183,15 +187,17 @@ class DisService:
                     self.last_draw_time = time.time()
                     return True
                 
-                if data and any(self.ddp.payload_is(data, p) for p in valid_busy_payloads):
-                    logger.warning("RED Cluster is busy. Forcing PAUSED state.")
-                    self.ddp._set_state(DDPState.PAUSED)
-                    return False
-
-                raise DDPHandshakeError(f"Claim Handshake 2/2 failed (wait 1x 53 85), got {data}")
+                if not data or not any(self.ddp.payload_is(data, p) for p in valid_busy_payloads):
+                    raise DDPHandshakeError(f"Claim Handshake 2/7 failed (wait for Busy), got {data}")
+                
             except DDPError as e:
-                logger.error(f"Failed to claim screen (RED path): {e}")
-                self.ddp._set_state(DDPState.DISCONNECTED)
+                self.claim_retry_count += 1
+                logger.error(f"Failed to claim screen (RED path, attempt {self.claim_retry_count}): {e}")
+                
+                if self.claim_retry_count >= 3:
+                    logger.warning("Multiple claim failures. Hard-resetting session (sending A8).")
+                    self.ddp.close_session()
+                    self.claim_retry_count = 0
                 return False
         else:
             try:
@@ -223,16 +229,21 @@ class DisService:
                 self.ddp.send_data_packet(payload_clear)
                 self.ddp.send_data_packet(payload_claim)
                 
-                # Handshake Step 7 (Wait for OK)
                 data = self.ddp._recv_and_ack_data(1000)
                 if not data or not self.ddp.payload_is(data, payload_ok):
                     logger.warning(f"Got non-standard status {data} after 2nd claim, but proceeding.")
             except DDPError as e:
-                logger.error(f"Failed to claim screen (WHITE path): {e}")
-                self.ddp._set_state(DDPState.DISCONNECTED)
+                self.claim_retry_count += 1
+                logger.error(f"Failed to claim screen (WHITE path, attempt {self.claim_retry_count}): {e}")
+                
+                if self.claim_retry_count >= 3:
+                    logger.warning("Multiple claim failures. Hard-resetting session (sending A8).")
+                    self.ddp.close_session()
+                    self.claim_retry_count = 0
                 return False
             
         logger.info(f"Region Claim '{self.region_name}' handshake successful. Screen is active.")
+        self.claim_retry_count = 0 # Reset counter on success
         self.screen_is_active = True
         self.last_draw_time = time.time()
         return True
@@ -437,6 +448,7 @@ class DisService:
 
                 if self.ddp.state == DDPState.DISCONNECTED:
                     self.screen_is_active = False
+                    self.claim_retry_count = 0 
                     if self.ddp.detect_and_open_session():
                         logger.info(f"Session established (Mode: {self.ddp.dis_mode.name}).")
                     else:
@@ -467,9 +479,12 @@ class DisService:
                     self._broadcast_status()
                     if self.ddp.state != DDPState.READY: pass
                     if not self.screen_is_active and self.command_cache:
-                         logger.info("Auto-Restore triggered.")
-                         if self.claim_nav_screen():
-                             self.handle_redraw()
+                         now = time.time()
+                         if now - self.last_claim_attempt > 5.0:
+                             logger.info("Auto-Restore triggered.")
+                             self.last_claim_attempt = now
+                             if self.claim_nav_screen():
+                                 self.handle_redraw()
                     socks = dict(self.poller.poll(5))
                     if self.draw_socket in socks:
                         cmds = []
