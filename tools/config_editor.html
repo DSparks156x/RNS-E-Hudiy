@@ -576,7 +576,39 @@
             "display.center_display.coverart": { label: "Album Cover Art" },
             "display.center_display.coverart.brief": { help: "Show briefly on track start (5s).", type: "boolean" },
             "display.center_display.coverart.appcycle": { help: "Include in app rotation cycle.", type: "boolean" },
+            "display.center_display.acceleration_test": { label: "Acceleration Test" },
+            "display.center_display.acceleration_test.auto_reset_on_stop": { label: "Auto Reset on Stop", help: "Resets acceleration timers when stopped for configured delay.", type: "boolean" },
+            "display.center_display.acceleration_test.auto_reset_delay": { label: "Auto Reset Delay", help: "Delay in seconds before auto reset when stopped.", type: "number" },
+            "display.center_display.acceleration_test.line_1": {
+                label: "Line 1",
+                help: "Formatting: #-# (speed), #/# (distance), or 'speed'",
+                type: "text",
+                options: ["0-60", "0-100", "60-130", "1/4", "1/8", "speed"],
+                detailedHelp: "Configure this line in 3 ways:\n\n1. Speed-to-Speed: e.g. '0-60', '0-100', '60-130' (uses Configure Speed Units setting)\n2. Distance Timer: e.g. '1/4' (quarter mile) or '1000' (feet). Distances below 10 assume Miles/KM based on units, above 10 assume Feet/Meters.\n3. Live Speed: enter 'speed' to show current velocity"
+            },
+            "display.center_display.acceleration_test.line_2": {
+                label: "Line 2",
+                help: "Formatting: #-#, #/#, or 'speed'",
+                type: "text",
+                options: ["0-60", "0-100", "60-130", "1/4", "1/8", "speed"],
+                detailedHelp: "Configure this line in 3 ways:\n\n1. Speed-to-Speed: e.g. '0-60', '0-100', '60-130' (uses Configure Speed Units setting)\n2. Distance Timer: e.g. '1/4' (quarter mile) or '1000' (feet). Distances below 10 assume Miles/KM based on units, above 10 assume Feet/Meters.\n3. Live Speed: enter 'speed' to show current velocity"
+            },
+            "display.center_display.acceleration_test.line_3": {
+                label: "Line 3",
+                help: "Formatting: #-#, #/#, or 'speed'",
+                type: "text",
+                options: ["0-60", "0-100", "60-130", "1/4", "1/8", "speed"],
+                detailedHelp: "Configure this line in 3 ways:\n\n1. Speed-to-Speed: e.g. '0-60', '0-100', '60-130' (uses Configure Speed Units setting)\n2. Distance Timer: e.g. '1/4' (quarter mile) or '1000' (feet). Distances below 10 assume Miles/KM based on units, above 10 assume Feet/Meters.\n3. Live Speed: enter 'speed' to show current velocity"
+            },
+            "display.center_display.acceleration_test.line_4": {
+                label: "Line 4",
+                help: "Formatting: #-#, #/#, or 'speed'",
+                type: "text",
+                options: ["0-60", "0-100", "60-130", "1/4", "1/8", "speed"],
+                detailedHelp: "Configure this line in 3 ways:\n\n1. Speed-to-Speed: e.g. '0-60', '0-100', '60-130' (uses Configure Speed Units setting)\n2. Distance Timer: e.g. '1/4' (quarter mile) or '1000' (feet). Distances below 10 assume Miles/KM based on units, above 10 assume Feet/Meters.\n3. Live Speed: enter 'speed' to show current velocity"
+            },
             "display.road_side": { help: "Side of the road you drive on.", type: "select", options: ["left", "right"] },
+
             "display.units.speed": { help: "Velocity units.", type: "select", options: ["imperial", "metric"] },
             "display.units.ambient_temp": { help: "Temperature readout units.", type: "select", options: ["imperial", "metric"] },
             "display.units.boost": { help: "Boost Units.", type: "select", options: ["imperial", "metric"] },
