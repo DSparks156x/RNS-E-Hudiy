@@ -160,7 +160,7 @@ class CANService:
                             if '351' in t_str and len(payload) >= 3:
                                 # Speed: (byte2 << 8 | byte1) / 480.0 (km/h)
                                 # Based on log data showing ~2.4x overreport with /200
-                                self.latest_data['speed'] = (payload[2] * 256 + payload[1]) / 480.0
+                                self.latest_data['speed'] = (payload[2] * 256 + payload[1]) / 200.0
                         except Exception as e:
                             logger.debug(f"Error parsing CAN message {t_str}: {e}")
                 

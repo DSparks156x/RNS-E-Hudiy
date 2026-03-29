@@ -116,7 +116,7 @@ class AccelerationTestApp(BaseApp):
     def update_can(self, topic, payload):
         # We listen directly to CAN_351 for high-res speed updates.
         if '351' in topic and len(payload) >= 3:
-            speed_kmh = (payload[2] * 256 + payload[1]) / 480.0
+            speed_kmh = (payload[2] * 256 + payload[1]) / 200.0
             if self.speed_unit == 'imperial':
                 speed = speed_kmh * 0.621371
             else:
