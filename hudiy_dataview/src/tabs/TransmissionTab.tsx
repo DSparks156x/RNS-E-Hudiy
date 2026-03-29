@@ -29,10 +29,10 @@ export function TransmissionTab() {
           <h3>Clutches</h3>
           <div className="gauges-row">
             <div className="gauge-wrapper">
-              <Gauge id="gauge_pres_1" groupKey="2:11" index={3} min={0} max={15} label={['Bar', 'Clutch 1']} sizeClass="gauge-md" />
+              <Gauge id="gauge_pres_1" groupKey="2:11" index={3} min={0} max={15} label={['Bar', 'Clutch 1']} sizeClass="gauge-md" deadzone={0.1} />
             </div>
             <div className="gauge-wrapper">
-              <Gauge id="gauge_pres_2" groupKey="2:12" index={3} min={0} max={15} label={['Bar', 'Clutch 2']} sizeClass="gauge-md" />
+              <Gauge id="gauge_pres_2" groupKey="2:12" index={3} min={0} max={15} label={['Bar', 'Clutch 2']} sizeClass="gauge-md" deadzone={0.1} />
             </div>
           </div>
           <div className="extra-vals-grid">

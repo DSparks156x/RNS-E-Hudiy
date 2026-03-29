@@ -13,6 +13,7 @@ interface GaugeProps {
   markerGroupKey?: string;
   markerIndex?: number;
   markerDecimals?: number;
+  deadzone?: number;
 }
 
 // Separate component so the hook is always called unconditionally
@@ -60,7 +61,7 @@ function GaugeMarker({ groupKey, index, min, max, baseSize, radius, strokeWidth,
   );
 }
 
-export function Gauge({ groupKey, index, min, max, label, sizeClass = '', decimals = 1, markerGroupKey, markerIndex, markerDecimals = 1 }: GaugeProps) {
+export function Gauge({ groupKey, index, min, max, label, sizeClass = '', decimals = 1, markerGroupKey, markerIndex, markerDecimals = 1, deadzone }: GaugeProps) {
   const mv = useLiveValue(groupKey, index, min);
 
   // SVG parameters (using a fixed 200x200 internal coordinate system)
@@ -75,7 +76,8 @@ export function Gauge({ groupKey, index, min, max, label, sizeClass = '', decima
 
   // Transform raw value into percentage fill [0, 1]
   const rawPct = useTransform(mv, (val) => {
-    const num = typeof val === 'number' ? val : (isNaN(parseFloat(val)) ? 0 : parseFloat(val));
+    let num = typeof val === 'number' ? val : (isNaN(parseFloat(val)) ? 0 : parseFloat(val));
+    if (deadzone !== undefined && Math.abs(num) < deadzone) num = 0;
     return Math.max(0, Math.min(1, (num - min) / (max - min)));
   });
 
@@ -89,8 +91,10 @@ export function Gauge({ groupKey, index, min, max, label, sizeClass = '', decima
 
   // Center display
   const displayVal = useTransform(mv, (val) => {
-    const num = typeof val === 'number' ? val : parseFloat(val);
-    return isNaN(num) ? '--' : num.toFixed(decimals);
+    let num = typeof val === 'number' ? val : parseFloat(val);
+    if (isNaN(num)) return '--';
+    if (deadzone !== undefined && Math.abs(num) < deadzone) num = 0;
+    return num.toFixed(decimals);
   });
 
   const showMarker = markerGroupKey !== undefined && markerIndex !== undefined;
