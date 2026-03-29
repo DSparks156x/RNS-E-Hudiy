@@ -147,11 +147,12 @@ class AccelerationTestApp(BaseApp):
                 
                 if t['type'] == 'speed':
                     if t['status'] == 'waiting':
-                        if self.last_speed <= t['start_speed'] and new_speed > t['start_speed']:
+                        trigger_speed = max(t['start_speed'], 1.0)
+                        if self.last_speed < trigger_speed and new_speed >= trigger_speed:
                             # Started - interpolate exact crossing time
                             fraction = 0
                             if new_speed != self.last_speed:
-                                fraction = (t['start_speed'] - self.last_speed) / (new_speed - self.last_speed)
+                                fraction = (trigger_speed - self.last_speed) / (new_speed - self.last_speed)
                             t['start_time'] = self.last_time + dt * fraction
                             t['status'] = 'running'
                             t['max_speed_seen'] = new_speed
