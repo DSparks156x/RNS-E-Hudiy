@@ -58,6 +58,11 @@ class DataLogger:
             self.latest_data['can'][i.lower()] = None
             
         self.client_id = "data_logger_" + str(os.getpid())
+        self.output_file = None
+
+    def set_output(self, filename):
+        self.output_file = filename
+        logger.info(f"Logging to {filename}")
 
     def connect(self):
         try:
@@ -106,9 +111,24 @@ class DataLogger:
         except Exception as e:
             logger.error(f"Error syncing TP2: {e}")
 
+    def log_to_file(self, data):
+        if self.output_file:
+            try:
+                with open(self.output_file, 'a') as f:
+                    f.write(json.dumps(data) + "\n")
+            except Exception as e:
+                logger.error(f"Failed to write to log file: {e}")
+
     def log_current_data(self):
+        log_entry = {
+            'timestamp': time.time(),
+            'datetime': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'can': self.latest_data['can'].copy(),
+            'tp2': {}
+        }
+        
         print("\n" + "="*50)
-        print(f"Data Log at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Data Log at {log_entry['datetime']}")
         print("="*50)
         
         print(f"--- CAN Messages ---")
@@ -125,17 +145,21 @@ class DataLogger:
             data = self.latest_data['tp2'].get(grp)
             if data:
                 print(f"[Group {grp}]")
+                group_data = []
                 for i, item in enumerate(data):
                     val = item.get('value', 'N/A')
                     unit = item.get('unit', '')
                     desc = item.get('description', f'Field {i}')
                     print(f"  - {desc}: {val} {unit}")
+                    group_data.append(item)
+                log_entry['tp2'][grp] = group_data
             else:
                 print(f"[Group {grp}] No data received yet.")
                 
         print("="*50 + "\n")
+        self.log_to_file(log_entry)
 
-    def run(self):
+    def run(self, interval=None):
         if not self.connect():
             sys.exit(1)
 
@@ -144,9 +168,13 @@ class DataLogger:
         poller.register(self.tp2_sock, zmq.POLLIN)
 
         logger.info("Data Logger running...")
-        logger.info("Press ENTER to log current data. Press Ctrl+C to exit.")
+        if interval:
+            logger.info(f"Auto-logging every {interval}s. Press Ctrl+C to exit.")
+        else:
+            logger.info("Press ENTER to log current data. Press Ctrl+C to exit.")
         
         last_sync = 0
+        last_log = 0
         
         while self.running:
             try:
@@ -156,8 +184,13 @@ class DataLogger:
                     self.sync_tp2()
                     last_sync = now
 
+                # Periodic Log logic
+                if interval and (now - last_log >= interval):
+                    self.log_current_data()
+                    last_log = now
+
                 # Check for zero-timeout stdin (Enter keypress)
-                if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+                if not interval and sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
                     sys.stdin.readline() # consume the enter
                     self.log_current_data()
                 
@@ -216,9 +249,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="CAN and TP2 Data Logger")
     parser.add_argument("-m", "--module", type=lambda x: int(x, 0), default=1, help="TP2 Module ID (default: 1)")
     parser.add_argument("-g", "--groups", type=lambda s: [int(item) for item in s.split(',')], default=[6, 114], help="Comma separated list of TP2 groups (default: 6,114)")
-    parser.add_argument("-i", "--ids", type=lambda s: [item.strip() for item in s.split(',')], default=["555"], help="Comma separated list of CAN IDs in hex (default: 555)")
+    parser.add_argument("-i", "--ids", type=lambda s: [item.strip() for item in s.split(',')], default=["35B,555,351"], help="Comma separated list of CAN IDs in hex (default: 35B,555,351)")
+    parser.add_argument("-t", "--interval", type=float, default=None, help="Periodic logging interval in seconds (default: manual)")
+    parser.add_argument("-o", "--output", type=str, default="data_log.jsonl", help="Output JSONLines file (default: data_log.jsonl)")
     
     args = parser.parse_args()
     
     data_logger = DataLogger(module=args.module, groups=args.groups, can_ids=args.ids)
-    data_logger.run()
+    if args.output:
+        data_logger.set_output(args.output)
+    data_logger.run(interval=args.interval)

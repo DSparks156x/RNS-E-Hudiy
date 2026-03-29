@@ -51,8 +51,9 @@ class TP2Coding:
             elif t == 33: val = 100 * b / a if a != 0 else 100 * b
             unit = "%"
             
-        elif t in [3, 9, 27, 34, 67]: # Degrees or similar
+        elif t in [3, 4, 9, 27, 34, 67]: # Degrees or similar
             if t == 3: val = 0.002 * a * b
+            elif t == 4: val = (abs(b - 128) * 0.01 * a) if a != 1 else (0.75 * b - 48.0)
             elif t == 9: val = (b - 127) * 0.02 * a
             elif t == 27: val = abs(b - 128) * 0.01 * a
             elif t == 34: val = (b - 128) * 0.01 * a # kW? diag.c says kW but case is grouped? Check carefully.
@@ -60,6 +61,7 @@ class TP2Coding:
             elif t == 67: val = (640 * a) + b * 2.5
             
             if t == 34: unit = "kW"
+            elif t == 4: unit = "°C"
             else: unit = "deg"
 
         elif t == 5: # Temp

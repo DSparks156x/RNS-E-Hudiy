@@ -8,6 +8,8 @@ from typing import List, Dict, Any, Tuple
 KNOWN_FACTORS = [0.001, 0.002, 0.01, 0.02, 0.04, 0.08, 0.1, 0.2, 0.25, 0.5, 0.75, 1.0, 1.42, 2.5]
 KNOWN_OFFSETS = [0, -128, -64, -54, -48, -40, -100, 100, 128]
 
+import json
+
 def hex_to_bytes(hex_str: str) -> List[int]:
     return [int(hex_str[i:i+2], 16) for i in range(0, len(hex_str), 2)]
 
@@ -67,41 +69,60 @@ def find_nearest_formula(m: float, c: float) -> str:
 
 def analyze_log(file_path: str):
     print(f"Loading log: {file_path}")
-    try:
-        with open(file_path, 'r') as f:
-            content = f.read()
-    except Exception as e:
-        print(f"Error: {e}")
-        return
-
-    entries = content.split("==================================================")
     processed_data = []
     all_fields = set()
     all_can_ids = set()
 
-    for entry in entries:
-        if "CAN Messages" not in entry or "TP2 Module 0x01 Groups" not in entry:
-            continue
+    try:
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
             
-        data = {}
-        # Parse CAN
-        can_matches = re.findall(r'\[(\w+)\] Payload: (\w+)', entry)
-        for can_id, payload_hex in can_matches:
-            data[can_id] = hex_to_bytes(payload_hex)
-            all_can_ids.add(can_id)
-            
-        # Parse TP2 Groups
-        group_matches = re.finditer(r'\[Group (\d+)\](.*?)(?=\[Group|$)', entry, re.DOTALL)
-        for gm in group_matches:
-            grp_id = gm.group(1)
-            f_matches = re.findall(r'Field (\d): ([\d\-\.]+)', gm.group(2))
-            for f_idx, f_val in f_matches:
-                f_key = f"G{grp_id}F{f_idx}"
-                data[f_key] = float(f_val)
-                all_fields.add(f_key)
-        
-        if data:
-            processed_data.append(data)
+        # Detect Format
+        if lines and lines[0].strip().startswith('{'):
+            # JSONLines
+            for line in lines:
+                try:
+                    raw = json.loads(line)
+                    data = {}
+                    # CAN
+                    for can_id, payload_hex in raw.get('can', {}).items():
+                        if payload_hex:
+                            data[can_id.upper()] = hex_to_bytes(payload_hex)
+                            all_can_ids.add(can_id.upper())
+                    # TP2
+                    for grp, entries in raw.get('tp2', {}).items():
+                        for i, ent in enumerate(entries):
+                            f_key = f"G{grp}F{i}"
+                            val = ent.get('value')
+                            if isinstance(val, (int, float)):
+                                data[f_key] = float(val)
+                                all_fields.add(f_key)
+                    if data: processed_data.append(data)
+                except: continue
+        else:
+            # Legacy Text Format
+            content = "".join(lines)
+            entries = content.split("==================================================")
+            for entry in entries:
+                if "CAN Messages" not in entry or "TP2 Module" not in entry:
+                    continue
+                data = {}
+                can_matches = re.findall(r'\[(\w+)\] Payload: (\w+)', entry)
+                for can_id, payload_hex in can_matches:
+                    data[can_id.upper()] = hex_to_bytes(payload_hex)
+                    all_can_ids.add(can_id.upper())
+                group_matches = re.finditer(r'\[Group (\d+)\](.*?)(?=\[Group|$)', entry, re.DOTALL)
+                for gm in group_matches:
+                    grp_id = gm.group(1)
+                    f_matches = re.findall(r'Field (\d): ([\d\-\.]+)', gm.group(2))
+                    for f_idx, f_val in f_matches:
+                        f_key = f"G{grp_id}F{f_idx}"
+                        data[f_key] = float(f_val)
+                        all_fields.add(f_key)
+                if data: processed_data.append(data)
+    except Exception as e:
+        print(f"Error: {e}")
+        return
 
     print(f"Analyzed {len(processed_data)} entries. Found {len(all_fields)} fields and {len(all_can_ids)} CAN IDs.\n")
 
@@ -110,32 +131,48 @@ def analyze_log(file_path: str):
         if len(points) < 5: continue
         
         target_vals = [d[field] for d in points]
+        # Ignore constant fields
+        if max(target_vals) - min(target_vals) < 0.1: continue
+        
         results = []
         
         for can_id in sorted(list(all_can_ids)):
             # Helper to add result
             def add_res(x_vals, r_type, idx):
+                if not x_vals: return
+                # Variance check
+                if max(x_vals) - min(x_vals) < 2: return # Need some movement
+                
                 corr, lag = get_best_correlation_with_lag(x_vals, target_vals)
-                if abs(corr) > 0.85:
+                if abs(corr) > 0.8:
                     results.append({"type": r_type, "id": can_id, "idx": idx, "corr": corr, "lag": lag, "x": x_vals})
 
-            # 1. 8-bit
+            # Fetch CAN data indices for these points
+            can_seqs = [d[can_id] for d in points if can_id in d]
+            if not can_seqs or len(can_seqs) != len(target_vals): continue
+
+            # 1. 8-bit (Standard and Inverted)
             for b in range(8):
-                x = [d[can_id][b] for d in points if can_id in d and b < len(d[can_id])]
-                if len(x) == len(target_vals): add_res(x, "8b", b)
+                if b >= len(can_seqs[0]): continue
+                x = [s[b] for s in can_seqs]
+                add_res(x, "8b", b)
+                # Test inversion (Common for load/pressure if byte is vacuum)
+                add_res([255-v for v in x], "8b_inv", b)
             
             # 2. 16-bit
             for b in range(7):
-                x_le = [d[can_id][b] + d[can_id][b+1]*256 for d in points if can_id in d and b+1 < len(d[can_id])]
-                if len(x_le) == len(target_vals): add_res(x_le, "16le", b)
+                if b+1 >= len(can_seqs[0]): continue
+                x_le = [s[b] + s[b+1]*256 for s in can_seqs]
+                add_res(x_le, "16le", b)
                 
-                x_be = [d[can_id][b]*256 + d[can_id][b+1] for d in points if can_id in d and b+1 < len(d[can_id])]
-                if len(x_be) == len(target_vals): add_res(x_be, "16be", b)
+                x_be = [s[b]*256 + s[b+1] for s in can_seqs]
+                add_res(x_be, "16be", b)
 
             # 3. Product (A*B) - common in RPM formulas
             for b in range(7):
-                x_prod = [d[can_id][b] * d[can_id][b+1] for d in points if can_id in d and b+1 < len(d[can_id])]
-                if len(x_prod) == len(target_vals): add_res(x_prod, "Prod", b)
+                if b+1 >= len(can_seqs[0]): continue
+                x_prod = [s[b] * s[b+1] for s in can_seqs]
+                add_res(x_prod, "Prod", b)
 
         results.sort(key=lambda x: abs(x['corr']), reverse=True)
         if not results: continue
