@@ -12,6 +12,9 @@ from apps.phone import PhoneApp
 from apps.settings import SettingsApp
 from apps.car_info import CarInfoApp
 from apps.coverart import CoverArtApp
+from apps.easteregg import EasterEggApp
+from apps.acceleration_test import AccelerationTestApp
+import re
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
@@ -33,12 +36,15 @@ class DisplayEngine:
         self.apps['app_media_player'] = MediaApp(self.cfg)
         self.apps['app_phone']        = PhoneApp(self.cfg)
         self.apps['app_car']          = CarInfoApp(self.cfg)
+        self.apps['app_acceleration'] = AccelerationTestApp(self.cfg)
         # Settings still exists if needed, but not in cycle
         self.apps['app_settings']     = SettingsApp(self) 
         self.apps['app_coverart']     = CoverArtApp(self.cfg) 
+        self.apps['app_easteregg']    = EasterEggApp(self.cfg)
+        self.egg_app = self.apps['app_easteregg']
 
         # --- Page Cycle Definition ---
-        self.pages = ['app_nav', 'app_media_player', 'app_phone', 'app_car']
+        self.pages = ['app_nav', 'app_media_player', 'app_phone', 'app_car', 'app_acceleration']
         
         # Load Cover Art Configuration
         coverart_cfg = center_display_cfg.get('coverart', {})
@@ -86,6 +92,8 @@ class DisplayEngine:
         
         # Subscriptions
         if self.can_connected:
+            self.sub.subscribe(b"CAN_351")
+            self.sub.subscribe(b"CAN_0x351")
             for t in self.t_btn | self.t_car | self.t_mfsw:
                 self.sub.subscribe(t.encode())
         
@@ -213,6 +221,14 @@ class DisplayEngine:
         # --- Phone Auto-Switching ---
         self.phone_active = False
         self.pre_phone_app_name = None
+        self.frame_seq_counter = 0
+
+        # --- Easter Egg & Sequencing State ---
+        self.egg_active = False
+        self.egg_pending = False
+        self.last_egg_match = None # Track 'Artist - Title' string that last triggered
+        self.brief_cover_active = False
+        self.brief_auto_switch_end = 0
 
         # --- Input Rate Limiting ---
         self.press_history = [] # Timestamps of recent app switches
@@ -313,6 +329,11 @@ class DisplayEngine:
         
         self.current_app.on_leave()
         self.current_app = self.apps[target_name]
+        
+        if hasattr(self.current_app, 'reset_timers'):
+            self.current_app.reset_timers()
+            logger.info("Timers manually reset via stalk cycle.")
+            
         self.current_app.on_enter()
         
         logger.info(f"Switched to App: {target_name}")
@@ -348,20 +369,67 @@ class DisplayEngine:
         # Override standard logic: Up/Down Tap cycles pages
         
         if action == 'tap_up':
-            self.auto_switch_back_at = 0 
-            self.pre_nav_app_name = None
-            self.pre_phone_app_name = None
-            self.pre_cover_app_name = None
+            self._cancel_auto_switches()
             self.switch_page(-1) # Previous
         elif action == 'tap_down':
-            self.auto_switch_back_at = 0 
-            self.pre_nav_app_name = None
-            self.pre_phone_app_name = None
-            self.pre_cover_app_name = None
+            self._cancel_auto_switches()
             self.switch_page(1)  # Next
         else:
             # Pass holds or other events to app if needed
             self.current_app.handle_input(action)
+
+    def _cancel_auto_switches(self):
+        """Reset all auto-switch states when the user manually interacts."""
+        self.auto_switch_back_at = 0 
+        self.pre_nav_app_name = None
+        self.pre_phone_app_name = None
+        self.pre_cover_app_name = None
+        self.brief_cover_active = False
+        self.egg_active = False
+        self.egg_pending = False
+
+    def _resolve_app_priority(self):
+        """Unified resolver for the current active app based on priority.
+        
+        Priority: Phone > Nav (Near) > Brief Cover Art > Easter Egg > User Selection
+        """
+        # 1. Phone Priority
+        if self.phone_active:
+            return 'app_phone'
+
+        # 2. Navigation Priority (if within approach threshold)
+        if self.nav_active and self._is_nav_near():
+            return 'app_nav'
+
+        # 3. Brief Cover Art (sequencing first)
+        if self.brief_cover_active and self.pages[self.current_page_idx] == 'app_media_player':
+            if time.time() < self.brief_auto_switch_end:
+                return 'app_coverart'
+            else:
+                self.brief_cover_active = False
+                # Transition to Egg if pending
+                if self.egg_pending:
+                    self.egg_active = True
+                    self.egg_pending = False
+
+        # 4. Easter Egg Priority
+        if self.egg_active and self.pages[self.current_page_idx] == 'app_media_player':
+            if self.apps['app_easteregg'].finished:
+                self.egg_active = False
+            else:
+                return 'app_easteregg'
+
+        # 5. Normal Application Cycle
+        return self.pages[self.current_page_idx]
+
+    def _is_nav_near(self):
+        """Helper to determine if navigation is within 'auto-switch' distance."""
+        if not self.nav_active or not getattr(self, 'nav_auto_switch', True):
+            return False
+        nav_app = self.apps['app_nav']
+        meters = nav_app.meters
+        threshold = getattr(self, 'nav_approach_threshold', 500)
+        return 0 <= meters <= threshold or (meters == -1 and self.pre_nav_app_name is not None)
 
     def _send_draw(self, payload):
         """Send a JSON command to the DIS service without blocking. Returns True if sent."""
@@ -460,22 +528,17 @@ class DisplayEngine:
                                     if topic == b'HUDIY_PHONE':
                                         self._handle_phone_status(data)
 
+                                    if topic == b'HUDIY_MEDIA':
+                                        self._handle_media_match(data)
+
                                     if topic == b'HUDIY_COVERART':
                                         self.apps['app_coverart'].update_hudiy(topic, data)
-                                        if data.get('is_new_track', False) and getattr(self, 'service_ready', False) and getattr(self, 'coverart_brief', True):
-                                            current_name = self.pages[self.current_page_idx]
-                                            # If we're not already on coverart (how would we be? it's not in rotation)
-                                            # and not on phone (phone priority)
-                                            if not self.phone_active:
-                                                logger.info("New track detected: Auto-switching to Cover Art app for 5s.")
-                                                if self.pre_cover_app_name is None:
-                                                    self.pre_cover_app_name = current_name
-                                                
-                                                self.current_app.on_leave()
-                                                self.current_app = self.apps['app_coverart']
-                                                self.current_app.on_enter()
-                                                self.auto_switch_back_at = time.time() + 5.0
-                                                self.force_redraw(send_clear=True)
+                                        # Only trigger brief cover if on Media app
+                                        if self.pages[self.current_page_idx] == 'app_media_player' and data.get('is_new_track', False) and getattr(self, 'service_ready', False) and getattr(self, 'coverart_brief', True):
+                                            logger.info("New track detected: Auto-switching to Cover Art app for 5s.")
+                                            self.brief_cover_active = True
+                                            self.brief_auto_switch_end = time.time() + 5.0
+                                            self.force_redraw(send_clear=True)
 
                                     # Update current app if it wasn't already updated (NavApp above)
                                     if not (topic.startswith(b'HUDIY_NAV') and topic != b'HUDIY_NAV_STATUS'):
@@ -500,23 +563,33 @@ class DisplayEngine:
                                         self.publish_status()
                                 except Exception as split_err:
                                     logger.error(f"Failed to parse DIS_STATE message '{msg}': {split_err}")
+                            elif msg.startswith("DRAW_ACK"):
+                                try:
+                                    parts = msg.split(" ")
+                                    if len(parts) >= 2:
+                                        seq = int(parts[1])
+                                        self.current_app.on_frame_acked(seq)
+                                except Exception as e:
+                                    logger.error(f"Failed to parse DRAW_ACK: {e}")
                     except zmq.Again: pass
 
                 if self.sub in socks: self._handle_can()
                 
-                # Handle Auto-Switch Back Timer
+                # Periodic App Priority Resolution
+                active_app_name = self._resolve_app_priority()
+                if self.apps[active_app_name] != self.current_app:
+                    logger.info(f"Priority Switch: {active_app_name}")
+                    if self.current_app: self.current_app.on_leave()
+                    self.current_app = self.apps[active_app_name]
+                    self.current_app.on_enter()
+                    self.force_redraw(send_clear=True)
+
+                # Handle Auto-Switch Back Timer for Nav (legacy cleanup)
                 if self.auto_switch_back_at > 0 and now > self.auto_switch_back_at:
                     self.auto_switch_back_at = 0
-                    current_name = self.pages[self.current_page_idx]
-                    
-                    if current_name == 'app_nav' and self.pre_nav_app_name:
-                        logger.info(f"Auto-switching back to {self.pre_nav_app_name}")
-                        self.switch_to_app(self.pre_nav_app_name)
-                        self.pre_nav_app_name = None
-                    elif self.current_app == self.apps['app_coverart'] and self.pre_cover_app_name:
-                        logger.info(f"Cover Art timeout: Returning to {self.pre_cover_app_name}")
-                        self.switch_to_app(self.pre_cover_app_name)
-                        self.pre_cover_app_name = None
+                    if self._resolve_app_priority() == 'app_nav' and self.pre_nav_app_name:
+                         # Force clear the pre_nav flag to trigger return
+                         self.pre_nav_app_name = None
 
                 # Periodic TP2 SYNC for Atmospheric Pressure (Module 01, Group 113)
                 if hasattr(self, 'tp2_cmd') and now - self.last_tp2_sync > 10.0:
@@ -580,6 +653,67 @@ class DisplayEngine:
                     logger.info(f"Distance {meters}m <= {return_threshold}m, clearing return timer.")
                     self.auto_switch_back_at = 0
 
+    def _handle_media_match(self, data):
+        """Check for Easter Egg matches using regex."""
+        title = data.get('title', '')
+        artist = data.get('artist', '')
+        album = data.get('album', '')
+        combined = f"{artist} - {title} [{album}]"
+        
+        # If the track hasn't changed, don't re-process matches to avoid 
+        # resetting a one-off GIF's 'finished' state.
+        if combined == getattr(self, '_last_processed_media', None):
+            return
+        self._last_processed_media = combined
+
+        # Only proceed to trigger if on media page
+        if self.pages[self.current_page_idx] != 'app_media_player':
+            return
+
+        eggs_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'eggs.json')
+        if not os.path.exists(eggs_cfg_path):
+            return
+
+        try:
+            with open(eggs_cfg_path, 'r') as f:
+                eggs_cfg = json.load(f)
+            
+            matched_any = False
+            for match_def in eggs_cfg.get('matches', []):
+                pattern = match_def.get('regex', '')
+                if pattern and re.search(pattern, combined, re.IGNORECASE):
+                    matched_any = True
+                    gif_name = match_def.get('gif')
+                    logger.info(f"Easter Egg Match! '{combined}' matched regex '{pattern}'.")
+                    
+                    egg_app = self.apps['app_easteregg']
+                    
+                    # Extract logic items
+                    loop = match_def.get('loop', 999)
+                    
+                    # Pass all other keys as processing params to dis_image
+                    params = {k: v for k, v in match_def.items() if k not in ['regex', 'gif', 'loop']}
+                    
+                    if egg_app.load_gif(gif_name, loop_count=loop, **params):
+                        # If Brief Cover art is active, we go into PENDING
+                        if self.brief_cover_active:
+                            logger.info("Cover Art is active, queuing Easter Egg.")
+                            self.egg_pending = True
+                        else:
+                            self.egg_active = True
+                        break # First match wins
+            
+            if not matched_any:
+                if self.egg_active or self.egg_pending:
+                    logger.info("Track changed to non-egg song: Deactivating Easter Egg.")
+                    self.egg_active = False
+                    self.egg_pending = False
+                    
+            # If no match, clear existing eggs if a song changed
+            # (Note: simpler to just let the priority resolver handle it if we have a robust ID check)
+        except Exception as e:
+            logger.error(f"Failed to process Easter Eggs: {e}")
+
     def _handle_phone_status(self, data):
         if not getattr(self, 'service_ready', False): return
 
@@ -591,17 +725,7 @@ class DisplayEngine:
             self.phone_active = interesting
             logger.info(f"Phone Interesting State Changed: {interesting} (state: {state})")
             
-            current_name = self.pages[self.current_page_idx]
-            if interesting:
-                # Auto-switch TO phone
-                if current_name != 'app_phone':
-                    self.pre_phone_app_name = current_name
-                    self.switch_to_app('app_phone')
-            else:
-                # Auto-switch AWAY from phone if we auto-switched to it
-                if current_name == 'app_phone' and self.pre_phone_app_name:
-                    logger.info(f"Call ended, switching back to {self.pre_phone_app_name}")
-                    self.switch_to_app(self.pre_phone_app_name)
+            if not interesting:
                 self.pre_phone_app_name = None
 
     def _handle_can(self):
@@ -617,6 +741,11 @@ class DisplayEngine:
                     t_str = topic.decode()
                     payload = bytes.fromhex(json.loads(msg)['data_hex'])
                     self.current_app.update_can(t_str, payload)
+                    
+                    if 'app_acceleration' in self.apps and self.current_app != self.apps['app_acceleration']:
+                        if '351' in t_str:
+                            self.apps['app_acceleration'].update_can(t_str, payload)
+                            
                     if t_str in self.t_btn and len(payload) > 2:
                         b = payload[2]
                         now = time.time()
@@ -732,7 +861,10 @@ class DisplayEngine:
                         last_groups[g] = items_str
             
             if changed:
-                self._send_draw({'command': 'commit'})
+                self.frame_seq_counter = (self.frame_seq_counter + 1) % 1000000
+                if self.frame_seq_counter == 0: self.frame_seq_counter = 1
+                self._send_draw({'command': 'commit', 'seq': self.frame_seq_counter})
+                self.current_app.on_frame_sent(self.frame_seq_counter)
                 
             self.last_sent['groups'] = last_groups
             for k in self.Y: self.last_sent[k] = None

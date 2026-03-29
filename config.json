@@ -34,6 +34,12 @@
       "coverart": {
         "brief": true,
         "appcycle": false
+      },
+      "acceleration_test": {
+        "line_1": "0-60",
+        "line_2": "0-30",
+        "line_3": "1/4",
+        "line_4": "speed"
       }
     },
     "road_side": "right",

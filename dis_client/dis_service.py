@@ -617,6 +617,7 @@ class DisService:
                                     must_colocate = True  # next draw must share this frame
                                     continue
                                 elif c == 'commit':
+                                    seq = cmd.get('seq', 0)
                                     if current_payload:
                                         self.ddp.send_ddp_frame(current_payload)
                                         current_payload = []
@@ -625,6 +626,10 @@ class DisService:
                                         self.ddp.send_keepalive_if_needed()
                                     must_colocate = False
                                     self.commit_frame()
+                                    if seq:
+                                        try:
+                                            self.status_pub.send_string(f"DRAW_ACK {seq}", flags=zmq.NOBLOCK)
+                                        except: pass 
                                     continue
                                 elif c == 'draw_raw_bitmap':
                                     try:

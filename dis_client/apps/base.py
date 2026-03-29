@@ -43,6 +43,14 @@ class BaseApp:
         # Returns Dict (Text Lines) or List (Draw Commands)
         return {}
 
+    def on_frame_sent(self, seq):
+        """Called by DisplayEngine when a commit command with seq is sent to the renderer."""
+        pass
+
+    def on_frame_acked(self, seq):
+        """Called by DisplayEngine when a DRAW_ACK with seq is received from the renderer."""
+        pass
+
     def _scroll_text(self, text, key, max_len=14, speed_ms=None, align='left', start_pause_ms=None, end_pause_ms=None, continuous=None):
         """
         Returns a window of text that scrolls if longer than max_len.

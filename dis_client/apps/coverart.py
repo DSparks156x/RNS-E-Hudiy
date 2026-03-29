@@ -17,12 +17,12 @@ class CoverArtApp(BaseApp):
         if not self.bitmap_hex:
             # If no bitmap, just show a placeholder or nothing
             return [
-                {'cmd': 'clear_area', 'x': 0, 'y': 0, 'w': 64, 'h': 48},
+                {'type': 'cover_art', 'cmd': 'clear_area', 'x': 0, 'y': 0, 'w': 64, 'h': 48},
                 {'cmd': 'draw_text', 'text': 'No Cover Art', 'x': 0, 'y': 20, 'flags': self.FLAG_ITEM_CENTERED}
             ]
         
         return [
-            {'cmd': 'clear_area', 'x': 0, 'y': 0, 'w': 64, 'h': 48},
+            {'type': 'cover_art', 'cmd': 'clear_area', 'x': 0, 'y': 0, 'w': 64, 'h': 48},
             {
                 'cmd': 'draw_raw_bitmap', 
                 'data_hex': self.bitmap_hex, 

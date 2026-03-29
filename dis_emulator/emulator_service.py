@@ -300,6 +300,12 @@ class EmulatorBridge:
                         try:
                             cmd = self.draw_socket.recv_json(flags=zmq.NOBLOCK)
                             socketio.emit('dis_command', cmd)
+                            
+                            # Closed-loop feedback for frame flow control
+                            if cmd.get('command') == 'commit' and 'seq' in cmd:
+                                seq = cmd['seq']
+                                # Use NOBLOCK to ensure the bridge doesn't stall if the status channel is flooded
+                                self.status_pub.send_string(f"DRAW_ACK {seq}", flags=zmq.NOBLOCK)
                         except zmq.Again:
                             break
                         except Exception as e:

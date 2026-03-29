@@ -1,0 +1,23 @@
+{
+  "matches": [
+    {
+      "regex": "Polish Cow",
+      "gif": "polish_cow.gif",
+      "loop": 999,
+      "bg_fill": "white",
+      "contrast": 1.5,
+      "invert": true
+    },
+    {
+      "regex": "\\[TRON:? Legacy\\]",
+      "gif": "tron.gif",
+      "loop": 1,
+      "gamma": 1.2
+    },
+    {
+      "regex": "Never Gonna Give You Up",
+      "gif": "rickroll.gif",
+      "loop": 10
+    }
+  ]
+}

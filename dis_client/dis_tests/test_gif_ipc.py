@@ -6,16 +6,55 @@ import os
 import sys
 from PIL import Image
 
+# Add parent directory to sys.path to allow importing dis_image
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import dis_image
 
 def run_test():
     import argparse
     from PIL import ImageOps, ImageEnhance, ImageFilter
     parser = argparse.ArgumentParser()
-    # ... (args stay the same) ...
+    parser.add_argument('file', help='Path to GIF file')
+    parser.add_argument('--contrast', type=float, default=1.4)
+    parser.add_argument('--brightness', type=float, default=1.0)
+    parser.add_argument('--gamma', type=float, default=2.2)
+    parser.add_argument('--black-floor', type=int, default=45)
+    parser.add_argument('--sharpen', type=float, default=1.5)
+    parser.add_argument('--boldness', type=int, default=0)
+    parser.add_argument('--dither', choices=['fs', 'atkinson', 'none'], default='fs')
+    parser.add_argument('--diffusion', type=float, default=0.85)
+    parser.add_argument('--invert', action='store_true')
+    parser.add_argument('--no-enhance', action='store_true')
+    parser.add_argument('--grayscale-mode', choices=['smart', 'weighted', 'max', 'balanced'], default='smart')
+    parser.add_argument('--delta', action='store_true', help='Use granular delta updates', default=True)
+    parser.add_argument('--no-delta', dest='delta', action='store_false')
+    parser.add_argument('--fps', type=int, default=10)
+    parser.add_argument('--mock', action='store_true', help='Connect to DIS Emulator (TCP 5557)')
+    parser.add_argument('--bg-fill', choices=['black', 'white', 'edge', 'blur'], default='black')
     args = parser.parse_args()
 
-    # ... (config_addr logic stays the same) ...
+    # Load config to get the IPC address, or default to standard location
+    config_path = '/home/pi/config.json'
+    # Fallback to local config if present (e.g., ran from project root)
+    if not os.path.exists(config_path) and os.path.exists('./config.json'):
+        config_path = './config.json'
+
+    if args.mock:
+        config_addr = "tcp://127.0.0.1:5557"
+    else:
+        try:
+            with open(config_path) as f:
+                config = json.load(f)
+            
+            # Check new structure first, then legacy
+            zmq_cfg = config.get('interfaces', {}).get('zmq', {})
+            if not zmq_cfg:
+                zmq_cfg = config.get('zmq', {})
+            
+            config_addr = zmq_cfg.get('dis_draw', "tcp://127.0.0.1:5557")
+        except Exception as e:
+            config_addr = "tcp://127.0.0.1:5557"
+            print(f"Assuming mock/emulator mode: {config_addr}")
 
     print(f"Connecting to {config_addr}...")
     context = zmq.Context()
@@ -40,10 +79,17 @@ def run_test():
             img, 
             target_size=target_size, 
             contrast=args.contrast, 
+            brightness=args.brightness,
+            gamma=args.gamma,
+            black_floor=args.black_floor,
             sharpen=args.sharpen, 
+            boldness=args.boldness,
             dither=args.dither, 
+            diffusion=args.diffusion,
             invert=args.invert, 
-            no_enhance=args.no_enhance
+            no_enhance=args.no_enhance,
+            bg_fill=args.bg_fill,
+            grayscale_mode=args.grayscale_mode
         )
         frames_dithered.append(curr_dithered)
         
