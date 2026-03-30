@@ -90,7 +90,7 @@ class CarInfoApp(BaseApp):
                         else:
                             # metric (mbar)
                             sign = "+" if boost_mode == 'relative' and display_val >= 0 else ""
-                            self.data['boost'] = f"{sign}{int(round(display_val))}mbar"
+                            self.data['boost'] = f"{sign}{int(round(display_val))}mb"
                             
                     except (ValueError, TypeError):
                         self.data['boost'] = f"{data[1]['value']}mb"
@@ -110,9 +110,12 @@ class CarInfoApp(BaseApp):
         lines['line1'] = (f"Boost: {self.data['boost']}", flag)
         # Line 2: MAF
         lines['line2'] = (f"Air Mass: {self.data['maf']}", flag)
-        # Line 3: Ignition Timing - Oil - Coolant
-        line3_text = f"Ign:{self.data['ign']} Oil:{self.data['oil']} Cool:{self.data['coolant']}"
-        lines['line3'] = (self._scroll_text(line3_text, 'carinfo_l3', max_len=16, continuous=True), flag)
+        # Line 3: Ignition Timing
+        lines['line3'] = (f"Ignition: {self.data['ign']}", flag)
+        # Line 4: Oil
+        lines['line4'] = (f"Oil: {self.data['oil']}", flag)
+        # Line 5: Coolant
+        lines['line5'] = (f"Coolant: {self.data['coolant']}", flag)
         
         # Update Cache
         self.cached_view = lines

@@ -115,6 +115,7 @@ class DisplayEngine:
                     _zmq = self.cfg.get('zmq', {})
                 self.sub_hudiy.connect(_zmq.get('metric_stream', 'ipc:///run/rnse_control/hudiy_stream.ipc'))
                 self.sub_hudiy.connect(_zmq.get('status_stream', 'ipc:///run/rnse_control/status_stream.ipc'))
+                self.sub_hudiy.connect(_zmq.get('tp2_stream', 'ipc:///run/rnse_control/tp2_stream.ipc'))
                 self.hudiy_connected = True
         except Exception as e:
             logger.warning(f"Mock Mode/Windows: Could not connect to metric_stream: {e}")
@@ -335,6 +336,7 @@ class DisplayEngine:
             logger.info("Timers manually reset via stalk cycle.")
             
         self.current_app.on_enter()
+        self.last_tp2_sync = 0 # Force immediate TP2 sync on context switch
         
         logger.info(f"Switched to App: {target_name}")
         
@@ -356,6 +358,7 @@ class DisplayEngine:
         self.current_app.on_leave()
         self.current_app = self.apps[app_name]
         self.current_app.on_enter()
+        self.last_tp2_sync = 0 # Force immediate TP2 sync on context switch
         logger.info(f"Auto-Switched to App: {app_name}")
         self.force_redraw(send_clear=True)
         self.publish_status()
@@ -582,6 +585,7 @@ class DisplayEngine:
                     if self.current_app: self.current_app.on_leave()
                     self.current_app = self.apps[active_app_name]
                     self.current_app.on_enter()
+                    self.last_tp2_sync = 0 # Force immediate TP2 sync on priority switch
                     self.force_redraw(send_clear=True)
 
                 # Handle Auto-Switch Back Timer for Nav (legacy cleanup)
