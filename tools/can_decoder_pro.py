@@ -79,25 +79,30 @@ def analyze_log(file_path: str):
             
         # Detect Format
         if lines and lines[0].strip().startswith('{'):
-            # JSONLines
+            # JSONLines with Sample-and-Hold
+            latest_can = {}
             for line in lines:
                 try:
                     raw = json.loads(line)
-                    data = {}
-                    # CAN
-                    for can_id, payload_hex in raw.get('can', {}).items():
+                    # Update latest known CAN payloads
+                    current_line_can = raw.get('can', {})
+                    for can_id, payload_hex in current_line_can.items():
                         if payload_hex:
-                            data[can_id.upper()] = hex_to_bytes(payload_hex)
+                            latest_can[can_id.upper()] = hex_to_bytes(payload_hex)
                             all_can_ids.add(can_id.upper())
-                    # TP2
-                    for grp, entries in raw.get('tp2', {}).items():
-                        for i, ent in enumerate(entries):
-                            f_key = f"G{grp}F{i}"
-                            val = ent.get('value')
-                            if isinstance(val, (int, float)):
-                                data[f_key] = float(val)
-                                all_fields.add(f_key)
-                    if data: processed_data.append(data)
+                    
+                    # If this line has TP2 data, create a snapshot paired with the latest CAN state
+                    current_tp2 = raw.get('tp2', {})
+                    if current_tp2:
+                        data = latest_can.copy()
+                        for grp, entries in current_tp2.items():
+                            for i, ent in enumerate(entries):
+                                f_key = f"G{grp}F{i}"
+                                val = ent.get('value')
+                                if isinstance(val, (int, float)):
+                                    data[f_key] = float(val)
+                                    all_fields.add(f_key)
+                        if data: processed_data.append(data)
                 except: continue
         else:
             # Legacy Text Format
