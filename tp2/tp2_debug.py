@@ -1,3 +1,6 @@
+#checks tp2 workers status. not very useful.
+
+
 import zmq
 import json
 import argparse

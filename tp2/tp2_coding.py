@@ -1,3 +1,4 @@
+#contains tp2 workers decoding information
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import logging

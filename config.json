@@ -38,6 +38,7 @@
       "acceleration_test": {
         "auto_reset_on_stop": true,
         "auto_reset_delay": 0.25,
+        "tolerance_display": true,
         "line_1": "0-60",
         "line_2": "0-30",
         "line_3": "1/4",

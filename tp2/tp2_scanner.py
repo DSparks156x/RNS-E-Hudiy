@@ -1,3 +1,4 @@
+#fires off transport protocol requests to find modules... can be fead into identify_module.py to try to identify shit. 
 #!/usr/bin/env python3
 import sys
 import logging

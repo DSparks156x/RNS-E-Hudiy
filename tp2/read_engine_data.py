@@ -1,3 +1,4 @@
+#reads data groups from a module, you can specify the module id and the groups you want to read. 
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import time

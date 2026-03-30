@@ -1,3 +1,4 @@
+#pulls some identifying part numbers from a hardcoded list of module IDs, possibly retrieved with tp2_scanner.py
 #!/usr/bin/env python3
 import time
 import logging
