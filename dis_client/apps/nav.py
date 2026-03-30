@@ -111,17 +111,14 @@ class NavApp(BaseApp):
         if t == 13: # ROUNDABOUT_ENTER_AND_EXIT
             a = angle % 360
             
-            # Infer side_suffix if unspecified (3)
-            # In CCW, 0-180 is Right, 180-360 is Left
-            # In CW, 0-180 is Left, 180-360 is Right
-            inferred_side = side_suffix
-            if side == 3:
-                if cw_ccw == "COUNTERCLOCKWISE":
-                    inferred_side = "RIGHT" if a < 180 else "LEFT"
-                else:
-                    inferred_side = "LEFT" if a < 180 else "RIGHT"
+            # Determine overall maneuver side based strictly on angle.
+            # Navigation apps often send maneuver_side=2 (Right) for all CCW 
+            # roundabouts because the physical exit is a right turn, which 
+            # previously overrode our macro icon selection.
+            if cw_ccw == "COUNTERCLOCKWISE":
+                inferred_side = "RIGHT" if a < 180 else "LEFT"
             else:
-                inferred_side = "LEFT" if side == 1 else "RIGHT"
+                inferred_side = "LEFT" if a < 180 else "RIGHT"
 
             shape = "U_TURN"
             if 22.5 <= a < 67.5:
