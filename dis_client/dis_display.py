@@ -591,16 +591,20 @@ class DisplayEngine:
                          # Force clear the pre_nav flag to trigger return
                          self.pre_nav_app_name = None
 
-                # Periodic TP2 SYNC for Atmospheric Pressure (Module 01, Group 113)
+                # Periodic TP2 SYNC for Automotive Data
                 if hasattr(self, 'tp2_cmd') and now - self.last_tp2_sync > 10.0:
                     self.last_tp2_sync = now
                     try:
+                        # Allow current app to ask for specific groups, default to 113 for atmospheric
+                        groups = getattr(self.current_app, 'tp2_groups', [])
+                        low_priority = getattr(self.current_app, 'tp2_low_priority_groups', [113])
+
                         sync_msg = {
                             "cmd": "SYNC",
                             "client_id": "dis_display",
                             "module": 1,
-                            "groups": [],
-                            "low_priority_groups": [113]
+                            "groups": groups,
+                            "low_priority_groups": low_priority
                         }
                         self.tp2_cmd.send_json(sync_msg, flags=zmq.NOBLOCK)
                         # We don't wait for reply to avoid blocking DIS loop

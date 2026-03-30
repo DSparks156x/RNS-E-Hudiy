@@ -11,8 +11,12 @@ class CarInfoApp(BaseApp):
             'oil': '--',
             'load': '--',
             'iat': '--',
-            'coolant': '--'
+            'coolant': '--',
+            'maf': '--',
+            'ign': '--'
         }
+        self.tp2_groups = [3]
+        self.tp2_low_priority_groups = [113]
         # Atmospheric pressure fallback (standard atmosphere)
         self.atmosphere = 1013.25
         
@@ -42,6 +46,23 @@ class CarInfoApp(BaseApp):
                     try:
                         self.atmosphere = float(data[3]['value'])
                     except (ValueError, TypeError):
+                        pass
+                        
+            # Module 01, Group 3: Realtime Engine 
+            if mod == 1 and group == 3:
+                if len(data) > 1:
+                    try:
+                        # Block 2: MAF
+                        val = data[1]['value']
+                        unit = data[1]['unit']
+                        self.data['maf'] = f"{val}{unit}"
+                    except (KeyError, TypeError):
+                        pass
+                if len(data) > 3:
+                    try:
+                        # Block 4: Ignition Timing
+                        self.data['ign'] = f"{data[3]['value']}{data[3]['unit']}"
+                    except (KeyError, TypeError):
                         pass
 
             if group == 0: # Temperatures
@@ -87,14 +108,12 @@ class CarInfoApp(BaseApp):
         lines = {}
         # Line 1: Boost
         lines['line1'] = (f"Boost: {self.data['boost']}", flag)
-        # Line 2: Oil Temp
-        lines['line2'] = (f"Oil:   {self.data['oil']}", flag)
-        # Line 3: Load Actual
-        lines['line3'] = (f"Load:  {self.data['load']}", flag)
-        # Line 4: IAT
-        lines['line4'] = (f"IAT:   {self.data['iat']}", flag)
-        # Line 5: Coolant
-        lines['line5'] = (f"Coolant: {self.data['coolant']}", flag)
+        # Line 2: MAF
+        lines['line2'] = (f"Air Mass: {self.data['maf']}", flag)
+        # Line 3: Ignition Timing - Oil - Coolant
+        line3_text = f"Ign:{self.data['ign']} Oil:{self.data['oil']} Cool:{self.data['coolant']}"
+        lines['line3'] = (self._scroll_text(line3_text, 'carinfo_l3', max_len=16, continuous=True), flag)
+        
         # Update Cache
         self.cached_view = lines
         self.last_update_time = now

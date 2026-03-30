@@ -405,41 +405,44 @@ class TP2Service:
                         continue
                     
                     # Connection Management
+                    now = time.time()
                     normal_list = session.get('normal_groups_list', [])
                     low_list = session.get('low_groups_list', [])
-                    cycle = session.get('cycle_count', 1)
                     pending_dtc = session.get('pending_dtc_req', False)
                     pending_clear = session.get('pending_dtc_clear', False)
+                    last_low_fetch = session.get('last_low_fetch', 0)
                     
-                    if not normal_list and not low_list and not pending_dtc and not pending_clear:
-                        # Keep Alive Only
+                    # Fetch low priority groups once per minute
+                    low_due = (now - last_low_fetch) >= 60.0
+                    current_low_list = low_list if low_due else []
+                    
+                    if not normal_list and not current_low_list and not pending_dtc and not pending_clear:
+                        # Nothing to actively poll right now (idling between low-priority fetches)
                         if session['connected']:
-                             try:
-                                 if time.time() - session['protocol'].last_kwp_req > 2.0:
-                                     session['protocol'].send_kvp_request([0x3E])
-                                 session['protocol'].send_keep_alive()
-                             except:
-                                 session['connected'] = False
+                            try:
+                                session['protocol'].disconnect()
+                                logger.info(f"Module 0x{mod_id:02X} Disconnected (Idling low-priority).")
+                            except: pass
+                            session['connected'] = False
                         continue
                         
                     if not self._ensure_connected(mod_id, session):
                         continue
                     
-                    def get_active_list(n_list, l_list, c):
-                        if not n_list: return l_list
-                        if c >= 10 and l_list: return n_list + l_list
-                        return n_list
-                        
-                    active_list = get_active_list(normal_list, low_list, cycle)
+                    active_list = normal_list + current_low_list
                     
                     if 'idx' not in session: session['idx'] = 0
                     if session['idx'] >= len(active_list):
                         session['idx'] = 0
-                        if normal_list:
-                            cycle += 1
-                            if cycle > 10 and low_list: cycle = 1
-                            session['cycle_count'] = cycle
-                            active_list = get_active_list(normal_list, low_list, cycle)
+                        # We completed a full sweep of the active_list.
+                        # If low groups were in the list, we just fetched them. Mark the time.
+                        if current_low_list:
+                            session['last_low_fetch'] = now
+                        
+                        # Re-evaluate for the very next iteration
+                        low_due = (now - session.get('last_low_fetch', 0)) >= 60.0
+                        current_low_list = low_list if low_due else []
+                        active_list = normal_list + current_low_list
 
                     if not active_list and not session.get('pending_dtc_req') and not session.get('pending_dtc_clear'):
                         continue
