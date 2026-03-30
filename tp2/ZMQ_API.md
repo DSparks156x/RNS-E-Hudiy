@@ -66,7 +66,7 @@ Clients must use a `ZMQ.REQ` socket to connect to the command address (`ipc:///r
 
 ### Sync Measurement Groups
 **Command**: `SYNC`
-**Description**: Registers a client's interest in specific measuring blocks (groups) for a specific module. The worker aggregates all client interests and automatically polls these groups. "Normal" groups are polled frequently; "Low Priority" groups are polled periodically (once every 10 normal cycles).
+**Description**: Registers a client's interest in specific measuring blocks (groups) for a specific module. The worker aggregates all client interests and automatically polls these groups. "Normal" groups are polled frequently, as fast as possible; "Low Priority" groups are polled periodically, once every minute.
 
 **Request Body**:
 ```json
