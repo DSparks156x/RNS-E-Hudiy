@@ -767,7 +767,7 @@ class DisplayEngine:
         if pressed:
             if not b['p']: 
                 b.update(p=True, s=now, l=False)
-                self.force_redraw(send_clear=False)
+
         else:
             if b['p'] and not b['l']: self.process_input(f"tap_{name}")
             b['p'] = b['l'] = False
