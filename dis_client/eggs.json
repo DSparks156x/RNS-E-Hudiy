@@ -9,7 +9,7 @@
       "invert": true
     },
     {
-      "regex": "\\[TRON:? Legacy\\]",
+      "regex": "TRON:? Legacy",
       "gif": "tron.gif",
       "loop": 1,
       "gamma": 1.2
