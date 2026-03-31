@@ -53,15 +53,23 @@ class CarInfoApp(BaseApp):
                 if len(data) > 1:
                     try:
                         # Block 2: MAF
-                        val = data[1]['value']
-                        unit = data[1]['unit']
-                        self.data['maf'] = f"{val}{unit}"
+                        try:
+                            val = float(data[1]['value'])
+                            # Truncate to 3 digits max integer
+                            self.data['maf'] = f"{int(val)}gs"
+                        except (ValueError, TypeError):
+                            self.data['maf'] = f"{data[1]['value']}gs"
                     except (KeyError, TypeError):
                         pass
                 if len(data) > 3:
                     try:
                         # Block 4: Ignition Timing
-                        self.data['ign'] = f"{data[3]['value']}{data[3]['unit']}"
+                        try:
+                            val = float(data[3]['value'])
+                            # explicit + sign if positive, - if negative, degree symbol
+                            self.data['ign'] = f"{val:+.1f}°"
+                        except (ValueError, TypeError):
+                            self.data['ign'] = f"{data[3]['value']}°"
                     except (KeyError, TypeError):
                         pass
 
@@ -109,9 +117,9 @@ class CarInfoApp(BaseApp):
         # Line 1: Boost
         lines['line1'] = (f"Boost: {self.data['boost']}", flag)
         # Line 2: MAF
-        lines['line2'] = (f"Air Mass: {self.data['maf']}", flag)
+        lines['line2'] = (f"Air: {self.data['maf']}", flag)
         # Line 3: Ignition Timing
-        lines['line3'] = (f"Ignition: {self.data['ign']}", flag)
+        lines['line3'] = (f"Timing: {self.data['ign']}", flag)
         # Line 4: Oil
         lines['line4'] = (f"Oil: {self.data['oil']}", flag)
         # Line 5: Coolant

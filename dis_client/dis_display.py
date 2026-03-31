@@ -611,13 +611,23 @@ class DisplayEngine:
                             "low_priority_groups": low_priority
                         }
                         self.tp2_cmd.send_json(sync_msg, flags=zmq.NOBLOCK)
-                        # We don't wait for reply to avoid blocking DIS loop
-                        try:
-                            self.tp2_cmd.recv_json(flags=zmq.NOBLOCK)
-                        except zmq.Again:
-                            pass
+                        # We must receive the reply to satisfy the REQ/REP state machine
+                        if self.tp2_cmd.poll(100):
+                            try:
+                                self.tp2_cmd.recv_json()
+                            except zmq.Again:
+                                pass
+                        else:
+                            # If it timed out, the REQ socket is stuck. Re-create it.
+                            logger.warning("TP2 sync reply timed out, recreating command socket.")
+                            self.tp2_cmd.close()
+                            self.tp2_cmd = self.zmq_ctx.socket(zmq.REQ)
+                            self.tp2_cmd.setsockopt(zmq.RCVTIMEO, 1000)
+                            self.tp2_cmd.setsockopt(zmq.LINGER, 0)
+                            _tp2_addr = self.cfg.get('interfaces', {}).get('zmq', {}).get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
+                            self.tp2_cmd.connect(_tp2_addr)
                     except Exception as e:
-                        logger.debug(f"TP2 Sync failed: {e}")
+                        logger.debug(f"TP2 Sync failure handled: {e}")
 
                 self._check_buttons()
                 self._draw()
