@@ -238,12 +238,19 @@ class HudiyEventHandler(ClientEventHandler):
                 os.makedirs(icon_dir, exist_ok=True)
                 
                 safe_maneuver = maneuver_text.replace(' ', '_').replace('-', '_').lower()
-                safe_side = side_text.replace(' ', '_').lower()
                 
-                if safe_side and safe_side != 'n/a':
-                    icon_filename = f"{icon_dir}/nav_icon_{type_num}_{safe_maneuver}_{side_num}_{safe_side}.png"
+                if side_num == 1:
+                    side_str = "left"
+                elif side_num == 2:
+                    side_str = "right"
+                elif side_num == 3:
+                    side_str = "unspecified"
                 else:
-                    icon_filename = f"{icon_dir}/nav_icon_{type_num}_{safe_maneuver}.png"
+                    side_str = "noside"
+                    
+                angle_str = f"_angle{angle_num}" if angle_num else ""
+                
+                icon_filename = f"{icon_dir}/nav_icon_{type_num}_{safe_maneuver}_{side_str}{angle_str}.png"
                 
                 # Only save if we don't already have it
                 if not os.path.exists(icon_filename):
