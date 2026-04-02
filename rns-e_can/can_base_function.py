@@ -414,7 +414,7 @@ async def send_periodic_messages_task(state: AppState):
                 and not state.desired_listen_only
                 and not state.listen_only_transition_in_progress
             ):
-                send_can_message(CONFIG['can_ids']['tv_presence'], "0912300000000000")
+                send_can_message(CONFIG['can_ids']['tv_presence'], "0912302020202020")
             await asyncio.sleep(0.5)
         except asyncio.CancelledError:
             break
