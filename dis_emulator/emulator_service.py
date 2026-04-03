@@ -234,7 +234,9 @@ class EmulatorBridge:
                 'album': track['album'],
                 'position': '0:00',
                 'duration': '3:45',
-                'playing': True
+                'playing': True,
+                'source_id': 3,
+                'source_label': 'Bluetooth'
             }
         })
         
