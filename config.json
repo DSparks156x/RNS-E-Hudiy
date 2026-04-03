@@ -76,6 +76,7 @@
       "enabled": true,
       "media_line1_mode": "title",
       "media_line2_mode": "source",
+      "media_line1_alt_mode": "source",
       "phone_line1_mode": "caller",
       "phone_line2_mode": "state",
       "nav_line1_mode": "description",

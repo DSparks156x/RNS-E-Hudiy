@@ -618,6 +618,7 @@ class DISController:
 
         self._l1_mode = l1_mode
         self._l2_mode = l2_mode
+        self._l1_alt_mode = str(feat.get("media_line1_alt_mode", ""))
         self._ph_l1_mode = str(feat.get("phone_line1_mode", "caller"))
         self._ph_l2_mode = str(feat.get("phone_line2_mode", "state"))
         self._nav_l1_mode = str(feat.get("nav_line1_mode", "description"))
@@ -637,7 +638,7 @@ class DISController:
         self._boot_delay = 3.0
         self._boot_time = time.monotonic()
         self._prio = PRIO_NONE
-        self._media_texts = ("", "")
+        self._media_texts = ("", "", "")
         self._call_active = False
         self._phone_texts = ("", "")
         self._last_media_msg = 0.0
@@ -717,8 +718,9 @@ class DISController:
         logger.info("Extracted Media Fields: %s", f)
         l1 = self._parse_mode(self._l1_mode, f) if self._ctrl_l1 else ""
         l2 = self._parse_mode(self._l2_mode, f) if self._ctrl_l2 else ""
-        logger.info("Formatted Media Lines: L1='%s', L2='%s'", l1, l2)
-        return l1, l2
+        alt_l1 = self._parse_mode(self._l1_alt_mode, f) if (self._ctrl_l1 and self._l1_alt_mode) else ""
+        logger.info("Formatted Media Lines: L1='%s', L2='%s', Alt_L1='%s'", l1, l2, alt_l1)
+        return l1, l2, alt_l1
 
     def _phone_fields(self, d):
         conn = d.get("connection_state", "")
@@ -808,7 +810,13 @@ class DISController:
                     if self._prio != PRIO_MEDIA:
                         logger.info("Priority: MEDIA")
                     self._prio = PRIO_MEDIA
-                    self._push(*self._media_texts)
+                    self._push(self._media_texts[0], self._media_texts[1])
+                    return
+                elif self._media_texts[2]:
+                    if self._prio != PRIO_MEDIA:
+                        logger.info("Priority: MEDIA (Alt)")
+                    self._prio = PRIO_MEDIA
+                    self._push(self._media_texts[2], "")
                     return
                 else:
                     logger.info("Skipping MEDIA (already on center display)")
