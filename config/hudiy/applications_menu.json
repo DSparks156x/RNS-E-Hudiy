@@ -17,9 +17,9 @@
             "label": "Android Auto"
         },
         {
-            "iconFontFamily": "Material Symbols Rounded",
-            "iconName": "general_device",
-            "label": "Autobox"
+            "iconFontFamily": "Hudiy Symbols",
+            "iconName": "\ue902",
+            "label": "CarPlay"
         },
         {
             "iconFontFamily": "Material Symbols Rounded",
@@ -116,7 +116,7 @@
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "general_device",
             "action": "autobox_player",
-            "label": "Autobox Music"
+            "label": "CarPlay Music"
         },
         {
             "categories": [
@@ -237,7 +237,7 @@
         },
         {
             "categories": [
-                "Autobox"
+                "CarPlay"
             ],
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "wifi",
@@ -246,7 +246,7 @@
         },
         {
             "categories": [
-                "Autobox"
+                "CarPlay"
             ],
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "redo",
