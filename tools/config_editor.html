@@ -30,7 +30,8 @@
             padding: 0;
         }
 
-        html, body {
+        html,
+        body {
             height: 100%;
             overflow: hidden;
         }
@@ -119,7 +120,8 @@
         /* Sidebar Layout */
         .editor-layout {
             display: flex;
-            flex-direction: row; /* Force side-by-side on desktop */
+            flex-direction: row;
+            /* Force side-by-side on desktop */
             gap: 2rem;
             width: 100%;
             align-items: flex-start;
@@ -200,7 +202,8 @@
 
         .toc-link.active {
             background: var(--accent);
-            color: #ffffff; /* White text */
+            color: #ffffff;
+            /* White text */
             font-weight: 600;
         }
 
@@ -254,6 +257,7 @@
             .editor-layout {
                 flex-direction: column;
             }
+
             .sidebar {
                 width: 100%;
                 position: static;
@@ -504,7 +508,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
-                    <input type="text" id="search-input" class="search-input" placeholder="Search parameters or values..." oninput="filterConfig(this.value)">
+                    <input type="text" id="search-input" class="search-input"
+                        placeholder="Search parameters or values..." oninput="filterConfig(this.value)">
                 </div>
 
                 <input type="file" id="file-input" accept=".json">
@@ -567,7 +572,8 @@
                 detailedHelp: "Testing Branch - Latest experimental possibly broken changes, used by me for testing.\n\nRelease Branch - Latest relatively well tested good release.\n\nBeta Branch - Latest less tested release or Release if newer. may or may not really get used"
             },
             "display.center_display.enabled": { help: "Enable or disable the cluster display service.", type: "boolean" },
-            "display.center_display.mode": { help: "Initial display mode.", type: "select", options: ["nav", "media", "car"] },
+            "display.center_display.mode": { label: "Default App", help: "Initial display mode.", type: "select", options: ["nav", "media", "phone", "car_info", "acceleration_test"] },
+            "display.center_display.applist": { label: "Configured Applications", help: "Cycleable applications in order.", options: ["nav", "media", "phone", "car_info", "acceleration_test", "coverart"] },
             "display.center_display.navigation.auto_switch": { help: "Automatic switching to Nav app.", type: "boolean" },
             "display.center_display.navigation.auto_switch_approach_threshold": { help: "Auto switch distance (meters).", type: "number" },
             "display.center_display.navigation.auto_switch_return_threshold": { help: "Switch back distance (meters).", type: "number" },
@@ -575,7 +581,6 @@
             "display.center_display.navigation.approach_bar_max_distance": { help: "Distance visual fill starts (meters).", type: "number" },
             "display.center_display.coverart": { label: "Album Cover Art" },
             "display.center_display.coverart.brief": { help: "Show briefly on track start (5s).", type: "boolean" },
-            "display.center_display.coverart.appcycle": { help: "Include in app rotation cycle.", type: "boolean" },
             "display.center_display.acceleration_test": { label: "Acceleration Test" },
             "display.center_display.acceleration_test.auto_reset_on_stop": { label: "Auto Reset on Stop", help: "Resets acceleration timers when stopped for configured delay.", type: "boolean" },
             "display.center_display.acceleration_test.auto_reset_delay": { label: "Auto Reset Delay", help: "Delay in seconds before auto reset when stopped.", type: "number" },
@@ -609,6 +614,8 @@
                 detailedHelp: "Configure this line in 3 ways:\n\n1. Speed-to-Speed: e.g. '0-60', '0-100', '60-130' (uses Configure Speed Units setting)\n2. Distance Timer: e.g. '1/4' (quarter mile) or '1000' (feet). Distances below 10 assume Miles/KM based on units, above 10 assume Feet/Meters.\n3. Live Speed: enter 'speed' to show current velocity"
             },
             "display.road_side": { help: "Side of the road you drive on.", type: "select", options: ["left", "right"] },
+            "display.top_display.enabled": { help: "Enable or disable top display service.", type: "boolean" },
+            "display.top_display.applist": { label: "Configured Applications", help: "Priority applications in order.", options: ["phone", "nav", "media"] },
 
             "display.units.speed": { help: "Velocity units.", type: "select", options: ["imperial", "metric"] },
             "display.units.ambient_temp": { help: "Temperature readout units.", type: "select", options: ["imperial", "metric"] },
@@ -876,7 +883,7 @@
                             if (link.getAttribute('href') === `#${id}`) {
                                 document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
                                 link.classList.add('active');
-                                
+
                                 // Auto-scroll active link into sidebar view
                                 link.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                             }
@@ -914,7 +921,7 @@
                 groupWrapper.className = 'nested-group';
                 const groupId = `nested-${p}.${key}`.replace(/\./g, '-').replace(/,/g, '-');
                 groupWrapper.id = groupId;
-                
+
                 const meta = SCHEMA[`${p}.${key}`] || {};
                 const labelText = meta.label || key.replace(/_/g, ' ');
 
@@ -928,8 +935,8 @@
                 const parentId = p.replace(/\./g, '-').replace(/,/g, '-');
                 let parentSublist = document.getElementById(`sublist-${parentId}`);
                 if (!parentSublist) {
-                     const sectionRoot = p.split('.')[0];
-                     parentSublist = document.getElementById(`sublist-${sectionRoot}`);
+                    const sectionRoot = p.split('.')[0];
+                    parentSublist = document.getElementById(`sublist-${sectionRoot}`);
                 }
 
                 if (parentSublist) {
@@ -1105,15 +1112,54 @@
                         itemRow.style.display = 'flex';
                         itemRow.style.gap = '0.5rem';
 
+                        const inputWrapper = document.createElement('div');
+                        inputWrapper.style.display = 'flex';
+                        inputWrapper.style.flex = '1';
+                        inputWrapper.style.gap = '0.5rem';
+
                         const itemInput = document.createElement('input');
                         itemInput.type = 'text';
                         itemInput.value = item || "";
                         itemInput.style.flex = '1';
+
+                        if (meta.options) {
+                            const select = document.createElement('select');
+                            select.style.width = "auto";
+                            select.innerHTML = '<option value="">Custom...</option>';
+                            let isPreset = false;
+                            meta.options.forEach(opt => {
+                                const o = document.createElement('option');
+                                o.value = opt;
+                                o.textContent = opt;
+                                if (opt === item) {
+                                    o.selected = true;
+                                    isPreset = true;
+                                }
+                                select.appendChild(o);
+                            });
+                            itemInput.style.display = isPreset ? 'none' : 'block';
+                            select.onchange = (e) => {
+                                if (e.target.value) {
+                                    itemInput.value = e.target.value;
+                                    itemInput.style.display = 'none';
+                                } else {
+                                    itemInput.style.display = 'block';
+                                    itemInput.focus();
+                                }
+                                value[index] = itemInput.value || "";
+                                setValueByPath(path, value);
+                                showToast(`Updated ${labelText}`);
+                            };
+                            inputWrapper.appendChild(select);
+                        }
+
                         itemInput.onchange = (e) => {
                             value[index] = e.target.value;
                             setValueByPath(path, value);
                             showToast(`Updated ${labelText}`);
                         };
+
+                        inputWrapper.appendChild(itemInput);
 
                         const removeBtn = document.createElement('button');
                         removeBtn.className = 'btn';
@@ -1129,7 +1175,7 @@
                             showToast(`Item Removed`);
                         };
 
-                        itemRow.appendChild(itemInput);
+                        itemRow.appendChild(inputWrapper);
                         itemRow.appendChild(removeBtn);
                         listWrapper.appendChild(itemRow);
                     });

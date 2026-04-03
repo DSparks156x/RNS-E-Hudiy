@@ -22,8 +22,15 @@
   },
   "display": {
     "center_display": {
+      "applist": [
+        "nav",
+        "media",
+        "phone",
+        "car_info",
+        "acceleration_test"
+      ],
       "enabled": true,
-      "mode": "nav",
+      "mode": "media",
       "navigation": {
         "auto_switch": true,
         "auto_switch_approach_threshold": 500,
@@ -32,8 +39,7 @@
         "approach_bar_max_distance": 300
       },
       "coverart": {
-        "brief": true,
-        "appcycle": false
+        "brief": true
       },
       "acceleration_test": {
         "auto_reset_on_stop": true,
@@ -62,6 +68,11 @@
     },
     "text_centering": true,
     "top_display": {
+      "applist": [
+        "phone",
+        "nav",
+        "media"
+      ],
       "enabled": true,
       "media_line1_mode": "title",
       "media_line2_mode": "source",

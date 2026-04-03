@@ -646,6 +646,7 @@ class DISController:
         self._no_media_shown = False
         self._nav_active = False
         self._nav_texts = ("", "")
+        self._applist = cfg.get("display", {}).get("top_display", {}).get("applist", ["phone", "nav", "media"])
         
         # Center Display Awareness
         self._center_app = None
@@ -775,46 +776,42 @@ class DISController:
         can_skip = bool(self._center_ready and self._center_app)
         logger.info("Resolving Priority: call=%s, nav=%s, media_ready=%s, center=%s (%s) -> can_skip=%s", 
                     self._call_active, self._nav_active, self._last_media_msg > 0, self._center_app, self._center_ready, can_skip)
-        
-        # Priority Order: Phone -> Nav -> Media -> None
-        
-        # 1. Phone
-        if self._call_active:
-            if not (can_skip and self._center_app == "app_phone"):
-                if self._prio != PRIO_PHONE:
-                    logger.info("Priority: PHONE")
-                self._prio = PRIO_PHONE
-                self._push(*self._phone_texts)
-                return
-            else:
-                logger.info("Skipping PHONE (already on center display)")
-                
-        # 2. Nav
-        if self._nav_active:
-            if not (can_skip and self._center_app == "app_nav"):
-                if self._prio != PRIO_NAV:
-                    logger.info("Priority: NAV")
-                self._prio = PRIO_NAV
-                self._push(*self._nav_texts)
-                return
-            else:
-                logger.info("Skipping NAV (already on center display)")
-                
-        # 3. Media
-        now = time.monotonic()
+        # Priority Order driven by applist config
         connected = (
             self._last_media_msg > 0 and
             (now - self._last_media_msg) < MEDIA_TIMEOUT
         )
-        if connected:
-            if not (can_skip and self._center_app == "app_media_player"):
-                if self._prio != PRIO_MEDIA:
-                    logger.info("Priority: MEDIA")
-                self._prio = PRIO_MEDIA
-                self._push(*self._media_texts)
-                return
-            else:
-                logger.info("Skipping MEDIA (already on center display)")
+        
+        for app in self._applist:
+            if app == "phone" and self._call_active:
+                if not (can_skip and self._center_app == "app_phone"):
+                    if self._prio != PRIO_PHONE:
+                        logger.info("Priority: PHONE")
+                    self._prio = PRIO_PHONE
+                    self._push(*self._phone_texts)
+                    return
+                else:
+                    logger.info("Skipping PHONE (already on center display)")
+            
+            elif app == "nav" and self._nav_active:
+                if not (can_skip and self._center_app == "app_nav"):
+                    if self._prio != PRIO_NAV:
+                        logger.info("Priority: NAV")
+                    self._prio = PRIO_NAV
+                    self._push(*self._nav_texts)
+                    return
+                else:
+                    logger.info("Skipping NAV (already on center display)")
+                    
+            elif app == "media" and connected:
+                if not (can_skip and self._center_app == "app_media"):
+                    if self._prio != PRIO_MEDIA:
+                        logger.info("Priority: MEDIA")
+                    self._prio = PRIO_MEDIA
+                    self._push(*self._media_texts)
+                    return
+                else:
+                    logger.info("Skipping MEDIA (already on center display)")
                 
         # 4. Fallback
         if self._prio != PRIO_NONE:

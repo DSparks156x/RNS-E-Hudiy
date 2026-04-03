@@ -33,10 +33,10 @@ class DisplayEngine:
         # --- Apps Definition (No Menu) ---
         self.apps = {}
         self.apps['app_nav']          = NavApp(self.cfg)
-        self.apps['app_media_player'] = MediaApp(self.cfg)
+        self.apps['app_media'] = MediaApp(self.cfg)
         self.apps['app_phone']        = PhoneApp(self.cfg)
-        self.apps['app_car']          = CarInfoApp(self.cfg)
-        self.apps['app_acceleration'] = AccelerationTestApp(self.cfg)
+        self.apps['app_car_info']     = CarInfoApp(self.cfg)
+        self.apps['app_acceleration_test'] = AccelerationTestApp(self.cfg)
         # Settings still exists if needed, but not in cycle
         self.apps['app_settings']     = SettingsApp(self) 
         self.apps['app_coverart']     = CoverArtApp(self.cfg) 
@@ -44,21 +44,16 @@ class DisplayEngine:
         self.egg_app = self.apps['app_easteregg']
 
         # --- Page Cycle Definition ---
-        self.pages = ['app_nav', 'app_media_player', 'app_phone', 'app_car', 'app_acceleration']
+        configured_apps = center_display_cfg.get('applist', ['nav', 'media', 'phone', 'car_info', 'acceleration_test'])
+        
+        self.pages = [f"app_{app}" for app in configured_apps if f"app_{app}" in self.apps]
+        if not self.pages:
+            self.pages = ['app_media']
         
         # Load Cover Art Configuration
         coverart_cfg = center_display_cfg.get('coverart', {})
         self.coverart_brief = coverart_cfg.get('brief', True)
-        self.coverart_appcycle = coverart_cfg.get('appcycle', False)
         
-        if self.coverart_appcycle:
-            # Insert after media player if it exists
-            if 'app_media_player' in self.pages:
-                idx = self.pages.index('app_media_player')
-                self.pages.insert(idx + 1, 'app_coverart')
-            else:
-                self.pages.append('app_coverart')
-
         self.current_page_idx = 0
 
         self.zmq_ctx = zmq.Context()
@@ -186,20 +181,21 @@ class DisplayEngine:
         self.nav_active = False # Default inactive
 
         # --- Startup Logic ---
-        start_app = 'app_media_player'
+        start_app = 'app_media'
         if self.settings.get('remember_last', False):
-            start_app = self.settings.get('last_app', 'app_media_player')
+            start_app = self.settings.get('last_app', 'app_media')
         else:
-            start_app = self.settings.get('startup_app', 'app_media_player')
+            start_app = self.settings.get('startup_app', 'app_media')
             
         if start_app in self.pages:
             self.current_page_idx = self.pages.index(start_app)
         else:
             self.current_page_idx = 0
+            start_app = self.pages[0]
             
-        self.current_app = self.apps[self.pages[self.current_page_idx]]
+        self.current_app = self.apps[start_app]
             
-        logger.info(f"Starting in App: {self.pages[self.current_page_idx]}")
+        logger.info(f"Starting in App: {start_app}")
         self.current_app.on_enter()
         
         self.last_sent = {k: None for k in self.Y}
@@ -240,7 +236,7 @@ class DisplayEngine:
         self.press_history = [] # Timestamps of recent app switches
 
     def load_settings(self):
-        default = {'startup_app': 'app_media_player', 'remember_last': False, 'last_app': 'app_media_player'}
+        default = {'startup_app': 'app_media', 'remember_last': False, 'last_app': 'app_media'}
         try:
             if os.path.exists(SETTINGS_FILE):
                 with open(SETTINGS_FILE, 'r') as f:
@@ -256,7 +252,11 @@ class DisplayEngine:
         
         try:
             state_str = "READY" if getattr(self, 'service_ready', False) else "PAUSED"
-            app_name = self.pages[self.current_page_idx]
+            app_name = "unknown"
+            for k, v in self.apps.items():
+                if v == self.current_app:
+                    app_name = k
+                    break
             
             payload = {
                 "state": state_str,
@@ -354,12 +354,13 @@ class DisplayEngine:
 
     def switch_to_app(self, app_name):
         """Direct jump to an app by name."""
-        if app_name not in self.pages: return
+        if app_name not in self.apps: return
         
-        idx = self.pages.index(app_name)
-        if idx == self.current_page_idx and self.current_app == self.apps[app_name]: return
+        if self.current_app == self.apps[app_name]: return
         
-        self.current_page_idx = idx
+        if app_name in self.pages:
+            self.current_page_idx = self.pages.index(app_name)
+        
         self.current_app.on_leave()
         self.current_app = self.apps[app_name]
         self.current_app.on_enter()
@@ -406,8 +407,12 @@ class DisplayEngine:
         if getattr(self, 'phone_auto_overlay', False):
             return 'app_phone'
 
-        # 2. Brief Cover Art (sequencing first)
-        if self.brief_cover_active and self.pages[self.current_page_idx] == 'app_media_player':
+        # 2. Nav Auto Switch
+        if getattr(self, 'pre_nav_app_name', None) is not None:
+            return 'app_nav'
+
+        # 3. Brief Cover Art (sequencing first)
+        if self.brief_cover_active and self.pages[self.current_page_idx] == 'app_media':
             if time.time() < self.brief_auto_switch_end:
                 return 'app_coverart'
             else:
@@ -418,7 +423,7 @@ class DisplayEngine:
                     self.egg_pending = False
 
         # 4. Easter Egg Priority
-        if self.egg_active and self.pages[self.current_page_idx] == 'app_media_player':
+        if self.egg_active and self.pages[self.current_page_idx] == 'app_media':
             if self.apps['app_easteregg'].finished:
                 self.egg_active = False
             else:
@@ -509,7 +514,7 @@ class DisplayEngine:
                                                     if self.pre_nav_app_name:
                                                         self.switch_to_app(self.pre_nav_app_name)
                                                     else:
-                                                        self.switch_to_app('app_media_player')
+                                                        self.switch_to_app('app_media')
                                             
                                                 # Clean up toggle state when nav deactivated
                                                 self.auto_switch_back_at = 0
@@ -522,15 +527,17 @@ class DisplayEngine:
                                         self._handle_nav_auto_switch(nav_app)
 
                                     if topic == b'HUDIY_PHONE':
+                                        if 'app_phone' in self.apps: self.apps['app_phone'].update_hudiy(topic, data)
                                         self._handle_phone_status(data)
 
                                     if topic == b'HUDIY_MEDIA':
+                                        if 'app_media' in self.apps: self.apps['app_media'].update_hudiy(topic, data)
                                         self._handle_media_match(data)
 
                                     if topic == b'HUDIY_COVERART':
                                         self.apps['app_coverart'].update_hudiy(topic, data)
                                         # Only trigger brief cover if on Media app
-                                        if self.pages[self.current_page_idx] == 'app_media_player' and data.get('is_new_track', False) and getattr(self, 'service_ready', False) and getattr(self, 'coverart_brief', True):
+                                        if self.pages[self.current_page_idx] == 'app_media' and data.get('is_new_track', False) and getattr(self, 'service_ready', False) and getattr(self, 'coverart_brief', True):
                                             now_time = time.time()
                                             if now_time - getattr(self, 'last_cover_trigger_time', 0) > 6.0:
                                                 logger.info("New track detected: Auto-switching to Cover Art app for 5s.")
@@ -687,7 +694,7 @@ class DisplayEngine:
         self._last_processed_media = combined
 
         # Only proceed to trigger if on media page
-        if self.pages[self.current_page_idx] != 'app_media_player':
+        if self.pages[self.current_page_idx] != 'app_media':
             return
 
         eggs_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'eggs.json')
@@ -765,9 +772,9 @@ class DisplayEngine:
                     payload = bytes.fromhex(json.loads(msg)['data_hex'])
                     self.current_app.update_can(t_str, payload)
                     
-                    if 'app_acceleration' in self.apps and self.current_app != self.apps['app_acceleration']:
+                    if 'app_acceleration_test' in self.apps and self.current_app != self.apps['app_acceleration_test']:
                         if '351' in t_str:
-                            self.apps['app_acceleration'].update_can(t_str, payload)
+                            self.apps['app_acceleration_test'].update_can(t_str, payload)
                             
                     if t_str in self.t_btn and len(payload) > 2:
                         b = payload[2]
