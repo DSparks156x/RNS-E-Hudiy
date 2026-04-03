@@ -538,7 +538,7 @@ class TP2BridgeHandler(ClientEventHandler):
                     env["WAYLAND_DISPLAY"] = "wayland-1"
             
             # Execute the script in the terminal
-            subprocess.Popen(["foot", "--fullscreen", "bash", updater_script], env=env)
+            subprocess.Popen(["foot", "--fullscreen", "--font=monospace:size=18:weight=bold", "bash", updater_script], env=env)
         elif message.action == "reboot_system":
             logger.info("Hudiy Action: Rebooting system...")
             import subprocess

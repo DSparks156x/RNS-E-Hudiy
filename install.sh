@@ -1,7 +1,16 @@
 #!/bin/bash
 # ==============================================================================
-# RNS-E Hudiy Integration - Automated Installer (v1.1)
+# RNS-E Hudiy Integration - Automated Installer
 # ==============================================================================
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -98,18 +107,18 @@ CONFIG_TXT="/boot/firmware/config.txt"
 CMDLINE_TXT="/boot/firmware/cmdline.txt"
 [ ! -f "$CMDLINE_TXT" ] && CMDLINE_TXT="/boot/cmdline.txt"
 
-echo "==================================================="
-echo "   RNS-E Hudiy Integration Installer (v1.3)"
-echo "==================================================="
-echo "   Target User: $REAL_USER"
-echo "   Target Home: $REAL_HOME"
-echo "   Config Path: $CONFIG_TXT"
-echo "==================================================="
+echo -e "${CYAN}${BOLD}====================================================${NC}"
+echo -e "${CYAN}${BOLD}   RNS-E Hudiy Integration Installer (v1.3)         ${NC}"
+echo -e "${CYAN}${BOLD}====================================================${NC}"
+echo -e "   Target User: $REAL_USER"
+echo -e "   Target Home: $REAL_HOME"
+echo -e "   Config Path: $CONFIG_TXT"
+echo -e "${CYAN}${BOLD}====================================================${NC}"
 
 # ------------------------------------------------------------------------------
 # 1. System Update & Dependencies
 # ------------------------------------------------------------------------------
-echo "? Step 1: Installing System Dependencies..."
+echo -e "${YELLOW}? Step 1: Installing System Dependencies...${NC}"
 apt-get update
 apt-get install -y git python3-pip can-utils python3-can python3-serial \
     python3-tz python3-unidecode python3-zmq python3-aiozmq python3-uinput \
@@ -124,12 +133,12 @@ else
     echo "   - Not found in apt, attempting pip install..."
     pip3 install websocket-client eventlet --break-system-packages &> /dev/null
 fi
-echo "? Dependencies installed."
+echo -e "${GREEN}? Dependencies installed.${NC}"
 
 # ------------------------------------------------------------------------------
 # 2. Download & Install Project Files
 # ------------------------------------------------------------------------------
-echo "? Step 2: Downloading Project Files..."
+echo -e "${YELLOW}? Step 2: Downloading Project Files...${NC}"
 
 # Create a temporary directory for cloning
 TEMP_DIR=$(mktemp -d)
@@ -269,7 +278,7 @@ except Exception:
 install_config "$TEMP_DIR/config.json" "$REAL_HOME/config.json"
 
 # 2.1 Deploy Hudiy Configuration
-echo "? Step 2.1: Deploying Hudiy Configuration..."
+echo -e "${YELLOW}? Step 2.1: Deploying Hudiy Configuration...${NC}"
 HUDIY_CONFIG_DIR="/home/${REAL_USER}/.hudiy/share/config"
 mkdir -p "$HUDIY_CONFIG_DIR"
 
@@ -308,12 +317,12 @@ chown $REAL_USER:$REAL_USER "$REAL_HOME/config.json"
 chmod +x "$REAL_HOME/hudiy_client/update_rnse.sh"
 chmod +x "$REAL_HOME/hudiy_client/restore_configs.sh"
 
-echo "? Project files installed and cleaned."
+echo -e "${GREEN}? Project files installed and cleaned.${NC}"
 
 # ------------------------------------------------------------------------------
 # 3. Configure Device Permissions (uinput)
 # ------------------------------------------------------------------------------
-echo "? Step 3: Configuring Device Permissions..."
+echo -e "${YELLOW}? Step 3: Configuring Device Permissions...${NC}"
 
 usermod -a -G input $REAL_USER
 echo 'uinput' | tee /etc/modules-load.d/uinput.conf > /dev/null
@@ -322,12 +331,12 @@ echo 'KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput
 udevadm control --reload-rules
 udevadm trigger
 
-echo "? Permissions configured."
+echo -e "${GREEN}? Permissions configured.${NC}"
 
 # ------------------------------------------------------------------------------
 # 4. Protobuf Setup (Fixed URLs)
 # ------------------------------------------------------------------------------
-echo "? Step 4: Setting up Protobuf..."
+echo -e "${YELLOW}? Step 4: Setting up Protobuf...${NC}"
 
 PROTO_DIR="$REAL_HOME/hudiy_client/api_files/common"
 mkdir -p "$PROTO_DIR"
@@ -351,15 +360,15 @@ fi
 if [ -x "$(command -v protoc)" ]; then
     protoc --python_out=. Api.proto
     chown -R $REAL_USER:$REAL_USER "$REAL_HOME/hudiy_client/api_files"
-    echo "? Protobuf code generated."
+    echo -e "${GREEN}? Protobuf code generated.${NC}"
 else
-    echo "? ERROR: 'protoc' command not found."
+    echo -e "${RED}? ERROR: 'protoc' command not found.${NC}"
 fi
 
 # ------------------------------------------------------------------------------
 # 5. Configure CAN Interface (Hardware)
 # ------------------------------------------------------------------------------
-echo "? Step 5: Configuring CAN Interface Hardware..."
+echo -e "${YELLOW}? Step 5: Configuring CAN Interface Hardware...${NC}"
 
 # Ensure SPI is enabled first (Uncomment dtparam=spi=on)
 if grep -q "#dtparam=spi=on" "$CONFIG_TXT"; then
@@ -404,7 +413,7 @@ fi
 # ------------------------------------------------------------------------------
 # 6. Create RAM Disks
 # ------------------------------------------------------------------------------
-echo "? Step 6: Setting up RAM Disks..."
+echo -e "${YELLOW}? Step 6: Setting up RAM Disks...${NC}"
 
 mkdir -p /var/log/rnse_control /run/rnse_control
 chown $REAL_USER:$REAL_USER /var/log/rnse_control /run/rnse_control
@@ -422,7 +431,7 @@ mount -a
 # ------------------------------------------------------------------------------
 # 7. Install Systemd Services (Networkd Method)
 # ------------------------------------------------------------------------------
-echo "? Step 7: Installing Systemd Services..."
+echo -e "${YELLOW}? Step 7: Installing Systemd Services...${NC}"
 
 # --- A: NETWORK CONFIG ---
 echo "   Configuring systemd-networkd for can0..."
@@ -668,7 +677,7 @@ $SYSTEMCTL enable --now can_handler.service can_base_function.service tp2_worker
 # Start delayed services non-blocking
 $SYSTEMCTL enable --now --no-block dis_service.service dis_display.service
 
-echo "? Services installed, network configured, and started."
+echo -e "${GREEN}? Services installed, network configured, and started.${NC}"
 
 
 # # ------------------------------------------------------------------------------
@@ -767,5 +776,5 @@ read -p "Do you want to reboot now? (y/n): " reboot_choice
 if [[ "$reboot_choice" =~ ^[Yy]$ ]]; then
     $REBOOT
 else
-    echo "Services are running. Check with: sudo systemctl status can_handler"
+echo -e "Services are running. Check with: ${CYAN}sudo systemctl status can_handler${NC}"
 fi
