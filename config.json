@@ -122,6 +122,8 @@
     "debug_mode": false,
     "log_saver": {
       "services": [
+        "dis_display.service",
+        "hudiy_data_api.service",
         "dis_service.service",
         "tp2_worker.service"
       ],
