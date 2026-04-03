@@ -1024,6 +1024,7 @@ class DISController:
                         playing = data.get("playing", False)
                         title = (data.get("title") or "").strip()
                         src_label = (data.get("source_label") or "").strip()
+                        logger.debug("Media Payload: src=%s label='%s' title='%s'", src, src_label, data.get("title"))
                         if src != 0 and src_label and src_label.lower() not in ("none", "paused"):
                             self._source_label = src_label
                         logger.debug("Media Msg: src=%s, playing=%s, title='%s'", src, playing, title)

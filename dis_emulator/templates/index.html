@@ -364,6 +364,7 @@
                 <input type="text" id="mock-media-title" placeholder="Song Title" value="Lateralus">
                 <input type="text" id="mock-media-artist" placeholder="Artist" value="TOOL">
                 <input type="text" id="mock-media-album" placeholder="Album" value="Lateralus">
+                <input type="text" id="mock-media-source" placeholder="Source (e.g. Bluetooth)" value="Bluetooth">
                 <input type="text" id="mock-media-time" placeholder="Time (e.g. 1:23 / 4:56)" value="1:23 / 4:56">
                 <div class="btn-row">
                     <button class="btn" id="playPauseBtn" onclick="togglePlayback()"
@@ -583,6 +584,8 @@
                 title: document.getElementById('mock-media-title').value,
                 artist: document.getElementById('mock-media-artist').value,
                 album: document.getElementById('mock-media-album').value,
+                source_label: document.getElementById('mock-media-source').value || "Bluetooth",
+                source_id: 3,
                 position: pos,
                 duration: dur,
                 playing: isPlaying
