@@ -219,8 +219,12 @@ class DisplayEngine:
         self.nav_return_threshold = nav_cfg.get('auto_switch_return_threshold', 1000)
         self.nav_return_delay = nav_cfg.get('auto_switch_return_delay', 10)
 
+        # --- Advanced Nav Auto-Switching ---
+        self.nav_auto_triggered = False
+
         # --- Phone Auto-Switching ---
         self.phone_active = False
+        self.phone_auto_overlay = False
         self.pre_phone_app_name = None
         self.frame_seq_counter = 0
 
@@ -230,6 +234,7 @@ class DisplayEngine:
         self.last_egg_match = None # Track 'Artist - Title' string that last triggered
         self.brief_cover_active = False
         self.brief_auto_switch_end = 0
+        self.last_cover_trigger_time = 0
 
         # --- Input Rate Limiting ---
         self.press_history = [] # Timestamps of recent app switches
@@ -390,21 +395,18 @@ class DisplayEngine:
         self.brief_cover_active = False
         self.egg_active = False
         self.egg_pending = False
+        self.phone_auto_overlay = False
 
     def _resolve_app_priority(self):
         """Unified resolver for the current active app based on priority.
         
-        Priority: Phone > Nav (Near) > Brief Cover Art > Easter Egg > User Selection
+        Priority: Phone > Brief Cover Art > Easter Egg > User Selection
         """
         # 1. Phone Priority
-        if self.phone_active:
+        if getattr(self, 'phone_auto_overlay', False):
             return 'app_phone'
 
-        # 2. Navigation Priority (if within approach threshold)
-        if self.nav_active and self._is_nav_near():
-            return 'app_nav'
-
-        # 3. Brief Cover Art (sequencing first)
+        # 2. Brief Cover Art (sequencing first)
         if self.brief_cover_active and self.pages[self.current_page_idx] == 'app_media_player':
             if time.time() < self.brief_auto_switch_end:
                 return 'app_coverart'
@@ -424,15 +426,6 @@ class DisplayEngine:
 
         # 5. Normal Application Cycle
         return self.pages[self.current_page_idx]
-
-    def _is_nav_near(self):
-        """Helper to determine if navigation is within 'auto-switch' distance."""
-        if not self.nav_active or not getattr(self, 'nav_auto_switch', True):
-            return False
-        nav_app = self.apps['app_nav']
-        meters = nav_app.meters
-        threshold = getattr(self, 'nav_approach_threshold', 500)
-        return 0 <= meters <= threshold or (meters == -1 and self.pre_nav_app_name is not None)
 
     def _send_draw(self, payload):
         """Send a JSON command to the DIS service without blocking. Returns True if sent."""
@@ -538,10 +531,13 @@ class DisplayEngine:
                                         self.apps['app_coverart'].update_hudiy(topic, data)
                                         # Only trigger brief cover if on Media app
                                         if self.pages[self.current_page_idx] == 'app_media_player' and data.get('is_new_track', False) and getattr(self, 'service_ready', False) and getattr(self, 'coverart_brief', True):
-                                            logger.info("New track detected: Auto-switching to Cover Art app for 5s.")
-                                            self.brief_cover_active = True
-                                            self.brief_auto_switch_end = time.time() + 5.0
-                                            self.force_redraw(send_clear=True)
+                                            now_time = time.time()
+                                            if now_time - getattr(self, 'last_cover_trigger_time', 0) > 6.0:
+                                                logger.info("New track detected: Auto-switching to Cover Art app for 5s.")
+                                                self.last_cover_trigger_time = now_time
+                                                self.brief_cover_active = True
+                                                self.brief_auto_switch_end = now_time + 5.0
+                                                self.force_redraw(send_clear=True)
 
                                     # Update current app if it wasn't already updated (NavApp above)
                                     if not (topic.startswith(b'HUDIY_NAV') and topic != b'HUDIY_NAV_STATUS'):
@@ -648,26 +644,32 @@ class DisplayEngine:
         meters = nav_app.meters
         current_name = self.pages[self.current_page_idx]
         now = time.time()
+        
+        approach_threshold = getattr(self, 'nav_approach_threshold', 500)
+        return_threshold = getattr(self, 'nav_return_threshold', 1000)
+
+        # Reset the trigger when distance goes above return threshold
+        if meters > return_threshold or meters == -1:
+            self.nav_auto_triggered = False
 
         if current_name != 'app_nav':
             # Threshold to switch TO Nav
-            approach_threshold = getattr(self, 'nav_approach_threshold', 500)
-            if 0 <= meters <= approach_threshold:
+            if 0 <= meters <= approach_threshold and not getattr(self, 'nav_auto_triggered', False):
                 logger.info(f"Distance Alert: {meters}m. Switching to Nav.")
+                self.nav_auto_triggered = True
                 self.pre_nav_app_name = current_name
                 self.auto_switch_back_at = 0
                 self.switch_to_app('app_nav')
         elif self.pre_nav_app_name:
             # Currently on Nav via auto-switch, check for switch back
-            return_threshold = getattr(self, 'nav_return_threshold', 1000)
             return_delay = getattr(self, 'nav_return_delay', 10)
             
             if meters > return_threshold or meters == -1:
-                if self.auto_switch_back_at == 0:
+                if getattr(self, 'auto_switch_back_at', 0) == 0:
                     logger.info(f"Distance {meters}m (or unknown). Returning to {self.pre_nav_app_name} in {return_delay}s.")
                     self.auto_switch_back_at = now + return_delay
             elif 0 <= meters <= return_threshold:
-                if self.auto_switch_back_at != 0:
+                if getattr(self, 'auto_switch_back_at', 0) != 0:
                     logger.info(f"Distance {meters}m <= {return_threshold}m, clearing return timer.")
                     self.auto_switch_back_at = 0
 
@@ -743,7 +745,10 @@ class DisplayEngine:
             self.phone_active = interesting
             logger.info(f"Phone Interesting State Changed: {interesting} (state: {state})")
             
-            if not interesting:
+            if interesting:
+                self.phone_auto_overlay = True
+            else:
+                self.phone_auto_overlay = False
                 self.pre_phone_app_name = None
 
     def _handle_can(self):
