@@ -536,11 +536,21 @@ class DisplayEngine:
 
                                     if topic == b'HUDIY_COVERART':
                                         self.apps['app_coverart'].update_hudiy(topic, data)
+                                        
                                         # Only trigger brief cover if on Media app
-                                        if self.pages[self.current_page_idx] == 'app_media' and data.get('is_new_track', False) and getattr(self, 'service_ready', False) and getattr(self, 'coverart_brief', True):
-                                            now_time = time.time()
-                                            if now_time - getattr(self, 'last_cover_trigger_time', 0) > 6.0:
-                                                logger.info("New track detected: Auto-switching to Cover Art app for 5s.")
+                                        now_time = time.time()
+                                        has_bitmap = bool(data.get('bitmap_hex', ''))
+                                        is_new = data.get('is_new_track', False)
+                                        recently_triggered = (now_time - getattr(self, 'last_cover_trigger_time', 0) < 6.0)
+                                        
+                                        # Logic: 
+                                        # 1. Trigger if it's a completely new track (even if no bitmap yet, to clear UI)
+                                        # 2. ALSO trigger if we just received a real bitmap and haven't triggered recently (handles delayed art)
+                                        if self.pages[self.current_page_idx] == 'app_media' and (is_new or (has_bitmap and not recently_triggered)) and \
+                                           getattr(self, 'service_ready', False) and getattr(self, 'coverart_brief', True):
+                                            
+                                            if not recently_triggered or is_new:
+                                                logger.info(f"Cover Art trigger: Auto-switching to Cover Art app (New: {is_new}, Delayed: {not is_new and has_bitmap})")
                                                 self.last_cover_trigger_time = now_time
                                                 self.brief_cover_active = True
                                                 self.brief_auto_switch_end = now_time + 5.0

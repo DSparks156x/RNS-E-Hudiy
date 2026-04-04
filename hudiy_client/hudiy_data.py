@@ -16,6 +16,7 @@ import io
 from PIL import Image
 from queue import Queue, Empty
 import zmq
+import hashlib
 
 # --- Add hudiy_client to Python path ---
 try:
@@ -139,11 +140,23 @@ class HudiyEventHandler(ClientEventHandler):
         
         # --- Cover Art Processing ---
         cover_art_bytes = getattr(message, 'coverart', None)
-        if cover_art_bytes and len(cover_art_bytes) > 0:
-            import hashlib
+        has_cover = bool(cover_art_bytes and len(cover_art_bytes) > 0)
+        
+        if is_new_track:
+            # New track started: Always reset hash so the first image arrival is processed,
+            # and if we don't have an image yet, send a clear message to reset the UI.
+            self.last_coverart_hash = None
+            if not has_cover:
+                logger.debug("New track (no cover yet): Sending clear message.")
+                self.safe_pub.publish(b'HUDIY_COVERART', {'bitmap_hex': '', 'is_new_track': True, 'timestamp': time.time()})
+
+        if has_cover:
             current_hash = hashlib.md5(cover_art_bytes).hexdigest()
             
-            if current_hash != self.last_coverart_hash:
+            # Send if:
+            # 1. It's a brand new track (always send to ensure trigger handles it)
+            # 2. Or the image hash actually changed (new cover art arrived for same track)
+            if is_new_track or current_hash != self.last_coverart_hash:
                 self.last_coverart_hash = current_hash
                 try:
                     img = Image.open(io.BytesIO(cover_art_bytes))
@@ -156,12 +169,11 @@ class HudiyEventHandler(ClientEventHandler):
                         'timestamp': time.time()
                     }
                     self.safe_pub.publish(b'HUDIY_COVERART', cover_data)
-                    logger.info(f"Published Cover Art ({len(cover_art_bytes)} bytes raw -> DIS bitmap)")
+                    logger.info(f"Published Cover Art ({len(cover_art_bytes)} bytes raw -> DIS bitmap) | New Track: {is_new_track}")
                 except Exception as e:
                     logger.error(f"Failed to process cover art: {e}")
-        elif is_new_track:
-            # If new track but no cover art, send an empty cover art message to clear/update
-            self.safe_pub.publish(b'HUDIY_COVERART', {'bitmap_hex': '', 'is_new_track': True, 'timestamp': time.time()})
+            else:
+                logger.debug("Skipping cover art (hash match and not a new track).")
 
     def on_media_status(self, client, message):
         pos = getattr(message, 'position_label', '0:00')
