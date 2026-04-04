@@ -53,12 +53,8 @@ except ImportError:
 
 # --- Timing ---
 HB_INTERVAL        = 0.100  # heartbeat — keeps display asserted at 10 Hz
-BOOT_DELAY         = 8.0    # seconds after listener start before "No Media" can show
-DEBOUNCE           = 0.18   # seconds to wait before displaying new track info (avoids flash on track change)
-SKIP_DEBOUNCE      = 0.50   # longer wait used when user recently skipped a track
-SKIP_WINDOW        = 2.0    # seconds after going not-playing during which SKIP_DEBOUNCE applies
-NO_MEDIA_DEBOUNCE  = 15.0   # seconds to hold last content before showing "No Media" after source disconnects
-MEDIA_TIMEOUT      = 5.0    # seconds of no media messages before dropping source state to NONE
+NO_MEDIA_TIMEOUT   = 5.0    # seconds before showing "No Media" (covers boot, source disconnect, msg timeout)
+DEBOUNCE           = 0.50   # seconds to wait before displaying new track info
 CENTER_DEBOUNCE    = 0.30   # seconds to wait after center page change before updating top DIS
 
 # --- CAN ---
@@ -701,8 +697,7 @@ class DISController:
         # socket created inside _listener thread for ZMQ thread-safety
 
     def _setup_state(self, cfg: dict):
-        self._boot_delay = BOOT_DELAY
-        self._boot_time = time.monotonic()
+        self._no_media_grace = time.monotonic() + NO_MEDIA_TIMEOUT
         self._prio = PRIO_NONE
         self._media_texts = ("", "", "")
         self._call_active = False
@@ -711,8 +706,6 @@ class DISController:
         self._src_timeout = 0.0     # monotonic deadline; float('inf') = never expire
         self._projection_active = False
         self._source_label = ""
-        self._no_media_grace = 0.0
-        self._not_playing_t = 0.0
         self._resolve_dirty = threading.Event()  # set = needs re-resolve; clear = settled
         self._resolve_dirty.set()
         self._nav_active = False
@@ -877,14 +870,12 @@ class DISController:
             elif app == "media" and self._src_state != "NONE":
                 if can_skip and self._center_app == "app_media":
                     alt = self._media_texts[2] or self._source_label
-                    if alt:
-                        if self._prio != PRIO_MEDIA:
-                            logger.info("Priority: MEDIA (center on media — alt='%s')", alt)
-                        self._prio = PRIO_MEDIA
-                        self._set_lines(alt, "")
-                        self._resolve_dirty.clear()
-                        return
-                    logger.debug("Skipping MEDIA (center on media, no alt mode configured)")
+                    if self._prio != PRIO_MEDIA:
+                        logger.info("Priority: MEDIA (center on media — alt='%s')", alt or "[blank]")
+                    self._prio = PRIO_MEDIA
+                    self._resolve_dirty.clear()
+                    self._set_lines(alt, "")
+                    return
                 else:
                     display_texts = self._media_texts if any(self._media_texts[:2]) else self._media_fields({"source_label": self._source_label})
                     if any(display_texts[:2]):
@@ -899,50 +890,15 @@ class DISController:
         if self._prio != PRIO_NONE:
             logger.info("Priority: NONE")
         self._prio = PRIO_NONE
-        self._set_lines(*self._no_media)
+        if can_skip:
+            self._set_lines("", "")
+        else:
+            self._set_lines(*self._no_media)
         self._resolve_dirty.clear()
-
-    def _load_now_playing(self):
-        try:
-            with open('/tmp/now_playing.json') as f:
-                data = json.load(f)
-            src       = data.get("source_id", 0)
-            playing   = data.get("playing", False)
-            title     = (data.get("title") or "").strip()
-            src_label = (data.get("source_label") or "").strip()
-            now       = time.monotonic()
-
-            if src != 0 and src_label and src_label.lower() not in ("none", "paused"):
-                self._source_label = src_label
-
-            if src != 0 and (playing or title):
-                self._src_state = "CONTENT"
-                self._src_timeout = float('inf') if (title and not playing) else now + MEDIA_TIMEOUT
-                self._media_texts = self._media_fields(data)
-                self._resolve()
-                logger.info("now_playing.json: src=%s playing=%s title='%s'", src, playing, title)
-        except Exception as e:
-            logger.debug("now_playing.json unavailable: %s", e)
-
-    def _load_nav_state(self):
-        """Pre-cache nav texts from disk. Does NOT set _nav_active — only HUDIY_NAV_STATUS can do that."""
-        try:
-            with open('/tmp/current_nav.json') as f:
-                data = json.load(f)
-            age = time.time() - data.get("timestamp", 0)
-            if age < 300:
-                cached = self._nav_fields(data)
-                if any(cached):
-                    self._nav_texts = cached
-                    logger.info("current_nav.json: pre-cached nav texts (age=%.1fs)", age)
-        except Exception as e:
-            logger.debug("current_nav.json unavailable: %s", e)
 
     def _listener(self):
         self._sub = self._make_sub(self._zmq_addr)
-        self._boot_time = time.monotonic()   # reset so boot delay runs from listener start
-        self._load_now_playing()
-        self._load_nav_state()
+        self._no_media_grace = time.monotonic() + NO_MEDIA_TIMEOUT
         pending = None
         deadline = None
         err_count = 0
@@ -956,7 +912,7 @@ class DISController:
 
             if pending is not None and now >= deadline:
                 self._media_texts = pending
-                logger.info("Media display: L1='%s' L2='%s'", *self._media_texts)
+                logger.info("Media display: L1='%s' L2='%s' L1alt='%s'" , *self._media_texts[:3])
                 self._resolve()
                 for ctrl in self._ctrls:
                     ctrl._debounce_until = 0.0
@@ -975,7 +931,6 @@ class DISController:
             if self._src_state != "NONE" and now > self._src_timeout and not self._projection_active:
                 logger.info("Source state timed out — dropping to NONE")
                 self._src_state = "NONE"
-                self._src_timeout = 0.0
                 pending = None
                 deadline = None
                 for ctrl in self._ctrls:
@@ -987,14 +942,13 @@ class DISController:
                 self._resolve()
                 _stat_resolves += 1
 
-            center_stale = self._center_ready and (now - self._center_msg_t) > 5.0
-            if center_stale:
+            if self._center_ready and (now - self._center_msg_t) > 5.0:
+                self._center_ready = False
                 self._resolve()
                 _stat_resolves += 1
             elif (self._resolve_dirty.is_set()
                     and pending is None
                     and not self._call_active and not (self._nav_active and "nav" in self._applist)
-                    and (now - self._boot_time) >= self._boot_delay
                     and now >= self._no_media_grace):
                 self._resolve()
                 _stat_resolves += 1
@@ -1023,9 +977,9 @@ class DISController:
                         playing = data.get("playing", False)
                         title = (data.get("title") or "").strip()
                         src_label = (data.get("source_label") or "").strip()
+                        logger.debug("Media Msg: src=%s, playing=%s, title='%s'", src, playing, title)
                         if src != 0 and src_label and src_label.lower() not in ("none", "paused"):
                             self._source_label = src_label
-                        logger.debug("Media Msg: src=%s, playing=%s, title='%s'", src, playing, title)
 
                         projection = data.get("projection_active", False)
                         self._projection_active = bool(projection)
@@ -1034,7 +988,7 @@ class DISController:
 
                         if has_source and has_content:
                             self._src_state = "CONTENT"
-                            self._src_timeout = float('inf') if (title and not playing) else now + MEDIA_TIMEOUT
+                            self._src_timeout = float('inf') if (title and not playing) else now + NO_MEDIA_TIMEOUT
                             self._resolve_dirty.set()
                             self._no_media_grace = 0.0
                             new = self._media_fields(data)
@@ -1043,17 +997,15 @@ class DISController:
                                 if new != self._media_texts:
                                     for ctrl in self._ctrls:
                                         ctrl.freeze_scroll()
-                                recently_skipped = (
-                                    self._not_playing_t > 0
-                                    and (now - self._not_playing_t) < SKIP_WINDOW
-                                )
-                                deadline = now + (SKIP_DEBOUNCE if recently_skipped else DEBOUNCE)
-                                for ctrl in self._ctrls:
-                                    ctrl._debounce_until = deadline
+                                    deadline = now + DEBOUNCE
+                                    for ctrl in self._ctrls:
+                                        ctrl._debounce_until = deadline
+                                else:
+                                    pending = None
+                                    deadline = None
                         elif has_source:
                             self._src_state = "IDLE"
-                            self._src_timeout = now + MEDIA_TIMEOUT
-                            self._not_playing_t = now
+                            self._src_timeout = now + NO_MEDIA_TIMEOUT
                             pending = None
                             deadline = None
                             idle_texts = self._media_fields(data)
@@ -1065,15 +1017,13 @@ class DISController:
                                 ctrl.unfreeze_scroll()
                         else:
                             self._src_state = "NONE"
-                            self._src_timeout = 0.0
-                            self._not_playing_t = now
                             pending = None
                             deadline = None
                             for ctrl in self._ctrls:
                                 ctrl._debounce_until = 0.0
                                 ctrl.unfreeze_scroll()
                             self._resolve_dirty.set()
-                            self._no_media_grace = now + NO_MEDIA_DEBOUNCE
+                            self._no_media_grace = now + NO_MEDIA_TIMEOUT
 
                     elif topic == b"HUDIY_PHONE":
                         state = data.get("state", "IDLE")
@@ -1095,12 +1045,7 @@ class DISController:
                             self._resolve()
 
                     elif topic == b"HUDIY_NAV_STATUS":
-                        was_active = self._nav_active
                         self._nav_active = data.get("active", False)
-                        if self._nav_active and not was_active:
-                            # Nav just became active — refresh from cache if texts incomplete
-                            if not all(self._nav_texts):
-                                self._load_nav_state()
                         self._resolve()
 
                     elif topic == b"HUDIY_NAV":
