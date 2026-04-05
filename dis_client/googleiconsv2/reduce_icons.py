@@ -18,7 +18,7 @@ Outputs:
   googleiconsv2/reduced/         -- RGB PNGs at 32x38
 """
 
-import os, re, math, struct, tempfile, subprocess
+import os, re, math, struct, tempfile, subprocess, argparse
 import xml.etree.ElementTree as ET
 from PIL import Image, ImageDraw
 import aggdraw
@@ -29,7 +29,7 @@ import aggdraw
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 INPUT_DIR  = os.path.join(SCRIPT_DIR, 'pngs')
-OUTPUT_DIR = os.path.join(SCRIPT_DIR, 'reduced')
+OUTPUT_DIR = os.path.join(SCRIPT_DIR, 'reduced') # Default fallback
 POTRACE    = os.path.join(SCRIPT_DIR, 'potrace', 'potrace.exe')
 SVG_DIR    = os.path.join(SCRIPT_DIR, 'svgs')
 
@@ -356,6 +356,19 @@ def process_icon(path, tmp_dir):
 # ---------------------------------------------------------------------------
 
 def main():
+    global TARGET_W, TARGET_H, OUTPUT_DIR
+
+    parser = argparse.ArgumentParser(description='Reduce icons to target resolution.')
+    parser.add_argument('-highres', action='store_true', help='Output 64x76 icons instead of 32x38.')
+    args = parser.parse_args()
+
+    if args.highres:
+        TARGET_W, TARGET_H = 64, 76
+        OUTPUT_DIR = os.path.join(SCRIPT_DIR, 'reduced_highres')
+        print(f"High-res mode: targeting {TARGET_W}x{TARGET_H} -> {OUTPUT_DIR}")
+    else:
+        print(f"Standard mode: targeting {TARGET_W}x{TARGET_H} -> {OUTPUT_DIR}")
+
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     files = sorted(f for f in os.listdir(INPUT_DIR) if f.lower().endswith('.png'))
     if not files:

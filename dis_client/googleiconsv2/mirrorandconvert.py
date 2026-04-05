@@ -12,7 +12,7 @@ Reads RGB PNGs from `reduced/` produced by `reduce_icons.py`.
 4. Generates a clean 8x preview grid `preview_all.png` showing all icons.
 """
 
-import os, math
+import os, math, argparse
 from PIL import Image, ImageDraw
 
 # ---------------------------------------------------------------------------
@@ -170,6 +170,22 @@ def build_preview_clean(icons):
 # ---------------------------------------------------------------------------
 
 def main():
+    global TARGET_W, TARGET_H, PACK_W, PACK_H, INPUT_DIR, OUTPUT_PY, PREVIEW
+
+    parser = argparse.ArgumentParser(description='Mirror and convert icons to byte arrays.')
+    parser.add_argument('-highres', action='store_true', help='Process 64x76 icons instead of 32x38.')
+    args = parser.parse_args()
+
+    if args.highres:
+        TARGET_W, TARGET_H = 64, 76
+        PACK_W, PACK_H = 64, 76
+        INPUT_DIR = os.path.join(SCRIPT_DIR, 'reduced_highres')
+        OUTPUT_PY = os.path.join(SCRIPT_DIR, 'newnewicons_highres.py')
+        PREVIEW   = os.path.join(SCRIPT_DIR, 'preview_all_highres.png')
+        print(f"High-res mode: processing {TARGET_W}x{TARGET_H} from {INPUT_DIR}")
+    else:
+        print(f"Standard mode: processing {TARGET_W}x{TARGET_H} from {INPUT_DIR}")
+
     if not os.path.exists(INPUT_DIR):
         print(f"Input directory not found: {INPUT_DIR}")
         return
