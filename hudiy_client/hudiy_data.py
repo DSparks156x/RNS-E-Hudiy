@@ -98,23 +98,21 @@ class HudiyEventHandler(ClientEventHandler):
 
     def on_hello_response(self, client, message):
         logger.info(f"Client '{client._name}' Connected - API v{message.api_version.major}.{message.api_version.minor}")
+        if client._name == "DATA":
+            self._resubscribe(client)
+
+    def _resubscribe(self, client):
+        """Re-send full subscription set. Acts as a state-refresh request since the
+        server re-pushes current state for all subscribed topics on receipt."""
         subs = hudiy_api.SetStatusSubscriptions()
-        
-        if client._name == "MEDIA":
-            subs.subscriptions.extend([
-                hudiy_api.SetStatusSubscriptions.Subscription.MEDIA,
-                hudiy_api.SetStatusSubscriptions.Subscription.PROJECTION
-            ])
-            client.send(hudiy_api.MESSAGE_SET_STATUS_SUBSCRIPTIONS, 0, subs.SerializeToString())
-            logger.info(f"Client '{client._name}': Subscribed to MEDIA + PROJECTION")
-            
-        elif client._name == "NAV_PHONE":
-            subs.subscriptions.extend([
-                hudiy_api.SetStatusSubscriptions.Subscription.NAVIGATION,
-                hudiy_api.SetStatusSubscriptions.Subscription.PHONE
-            ])
-            client.send(hudiy_api.MESSAGE_SET_STATUS_SUBSCRIPTIONS, 0, subs.SerializeToString())
-            logger.info(f"Client '{client._name}': Subscribed to NAV and PHONE")
+        subs.subscriptions.extend([
+            hudiy_api.SetStatusSubscriptions.Subscription.PROJECTION,
+            hudiy_api.SetStatusSubscriptions.Subscription.MEDIA,
+            hudiy_api.SetStatusSubscriptions.Subscription.NAVIGATION,
+            hudiy_api.SetStatusSubscriptions.Subscription.PHONE,
+        ])
+        client.send(hudiy_api.MESSAGE_SET_STATUS_SUBSCRIPTIONS, 0, subs.SerializeToString())
+        logger.info(f"Client '{client._name}': Subscribed to PROJECTION + MEDIA + NAVIGATION + PHONE")
     
     # --- Media Callbacks ---
     
@@ -210,12 +208,17 @@ class HudiyEventHandler(ClientEventHandler):
 
     # --- Projection Callback ---
     def on_projection_status(self, client, message):
+        was_active = self.current_media_data.get('projection_active', False)
         active = bool(getattr(message, 'active', False))
         logger.info(f"PROJECTION STATUS: {'Active' if active else 'Inactive'}")
         self.current_media_data['projection_active'] = active
         if not active and self.current_media_data.get('source_id', 0) == 0:
             self.current_media_data['media_state'] = "NONE"
         self.publish_and_write_media(self.current_media_data)
+        # Rising edge: force re-subscription so server re-pushes current media/nav/phone state
+        if active and not was_active:
+            logger.info("Projection became active — forcing re-subscription for state refresh")
+            self._resubscribe(client)
 
     def publish_and_write_media(self, data: dict):
         try:
@@ -679,8 +682,7 @@ class HudiyData:
         self.safe_pub = SafePublisher(zmq_addr)
         
         self.handler = HudiyEventHandler(self.safe_pub)
-        self.media_client = None
-        self.nav_client = None
+        self.data_client = None
         
         # TP2 Bridge
         self.tp2_zmq_addr = 'tcp://localhost:5558'
@@ -698,42 +700,29 @@ class HudiyData:
 
         self.running = True
         
-    def connect_media(self):
-        """Thread: Media WebSocket"""
+    def connect_data(self):
+        """Thread: Single connection for all data subscriptions (PROJECTION + MEDIA + NAV + PHONE).
+        Re-subscribes on every (re)connect so the server re-pushes current state, eliminating
+        the stale-state problem that previously required user interaction to trigger a re-push."""
         while self.running:
             try:
-                self.media_client = Client("MEDIA")
-                self.media_client.set_event_handler(self.handler)
-                self.media_client.connect('127.0.0.1', 44406, use_websocket=True)
-                logger.info("MEDIA Thread ACTIVE")
-                while self.media_client._connected and self.running:
-                    if not self.media_client.wait_for_message():
-                        break 
+                self.data_client = Client("DATA")
+                self.data_client.set_event_handler(self.handler)
+                self.data_client.connect('127.0.0.1', 44405)
+                logger.info("DATA Thread ACTIVE — subscriptions requested")
+                while self.data_client._connected and self.running:
+                    if not self.data_client.wait_for_message():
+                        logger.warning("DATA Thread: server sent BYEBYE")
+                        break
+            except ConnectionError as e:
+                logger.warning(f"DATA Thread connection lost: {e}")
             except Exception as e:
-                logger.error(f"MEDIA Thread: {e}")
-            
-            if self.media_client: self.media_client.disconnect()
+                logger.error(f"DATA Thread unexpected error: {e}", exc_info=True)
+
+            if self.data_client:
+                self.data_client.disconnect()
             if self.running:
-                logger.info("MEDIA Reconnecting in 5s...")
-                time.sleep(5)
-    
-    def connect_nav(self):
-        """Thread: Nav+Phone TCP"""
-        while self.running:
-            try:
-                self.nav_client = Client("NAV_PHONE")
-                self.nav_client.set_event_handler(self.handler)
-                self.nav_client.connect('127.0.0.1', 44405) 
-                logger.info("NAV_THREAD ACTIVE")
-                while self.nav_client._connected and self.running:
-                    if not self.nav_client.wait_for_message():
-                        break 
-            except Exception as e:
-                logger.error(f"NAV Thread: {e}")
-                
-            if self.nav_client: self.nav_client.disconnect()
-            if self.running:
-                logger.info("NAV Reconnecting in 5s...")
+                logger.info("DATA Thread reconnecting in 5s...")
                 time.sleep(5)
 
     def connect_tp2(self):
@@ -784,30 +773,26 @@ class HudiyData:
 
     def run(self):
         logger.info("THREADING Hudiy Data ACTIVE!")
-        media_thread = threading.Thread(target=self.connect_media, daemon=True)
-        nav_thread = threading.Thread(target=self.connect_nav, daemon=True)
-        tp2_thread = threading.Thread(target=self.connect_tp2, daemon=True)
-        tp2_status_thread = threading.Thread(target=self.tp2_status_subscriber, daemon=True)
-        
-        media_thread.start()
-        nav_thread.start()
+        data_thread    = threading.Thread(target=self.connect_data,         daemon=True, name="DATA")
+        tp2_thread     = threading.Thread(target=self.connect_tp2,          daemon=True, name="TP2_BRIDGE")
+        tp2_status_thread = threading.Thread(target=self.tp2_status_subscriber, daemon=True, name="TP2_STATUS")
+
+        data_thread.start()
         tp2_thread.start()
         tp2_status_thread.start()
-        
+
         try:
             while self.running:
                 time.sleep(1)
         except KeyboardInterrupt:
             logger.info("Stopped by user (KeyboardInterrupt)")
             self.running = False
-            
-        if self.media_client: self.media_client.disconnect()
-        if self.nav_client: self.nav_client.disconnect()
-        if self.tp2_client: self.tp2_client.disconnect()
+
+        if self.data_client: self.data_client.disconnect()
+        if self.tp2_client:  self.tp2_client.disconnect()
         self.tp2_handler.stop()
-        
-        media_thread.join(timeout=2.0)
-        nav_thread.join(timeout=2.0)
+
+        data_thread.join(timeout=2.0)
         tp2_thread.join(timeout=2.0)
         
         self.safe_pub.stop()
