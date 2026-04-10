@@ -39,7 +39,21 @@
         "approach_bar_max_distance": 300
       },
       "coverart": {
-        "brief": true
+        "brief": true,
+        "args": {
+          "contrast": 1.9,
+          "sharpen": 1.5,
+          "dither": "fs",
+          "invert": false,
+          "no_enhance": false,
+          "bg_fill": "black",
+          "grayscale_mode": "smart",
+          "brightness": 1,
+          "gamma": 2.2,
+          "black_floor": 45,
+          "boldness": 0,
+          "diffusion": 0.85
+        }
       },
       "acceleration_test": {
         "auto_reset_on_stop": true,

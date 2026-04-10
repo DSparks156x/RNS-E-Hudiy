@@ -114,14 +114,27 @@ async def process_image(req: ProcessRequest):
             
             config_str = f"dis_image.process_image(img, {', '.join(params)})" if params else "dis_image.process_image(img)"
             
-            # JSON format
+            # JSON format - provide the full set of arguments for easy copying
             config_json = {k: v for k, v in req.dict().items() if k != 'filename'}
+
+            # Generate the full config.json snippet
+            config_snippet = {
+                "display": {
+                    "center_display": {
+                        "coverart": {
+                            "brief": True,
+                            "args": config_json
+                        }
+                    }
+                }
+            }
 
             return {
                 "processed": f"data:image/png;base64,{img_str}",
                 "original": f"data:image/png;base64,{orig_str}",
                 "config_string": config_str,
-                "config_json": config_json
+                "config_json": config_json,
+                "config_snippet": config_snippet
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

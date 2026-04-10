@@ -75,9 +75,10 @@ MEDIA_SOURCE_MAP = {
 }
 
 class HudiyEventHandler(ClientEventHandler):
-    def __init__(self, safe_publisher):
+    def __init__(self, safe_publisher, coverart_args=None):
         super().__init__() 
         self.safe_pub = safe_publisher
+        self.coverart_args = coverart_args if isinstance(coverart_args, dict) else {}
         self.last_sync_time = 0
         self.periodic_sync_interval = 300
         
@@ -164,7 +165,7 @@ class HudiyEventHandler(ClientEventHandler):
                 self.last_coverart_hash = current_hash
                 try:
                     img = Image.open(io.BytesIO(cover_art_bytes))
-                    processed = dis_image.process_image(img, bg_fill='black')
+                    processed = dis_image.process_image(img, **self.coverart_args)
                     bitmap = dis_image.image_to_bitmap(processed)
                     
                     cover_data = {
@@ -687,7 +688,14 @@ class HudiyData:
         
         self.safe_pub = SafePublisher(zmq_addr)
         
-        self.handler = HudiyEventHandler(self.safe_pub)
+        # Extract cover art processing args from config
+        coverart_args = None
+        if config:
+            coverart_args = config.get('display', {}).get('center_display', {}).get('coverart', {}).get('args')
+            if coverart_args:
+                logger.info(f"Loaded cover art processing overrides: {coverart_args}")
+
+        self.handler = HudiyEventHandler(self.safe_pub, coverart_args=coverart_args)
         self.data_client = None
         
         # TP2 Bridge

@@ -111,7 +111,7 @@ const ImageCard = ({ filename, params }) => {
 function App() {
   const [images, setImages] = useState([]);
   const [params, setParams] = useState(INITIAL_PARAMS);
-  const [configStrings, setConfigStrings] = useState({ string: '', json: '' });
+  const [configStrings, setConfigStrings] = useState({ string: '', json: '', snippet: '' });
   
   const debouncedParams = useDebounce(params, 150);
 
@@ -132,7 +132,15 @@ function App() {
       })
         .then(r => r.json())
         .then(res => {
-          setConfigStrings({ string: res.config_string, json: JSON.stringify(res.config_json, null, 2) });
+          const rawJson = res.config_json;
+          // Ensure we don't double-stringify if the server returned a string
+          const processedJson = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+
+          setConfigStrings({ 
+            string: res.config_string, 
+            json: JSON.stringify(processedJson, null, 2),
+            snippet: JSON.stringify(res.config_snippet, null, 2)
+          });
         });
     }
   }, [debouncedParams, images]);
@@ -215,12 +223,14 @@ function App() {
         <section className="config-box glass">
           <div className="config-header">
             <h3>Configuration Output</h3>
-            <button className="copy-btn" onClick={() => navigator.clipboard.writeText(configStrings.string)}>Copy Python Call</button>
+            <div className="button-group">
+              <button className="copy-btn secondary" onClick={() => navigator.clipboard.writeText(configStrings.string)}>Copy Python Call</button>
+              <button className="copy-btn" onClick={() => navigator.clipboard.writeText(configStrings.json)}>Copy for Config Editor</button>
+            </div>
           </div>
-          <pre className="code-block"><code>{configStrings.string}</code></pre>
-          <details>
-            <summary>View JSON Config</summary>
-            <pre className="code-block"><code>{configStrings.json}</code></pre>
+          <details open>
+            <summary>View JSON Arguments</summary>
+            <pre className="code-block"><code>{configStrings.json || 'Loading...'}</code></pre>
           </details>
         </section>
 

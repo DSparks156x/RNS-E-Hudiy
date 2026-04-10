@@ -581,6 +581,7 @@
             "display.center_display.navigation.approach_bar_max_distance": { help: "Distance visual fill starts (meters).", type: "number" },
             "display.center_display.coverart": { label: "Album Cover Art" },
             "display.center_display.coverart.brief": { help: "Show briefly on track start (5s).", type: "boolean" },
+            "display.center_display.coverart.args": { label: "Processing Args", type: "json", help: "JSON object for dis_image.process_image overrides." },
             "display.center_display.acceleration_test": { label: "Acceleration Test" },
             "display.center_display.acceleration_test.auto_reset_on_stop": { label: "Auto Reset on Stop", help: "Resets acceleration timers when stopped for configured delay.", type: "boolean" },
             "display.center_display.acceleration_test.auto_reset_delay": { label: "Auto Reset Delay", help: "Delay in seconds before auto reset when stopped.", type: "number" },
@@ -1210,6 +1211,20 @@
                 group.appendChild(listWrapper);
                 container.appendChild(group);
                 return; // List handled
+            } else if (meta.type === 'json') {
+                input = document.createElement('textarea');
+                input.className = 'json-raw';
+                input.style.height = '150px';
+                input.value = JSON.stringify(value || {}, null, 2);
+                input.onchange = (e) => {
+                    try {
+                        const v = JSON.parse(e.target.value);
+                        setValueByPath(path, v);
+                        showToast(`Updated ${labelText}`);
+                    } catch (err) {
+                        alert("Invalid JSON: " + err.message);
+                    }
+                };
             } else {
                 input = document.createElement('input');
                 input.type = 'text';
