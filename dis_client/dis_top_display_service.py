@@ -311,11 +311,12 @@ class LineController:
     def __init__(self, can_id, zmq_ctx, can_send_addr, name,
                  speed_seconds, start_delay, end_delay, stagger,
                  continuous, continuous_gap,
-                 no_scroll, line_num=0, watcher=None, mock=False):
+                 no_scroll, dis_ctrl, line_num=0, watcher=None, mock=False):
         self.can_id = can_id
         self._zmq_ctx = zmq_ctx
         self._can_send_addr = can_send_addr
         self.name = name
+        self.ctrl = dis_ctrl
         self._watcher = watcher
         self.no_scroll = no_scroll
         self.mock = mock
@@ -567,6 +568,7 @@ class DISController:
         self._setup_can(cfg)
         self._setup_lines(cfg)
         self._setup_zmq(cfg)
+        self._setup_state(cfg)
         self.running = True
         self._shutdown_event = threading.Event()
         self._setup_signals()
@@ -681,6 +683,7 @@ class DISController:
                 continuous=continuous,
                 continuous_gap=continuous_gap,
                 no_scroll=no_scroll,
+                dis_ctrl=self,
                 line_num=line_num,
                 watcher=self._watcher,
                 mock=self.mock,
