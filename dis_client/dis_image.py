@@ -216,32 +216,47 @@ def edge_sharpen(gray_img, strength=1.5):
     return sharpened
 
 
-def morphological_bold(gray_img, iterations=1, blend=0.6):
+def morphological_bold(gray_img, boldness=0):
     """
     Morphological boldness — dilates bright regions while preserving structure.
     
-    Uses a small cross-shaped kernel and blends the dilated result back
-    with the original at `blend` ratio (0.0=no effect, 1.0=full dilation).
-    Since we operate at 2× intermediate, even a single iteration has
-    noticeable effect, so blending keeps it from being "too much".
+    Supports fractional boldness:
+    - 0.5 = 1st dilation pass at 50% blend.
+    - 1.0 = 1st dilation pass at 100% blend.
+    - 1.2 = 1st pass full, 2nd pass at 20% blend.
     """
+    if boldness <= 0:
+        return gray_img
+        
+    import math
+    iterations = int(math.ceil(boldness))
+    # blend reflects the fractional part of the current iteration tier
+    # e.g. 1.2 boldness -> iteration 2, blend = 0.2
+    blend = boldness % 1.0
+    if blend == 0 and boldness > 0:
+        blend = 1.0
+
     if not HAS_CV2:
-        # Fallback: the old MaxFilter approach, blended
-        dilated = gray_img.filter(ImageFilter.MaxFilter(size=3))
-        return Image.blend(gray_img, dilated, blend)
+        # Fallback: simple MaxFilter approach
+        dilated = gray_img
+        for i in range(iterations):
+            prev = dilated
+            dilated = dilated.filter(ImageFilter.MaxFilter(size=3))
+            if i == iterations - 1: # Last iteration, apply blend
+                dilated = Image.blend(prev, dilated, blend)
+        return dilated
     
     arr = np.array(gray_img, dtype=np.uint8)
-    
-    # Cross-shaped kernel: gentler than square, avoids diagonal bloat
     kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
     
-    dilated = arr.copy()
-    for _ in range(iterations):
-        dilated = cv2.dilate(dilated, kernel, iterations=1)
+    curr = arr.copy()
+    for i in range(iterations):
+        prev = curr.copy()
+        curr = cv2.dilate(curr, kernel, iterations=1)
+        if i == iterations - 1: # Last iteration, apply blend
+            curr = cv2.addWeighted(prev, 1.0 - blend, curr, blend, 0)
     
-    # Blend: soften the dilation so it's not full-strength
-    result = cv2.addWeighted(arr, 1.0 - blend, dilated, blend, 0)
-    return Image.fromarray(result)
+    return Image.fromarray(curr)
 
 
 def atkinson_dither(gray_img, diffusion=0.85):
@@ -315,7 +330,7 @@ def process_image(
     brightness=1.0,
     gamma=2.2,
     black_floor=45,
-    boldness=0,
+    boldness=0.0,
     diffusion=0.85
 ) -> Image.Image:
     """
@@ -342,7 +357,7 @@ def process_image(
         brightness:     Brightness multiplier. Default 1.0.
         gamma:          Gamma correction exponent. Default 2.2.
         black_floor:    Integer 0-255. Default 45. Pixels below this → black.
-        boldness:       0 = off, 1+ = morphological dilation iterations.
+        boldness:       0.0 = off, float = morphological dilation "thickness".
         diffusion:      Error diffusion for Atkinson dither (0.75-1.0). Default 0.85.
     """
     frame = img.copy().convert("RGB")
@@ -422,7 +437,7 @@ def process_image(
     
     # --- Morphological boldness ---
     if boldness > 0:
-        gray = morphological_bold(gray, iterations=boldness)
+        gray = morphological_bold(gray, boldness=boldness)
     
     # --- Black floor (clamp near-black to black) ---
     if black_floor and int(black_floor) > 0:
