@@ -17,6 +17,7 @@ from PIL import Image
 from queue import Queue, Empty
 import zmq
 import hashlib
+import io
 
 # --- Add hudiy_client to Python path ---
 try:
@@ -157,9 +158,9 @@ class HudiyEventHandler(ClientEventHandler):
             current_hash = hashlib.md5(cover_art_bytes).hexdigest()
             
             # Send if:
-            # 1. It's a brand new track (always send to ensure trigger handles it)
-            # 2. Or the image hash actually changed (new cover art arrived for same track)
-            if is_new_track or current_hash != self.last_coverart_hash:
+            # 1. It's the first cover art we've seen for this track/metadata block.
+            # (last_coverart_hash is reset to None whenever is_new_track is True)
+            if self.last_coverart_hash is None:
                 self.last_coverart_hash = current_hash
                 try:
                     img = Image.open(io.BytesIO(cover_art_bytes))
