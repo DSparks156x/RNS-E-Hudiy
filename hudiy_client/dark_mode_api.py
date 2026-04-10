@@ -14,12 +14,13 @@ It reads /home/pi/config.json to check if the feature is enabled.
 
 import socket
 import struct
-import sys
-import os
-import time
 import zmq
 import json
 import logging
+import signal
+import sys
+import os
+import time
 
 # --- Setup Logging ---
 LOG_FILE = '/var/log/rnse_control/dark_mode_service.log'
@@ -150,6 +151,21 @@ def load_config(config_path='/home/pi/config.json'):
         logger.critical(f"FATAL: Could not load or parse config.json: {e}")
         return None
 
+# --- Signal Handling ---
+RUNNING = True
+
+def setup_signal_handlers():
+    """Sets up handlers for graceful shutdown."""
+    signal.signal(signal.SIGINT, shutdown_handler)
+    signal.signal(signal.SIGTERM, shutdown_handler)
+
+def shutdown_handler(signum, frame):
+    """Flags the application to exit the main loop."""
+    global RUNNING
+    if RUNNING:
+        logger.info(f"Shutdown signal {signum} received. Cleaning up...")
+        RUNNING = False
+
 # --- Main Service Loop ---
 def main():
     """Main service loop."""
@@ -162,6 +178,8 @@ def main():
     if not config.get('day_night_mode'):
         logger.info("Day/Night mode feature is disabled in config.json. Exiting.")
         sys.exit(0)
+    
+    setup_signal_handlers()
     
     # --- 1. Handle Initial Mode ---
     initial_mode_str = config.get('initial_mode', 'night').lower()
@@ -197,7 +215,7 @@ def main():
     logger.info(f"Subscribed to ZMQ topic: {can_topic}")
     logger.info("Day/Night service started. Waiting for CAN messages...")
 
-    while True:
+    while RUNNING:
         try:
             [topic, payload] = socket.recv_multipart()
             msg_data = json.loads(payload.decode('utf-8'))

@@ -7,12 +7,12 @@ Hudiy Data Extractor (V3.0)
 """
 
 import json
-import time
+import threading
 import logging
+import signal
 import sys
 import os
-import threading
-import io
+import time
 from PIL import Image
 from queue import Queue, Empty
 import zmq
@@ -77,6 +77,12 @@ class HudiyEventHandler(ClientEventHandler):
     def __init__(self, safe_publisher):
         super().__init__() 
         self.safe_pub = safe_publisher
+        self.last_sync_time = 0
+        self.periodic_sync_interval = 300
+        
+        self.running = True
+        self._setup_signals()
+
         self.last_media = None
         self.last_coverart_hash = None
         
@@ -784,9 +790,14 @@ class HudiyData:
         try:
             while self.running:
                 time.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("Stopped by user (KeyboardInterrupt)")
+        except Exception as e:
+            logger.exception(f"Fatal error in main loop: {e}")
+        finally:
+            logger.info("Main loop finished. Cleaning up...")
             self.running = False
+            self.safe_pub.stop()
+            self._close_connection()
+            logger.info("HudiyDataService stopped.")
 
         if self.data_client: self.data_client.disconnect()
         if self.tp2_client:  self.tp2_client.disconnect()

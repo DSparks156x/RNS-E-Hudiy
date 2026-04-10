@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import zmq, json, time, logging, sys, os
+import zmq, json, time, logging, sys, os, signal
 from typing import Set, List, Dict, Union
 
 # Import Apps
@@ -55,6 +55,8 @@ class DisplayEngine:
         self.coverart_brief = coverart_cfg.get('brief', True)
         
         self.current_page_idx = 0
+        self.running = True
+        self._setup_signals()
 
         self.zmq_ctx = zmq.Context()
         self.sub = self.zmq_ctx.socket(zmq.SUB)
@@ -234,6 +236,15 @@ class DisplayEngine:
 
         # --- Input Rate Limiting ---
         self.press_history = [] # Timestamps of recent app switches
+
+    def _setup_signals(self):
+        """Register signal handlers for graceful shutdown."""
+        signal.signal(signal.SIGINT, self._shutdown)
+        signal.signal(signal.SIGTERM, self._shutdown)
+
+    def _shutdown(self, signum, frame):
+        logger.info(f"Shutdown signal {signum} received. Stopping DisplayApplication...")
+        self.running = False
 
     def load_settings(self):
         default = {'startup_app': 'app_media', 'remember_last': False, 'last_app': 'app_media'}
@@ -460,8 +471,11 @@ class DisplayEngine:
         self.force_redraw(send_clear=True)
         self.last_loop = time.time()
         
-        while True:
+        logger.info("Main loop started.")
+        while self.running:
             try:
+                # 1. Wait for messages
+                # (Logic previously handled inside while True)
                 now = time.time()
                 self.last_loop = now
 
@@ -940,7 +954,7 @@ class DisplayEngine:
                 
                 # If the string shrank or we need a full clear
                 if len(txt) < target_len:
-                    blanks_needed = target_len - len(txt)
+                    blanks_needed = target_len - target_len
                     blank_char = chr(0x1F)
                     
                     # Pad Right: Only use simple padding for left-aligned text
@@ -976,11 +990,13 @@ class DisplayEngine:
             self._send_draw({'command':'commit'})
 
 if __name__ == "__main__":
-    import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mock', action='store_true', help='Connect to DIS Emulator (TCP 5557)')
+    parser.add_argument('--mock', action='store_true', help='Connect to Emulator ports')
     args = parser.parse_args()
     
     config_path = '../config.json' if os.path.exists('../config.json') else '/home/pi/config.json'
-    DisplayEngine(config_path=config_path, mock=args.mock).run()
-
+    try:
+        DisplayEngine(config_path=config_path, mock=args.mock).run()
+    except Exception as e:
+        logger.exception(f"Fatal error: {e}")
+        sys.exit(1)

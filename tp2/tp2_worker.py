@@ -6,6 +6,8 @@ import zmq
 import logging
 import sys
 import threading
+import signal
+import os
 from tp2_protocol import TP2Protocol, TP2Error
 from tp2_coding import TP2Coding
 
@@ -16,8 +18,6 @@ logger = logging.getLogger(__name__)
 # Configuration
 ZMQ_PUB_ADDR = 'tcp://*:5557' # Data Publish
 ZMQ_REP_ADDR = 'tcp://*:5558' # Command Request/Reply
-
-import os
 
 class TP2Service:
     def __init__(self, config_file='config.json'):
@@ -68,7 +68,8 @@ class TP2Service:
         # Connection Management
         self.sessions = {}
         self._tester_id_pool = list(range(0x300, 0x30A))  # 0x300-0x309
-        self.running = True # Default to ON, will update if Ignition says OFF
+        self.running = True
+        self._setup_signals()
         
         # Threading
         self.lock = threading.Lock()
@@ -76,6 +77,16 @@ class TP2Service:
         
         # State Tracking
         self.last_ignition_state = None 
+
+    def _setup_signals(self):
+        """Register signal handlers for graceful shutdown."""
+        signal.signal(signal.SIGINT, self._shutdown)
+        signal.signal(signal.SIGTERM, self._shutdown)
+
+    def _shutdown(self, signum, frame):
+        logger.info(f"Shutdown signal {signum} received. Stopping TP2Service...")
+        self.running = False
+        self.shutdown_event.set()
 
     def _publish_status(self):
         try:
@@ -185,7 +196,7 @@ class TP2Service:
         if not self.ignition_sub: return
         
         try:
-            while True:
+            while self.running:
                 parts = self.ignition_sub.recv_multipart(flags=zmq.NOBLOCK)
                 if len(parts) == 2 and parts[0] == b'POWER_STATUS':
                     pwr = json.loads(parts[1])

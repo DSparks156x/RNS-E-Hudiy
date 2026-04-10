@@ -469,6 +469,8 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 ${REAL_HOME}/rns-e_can/can_handler.py
 Restart=always
 RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=5
 
 [Install]
 WantedBy=multi-user.target"
@@ -487,6 +489,8 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 ${REAL_HOME}/tp2/tp2_worker.py
 Restart=always
 RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=5
 
 [Install]
 WantedBy=multi-user.target"
@@ -504,6 +508,8 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 ${REAL_HOME}/hudiy_dataview/app.py
 Restart=always
 RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=5
 
 [Install]
 WantedBy=multi-user.target"
@@ -521,6 +527,8 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 ${REAL_HOME}/hudiy_dataview/can_service.py
 Restart=always
 RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=5
 
 [Install]
 WantedBy=multi-user.target"
@@ -540,6 +548,8 @@ Group=${REAL_USER}
 Environment=PYTHONUNBUFFERED=1
 Restart=always
 RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=5
 
 [Install]
 WantedBy=multi-user.target"
@@ -556,6 +566,8 @@ WorkingDirectory=${REAL_HOME}/rns-e_can
 Environment=PYTHONUNBUFFERED=1
 Restart=always
 RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=5
 User=${REAL_USER}
 Group=input
 
@@ -576,6 +588,8 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 ${REAL_HOME}/hudiy_client/dark_mode_api.py
 Restart=always
 RestartSec=5s
+KillSignal=SIGTERM
+TimeoutStopSec=5
 
 [Install]
 WantedBy=multi-user.target"
@@ -594,6 +608,8 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 ${REAL_HOME}/hudiy_client/hudiy_data.py
 Restart=always
 RestartSec=5s
+KillSignal=SIGTERM
+TimeoutStopSec=5
 
 [Install]
 WantedBy=multi-user.target"
@@ -612,6 +628,8 @@ WorkingDirectory=${REAL_HOME}/dis_client
 Environment=PYTHONUNBUFFERED=1
 Restart=always
 RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=5
 User=${REAL_USER}
 Group=input
 
@@ -632,6 +650,8 @@ WorkingDirectory=${REAL_HOME}/dis_client
 Environment=PYTHONUNBUFFERED=1
 Restart=always
 RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=5
 User=${REAL_USER}
 Group=input
 
@@ -651,6 +671,8 @@ WorkingDirectory=${REAL_HOME}/dis_client
 Environment=PYTHONUNBUFFERED=1
 Restart=always
 RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=5
 User=${REAL_USER}
 Group=input
 

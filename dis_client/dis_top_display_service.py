@@ -258,13 +258,14 @@ class TextScroller:
         with self.lock:
             return self.current_bytes
 
-    def tick(self):
-        now = time.monotonic()
+    def tick(self) -> Optional[bytes]:
         with self.lock:
             if self._frozen:
                 return None
             if self.raw_len <= self.width:
                 return None
+            
+            now = time.monotonic()
             if (now - self.last_tick) <= self.scroll_speed:
                 return None
             if now < self.wait_timer:
@@ -397,7 +398,7 @@ class LineController:
         _stat_last_write = 0.0
         _stat_report = time.monotonic() + 30.0
 
-        while True:
+        while self.ctrl.running:
             now = time.monotonic()
             tv = self._watcher is not None and self._watcher.tv_active
 
@@ -480,9 +481,9 @@ class CANWatcher:
         poller = zmq.Poller()
         poller.register(self._sub, zmq.POLLIN)
 
-        while True:
+        while self._dis.running:
             try:
-                if not poller.poll(500):
+                if not poller.poll(100):
                     continue
 
                 try:
@@ -565,9 +566,18 @@ class DISController:
         self._setup_can(cfg)
         self._setup_lines(cfg)
         self._setup_zmq(cfg)
-        self._setup_state(cfg)
+        self.running = True
+        self._shutdown_event = threading.Event()
+        self._setup_signals()
+
+    def _setup_signals(self):
         signal.signal(signal.SIGINT, self._shutdown)
         signal.signal(signal.SIGTERM, self._shutdown)
+
+    def _shutdown(self, *_):
+        logger.info("Shutdown signal received. Stopping DISController...")
+        self.running = False
+        self._shutdown_event.set()
 
     def _load_config(self) -> dict:
         config_path = CONFIG_PATH
@@ -946,8 +956,6 @@ class DISController:
         self._load_nav_state()
         pending = None
         deadline = None
-        err_count = 0
-
         _stat_msgs = 0
         _stat_resolves = 0
         _stat_report = time.monotonic() + 30.0
@@ -1181,9 +1189,9 @@ class DISController:
             threading.Thread(target=c.run, daemon=True, name=f"tx-{c.name}").start()
 
         try:
-            while self.running:
-                time.sleep(0.5)
+            self._shutdown_event.wait()
         except KeyboardInterrupt:
+            self._shutdown_event.set()
             self.running = False
 
         self._set_lines(*self._no_media)

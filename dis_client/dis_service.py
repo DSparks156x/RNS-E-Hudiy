@@ -8,6 +8,10 @@ import zmq
 import json
 import time
 import logging
+import signal
+import sys
+import os
+import threading
 from typing import List, Optional
 
 try:
@@ -33,6 +37,22 @@ class DisService:
         # but some clusters may need pacing=False (unbatched) to prevent tearing.
         self.UNSAFE_BATCHING_BYPASS = False
 
+        self.config = {}
+        self.load_config(config_path)
+        
+        self.running = True
+        self._setup_signals()
+
+    def _setup_signals(self):
+        """Register signal handlers for graceful shutdown."""
+        signal.signal(signal.SIGINT, self._shutdown)
+        signal.signal(signal.SIGTERM, self._shutdown)
+
+    def _shutdown(self, signum, frame):
+        logger.info(f"Shutdown signal {signum} received. Stopping DisService...")
+        self.running = False
+
+    def load_config(self, config_path):
         try:
             with open(config_path) as f:
                 self.config = json.load(f)
@@ -404,8 +424,11 @@ class DisService:
         
         logger.info("DIS Service Started. Entering ignition-aware loop.")
         
-        while True:
+        logger.info("Starting DisService main loop.")
+        while self.running:
             try:
+                # 0. Check for Ignition Status
+                # (Logic previously handled inside while True)
                 # --- CHECK IGNITION STATUS ---
                 socks = dict(self.poller.poll(10)) # Short poll (10ms)
                 if self.ignition_sub in socks:
@@ -730,7 +753,9 @@ class DisService:
                 time.sleep(3)
 
 if __name__ == "__main__":
+    service = DisService(config_path='/home/pi/config.json')
     try:
-        DisService(config_path='/home/pi/config.json').run()
-    except KeyboardInterrupt:
-        logger.info("Shutting down service.")
+        service.run()
+    except Exception as e:
+        logger.exception(f"Fatal error: {e}")
+        sys.exit(1)
