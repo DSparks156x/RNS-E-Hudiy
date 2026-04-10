@@ -81,7 +81,6 @@ class HudiyEventHandler(ClientEventHandler):
         self.periodic_sync_interval = 300
         
         self.running = True
-        self._setup_signals()
 
         self.last_media = None
         self.last_coverart_hash = None
@@ -705,6 +704,30 @@ class HudiyData:
             self.tp2_status_addr = _zmq.get('tp2_stream', self.tp2_status_addr)
 
         self.running = True
+        self._setup_signals()
+        
+    def _setup_signals(self):
+        """Register signal handlers for graceful shutdown."""
+        signal.signal(signal.SIGINT, self._shutdown)
+        signal.signal(signal.SIGTERM, self._shutdown)
+
+    def _shutdown(self, signum, frame):
+        logger.info(f"Shutdown signal {signum} received. Stopping HudiyDataService...")
+        self.running = False
+
+    def _close_connection(self):
+        """Perform additional cleanup on shutdown."""
+        logger.info("Closing all client connections...")
+        if self.data_client:
+            try:
+                self.data_client.disconnect()
+            except Exception:
+                pass
+        if self.tp2_client:
+            try:
+                self.tp2_client.disconnect()
+            except Exception:
+                pass
         
     def connect_data(self):
         """Thread: Single connection for all data subscriptions (PROJECTION + MEDIA + NAV + PHONE).

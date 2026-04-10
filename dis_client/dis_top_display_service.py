@@ -31,6 +31,7 @@ import threading
 import time
 
 import zmq
+from typing import Optional
 
 CONFIG_PATH = "/home/pi/config.json"
 
