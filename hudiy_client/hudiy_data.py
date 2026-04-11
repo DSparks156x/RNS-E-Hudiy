@@ -124,22 +124,29 @@ class HudiyEventHandler(ClientEventHandler):
     # --- Media Callbacks ---
     
     def on_media_metadata(self, client, message):
-        new_meta = f"{message.artist}|{message.title}|{message.album}"
+        artist = message.artist or ''
+        title = message.title or ''
+        album = message.album or ''
+        new_meta = f"{artist}|{title}|{album}"
         
+        src_label = self.current_media_data.get('source_label', 'Unknown')
+        logger.info(f"Media Metadata ({src_label}): {artist} - {title} [{album}]")
+
         self.current_media_data.update({
-            'artist': message.artist or '',
-            'title': message.title or '',
-            'album': message.album or '',
+            'artist': artist,
+            'title': title,
+            'album': album,
             'duration': getattr(message, 'duration_label', '0:00'),
             'timestamp': time.time()
         })
         
         if new_meta != self.last_media:
             is_new_track = True
+            logger.info(f"Track Change detected. Old: '{self.last_media}' -> New: '{new_meta}'")
             self.last_media = new_meta
-            logger.info(f"🎵 {message.artist} - {message.title}")
         else:
             is_new_track = False
+            logger.debug(f"Metadata match ('{new_meta}'). Not a new track.")
             
         self.publish_and_write_media(self.current_media_data)
         
@@ -150,9 +157,10 @@ class HudiyEventHandler(ClientEventHandler):
         if is_new_track:
             # New track started: Always reset hash so the first image arrival is processed,
             # and if we don't have an image yet, send a clear message to reset the UI.
+            logger.info("New track started. Resetting cover art hash.")
             self.last_coverart_hash = None
             if not has_cover:
-                logger.debug("New track (no cover yet): Sending clear message.")
+                logger.info("No cover art in initial metadata message. Sending Clear UI signal.")
                 self.safe_pub.publish(b'HUDIY_COVERART', {'bitmap_hex': '', 'is_new_track': True, 'timestamp': time.time()})
 
         if has_cover:
@@ -162,6 +170,7 @@ class HudiyEventHandler(ClientEventHandler):
             # 1. It's the first cover art we've seen for this track/metadata block.
             # (last_coverart_hash is reset to None whenever is_new_track is True)
             if self.last_coverart_hash is None:
+                logger.info(f"Processing NEW Cover Art ({len(cover_art_bytes)} bytes, hash: {current_hash}).")
                 self.last_coverart_hash = current_hash
                 try:
                     img = Image.open(io.BytesIO(cover_art_bytes))
@@ -174,11 +183,23 @@ class HudiyEventHandler(ClientEventHandler):
                         'timestamp': time.time()
                     }
                     self.safe_pub.publish(b'HUDIY_COVERART', cover_data)
-                    logger.info(f"Published Cover Art ({len(cover_art_bytes)} bytes raw -> DIS bitmap) | New Track: {is_new_track}")
+                    logger.info(f"Published Cover Art to DIS | New Track: {is_new_track}")
                 except Exception as e:
                     logger.error(f"Failed to process cover art: {e}")
+            elif self.last_coverart_hash != current_hash:
+                logger.info(f"Cover art hash CHANGED: {self.last_coverart_hash} -> {current_hash}. Republishing.")
+                self.last_coverart_hash = current_hash
+                # Reuse the publishing logic...
+                try:
+                    img = Image.open(io.BytesIO(cover_art_bytes))
+                    processed = dis_image.process_image(img, **self.coverart_args)
+                    bitmap = dis_image.image_to_bitmap(processed)
+                    cover_data = { 'bitmap_hex': bitmap.hex(), 'is_new_track': False, 'timestamp': time.time() }
+                    self.safe_pub.publish(b'HUDIY_COVERART', cover_data)
+                except Exception as e:
+                    logger.error(f"Failed to republish changed cover art: {e}")
             else:
-                logger.debug("Skipping cover art (hash match and not a new track).")
+                logger.debug(f"Skipping cover art (hash match: {current_hash} and not a new track).")
 
     def on_media_status(self, client, message):
         pos = getattr(message, 'position_label', '0:00')
