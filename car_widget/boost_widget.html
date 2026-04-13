@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @font-face {
+      font-family: 'Roboto';
+      font-weight: 400;
+      src: url('file:///home/pi/.hudiy/share/assets/fonts/Roboto-Regular.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Roboto';
+      font-weight: 500;
+      src: url('file:///home/pi/.hudiy/share/assets/fonts/Roboto-Medium.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Roboto';
+      font-weight: 700;
+      src: url('file:///home/pi/.hudiy/share/assets/fonts/Roboto-Bold.ttf') format('truetype');
+    }
+
+    @font-face {
+      font-family: 'AudiType';
+      font-weight: 400;
+      src: url('Audi Type/AudiType-Normal.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'AudiType';
+      font-weight: 700;
+      src: url('Audi Type/AudiType-Bold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'DS-Digital';
+      font-weight: 400;
+      src: url('DS-DIGI.TTF') format('truetype');
+    }
+    @font-face {
+      font-family: 'DS-Digital';
+      font-weight: 700;
+      src: url('DS-DIGIB.TTF') format('truetype');
+    }
+
+    /* ── Hudiy theme CSS variables (dark defaults, overridden at runtime) ── */
+    :root {
+      --background: #111318;
+      --on-background: #e2e2e9;
+      --surface: #111318;
+      --surface-dim: #111318;
+      --surface-container: #1d2024;
+      --surface-container-high: #282a2f;
+      --surface-container-highest: #33353a;
+      --on-surface: #e2e2e9;
+      --on-surface-variant: #c4c6d0;
+      --surface-variant: #44474e;
+      --outline: #8e9099;
+      --outline-variant: #44474e;
+      --primary: #aac7ff;
+      --on-primary: #0a305f;
+      --primary-container: #284777;
+      --on-primary-container: #d6e3ff;
+      --error: #ffb4ab;
+      --error-container: #93000a;
+      --surface-tint: #aac7ff;
+    }
+
+    /* ── Light mode overrides ── */
+    [data-theme="light"] {
+      --background: #f5f5f8;
+      --on-background: #1b1b1f;
+      --surface: #f5f5f8;
+      --surface-dim: #d6d6dd;
+      --surface-container: #eaeaf0;
+      --surface-container-high: #e4e4ea;
+      --surface-container-highest: #dfdfe5;
+      --on-surface: #1b1b1f;
+      --on-surface-variant: #44474e;
+      --surface-variant: #e0e2ec;
+      --outline: #74777f;
+      --outline-variant: #c4c6d0;
+      --primary: #3b5f90;
+      --on-primary: #ffffff;
+      --primary-container: #d6e3ff;
+      --on-primary-container: #001b3e;
+      --error: #ba1a1a;
+      --error-container: #ffdad6;
+      --surface-tint: #3b5f90;
+    }
+
+    html, body {
+      margin: 0; height: 100%;
+      background: var(--background);
+      overflow: hidden;
+      color: var(--on-surface);
+      font-family: 'Roboto', sans-serif;
+    }
+    .wrap {
+      --gauge-h: min(calc(100vh - 6px), calc(100vw - 190px));
+      width: 100vw; height: 100vh; display: flex; align-items: center;
+    }
+    #boost {
+      height: var(--gauge-h);
+      aspect-ratio: 1 / 1;
+      flex-shrink: 0;
+    }
+    #boost svg { width: 100%; height: 100%; display: block; }
+
+    /* Bar gauges on the left of the boost dial */
+    #bars {
+      flex: 1;
+      height: var(--gauge-h);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: calc(var(--gauge-h) * 0.05);
+      padding: calc(var(--gauge-h) * 0.065) calc(var(--gauge-h) * 0.01) calc(var(--gauge-h) * 0.13) calc(var(--gauge-h) * 0.04);
+      box-sizing: border-box;
+    }
+    .bar-gauge .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: calc(var(--gauge-h) * 0.05);
+      font-weight: 700;
+      letter-spacing: 1px;
+      margin-bottom: calc(var(--gauge-h) * 0.015);
+    }
+    .bar-gauge .label { color: var(--on-surface-variant); }
+    .bar-gauge .value { color: var(--on-surface); font-family: 'Menlo', 'Monaco', monospace; font-size: calc(var(--gauge-h) * 0.055); }
+    .bar-gauge .track {
+      position: relative;
+      height: calc(var(--gauge-h) * 0.060);
+      background: var(--surface-container);
+      border: 1px solid var(--outline-variant);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .bar-gauge .fill {
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 0%;
+      background: var(--primary);
+      transition: width 150ms linear;
+    }
+    .bar-gauge .peak {
+      position: absolute;
+      top: 0; bottom: 0;
+      left: 0;
+      width: 3px;
+      background: #e01e1e;
+      display: none;
+      z-index: 2;
+    }
+
+    /* OEM bar gauge overrides */
+    [data-bar-theme="oem"] .bar-gauge .track {
+      border-radius: 3px;
+      background: transparent;
+      border: 1.5px solid #000;
+    }
+    [data-bar-theme="oem"] .bar-gauge .fill {
+      background: #000;
+      border-radius: 0;
+    }
+    [data-bar-theme="oem"] .bar-gauge .label {
+      color: #000;
+      font-family: 'Roboto', sans-serif;
+      font-style: italic;
+    }
+    [data-bar-theme="oem"] .bar-gauge .value {
+      color: #000;
+      font-family: 'Roboto', sans-serif;
+      font-weight: 700;
+      font-style: italic;
+    }
+    /* Dark mode: invert OEM bar colors */
+    [data-theme="dark"] [data-bar-theme="oem"] .bar-gauge .track {
+      border-color: #fff;
+    }
+    [data-theme="dark"] [data-bar-theme="oem"] .bar-gauge .fill {
+      background: #fff;
+    }
+    [data-theme="dark"] [data-bar-theme="oem"] .bar-gauge .label {
+      color: #fff;
+    }
+    [data-theme="dark"] [data-bar-theme="oem"] .bar-gauge .value {
+      color: #fff;
+    }
+    [data-bar-theme="oem"] .bar-gauge .peak {
+      background: #e01e1e;
+    }
+
+    /* Reload button (top-right corner) */
+    #reload {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 36px; height: 36px;
+      border: none; border-radius: 50%;
+      background: var(--surface-container-high);
+      color: var(--on-surface);
+      font-size: 18px;
+      line-height: 36px; text-align: center;
+      cursor: pointer;
+      z-index: 10;
+      padding: 0;
+    }
+
+    /* Channel picker overlay */
+    #picker-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--surface-dim);
+      z-index: 100;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #picker-overlay.open { display: flex; }
+    #picker-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--outline-variant);
+      flex-shrink: 0;
+    }
+    #picker-header h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--on-surface); }
+    #picker-done, #picker-clear {
+      border: none;
+      border-radius: 4px;
+      padding: 6px 18px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #picker-done {
+      background: var(--primary);
+      color: var(--on-primary);
+    }
+    #picker-clear {
+      background: var(--outline-variant);
+      color: var(--on-surface);
+    }
+    #picker-scroll {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 6px 0;
+    }
+    #picker-list, #gauge-picker-list {
+      display: flex;
+      gap: 0;
+      padding: 0 8px;
+    }
+    .picker-col {
+      flex: 1;
+      min-width: 0;
+      border-right: 1px solid var(--outline-variant);
+      padding: 0 10px;
+    }
+    .picker-col:last-child { border-right: none; }
+    .picker-col-heading {
+      padding: 12px 8px 8px;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--on-surface);
+      letter-spacing: 0.5px;
+    }
+    .picker-group-label {
+      padding: 10px 8px 4px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--outline);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .picker-item {
+      display: flex;
+      align-items: center;
+      padding: 6px 8px;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      border-radius: 8px;
+    }
+    .picker-item:active { background: var(--surface-container); }
+    .picker-item .pi-check {
+      width: 28px; height: 28px;
+      border: 2px solid var(--outline);
+      border-radius: 4px;
+      margin-right: 10px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      font-weight: 700;
+      color: transparent;
+      background: transparent;
+    }
+    .picker-item.selected .pi-check {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: var(--on-primary);
+    }
+    .picker-item .pi-label {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--on-surface-variant);
+      flex: 1;
+    }
+    .picker-item.selected .pi-label { color: var(--on-surface); }
+
+    /* Gauge picker overlay (round gauge — channel + theme) */
+    #gauge-picker-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--surface-dim);
+      z-index: 100;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #gauge-picker-overlay.open { display: flex; }
+    #gauge-picker-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--outline-variant);
+      flex-shrink: 0;
+    }
+    #gauge-picker-header h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--on-surface); }
+    #gauge-picker-done {
+      border: none;
+      border-radius: 4px;
+      padding: 6px 18px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      background: var(--primary);
+      color: var(--on-primary);
+    }
+    #gauge-picker-scroll {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 6px 0;
+    }
+    /* Radio-style item for single-select channel picker */
+    .radio-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 16px;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .radio-item:active { background: var(--surface-container); }
+    .radio-item .ri-radio {
+      width: 24px; height: 24px;
+      border: 2px solid var(--outline);
+      border-radius: 50%;
+      margin-right: 14px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .radio-item .ri-radio::after {
+      content: '';
+      width: 0; height: 0;
+      border-radius: 50%;
+      background: var(--primary);
+      transition: all 100ms ease;
+    }
+    .radio-item.selected .ri-radio {
+      border-color: var(--primary);
+    }
+    .radio-item.selected .ri-radio::after {
+      width: 12px; height: 12px;
+    }
+    .radio-item .ri-label {
+      font-size: 17px;
+      font-weight: 500;
+      color: var(--on-surface-variant);
+      flex: 1;
+    }
+    .radio-item.selected .ri-label { color: var(--on-surface); }
+    .radio-item .ri-unit {
+      font-size: 14px;
+      color: var(--outline);
+      margin-left: 8px;
+    }
+    /* Theme chip row (sits between header and scrollable list) */
+    .theme-chips {
+      display: flex;
+      gap: 8px;
+      padding: 8px 16px 10px;
+      border-bottom: 1px solid var(--outline-variant);
+      flex-shrink: 0;
+    }
+    .theme-chip {
+      flex: 1;
+      padding: 8px 0;
+      border: 1.5px solid var(--outline-variant);
+      border-radius: 20px;
+      background: transparent;
+      color: var(--on-surface-variant);
+      font-family: 'Roboto', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: all 100ms ease;
+    }
+    .theme-chip:active { background: var(--surface-container); }
+    .theme-chip.selected {
+      border-color: var(--primary);
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="bars">
+      <div class="bar-gauge" id="bar-iat">
+        <div class="row"><span class="label">IAT</span><span class="value">--</span></div>
+        <div class="track"><div class="peak"></div><div class="fill"></div></div>
+      </div>
+      <div class="bar-gauge" id="bar-clt">
+        <div class="row"><span class="label">COOLANT</span><span class="value">--</span></div>
+        <div class="track"><div class="peak"></div><div class="fill"></div></div>
+      </div>
+      <div class="bar-gauge" id="bar-oil">
+        <div class="row"><span class="label">OIL</span><span class="value">--</span></div>
+        <div class="track"><div class="peak"></div><div class="fill"></div></div>
+      </div>
+      <div class="bar-gauge" id="bar-4">
+        <div class="row"><span class="label">--</span><span class="value">--</span></div>
+        <div class="track"><div class="peak"></div><div class="fill"></div></div>
+      </div>
+    </div>
+    <div id="boost">
+      <svg id="gauge" viewBox="-33.33 -33.33 266.67 266.67" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+  </div>
+  <button id="reload" title="Reload">&#x21bb;</button>
+  <div id="picker-overlay">
+    <div id="picker-header">
+      <h2>BAR GAUGES</h2>
+      <div style="display:flex;gap:8px;">
+        <button id="picker-clear">CLEAR</button>
+        <button id="picker-done">DONE</button>
+      </div>
+    </div>
+    <div class="theme-chips" id="bar-theme-chips">
+      <button class="theme-chip" data-target="bar" data-theme="hudiy">Hudiy</button>
+      <button class="theme-chip" data-target="bar" data-theme="oem">OEM</button>
+      <button class="theme-chip" data-target="bar" data-theme="haltech">Haltech</button>
+    </div>
+    <div id="picker-scroll">
+      <div id="picker-list"></div>
+    </div>
+  </div>
+  <div id="gauge-picker-overlay">
+    <div id="gauge-picker-header">
+      <h2>ROUND GAUGE</h2>
+      <button id="gauge-picker-done">DONE</button>
+    </div>
+    <div class="theme-chips" id="gauge-theme-chips">
+      <button class="theme-chip" data-target="gauge" data-theme="hudiy">Hudiy</button>
+      <button class="theme-chip" data-target="gauge" data-theme="oem">OEM</button>
+      <button class="theme-chip" data-target="gauge" data-theme="haltech">Haltech</button>
+    </div>
+    <div id="gauge-picker-scroll">
+      <div id="gauge-picker-list"></div>
+    </div>
+  </div>
+  <script src="socket.io.js"></script>
+  <script src="boost_widget.js"></script>
+</body>
+</html>
