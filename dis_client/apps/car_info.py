@@ -40,13 +40,7 @@ class CarInfoApp(BaseApp):
             group = payload.get('group')
             data = payload.get('data', [])
             
-            # Module 01, Group 113: Atmospheric Pressure (Block 4)
-            if mod == 1 and group == 113:
-                if len(data) >= 4:
-                    try:
-                        self.atmosphere = float(data[3]['value'])
-                    except (ValueError, TypeError):
-                        pass
+            # Atmosphere is now provided via CAN Group 1 from can_service.py
                         
             # Module 01, Group 3: Realtime Engine 
             if mod == 1 and group == 3:
@@ -78,6 +72,13 @@ class CarInfoApp(BaseApp):
                 if len(data) > 2: self.data['coolant'] = f"{data[2]['value']}{data[2]['unit']}"
                 if len(data) > 3: self.data['iat'] = f"{data[3]['value']}{data[3]['unit']}"
             elif group == 1: # Performance
+                # atmosphere is now at index 4
+                if len(data) > 4:
+                    try:
+                        self.atmosphere = float(data[4]['value'])
+                    except (ValueError, TypeError):
+                        pass
+
                 if len(data) > 1: 
                     try:
                         raw_boost = float(data[1]['value'])

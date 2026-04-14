@@ -42,13 +42,18 @@ class CANService:
             'coolant': None,
             'boost': None,
             'oil': None,
+            'atmosphere': 1013.25,
             'ambient': None,
             'fuel': None,
             'battery': None,
-            'load_actual': None,
-            'load_spec': None,
+            'torque_actual': None,
+            'torque_request': None,
             'iat': None,
-            'speed': None
+            'speed': None,
+            'gear': None,
+            'lat_g': None,
+            'steering_speed': None,
+            'brake_pressure': None
         }
 
     def connect(self):
@@ -56,7 +61,7 @@ class CANService:
             # Subscribe to RAW CAN bus mapped by tp2_worker/dis_service
             self.can_sock = self.context.socket(zmq.SUB)
             self.can_sock.connect(self.can_addr)
-            for t in [b"CAN_35B", b"CAN_0x35B", b"CAN_555", b"CAN_0x555", b"CAN_527", b"CAN_0x527", b"CAN_571", b"CAN_0x571", b"CAN_351", b"CAN_0x351"]:
+            for t in [b"CAN_35B", b"CAN_0x35B", b"CAN_555", b"CAN_0x555", b"CAN_527", b"CAN_0x527", b"CAN_571", b"CAN_0x571", b"CAN_351", b"CAN_0x351", b"CAN_6C2", b"CAN_0x6C2", b"CAN_3C3", b"CAN_0x3C3", b"CAN_470", b"CAN_0x470", b"CAN_151", b"CAN_0x151"]:
                 self.can_sock.subscribe(t)
             logger.info(f"Connected to RAW CAN at {self.can_addr}")
 
@@ -89,18 +94,32 @@ class CANService:
             }
             self.pub_sock.send_multipart([b'HUDIY_DIAG', json.dumps(payload0).encode()])
 
-        # Group 1: Performance
-        if any(self.latest_data[k] is not None for k in ['rpm', 'boost', 'load_spec', 'load_actual']):
+        # Group 1: Performance (Engine & Boost)
+        if any(self.latest_data[k] is not None for k in ['rpm', 'boost', 'torque_request', 'torque_actual', 'atmosphere']):
             payload1 = {
                 'module': 0, 'group': 1,
                 'data': [
                      {'value': int(self.latest_data['rpm']) if self.latest_data['rpm'] is not None else 0, 'unit': 'RPM'},
                      {'value': round(self.latest_data['boost'], 2) if self.latest_data['boost'] is not None else 0, 'unit': 'mbar'},
-                     {'value': round(self.latest_data['load_spec'], 1) if self.latest_data['load_spec'] is not None else 0, 'unit': '%'},
-                     {'value': round(self.latest_data['load_actual'], 1) if self.latest_data['load_actual'] is not None else 0, 'unit': '%'}
+                     {'value': round(self.latest_data['torque_request'], 1) if self.latest_data['torque_request'] is not None else 0, 'unit': '%'},
+                     {'value': round(self.latest_data['torque_actual'], 1) if self.latest_data['torque_actual'] is not None else 0, 'unit': '%'},
+                     {'value': int(self.latest_data['atmosphere']) if self.latest_data['atmosphere'] is not None else 1013, 'unit': 'mbar'}
                 ]
             }
             self.pub_sock.send_multipart([b'HUDIY_DIAG', json.dumps(payload1).encode()])
+
+        # Group 3: Dynamics (G-Force, Steering, Gear, Brake) [NEW]
+        if any(self.latest_data[k] is not None for k in ['lat_g', 'steering_speed', 'gear', 'brake_pressure']):
+            payload3 = {
+                'module': 0, 'group': 3,
+                'data': [
+                     {'value': round(self.latest_data['lat_g'], 2) if self.latest_data['lat_g'] is not None else 0, 'unit': 'G'},
+                     {'value': int(self.latest_data['steering_speed']) if self.latest_data['steering_speed'] is not None else 0, 'unit': 'deg/s'},
+                     {'value': self.latest_data['gear'] if self.latest_data['gear'] is not None else 0, 'unit': 'gear'},
+                     {'value': int(self.latest_data['brake_pressure']) if self.latest_data['brake_pressure'] is not None else 0, 'unit': 'bar'}
+                ]
+            }
+            self.pub_sock.send_multipart([b'HUDIY_DIAG', json.dumps(payload3).encode()])
 
         # Group 2: Electrical & Fuel & Speed
         if any(self.latest_data[k] is not None for k in ['battery', 'fuel', 'speed']):
@@ -139,25 +158,26 @@ class CANService:
                                 self.latest_data['rpm'] = (payload[2] * 256 + payload[1]) / 4.0
                                 # Coolant Temp: (byte3 * 0.75) - 48.0
                                 self.latest_data['coolant'] = (payload[3] * 0.75) - 48.0
-                                self.latest_data['fuel'] = payload[5]
+                                # Torque: MDI values (0.39% factor)
+                                self.latest_data['torque_actual'] = payload[4] * 0.39
+                                self.latest_data['torque_request'] = payload[5] * 0.39
+                                # Fuel Level (legacy position)
+                                # self.latest_data['fuel'] = payload[5] # Overlap with torque_request? Needs verify
                                 
                             if '555' in t_str and len(payload) >= 8:
-                                # Data mapping based on TP2 correlation:
-                                # B0: Static? (e8)
-                                # B1: Load-related (Inverted 1:1 match discovered via analysis)
-                                # B2: IAT
-                                # B3-B4: Boost
-                                # B7: Oil Temp (payload[7] - 60)
+                                # 0x555 decoded as 0x588 (Motor_7)
+                                # B1: DFM (Alternator Load) - val * 0.5%
+                                # B2: Barometric Pressure (Atmosphere) - val * 8
+                                # B4: Relative Boost - val * 10
+                                # B7: Oil Temp - val - 60
                                 
-                                # Load: Matches actual diagnostic load with (188 - payload[1])
-                                self.latest_data['load_actual'] = max(0, float(188 - payload[1]))
-                                self.latest_data['load_spec'] = self.latest_data['load_actual'] # Fallback
+                                self.latest_data['atmosphere'] = payload[2] * 8.0
                                 
-                                # IAT: byte * 0.75 - 58.5 (Matches decoder.txt perfectly for ~20C)
-                                self.latest_data['iat'] = (payload[2] * 0.75) - 58.5
-
-                                # Boost Actual: Original "close" formula
-                                self.latest_data['boost'] = (payload[3] + payload[4] * 256) * 0.078
+                                # Boost Absolute = (Relative * 10) + Atmosphere
+                                rel_boost = payload[4] * 10.0
+                                self.latest_data['boost'] = rel_boost + self.latest_data['atmosphere']
+                                
+                                # Oil Temp
                                 self.latest_data['oil'] = payload[7] - 60
                                 
                             if '527' in t_str and len(payload) >= 6:
@@ -170,6 +190,30 @@ class CANService:
                             if '351' in t_str and len(payload) >= 3:
                                 # Speed: Original 200.0 divisor confirmed correct by user
                                 self.latest_data['speed'] = (payload[2] * 256 + payload[1]) / 200.0
+
+                            if '6C2' in t_str and len(payload) >= 5:
+                                # Performance Summary Mirror
+                                # B0 high nibble: Gear
+                                self.latest_data['gear'] = (payload[0] >> 4)
+                                # B2: Absolute Boost (e.g. 138 * 10 = 1380mbar)
+                                self.latest_data['boost'] = payload[2] * 10
+                                # B4: High-res Oil
+                                self.latest_data['oil'] = payload[4]
+
+                            if '3C3' in t_str and len(payload) >= 5:
+                                # Dynamics Mirror (Yaw/G)
+                                # B4: Lat G (0.01 factor, -1.27 offset)
+                                self.latest_data['lat_g'] = (payload[4] * 0.01) - 1.28
+
+                            if '470' in t_str and len(payload) >= 4:
+                                # Brake Mirror
+                                # B3: Pressure (0.5 factor estimate)
+                                self.latest_data['brake_pressure'] = payload[3] * 0.5
+
+                            if '151' in t_str and len(payload) >= 4:
+                                # Steering Mirror
+                                # B2-B3: Velocity (0.04375 factor)
+                                self.latest_data['steering_speed'] = (payload[3] * 256 + payload[2]) * 0.04375
                         except Exception as e:
                             logger.debug(f"Error parsing CAN message {t_str}: {e}")
                 
