@@ -97,6 +97,8 @@ class HudiyEventHandler(ClientEventHandler):
             'timestamp': 0
         }
         self.current_nav_data = {}
+        self.nav_active = False
+        self.last_nav_state = None
         self.current_phone_data = {
             'connection_state': 'DISCONNECTED', 'name': '', 'state': 'IDLE', 
             'caller_name': '', 'caller_id': '', 'battery': 0, 'signal': 0,
@@ -303,6 +305,10 @@ class HudiyEventHandler(ClientEventHandler):
             except Exception as e:
                 logger.error(f"Failed to save NAV icon: {e}")
 
+        if not desc and self.nav_active and self.current_nav_data.get('description'):
+            logger.info("iOS Nav Flicker: Received empty description while active. Ignoring.")
+            return
+
         self.current_nav_data.update({
             'description': desc,
             'maneuver_text': full_maneuver_text,
@@ -315,21 +321,39 @@ class HudiyEventHandler(ClientEventHandler):
 
     def on_navigation_maneuver_distance(self, client, message):
         dist = getattr(message, 'label', '')
+        if not dist and self.nav_active and self.current_nav_data.get('distance'):
+            logger.info("iOS Nav Flicker: Received empty distance while active. Ignoring.")
+            return
+
         self.current_nav_data['distance'] = dist
         self.current_nav_data['timestamp'] = time.time()
         self.publish_and_write_nav(self.current_nav_data)
 
     def on_navigation_status(self, client, message):
         source = getattr(message, 'source', 0)
-        state = getattr(message, 'state', 2)
+        state = getattr(message, 'state', 2)  # 1=Active, 2=Inactive
         
-        status_text = "Active" if state == 1 else "Inactive"
+        active = (state == 1)
+        status_text = "Active" if active else "Inactive"
         src_text = "AA" if source == 1 else "None"
         
-        logger.info(f"NAV STATUS: {status_text} ({src_text})")
+        if state != self.last_nav_state:
+            old_status = "Active" if self.last_nav_state == 1 else "Inactive"
+            logger.info(f"NAV STATUS CHANGED: {old_status} -> {status_text} (Source: {src_text})")
+            self.last_nav_state = state
+        else:
+            logger.debug(f"NAV STATUS: {status_text} ({src_text})")
+        
+        self.nav_active = active
+        
+        # If navigation just stopped, clear the cached maneuver data
+        if not active:
+            logger.info("Navigation Inactive: Clearing maneuver metadata.")
+            self.current_nav_data = {}
+            self.publish_and_write_nav(self.current_nav_data)
         
         nav_status = {
-            'active': (state == 1),
+            'active': active,
             'source': source,
             'state': state,
             'timestamp': time.time()
