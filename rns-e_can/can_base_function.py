@@ -115,7 +115,7 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
         
         # Initialize default sections if missing
         FEATURES.setdefault('tv_simulation', {'enabled': False})
-        FEATURES.setdefault('time_sync', {'enabled': False, 'data_format': 'old_logic'})
+        FEATURES.setdefault('time_sync', {'enabled': False, 'data_format': 'new_logic'})
         
         pw_mgmt.setdefault('auto_shutdown', {'enabled': False, 'trigger': 'ignition_off'})
         pw_mgmt.setdefault('listen_only_mode', {'enabled': False, 'delay_seconds': 0})
