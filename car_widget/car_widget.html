@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script>
+    // ==================== CONFIG ====================
+    const CONFIG = {
+      carsRoot:        'car_icons',                    // folder containing per-model subfolders (relative to the widget HTML)
+      defaultModel:    '8P_S3',                        // initial car model subfolder; falls back to first discovered
+      defaultColor:    'Ibis_White',                   // initial color (filename without .png); falls back to first discovered
+      carOrientation:  'front_right',                  // 'front_left' | 'front_right'
+      shadow:          true,                           // true | false
+      shadowFile:      'shadow.png',                   // shadow PNG filename (inside the model folder), excluded from picker
+      shadowTint:      '#000000',                      // any CSS color
+      shadowOpacity:   1.0,                            // 0.0 (invisible) to 1.0 (full)
+    };
+    // Models are auto-discovered as subfolders of carsRoot.
+    // Colors are auto-discovered as *.png in the current model folder (excluding shadowFile).
+    // ================================================
+  </script>
+  <style>
+    /* All color tokens come from Hudiy at runtime — see the theming script
+       below. We do not define a fallback theme here on purpose. */
+    /* Roboto is shipped by Hudiy in its assets directory. Absolute file://
+       paths because this widget is loaded via file:// with no asset mount.
+       We register the three weights the widget actually uses (400/500/700). */
+    @font-face {
+      font-family: 'Roboto';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url('file:///home/pi/.hudiy/share/assets/fonts/Roboto-Regular.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Roboto';
+      font-style: normal;
+      font-weight: 500;
+      font-display: swap;
+      src: url('file:///home/pi/.hudiy/share/assets/fonts/Roboto-Medium.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Roboto';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: url('file:///home/pi/.hudiy/share/assets/fonts/Roboto-Bold.ttf') format('truetype');
+    }
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; color: var(--on-surface); font-family: 'Roboto', sans-serif; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+    .wrap {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    .stack {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    .stack img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      position: relative;
+      z-index: 1;
+      cursor: pointer;
+    }
+    .stack .shadow {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      -webkit-mask-size: contain;
+              mask-size: contain;
+      -webkit-mask-repeat: no-repeat;
+              mask-repeat: no-repeat;
+      -webkit-mask-position: center;
+              mask-position: center;
+      pointer-events: none;
+    }
+    .stack.no-shadow .shadow { display: none; }
+    #reload {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 40px; height: 40px;
+      border: none; border-radius: 50%;
+      background: var(--surface-container);
+      color: var(--on-surface);
+      font-size: 20px;
+      line-height: 40px;
+      text-align: center;
+      cursor: pointer;
+      z-index: 10;
+      padding: 0;
+      opacity: 0.85;
+    }
+    /* color picker overlay — the scrollable list fills the entire window
+       so the finger never leaves the scroll target while panning. The
+       arrows are positioned absolute on top of the list with
+       pointer-events: none so they don't intercept touches; the list's
+       top/bottom padding keeps content from visually overlapping them. */
+    #picker {
+      position: fixed;
+      inset: 0;
+      background: var(--background);
+      z-index: 20;
+    }
+    #picker.hidden { display: none; }
+    #picker .list {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-y: auto;
+      /* Padding reserves room for the arrows so list text doesn't sit
+         underneath them visually. */
+      padding: 44px 0;
+      background: transparent;
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+    }
+    #picker .list::-webkit-scrollbar { display: none; width: 0; height: 0; }
+    /* Scroll indicator arrows — overlay the top and bottom of the picker
+       window. pointer-events: none so they pass touches through to the
+       list underneath. */
+    #picker .scroll-hint {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--on-surface);
+      font-size: 22px;
+      line-height: 1;
+      opacity: 0;
+      transition: opacity 150ms ease;
+      pointer-events: none;
+      z-index: 1;
+    }
+    #picker .scroll-hint.up   { top: 0; }
+    #picker .scroll-hint.down { bottom: 0; }
+    #picker .scroll-hint.visible { opacity: 0.75; }
+    #picker button {
+      background: transparent;
+      color: var(--on-surface);
+      border: none;
+      padding: 14px 32px;
+      font: inherit;
+      font-size: 20px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: center;
+      width: 100%;
+      box-sizing: border-box;
+      display: block;
+    }
+    #picker button:active,
+    #picker button.selected {
+      color: var(--primary);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="stack" id="stack">
+      <div class="shadow" id="shadow"></div>
+      <img id="car-img">
+    </div>
+  </div>
+  <button id="reload" title="Reload">&#x21bb;</button>
+  <div id="picker" class="hidden">
+    <div class="scroll-hint up"   id="hint-up">&#x25B2;</div>
+    <div class="list" id="picker-list"></div>
+    <div class="scroll-hint down" id="hint-down">&#x25BC;</div>
+  </div>
+  <script>
+    const STORAGE_MODEL = 'car_widget_model';
+    const STORAGE_COLOR_PREFIX = 'car_widget_color:'; // color is stored per-model: `${prefix}${model}`
+
+    const stack      = document.getElementById('stack');
+    const img        = document.getElementById('car-img');
+    const shadow     = document.getElementById('shadow');
+    const picker     = document.getElementById('picker');
+    const pickerList = document.getElementById('picker-list');
+    const hintUp     = document.getElementById('hint-up');
+    const hintDown   = document.getElementById('hint-down');
+
+    // Toggle the up/down scroll hints based on whether there's content past
+    // the current view. 1px slack avoids flicker at the boundaries.
+    function updateScrollHints() {
+      const max = pickerList.scrollHeight - pickerList.clientHeight;
+      const top = pickerList.scrollTop;
+      hintUp.classList.toggle('visible',   top > 1);
+      hintDown.classList.toggle('visible', top < max - 1);
+    }
+    pickerList.addEventListener('scroll', updateScrollHints);
+    window.addEventListener('resize', updateScrollHints);
+
+    // ---- Hudiy theming ----
+    // Every color comes from Hudiy — no hardcoded fallbacks. Hudiy injects
+    // `window.hudiy` before our script runs; we spread every string in
+    // `hudiy.colorScheme` onto :root as a kebab-case CSS var
+    // (primaryContainer → --primary-container) and mirror darkThemeEnabled
+    // to <html data-theme>. Re-apply on onAttached / onColorSchemeChanged,
+    // and poll briefly in case Hudiy injects the palette without firing a
+    // callback.
+    const hudiy = window.hudiy = window.hudiy || {};
+
+    function applyHudiyTheme() {
+      const cs = hudiy.colorScheme;
+      if (!cs) return false;
+      const root = document.documentElement;
+      let count = 0;
+      for (const [key, value] of Object.entries(cs)) {
+        if (typeof value !== 'string') continue;
+        const cssKey = '--' + key.replace(/([A-Z])/g, '-$1').toLowerCase();
+        root.style.setProperty(cssKey, value);
+        count++;
+      }
+      root.setAttribute('data-theme', cs.darkThemeEnabled === false ? 'light' : 'dark');
+      console.log('[car_widget] applied Hudiy theme', count, 'tokens, dark=', cs.darkThemeEnabled !== false);
+      return count > 0;
+    }
+
+    hudiy.onColorSchemeChanged = applyHudiyTheme;
+    hudiy.onAttached           = applyHudiyTheme;
+
+    if (!applyHudiyTheme()) {
+      let tries = 0;
+      const pollId = setInterval(() => {
+        if (applyHudiyTheme() || ++tries > 20) clearInterval(pollId);
+      }, 250);
+    }
+
+    // ---- Static config (shadow tint/opacity, orientation) ----
+    // The shadow mask path depends on the current model, so it's set in
+    // selectModel() below. Tint/opacity and orientation are model-agnostic.
+    if (!CONFIG.shadow) stack.classList.add('no-shadow');
+    shadow.style.backgroundColor = CONFIG.shadowTint;
+    shadow.style.opacity         = CONFIG.shadowOpacity;
+    if (CONFIG.carOrientation === 'front_right') {
+      stack.style.transform = 'scaleX(-1)';
+    }
+
+    // ---- Directory listing via Chromium's file:// index page ----
+    // Chromium's file:// directory listing calls addRow("name","url",isdir,...)
+    // inside an embedded script; we parse those calls to get entries with
+    // their type.
+    async function listDir(folder) {
+      try {
+        const res = await fetch(`${folder}/`);
+        const html = await res.text();
+        const entries = [];
+        const re = /addRow\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*"(?:[^"\\]|\\.)*"\s*,\s*(\d)/g;
+        let m;
+        while ((m = re.exec(html)) !== null) {
+          const name  = m[1];
+          if (name === '..' || name === '.') continue;
+          entries.push({ name, isDir: m[2] === '1' });
+        }
+        return entries;
+      } catch (err) {
+        console.error('[car_widget] directory listing failed for', folder, err);
+        return [];
+      }
+    }
+
+    async function discoverModels() {
+      const entries = await listDir(CONFIG.carsRoot);
+      return entries.filter(e => e.isDir).map(e => e.name)
+                    .sort((a, b) => a.localeCompare(b));
+    }
+
+    async function discoverColors(model) {
+      const entries = await listDir(`${CONFIG.carsRoot}/${model}`);
+      const shadowLower = CONFIG.shadowFile.toLowerCase();
+      return entries
+        .filter(e => !e.isDir && /\.png$/i.test(e.name) && e.name.toLowerCase() !== shadowLower)
+        .map(e => e.name.replace(/\.png$/i, ''))
+        .sort((a, b) => a.localeCompare(b));
+    }
+
+    // ---- Car / model state ----
+    let models        = [];
+    let currentModel  = null;
+    let currentColors = [];
+    let currentColor  = null;
+    let view          = 'colors'; // 'models' | 'colors'
+
+    function humanize(s) { return s.replace(/_/g, ' '); }
+
+    function setShadowForModel(model) {
+      const shadowPath = `${CONFIG.carsRoot}/${model}/${CONFIG.shadowFile}`;
+      shadow.style.webkitMaskImage = `url('${shadowPath}')`;
+      shadow.style.maskImage       = `url('${shadowPath}')`;
+    }
+
+    // Monotonic sequence so rapid selections always land on the latest
+    // image even if their decodes resolve out of order.
+    let carLoadSeq = 0;
+
+    function setCar(color) {
+      currentColor = color;
+      localStorage.setItem(STORAGE_COLOR_PREFIX + currentModel, color);
+      if (view === 'colors') {
+        pickerList.querySelectorAll('button[data-color]').forEach(b => {
+          b.classList.toggle('selected', b.dataset.color === color);
+        });
+      }
+      // Preload off-DOM and commit to the visible <img> only once the PNG
+      // is decoded. Without this, setting img.src synchronously drops the
+      // current frame and paints nothing until the new image loads,
+      // causing a visible flash.
+      const seq = ++carLoadSeq;
+      const src = `${CONFIG.carsRoot}/${currentModel}/${color}.png`;
+      const preload = new Image();
+      preload.src = src;
+      const commit = () => { if (seq === carLoadSeq) img.src = src; };
+      preload.decode().then(commit, commit);
+    }
+
+    function pickInitialColor(colors) {
+      const saved = localStorage.getItem(STORAGE_COLOR_PREFIX + currentModel);
+      if (saved && colors.includes(saved)) return saved;
+      if (colors.includes(CONFIG.defaultColor)) return CONFIG.defaultColor;
+      return colors[0] || null;
+    }
+
+    async function selectModel(model) {
+      currentModel = model;
+      localStorage.setItem(STORAGE_MODEL, model);
+      setShadowForModel(model);
+      currentColors = await discoverColors(model);
+      const color = pickInitialColor(currentColors);
+      if (color) setCar(color);
+    }
+
+    // ---- Picker views ----
+    function buildModelsView() {
+      view = 'models';
+      pickerList.innerHTML = '';
+      models.forEach(m => {
+        const btn = document.createElement('button');
+        btn.textContent = humanize(m);
+        btn.dataset.action = 'pick-model';
+        btn.dataset.model  = m;
+        if (m === currentModel) btn.classList.add('selected');
+        pickerList.appendChild(btn);
+      });
+      pickerList.scrollTop = 0;
+      requestAnimationFrame(updateScrollHints);
+    }
+
+    function buildColorsView() {
+      view = 'colors';
+      pickerList.innerHTML = '';
+      // Back row to switch to the model picker.
+      const back = document.createElement('button');
+      back.textContent = '\u2190 Models';
+      back.dataset.action = 'show-models';
+      pickerList.appendChild(back);
+      currentColors.forEach(color => {
+        const btn = document.createElement('button');
+        btn.textContent = humanize(color);
+        btn.dataset.action = 'pick-color';
+        btn.dataset.color  = color;
+        if (color === currentColor) btn.classList.add('selected');
+        pickerList.appendChild(btn);
+      });
+      pickerList.scrollTop = 0;
+      requestAnimationFrame(updateScrollHints);
+    }
+
+    (async () => {
+      models = await discoverModels();
+      const saved = localStorage.getItem(STORAGE_MODEL);
+      const initialModel =
+        (saved && models.includes(saved)) ? saved :
+        (models.includes(CONFIG.defaultModel) ? CONFIG.defaultModel :
+         models[0]);
+      if (initialModel) await selectModel(initialModel);
+    })();
+
+    // Tap car to open picker — colors view if we have a current model,
+    // models view otherwise (e.g. first run with nothing discovered yet).
+    img.addEventListener('click', () => {
+      if (currentModel) buildColorsView();
+      else              buildModelsView();
+      picker.classList.remove('hidden');
+      requestAnimationFrame(updateScrollHints);
+    });
+    // Tap background to dismiss
+    picker.addEventListener('click', (e) => {
+      if (e.target === picker) picker.classList.add('hidden');
+    });
+
+    // ---- Tap vs. scroll on the picker list (delegated) ----
+    // Delegated click handler rejects "clicks" that were actually scroll
+    // gestures. Two signals at click time:
+    //   1. `scrolled`  — set by the scroll event (fires for both Qt's
+    //      native pan and our manual scrollTop updates below).
+    //   2. scrollTop delta — synchronous fallback in case a scroll event
+    //      hasn't dispatched yet (e.g. momentum click before scroll).
+    // The pointermove handler drives scrollTop directly as a manual drag
+    // fallback for Qt builds that don't route touch pans to overflow
+    // containers.
+    (function enableTapDelegation(el) {
+      let downScrollTop = 0;
+      let downY         = 0;
+      let pointerDown   = false;
+      let scrolled      = false;
+      const MOVE_THRESHOLD = 8;
+
+      el.addEventListener('pointerdown', (e) => {
+        pointerDown   = true;
+        scrolled      = false;
+        downScrollTop = el.scrollTop;
+        downY         = e.clientY;
+      });
+      el.addEventListener('pointermove', (e) => {
+        if (!pointerDown) return;
+        const dy = e.clientY - downY;
+        if (Math.abs(dy) > MOVE_THRESHOLD) el.scrollTop = downScrollTop - dy;
+      });
+      const endPointer = () => { pointerDown = false; };
+      el.addEventListener('pointerup',     endPointer);
+      el.addEventListener('pointercancel', endPointer);
+      el.addEventListener('pointerleave',  endPointer);
+      el.addEventListener('scroll', () => { scrolled = true; });
+
+      el.addEventListener('click', (e) => {
+        if (scrolled || el.scrollTop !== downScrollTop) return;
+        const btn = e.target.closest('button');
+        if (!btn || !el.contains(btn)) return;
+        switch (btn.dataset.action) {
+          case 'show-models':
+            buildModelsView();
+            break;
+          case 'pick-model': {
+            const model = btn.dataset.model;
+            if (!model) return;
+            if (model === currentModel) { buildColorsView(); break; }
+            (async () => {
+              await selectModel(model);
+              buildColorsView();
+            })();
+            break;
+          }
+          case 'pick-color': {
+            const color = btn.dataset.color;
+            if (!color) return;
+            setCar(color);
+            picker.classList.add('hidden');
+            break;
+          }
+        }
+      });
+    })(pickerList);
+
+    document.getElementById('reload').addEventListener('click', () => location.reload());
+  </script>
+</body>
+</html>
