@@ -218,7 +218,10 @@ class DisplayEngine:
         self.nav_return_delay = nav_cfg.get('auto_switch_return_delay', 10)
         self.nav_hide_inactive = nav_cfg.get('hide_inactive_route', False)
         self.nav_inactive_debounce = nav_cfg.get('inactive_route_debounce', 5.0)
+        self.nav_claim_on_nav = nav_cfg.get('claim_on_nav', False)
+        self.nav_release_on_no_nav = nav_cfg.get('release_on_no_nav', False)
         self.last_valid_route_time = 0
+        self.user_paused = False
 
         # --- Advanced Nav Auto-Switching ---
         self.nav_auto_triggered = False
@@ -384,8 +387,8 @@ class DisplayEngine:
         self.publish_status()
 
     def process_input(self, action):
-        # Ignore stalk inputs if the display is paused
-        if not getattr(self, 'service_ready', False):
+        # Ignore stalk inputs if the display is paused (unless we paused it ourselves)
+        if not getattr(self, 'service_ready', False) and not self.user_paused:
             # logger.info(f"Ignoring input {action} while paused")
             return
         
@@ -411,6 +414,35 @@ class DisplayEngine:
         self.egg_active = False
         self.egg_pending = False
         self.phone_auto_overlay = False
+
+    def _check_nav_availability_pause(self):
+        """Monitor nav availability and request center release/resume if configured."""
+        if not self.nav_claim_on_nav and not self.nav_release_on_no_nav:
+            return
+
+        if not getattr(self, 'service_ready', False) and not self.user_paused:
+            return
+
+        current_app_name = self.pages[self.current_page_idx]
+        is_nav_page = (current_app_name == 'app_nav')
+        is_available = self.is_nav_available()
+        
+        # Logic for release: on nav page but it's not available
+        if is_nav_page and not is_available and self.nav_release_on_no_nav:
+            if not self.user_paused:
+                logger.info("Navigation unavailable: Releasing center.")
+                self._send_draw({'command': 'pause'})
+                self.user_paused = True
+        
+        # Logic for claim (resume): 
+        elif self.user_paused:
+            # Resume if we switched away from nav page, or nav page became available
+            if not is_nav_page or (is_nav_page and is_available):
+                # If it's a nav page resuming, check claim_on_nav
+                if not is_nav_page or self.nav_claim_on_nav:
+                    logger.info("Navigation available or app switched: Resuming center.")
+                    self._send_draw({'command': 'resume'})
+                    self.user_paused = False
 
     def is_nav_available(self):
         """Check if the Nav app should be visible in the rotation."""
@@ -689,6 +721,7 @@ class DisplayEngine:
                     except Exception as e:
                         logger.debug(f"TP2 Sync failure handled: {e}")
 
+                self._check_nav_availability_pause()
                 self._check_buttons()
                 self._draw()
 

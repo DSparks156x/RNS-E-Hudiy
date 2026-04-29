@@ -38,7 +38,9 @@
         "auto_switch_return_delay": 10,
         "approach_bar_max_distance": 300,
         "hide_inactive_route": true,
-        "inactive_route_debounce": 5.0
+        "inactive_route_debounce": 5.0,
+        "claim_on_nav": true,
+        "release_on_no_nav": true
       },
       "coverart": {
         "brief": true,
