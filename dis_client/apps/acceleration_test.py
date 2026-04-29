@@ -297,7 +297,7 @@ class AccelerationTestApp(BaseApp):
             
         if self.tolerance_display and max_tol > 0:
             tol_str = f"{max_tol:.2f}"
-            header = f"{header} | {chr(0xB1)}{tol_str}" # 0xB1 is ± in AUDSCII
+            header = f"{header} {chr(0xB1)}{tol_str}s" # 0xB1 is ± in AUDSCII
 
         if (now - self.last_update_time) < self.update_interval and self.cached_view:
             return self.cached_view
