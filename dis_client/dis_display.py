@@ -433,6 +433,14 @@ class DisplayEngine:
                 logger.info("Navigation unavailable: Releasing center.")
                 self._send_draw({'command': 'pause'})
                 self.user_paused = True
+            
+            # If we were auto-switched here, return immediately now that it's unavailable
+            if getattr(self, 'pre_nav_app_name', None):
+                logger.info("Nav became unavailable (no maneuver). Returning to previous app.")
+                self.switch_to_app(self.pre_nav_app_name)
+                self.pre_nav_app_name = None
+                self.nav_auto_triggered = False
+                self.auto_switch_back_at = 0
         
         # Logic for claim (resume): 
         elif self.user_paused:
