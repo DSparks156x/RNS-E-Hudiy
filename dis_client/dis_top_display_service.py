@@ -699,6 +699,9 @@ class DISController:
         self._ph_l2_mode = str(feat.get("phone_line2_mode", "state"))
         self._nav_l1_mode = str(feat.get("nav_line1_mode", "description"))
         self._nav_l2_mode = str(feat.get("nav_line2_mode", "distance"))
+        self._nav_hide_inactive = _bool(feat.get("hide_inactive_route"), _bool(display_cfg.get("navigation", {}).get("hide_inactive_route"), False))
+        self._nav_inactive_debounce = _float(feat.get("inactive_route_debounce"), _float(display_cfg.get("navigation", {}).get("inactive_route_debounce"), 5.0))
+        self._nav_last_valid_time = 0.0
         self._l1_alt_mode = str(feat.get("media_line1_alt_mode", ""))
         self._applist = feat.get("applist", ["phone", "nav", "media"])
         self._no_media = (NO_MEDIA_TEXT, "")
@@ -847,6 +850,24 @@ class DISController:
             for ctrl in self._ctrls:
                 ctrl._next_write = 0.0  # sync both lines to write simultaneously
 
+    def _is_nav_available(self):
+        """Check if Navigation should be shown in priority list."""
+        if not self._nav_active:
+            return False
+        if not self._nav_hide_inactive:
+            return True
+        
+        has_route = any(self._nav_texts)
+        now = time.monotonic()
+        if has_route:
+            self._nav_last_valid_time = now
+            return True
+            
+        if (now - self._nav_last_valid_time) < self._nav_inactive_debounce:
+            return True
+            
+        return False
+
     def _resolve(self):
         now = time.monotonic()
         if now - self._center_msg_t > 5.0:
@@ -874,7 +895,7 @@ class DISController:
                 else:
                     logger.debug("Skipping PHONE (already on center display)")
 
-            elif app == "nav" and self._nav_active:
+            elif app == "nav" and self._is_nav_available():
                 if not (can_skip and self._center_app == "app_nav"):
                     if self._prio != PRIO_NAV:
                         logger.info("Priority: NAV")
@@ -1116,13 +1137,17 @@ class DISController:
                         was_active = self._nav_active
                         self._nav_active = data.get("active", False)
                         if self._nav_active and not was_active:
-                            # Nav just became active — refresh from cache if texts incomplete
+                            # Nav just became active — initialize grace period
+                            self._nav_last_valid_time = now
+                            # Refresh from cache if texts incomplete
                             if not all(self._nav_texts):
                                 self._load_nav_state()
                         self._resolve()
 
                     elif topic == b"HUDIY_NAV":
                         self._nav_texts = self._nav_fields(data)
+                        if data.get("description") or data.get("distance"):
+                            self._nav_last_valid_time = now
                         self._resolve()
 
                     elif topic == b"DIS_DISPLAY_STATUS":

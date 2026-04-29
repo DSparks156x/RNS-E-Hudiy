@@ -216,6 +216,9 @@ class DisplayEngine:
         self.nav_approach_threshold = nav_cfg.get('auto_switch_approach_threshold', 500)
         self.nav_return_threshold = nav_cfg.get('auto_switch_return_threshold', 1000)
         self.nav_return_delay = nav_cfg.get('auto_switch_return_delay', 10)
+        self.nav_hide_inactive = nav_cfg.get('hide_inactive_route', False)
+        self.nav_inactive_debounce = nav_cfg.get('inactive_route_debounce', 5.0)
+        self.last_valid_route_time = 0
 
         # --- Advanced Nav Auto-Switching ---
         self.nav_auto_triggered = False
@@ -331,8 +334,8 @@ class DisplayEngine:
             self.current_page_idx = (self.current_page_idx + delta) % count
             target_name = self.pages[self.current_page_idx]
             
-            # Sub-Check: Skip Nav if inactive
-            if target_name == 'app_nav' and not self.nav_active:
+            # Sub-Check: Skip Nav if inactive or has no route (with debounce)
+            if target_name == 'app_nav' and not self.is_nav_available():
                 continue
             
             # Sub-Check: Skip Phone if inactive
@@ -408,6 +411,28 @@ class DisplayEngine:
         self.egg_active = False
         self.egg_pending = False
         self.phone_auto_overlay = False
+
+    def is_nav_available(self):
+        """Check if the Nav app should be visible in the rotation."""
+        if not self.nav_active:
+            return False
+        
+        if not getattr(self, 'nav_hide_inactive', False):
+            return True
+            
+        nav_app = self.apps['app_nav']
+        has_route = bool(nav_app.description or nav_app.distance_label)
+        
+        now = time.time()
+        if has_route:
+            self.last_valid_route_time = now
+            return True
+            
+        # No route, check debounce
+        if (now - getattr(self, 'last_valid_route_time', 0)) < getattr(self, 'nav_inactive_debounce', 5.0):
+            return True
+            
+        return False
 
     def _resolve_app_priority(self):
         """Unified resolver for the current active app based on priority.
@@ -501,6 +526,10 @@ class DisplayEngine:
                                             self.nav_active = active
                                             logger.info(f"Nav Active State Changed: {active}")
                                             
+                                            if active:
+                                                # Initialize grace period when nav becomes active
+                                                self.last_valid_route_time = time.time()
+                                            
                                             if active and getattr(self, 'nav_auto_switch', True):
                                                 # Auto-switch TO nav
                                                 nav_app = self.apps['app_nav']
@@ -539,6 +568,10 @@ class DisplayEngine:
                                         nav_app = self.apps['app_nav']
                                         nav_app.update_hudiy(topic, data)
                                         self._handle_nav_auto_switch(nav_app)
+
+                                        # Update last valid route time if data contains a route
+                                        if nav_app.description or nav_app.distance_label:
+                                            self.last_valid_route_time = now
 
                                     if topic == b'HUDIY_PHONE':
                                         if 'app_phone' in self.apps: self.apps['app_phone'].update_hudiy(topic, data)

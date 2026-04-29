@@ -36,7 +36,9 @@
         "auto_switch_approach_threshold": 500,
         "auto_switch_return_threshold": 1000,
         "auto_switch_return_delay": 10,
-        "approach_bar_max_distance": 300
+        "approach_bar_max_distance": 300,
+        "hide_inactive_route": true,
+        "inactive_route_debounce": 5.0
       },
       "coverart": {
         "brief": true,
