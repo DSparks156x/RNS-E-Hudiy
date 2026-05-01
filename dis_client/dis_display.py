@@ -549,7 +549,7 @@ class DisplayEngine:
                     try:
                         # Limit Hudiy processing per loop to avoid blocking too long
                         h_count = 0
-                        while h_count < 20:
+                        while h_count < 50:
                             parts = self.sub_hudiy.recv_multipart(flags=zmq.NOBLOCK)
                             h_count += 1
                             if len(parts) == 2:
@@ -603,13 +603,13 @@ class DisplayEngine:
                                                 self.auto_switch_back_at = 0
                                                 self.pre_nav_app_name = None
 
-                                    # Update NavApp even if not current, for distance monitoring
+                                    # Update NavApp specifically for background monitoring (auto-switch, availability)
                                     if topic.startswith(b'HUDIY_NAV') and topic != b'HUDIY_NAV_STATUS':
                                         nav_app = self.apps['app_nav']
                                         nav_app.update_hudiy(topic, data)
                                         self._handle_nav_auto_switch(nav_app)
 
-                                        # Update last valid route time if data contains a route
+                                        # Track when we last saw a valid route maneuver
                                         if nav_app.description or nav_app.distance_label:
                                             self.last_valid_route_time = now
 
@@ -643,8 +643,8 @@ class DisplayEngine:
                                                 self.brief_auto_switch_end = now_time + 5.0
                                                 self.force_redraw(send_clear=True)
 
-                                    # Update current app if it wasn't already updated (NavApp above)
-                                    if not (topic.startswith(b'HUDIY_NAV') and topic != b'HUDIY_NAV_STATUS'):
+                                    # ALWAYS update the currently active app to ensure it doesn't miss any data
+                                    if self.current_app:
                                         self.current_app.update_hudiy(topic, data)
                                 except json.JSONDecodeError: pass
                     except zmq.Again: pass
@@ -910,7 +910,7 @@ class DisplayEngine:
                 elif (now - b['s'] > 5.0): b['p'] = False
 
     def _draw(self):
-        if not getattr(self, 'service_ready', True):
+        if not getattr(self, 'service_ready', True) or getattr(self, 'user_paused', False):
             return
 
         view = self.current_app.get_view()

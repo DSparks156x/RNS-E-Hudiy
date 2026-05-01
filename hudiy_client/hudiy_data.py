@@ -272,7 +272,7 @@ class HudiyEventHandler(ClientEventHandler):
         side_text = MANEUVER_SIDE_MAP.get(side_num, 'N/A')
         full_maneuver_text = f"{maneuver_text} {side_text}".strip()
         
-        logger.info(f"NAV: {full_maneuver_text} (Angle: {angle_num}) - {desc}")
+        logger.info(f"NAV MANEUVER: {full_maneuver_text} (Angle: {angle_num}) | Desc: '{desc}'")
 
         icon_bytes = getattr(message, 'icon', None)
         if icon_bytes:
@@ -305,10 +305,6 @@ class HudiyEventHandler(ClientEventHandler):
             except Exception as e:
                 logger.error(f"Failed to save NAV icon: {e}")
 
-        if not desc and self.nav_active and self.current_nav_data.get('description'):
-            logger.info("iOS Nav Flicker: Received empty description while active. Ignoring.")
-            return
-
         self.current_nav_data.update({
             'description': desc,
             'maneuver_text': full_maneuver_text,
@@ -321,10 +317,7 @@ class HudiyEventHandler(ClientEventHandler):
 
     def on_navigation_maneuver_distance(self, client, message):
         dist = getattr(message, 'label', '')
-        if not dist and self.nav_active and self.current_nav_data.get('distance'):
-            logger.info("iOS Nav Flicker: Received empty distance while active. Ignoring.")
-            return
-
+        logger.info(f"NAV DISTANCE: '{dist}'")
         self.current_nav_data['distance'] = dist
         self.current_nav_data['timestamp'] = time.time()
         self.publish_and_write_nav(self.current_nav_data)
@@ -335,14 +328,18 @@ class HudiyEventHandler(ClientEventHandler):
         
         active = (state == 1)
         status_text = "Active" if active else "Inactive"
-        src_text = "AA" if source == 1 else "None"
+        
+        # Source Mapping: 1=Android Auto, 2=Autobox (CarPlay)
+        src_text = "None"
+        if source == 1: src_text = "Android Auto"
+        elif source == 2: src_text = "Autobox (CarPlay)"
         
         if state != self.last_nav_state:
             old_status = "Active" if self.last_nav_state == 1 else "Inactive"
-            logger.info(f"NAV STATUS CHANGED: {old_status} -> {status_text} (Source: {src_text})")
+            logger.info(f"NAV STATUS CHANGED: {old_status} -> {status_text} (Source: {src_text}, Raw: {source})")
             self.last_nav_state = state
         else:
-            logger.debug(f"NAV STATUS: {status_text} ({src_text})")
+            logger.debug(f"NAV STATUS: {status_text} (Source: {src_text})")
         
         self.nav_active = active
         

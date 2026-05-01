@@ -571,6 +571,8 @@ class DisService:
                                         self.ddp.release_screen()
                                         self.screen_is_active = False
                                     self.ddp._set_state(DDPState.PAUSED)
+                                    self.command_cache = {}
+                                    had_clear = True
                                     continue
                                 elif c == 'resume':
                                     logger.info("Explicit Resume requested.")
