@@ -734,6 +734,7 @@ class DISController:
         self._center_ready = False
         self._center_msg_t = time.monotonic()
         self._center_deadline = 0.0
+        self._not_playing_t = 0.0
 
         # Phone controls
         self._scroll_wheel_phone_menu = _bool(
@@ -991,7 +992,7 @@ class DISController:
         while self.running:
             now = time.monotonic()
 
-            if pending is not None and now >= deadline:
+            if pending is not None and deadline is not None and now >= deadline:
                 self._media_texts = pending
                 logger.info("Media display: L1='%s' L2='%s' L1alt='%s'" , *self._media_texts[:3])
                 self._resolve()
