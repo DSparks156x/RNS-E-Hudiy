@@ -216,6 +216,12 @@ class DisplayEngine:
         self.nav_approach_threshold = nav_cfg.get('auto_switch_approach_threshold', 500)
         self.nav_return_threshold = nav_cfg.get('auto_switch_return_threshold', 1000)
         self.nav_return_delay = nav_cfg.get('auto_switch_return_delay', 10)
+        self.nav_hide_inactive = nav_cfg.get('hide_inactive_route', False)
+        self.nav_inactive_debounce = nav_cfg.get('inactive_route_debounce', 5.0)
+        self.nav_claim_on_nav = nav_cfg.get('claim_on_nav', False)
+        self.nav_release_on_no_nav = nav_cfg.get('release_on_no_nav', False)
+        self.last_valid_route_time = 0
+        self.user_paused = False
 
         # --- Advanced Nav Auto-Switching ---
         self.nav_auto_triggered = False
@@ -331,8 +337,8 @@ class DisplayEngine:
             self.current_page_idx = (self.current_page_idx + delta) % count
             target_name = self.pages[self.current_page_idx]
             
-            # Sub-Check: Skip Nav if inactive
-            if target_name == 'app_nav' and not self.nav_active:
+            # Sub-Check: Skip Nav if inactive or has no route (with debounce)
+            if target_name == 'app_nav' and not self.is_nav_available():
                 continue
             
             # Sub-Check: Skip Phone if inactive
@@ -381,8 +387,8 @@ class DisplayEngine:
         self.publish_status()
 
     def process_input(self, action):
-        # Ignore stalk inputs if the display is paused
-        if not getattr(self, 'service_ready', False):
+        # Ignore stalk inputs if the display is paused (unless we paused it ourselves)
+        if not getattr(self, 'service_ready', False) and not self.user_paused:
             # logger.info(f"Ignoring input {action} while paused")
             return
         
@@ -408,6 +414,65 @@ class DisplayEngine:
         self.egg_active = False
         self.egg_pending = False
         self.phone_auto_overlay = False
+
+    def _check_nav_availability_pause(self):
+        """Monitor nav availability and request center release/resume if configured."""
+        if not self.nav_claim_on_nav and not self.nav_release_on_no_nav:
+            return
+
+        if not getattr(self, 'service_ready', False) and not self.user_paused:
+            return
+
+        current_app_name = self.pages[self.current_page_idx]
+        is_nav_page = (current_app_name == 'app_nav')
+        is_available = self.is_nav_available()
+        
+        # Logic for release: on nav page but it's not available
+        if is_nav_page and not is_available and self.nav_release_on_no_nav:
+            if not self.user_paused:
+                logger.info("Navigation unavailable: Releasing center.")
+                self._send_draw({'command': 'pause'})
+                self.user_paused = True
+            
+            # If we were auto-switched here, return immediately now that it's unavailable
+            if getattr(self, 'pre_nav_app_name', None):
+                logger.info("Nav became unavailable (no maneuver). Returning to previous app.")
+                self.switch_to_app(self.pre_nav_app_name)
+                self.pre_nav_app_name = None
+                self.nav_auto_triggered = False
+                self.auto_switch_back_at = 0
+        
+        # Logic for claim (resume): 
+        elif self.user_paused:
+            # Resume if we switched away from nav page, or nav page became available
+            if not is_nav_page or (is_nav_page and is_available):
+                # If it's a nav page resuming, check claim_on_nav
+                if not is_nav_page or self.nav_claim_on_nav:
+                    logger.info("Navigation available or app switched: Resuming center.")
+                    self._send_draw({'command': 'resume'})
+                    self.user_paused = False
+
+    def is_nav_available(self):
+        """Check if the Nav app should be visible in the rotation."""
+        if not self.nav_active:
+            return False
+        
+        if not getattr(self, 'nav_hide_inactive', False):
+            return True
+            
+        nav_app = self.apps['app_nav']
+        has_route = bool(nav_app.description or nav_app.distance_label)
+        
+        now = time.time()
+        if has_route:
+            self.last_valid_route_time = now
+            return True
+            
+        # No route, check debounce
+        if (now - getattr(self, 'last_valid_route_time', 0)) < getattr(self, 'nav_inactive_debounce', 5.0):
+            return True
+            
+        return False
 
     def _resolve_app_priority(self):
         """Unified resolver for the current active app based on priority.
@@ -484,7 +549,7 @@ class DisplayEngine:
                     try:
                         # Limit Hudiy processing per loop to avoid blocking too long
                         h_count = 0
-                        while h_count < 20:
+                        while h_count < 50:
                             parts = self.sub_hudiy.recv_multipart(flags=zmq.NOBLOCK)
                             h_count += 1
                             if len(parts) == 2:
@@ -500,6 +565,10 @@ class DisplayEngine:
                                         if active != self.nav_active:
                                             self.nav_active = active
                                             logger.info(f"Nav Active State Changed: {active}")
+                                            
+                                            if active:
+                                                # Initialize grace period when nav becomes active
+                                                self.last_valid_route_time = time.time()
                                             
                                             if active and getattr(self, 'nav_auto_switch', True):
                                                 # Auto-switch TO nav
@@ -534,11 +603,15 @@ class DisplayEngine:
                                                 self.auto_switch_back_at = 0
                                                 self.pre_nav_app_name = None
 
-                                    # Update NavApp even if not current, for distance monitoring
+                                    # Update NavApp specifically for background monitoring (auto-switch, availability)
                                     if topic.startswith(b'HUDIY_NAV') and topic != b'HUDIY_NAV_STATUS':
                                         nav_app = self.apps['app_nav']
                                         nav_app.update_hudiy(topic, data)
                                         self._handle_nav_auto_switch(nav_app)
+
+                                        # Track when we last saw a valid route maneuver
+                                        if nav_app.description or nav_app.distance_label:
+                                            self.last_valid_route_time = now
 
                                     if topic == b'HUDIY_PHONE':
                                         if 'app_phone' in self.apps: self.apps['app_phone'].update_hudiy(topic, data)
@@ -570,8 +643,8 @@ class DisplayEngine:
                                                 self.brief_auto_switch_end = now_time + 5.0
                                                 self.force_redraw(send_clear=True)
 
-                                    # Update current app if it wasn't already updated (NavApp above)
-                                    if not (topic.startswith(b'HUDIY_NAV') and topic != b'HUDIY_NAV_STATUS'):
+                                    # ALWAYS update the currently active app to ensure it doesn't miss any data
+                                    if self.current_app:
                                         self.current_app.update_hudiy(topic, data)
                                 except json.JSONDecodeError: pass
                     except zmq.Again: pass
@@ -656,6 +729,7 @@ class DisplayEngine:
                     except Exception as e:
                         logger.debug(f"TP2 Sync failure handled: {e}")
 
+                self._check_nav_availability_pause()
                 self._check_buttons()
                 self._draw()
 
@@ -836,7 +910,7 @@ class DisplayEngine:
                 elif (now - b['s'] > 5.0): b['p'] = False
 
     def _draw(self):
-        if not getattr(self, 'service_ready', True):
+        if not getattr(self, 'service_ready', True) or getattr(self, 'user_paused', False):
             return
 
         view = self.current_app.get_view()

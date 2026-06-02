@@ -589,6 +589,20 @@ class DisService:
                                         self.screen_is_active = False
                                     self.command_cache = {}
                                     had_clear = True
+                                elif c == 'pause':
+                                    logger.info("Explicit Pause requested.")
+                                    if self.screen_is_active:
+                                        self.ddp.release_screen()
+                                        self.screen_is_active = False
+                                    self.ddp._set_state(DDPState.PAUSED)
+                                    self.command_cache = {}
+                                    had_clear = True
+                                    continue
+                                elif c == 'resume':
+                                    logger.info("Explicit Resume requested.")
+                                    if self.ddp.state == DDPState.PAUSED:
+                                        self.ddp._set_state(DDPState.READY)
+                                    continue
                                 elif c in ['draw_text', 'draw_bitmap', 'draw_line']:
                                     k = (c, cmd.get('y', 0), cmd.get('x', 0))
                                     self.command_cache[k] = cmd
