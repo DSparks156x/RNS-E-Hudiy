@@ -208,6 +208,12 @@ class DisService:
                     self.last_draw_time = time.time()
                     return True
                 
+                if data and len(data) >= 3 and data[1] == 0x53 and (data[2] & 0x80) != 0:
+                    logger.info(f"Graphics claim active at Red cluster (status byte: {data[2]:02X}). Successful claim.")
+                    self.screen_is_active = True
+                    self.last_draw_time = time.time()
+                    return True
+                
                 if not data or not any(self.ddp.payload_is(data, p) for p in valid_busy_payloads):
                     raise DDPHandshakeError(f"Claim Handshake 2/7 failed (wait for Busy), got {data}")
                 
@@ -231,18 +237,36 @@ class DisService:
                     self.last_draw_time = time.time()
                     return True
                 
+                if data and len(data) >= 3 and data[1] == 0x53 and (data[2] & 0x80) != 0:
+                    logger.info(f"Graphics claim active at White cluster (status byte: {data[2]:02X}). Successful claim.")
+                    self.screen_is_active = True
+                    self.last_draw_time = time.time()
+                    return True
+                
                 if not data or not any(self.ddp.payload_is(data, p) for p in valid_busy_payloads):
                     raise DDPHandshakeError(f"Claim Handshake 2/7 failed (wait for Busy), got {data}")
                 
                 # Handshake Step 3 (Wait for Free)
-                data = self.ddp._recv_and_ack_data(1000)
+                data = self.ddp._recv_and_ack_data(5000)
+                if data and len(data) >= 3 and data[1] == 0x53 and (data[2] & 0x80) != 0:
+                    logger.info(f"Graphics claim became active during wait for free (status byte: {data[2]:02X}). Successful claim.")
+                    self.screen_is_active = True
+                    self.last_draw_time = time.time()
+                    return True
+                
                 if not data or not any(self.ddp.payload_is(data, p) for p in valid_free_payloads):
-                    logger.warning(f"Cluster did not release screen within 1s (got {data}). Forcing PAUSED state.")
+                    logger.warning(f"Cluster did not release screen within 5s (got {data}). Forcing PAUSED state.")
                     self.ddp._set_state(DDPState.PAUSED)
                     return False
                 
                 # Handshake Step 4 (Wait for Re-Init)
                 data = self.ddp._recv_and_ack_data(1000)
+                if data and len(data) >= 3 and data[1] == 0x53 and (data[2] & 0x80) != 0:
+                    logger.info(f"Graphics claim became active during wait for re-init (status byte: {data[2]:02X}). Successful claim.")
+                    self.screen_is_active = True
+                    self.last_draw_time = time.time()
+                    return True
+                
                 if not data or not self.ddp.payload_is(data, payload_ready):
                     raise DDPHandshakeError(f"Claim Handshake 4/7 failed (wait 1x 2E), got {data}")
                 

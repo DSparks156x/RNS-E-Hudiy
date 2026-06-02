@@ -871,5 +871,9 @@ class DDPProtocol:
             elif payload == DDPMessages.STAT_GRAPHIC_ACK_WHITE or payload == DDPMessages.STAT_GRAPHIC_ACK_RED:
                 logger.debug(f"Cluster confirmed graphics update ({payload}). Ignoring.")
 
+            # --- HANDLE ACTIVE GRAPHICS STATUS (BENIGN) ---
+            elif len(payload) >= 2 and payload[0] == 0x53 and (payload[1] & 0x80) != 0:
+                logger.debug(f"Cluster status: Graphics Claim active ({payload}). Ignoring.")
+
             else:
                 logger.warning(f"Received unexpected data packet: {data}. (ACK sent).")

@@ -15,3 +15,4 @@ references/hi res ddp/dis_service_hd.py
 # Test/Image Analysis Folders
 dis_emulator/teststuff/albumcovers/
 dis_tests/comparisons/
+references/logs
