@@ -128,6 +128,20 @@ class DDPProtocol:
         
         logger.debug(f"CAN config: {{'bitrate': {self.bitrate}, 'interface': 'socketcan', 'channel': '{self.channel}', 'tx': 0x{self.tx_id:X}, 'rx': 0x{self.rx_id:X}}}")
         
+        self.bus = None
+        if not self.reconnect_bus():
+            raise DDPCANError(f"Failed to open CAN bus on {self.channel}")
+
+    def reconnect_bus(self) -> bool:
+        """Closes and re-opens the CAN bus interface to recover from network/socket errors."""
+        logger.info("Attempting to reconnect CAN bus...")
+        if hasattr(self, 'bus') and self.bus is not None:
+            try:
+                self.bus.shutdown()
+            except Exception as e:
+                logger.warning(f"Error shutting down old CAN bus: {e}")
+            self.bus = None
+
         try:
             self.bus = can.Bus(
                 interface='socketcan',
@@ -138,16 +152,21 @@ class DDPProtocol:
             self.bus.set_filters([
                 {"can_id": self.rx_id, "can_mask": self.rx_mask, "extended": False}
             ])
+            logger.info("CAN bus reconnected successfully.")
+            return True
         except Exception as e:
-            logger.error(f"Failed to open CAN-Bus '{self.channel}': {e}")
+            logger.error(f"Failed to reconnect CAN bus on '{self.channel}': {e}")
             logger.error(f"Make sure '{self.channel}' is up (e.g., sudo ip link set {self.channel} up type can bitrate {self.bitrate})")
-            raise DDPCANError(f"Failed to open CAN bus: {e}")
+            return False
 
     def __del__(self):
         """Shuts down the CAN bus connection on exit."""
-        if hasattr(self, 'bus'):
+        if hasattr(self, 'bus') and self.bus is not None:
             logger.debug("Shutting down CAN bus.")
-            self.bus.shutdown()
+            try:
+                self.bus.shutdown()
+            except:
+                pass
 
     # --- State and Helper Functions ---
     def _set_state(self, new_state: DDPState):
@@ -167,6 +186,13 @@ class DDPProtocol:
             self.dis_mode = DisMode.UNKNOWN
             self.i_am_opener = False
             self.send_seq_num = 0
+            # Shutdown and clear the bus to guarantee a fresh socket on next session open
+            if hasattr(self, 'bus') and self.bus is not None:
+                try:
+                    self.bus.shutdown()
+                except Exception as e:
+                    logger.debug(f"Error shutting down CAN bus during disconnect: {e}")
+                self.bus = None
             # Wait for cluster to finish clean up
             time.sleep(1.2)
 
@@ -179,6 +205,10 @@ class DDPProtocol:
 
     def send_can(self, can_id: int, data: List[int]):
         """Sends a raw CAN message to the bus with pacing and Error 105 retry."""
+        if not hasattr(self, 'bus') or self.bus is None:
+            logger.warning("CAN bus not initialized. Attempting to reconnect...")
+            if not self.reconnect_bus():
+                raise DDPCANError("CAN bus not initialized.")
         data_hex = ' '.join(f'{b:02X}' for b in data)
         logger.debug("-> 0x%03X: %s", can_id, data_hex)
         
@@ -203,14 +233,22 @@ class DDPProtocol:
 
     def _recv(self, timeout_s: float = 0.01) -> Optional[List[int]]:
         """Receives and logs a single CAN message from the bus (ID)."""
-        msg = self.bus.recv(timeout_s)
-        if msg:
-            if msg.arbitration_id == self.rx_id:
-                data = list(msg.data)
-                logger.debug("<- 0x%03X: %s", self.rx_id, ' '.join(f'{b:02X}' for b in data))
-                time.sleep(self.CAN_PACING_DELAY_S)
-                return data
-        return None
+        if not hasattr(self, 'bus') or self.bus is None:
+            logger.warning("CAN bus not initialized. Attempting to reconnect...")
+            if not self.reconnect_bus():
+                return None
+        try:
+            msg = self.bus.recv(timeout_s)
+            if msg:
+                if msg.arbitration_id == self.rx_id:
+                    data = list(msg.data)
+                    logger.debug("<- 0x%03X: %s", self.rx_id, ' '.join(f'{b:02X}' for b in data))
+                    time.sleep(self.CAN_PACING_DELAY_S)
+                    return data
+            return None
+        except (can.CanError, OSError) as e:
+            logger.error(f"CAN Receive Error: {e}")
+            raise DDPCANError(f"CAN Receive Error: {e}")
 
     def send_ack(self, received_seq_num: int):
         """Sends a DDP ACK (0xB0 + seq+1) for a received packet."""
@@ -781,6 +819,9 @@ class DDPProtocol:
 
         except (DDPHandshakeError, DDPAckTimeoutError) as e:
             logger.warning(f"Handshake Error (Timeout or Break): {e}")
+            if self.state == DDPState.DISCONNECTED:
+                logger.warning("Session was explicitly closed/disconnected. Aborting initialization.")
+                return False
             logger.info("Cluster may already be initialized (e.g. background keep-alive refresh). Assuming READY.")
             self.was_handshake_assumed = True
             self._set_state(DDPState.READY)
