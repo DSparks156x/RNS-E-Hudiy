@@ -273,10 +273,10 @@ class OpenpilotReceiver(threading.Thread):
                 logger.info("OP RX: Entering handshake recv loop...")
                 while time.time() - start_wait < 1.5:
                     try:
-                        logger.info(f"OP RX: Calling self.bus.recv(timeout=0.1)... elapsed: {time.time() - start_wait:.2f}s")
                         msg = self.bus.recv(timeout=0.1)
                         if msg:
-                            logger.info(f"OP RX: Received CAN frame: ID=0x{msg.arbitration_id:03X} data={msg.data.hex()}")
+                            if msg.arbitration_id in (self.pi_rx_id, self.pi_tx_id):
+                                logger.info(f"OP RX: Received CAN frame: ID=0x{msg.arbitration_id:03X} data={msg.data.hex()}")
                             if msg.arbitration_id == self.pi_rx_id:
                                 data = list(msg.data)
                                 if len(data) >= 1 and data[0] == 0xA1:
