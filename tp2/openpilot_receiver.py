@@ -253,10 +253,10 @@ class OpenpilotReceiver(threading.Thread):
                     time.sleep(5.0)
                     continue
                 
-                logger.info("OP RX: Negotiating TP2.0 channel with Comma (Module 0x0C)...")
+                logger.info("OP RX: Negotiating TP2.0 channel with Comma (Module 0x1D)...")
                 # Send Setup Request to 0x200
-                # Dest=0C, Opcode=C0, RX ID invalid (00 10), TX ID valid 0x307 (07 03), App=01
-                setup_req = [0x0C, 0xC0, 0x00, 0x10, 0x07, 0x03, 0x01]
+                # Dest=1D (Park Assist, coded to powertrain bus), Opcode=C0, RX ID invalid (00 10), TX ID valid 0x307 (07 03), App=01
+                setup_req = [0x1D, 0xC0, 0x00, 0x10, 0x07, 0x03, 0x01]
                 
                 try:
                     self._send_can(0x200, setup_req)
@@ -265,13 +265,13 @@ class OpenpilotReceiver(threading.Thread):
                     time.sleep(2.0)
                     continue
                 
-                # Wait for response on 0x20C
+                # Wait for response on 0x21D (0x200 + module 0x1D)
                 start_wait = time.time()
                 setup_success = False
                 while time.time() - start_wait < 1.5:
                     try:
                         msg = self.bus.recv(timeout=0.1)
-                        if msg and msg.arbitration_id == 0x20C:
+                        if msg and msg.arbitration_id == 0x21D:
                             data = list(msg.data)
                             if len(data) >= 6 and data[0] == 0x00 and data[1] == 0xD0:
                                 # Connection Accepted!
