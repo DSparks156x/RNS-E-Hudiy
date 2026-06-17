@@ -211,7 +211,7 @@ class TP2Service:
         if not self.ignition_sub: return
         
         try:
-            while self.running:
+            while True:
                 parts = self.ignition_sub.recv_multipart(flags=zmq.NOBLOCK)
                 if len(parts) == 2 and parts[0] == b'POWER_STATUS':
                     pwr = json.loads(parts[1])
