@@ -63,7 +63,7 @@ class OpenpilotReceiver(threading.Thread):
             return
         msg = can.Message(arbitration_id=arbitration_id, data=data, is_extended_id=False)
         try:
-            self.bus.send(msg)
+            self.bus.send(msg, timeout=0.5)
             self.last_send_time = time.time()
             logger.debug(f"OP RX Send: ID={arbitration_id:03X} Data=[{' '.join(f'{b:02X}' for b in data)}]")
         except Exception as e:

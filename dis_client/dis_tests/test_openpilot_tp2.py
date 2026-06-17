@@ -30,7 +30,7 @@ except ImportError:
             Bus._channels[channel].append(self)
             self.queue = queue.Queue()
             
-        def send(self, msg):
+        def send(self, msg, timeout=None):
             for bus in Bus._channels.get(self.channel, []):
                 if bus is not self:
                     bus.queue.put(msg)

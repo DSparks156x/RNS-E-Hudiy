@@ -62,7 +62,7 @@ class TP2Protocol:
         msg = can.Message(arbitration_id=arbitration_id, data=data, is_extended_id=False)
         try:
             logger.info(f"TX: ID={arbitration_id:03X} Data=[{' '.join(f'{b:02X}' for b in data)}]")
-            self.bus.send(msg)
+            self.bus.send(msg, timeout=0.5)
             # Use negotiated T3 delay. Default to T3_INTERVAL if not connected.
             sleep_time = self.t3 / 1000.0 if self.connected else self.T3_INTERVAL / 1000.0
             time.sleep(sleep_time)

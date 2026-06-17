@@ -222,7 +222,7 @@ class DDPProtocol:
         for attempt in range(max_retries):
             try:
                 msg = can.Message(arbitration_id=can_id, data=data, is_extended_id=False)
-                self.bus.send(msg)
+                self.bus.send(msg, timeout=0.5)
                 time.sleep(self.CAN_PACING_DELAY_S) # Critical pacing delay
                 return # Success
             except Exception as e:
