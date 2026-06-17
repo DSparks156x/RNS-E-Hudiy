@@ -65,7 +65,7 @@ class OpenpilotReceiver(threading.Thread):
         try:
             self.bus.send(msg, timeout=0.5)
             self.last_send_time = time.time()
-            logger.debug(f"OP RX Send: ID={arbitration_id:03X} Data=[{' '.join(f'{b:02X}' for b in data)}]")
+            logger.info(f"OP RX Send: ID={arbitration_id:03X} Data=[{' '.join(f'{b:02X}' for b in data)}]")
         except Exception as e:
             logger.error(f"OP RX Send Error: {e}")
             self.connected = False
@@ -259,7 +259,9 @@ class OpenpilotReceiver(threading.Thread):
                 # Block size: 0x0F, T1: 0x8A (138ms), T3: 0x0A (1ms)
                 params_req = [0xA0, 0x0F, 0x8A, 0xFF, 0x0A, 0xFF]
                 try:
+                    logger.info("OP RX: Attempting to send CAN handshake request...")
                     self._send_can(self.pi_tx_id, params_req)
+                    logger.info("OP RX: Handshake request sent successfully.")
                 except Exception as e:
                     logger.error(f"OP RX: Handshake send failed: {e}")
                     time.sleep(2.0)
@@ -268,14 +270,21 @@ class OpenpilotReceiver(threading.Thread):
                 # Wait for Parameters Response (A1) on pi_rx_id
                 start_wait = time.time()
                 handshake_success = False
+                logger.info("OP RX: Entering handshake recv loop...")
                 while time.time() - start_wait < 1.5:
                     try:
+                        logger.info(f"OP RX: Calling self.bus.recv(timeout=0.1)... elapsed: {time.time() - start_wait:.2f}s")
                         msg = self.bus.recv(timeout=0.1)
-                        if msg and msg.arbitration_id == self.pi_rx_id:
-                            data = list(msg.data)
-                            if len(data) >= 1 and data[0] == 0xA1:
-                                handshake_success = True
-                                break
+                        if msg:
+                            logger.info(f"OP RX: Received CAN frame: ID=0x{msg.arbitration_id:03X} data={msg.data.hex()}")
+                            if msg.arbitration_id == self.pi_rx_id:
+                                data = list(msg.data)
+                                if len(data) >= 1 and data[0] == 0xA1:
+                                    logger.info("OP RX: Handshake A1 response matched!")
+                                    handshake_success = True
+                                    break
+                        else:
+                            logger.info("OP RX: self.bus.recv returned None (timeout).")
                     except Exception as e:
                         logger.error(f"OP RX: Handshake recv error: {e}")
                         break
