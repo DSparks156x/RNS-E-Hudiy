@@ -76,13 +76,14 @@ class TP2Service:
         self.rep = self.context.socket(zmq.REP)
         self.rep.bind(self.addr_rep)
         
+        self.running = True
+
         # Initial status push
         self._publish_status()
         
         # Connection Management
         self.sessions = {}
-        self._tester_id_pool = list(range(0x300, 0x30A))  # 0x300-0x309
-        self.running = True
+        self._tester_id_pool = list(range(0x300, 0x307))  # 0x300-0x306 (0x307 reserved for Openpilot)
         self._setup_signals()
         
         # Threading
@@ -116,7 +117,7 @@ class TP2Service:
         
         # Create new session
         if not self._tester_id_pool:
-            raise RuntimeError("No tester IDs available (max 10 simultaneous modules)")
+            raise RuntimeError("No tester IDs available (max 7 simultaneous modules)")
         tester_id = self._tester_id_pool.pop(0)
         
         logger.info(f"Creating new session for Module 0x{module_id:02X} (TesterID: 0x{tester_id:X})")

@@ -948,7 +948,7 @@ class DisplayEngine:
                     groups_current[g] = []
                 groups_current[g].append(item)
                 
-            last_groups = self.last_sent.get('groups', {})
+            last_groups = self.last_sent.get('groups') or {}
             
             changed = False
             changed = False
@@ -1007,6 +1007,7 @@ class DisplayEngine:
              self._send_draw({'command': 'clear'})
              self._send_draw({'command': 'commit'})
              self.last_sent['groups'] = None
+             self.last_sent['last_type'] = None
              self.last_sent['custom_sig'] = None
              for k in self.Y: self.last_sent[k] = None
 
@@ -1033,7 +1034,7 @@ class DisplayEngine:
                 
                 # If the string shrank or we need a full clear
                 if len(txt) < target_len:
-                    blanks_needed = target_len - target_len
+                    blanks_needed = target_len - len(txt)
                     blank_char = chr(0x1F)
                     
                     # Pad Right: Only use simple padding for left-aligned text
