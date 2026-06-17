@@ -208,7 +208,7 @@ class DisService:
                     self.last_draw_time = time.time()
                     return True
                 
-                if data and len(data) >= 3 and data[1] == 0x53 and (data[2] & 0x80) != 0:
+                if data and len(data) >= 3 and data[1] == 0x53 and (data[2] & 0x80) != 0 and (data[2] & 0x0F) in [0x05, 0x0A]:
                     logger.info(f"Graphics claim active at Red cluster (status byte: {data[2]:02X}). Successful claim.")
                     self.screen_is_active = True
                     self.last_draw_time = time.time()
@@ -237,7 +237,7 @@ class DisService:
                     self.last_draw_time = time.time()
                     return True
                 
-                if data and len(data) >= 3 and data[1] == 0x53 and (data[2] & 0x80) != 0:
+                if data and len(data) >= 3 and data[1] == 0x53 and (data[2] & 0x80) != 0 and (data[2] & 0x0F) in [0x05, 0x0A]:
                     logger.info(f"Graphics claim active at White cluster (status byte: {data[2]:02X}). Successful claim.")
                     self.screen_is_active = True
                     self.last_draw_time = time.time()
@@ -248,7 +248,7 @@ class DisService:
                 
                 # Handshake Step 3 (Wait for Free)
                 data = self.ddp._recv_and_ack_data(5000)
-                if data and len(data) >= 3 and data[1] == 0x53 and (data[2] & 0x80) != 0:
+                if data and len(data) >= 3 and data[1] == 0x53 and (data[2] & 0x80) != 0 and (data[2] & 0x0F) in [0x05, 0x0A]:
                     logger.info(f"Graphics claim became active during wait for free (status byte: {data[2]:02X}). Successful claim.")
                     self.screen_is_active = True
                     self.last_draw_time = time.time()
@@ -261,7 +261,7 @@ class DisService:
                 
                 # Handshake Step 4 (Wait for Re-Init)
                 data = self.ddp._recv_and_ack_data(1000)
-                if data and len(data) >= 3 and data[1] == 0x53 and (data[2] & 0x80) != 0:
+                if data and len(data) >= 3 and data[1] == 0x53 and (data[2] & 0x80) != 0 and (data[2] & 0x0F) in [0x05, 0x0A]:
                     logger.info(f"Graphics claim became active during wait for re-init (status byte: {data[2]:02X}). Successful claim.")
                     self.screen_is_active = True
                     self.last_draw_time = time.time()
@@ -539,6 +539,11 @@ class DisService:
                 elif self.ddp.state == DDPState.READY:
                     self.ddp.send_keepalive_if_needed()
                     self.ddp.poll_bus_events()
+                    if getattr(self.ddp, 'screen_released_by_cluster', False):
+                        logger.info("Screen release/re-init detected from cluster. Resetting screen_is_active flag.")
+                        self.screen_is_active = False
+                        self.ddp.screen_released_by_cluster = False
+                        self.last_claim_attempt = time.time()
                     self._broadcast_status()
                     if self.ddp.state != DDPState.READY: pass
                     if not self.screen_is_active and self.command_cache:
