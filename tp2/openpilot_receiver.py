@@ -46,8 +46,8 @@ class OpenpilotReceiver(threading.Thread):
         # Connection state
         self.connected = False
         self.bus = None
-        self.pi_tx_id = 0
-        self.pi_rx_id = 0
+        self.pi_tx_id = 0x67A
+        self.pi_rx_id = 0x6DA
         self.last_send_time = 0.0
         self.last_recv_time = 0.0
         
@@ -253,67 +253,36 @@ class OpenpilotReceiver(threading.Thread):
                     time.sleep(5.0)
                     continue
                 
-                logger.info("OP RX: Negotiating TP2.0 channel with Comma (Module 0x0C)...")
-                # Send Setup Request to 0x200
-                # Dest=0C, Opcode=C0, RX ID invalid (00 10), TX ID valid 0x307 (07 03), App=01
-                setup_req = [0x0C, 0xC0, 0x00, 0x10, 0x07, 0x03, 0x01]
-                
-                try:
-                    self._send_can(0x200, setup_req)
-                except Exception as e:
-                    logger.error(f"OP RX: Setup send failed: {e}")
-                    time.sleep(2.0)
-                    continue
-                
-                # Wait for response on 0x20C
-                start_wait = time.time()
-                setup_success = False
-                while time.time() - start_wait < 1.5:
-                    try:
-                        msg = self.bus.recv(timeout=0.1)
-                        if msg and msg.arbitration_id == 0x20C:
-                            data = list(msg.data)
-                            if len(data) >= 6 and data[0] == 0x00 and data[1] == 0xD0:
-                                # Connection Accepted!
-                                # pi_tx_id = Comma RX ID
-                                self.pi_tx_id = (data[3] & 0x0F) << 8 | data[2]
-                                # pi_rx_id = Comma TX ID
-                                self.pi_rx_id = (data[5] & 0x0F) << 8 | data[4]
-                                setup_success = True
-                                break
-                    except Exception as e:
-                        logger.error(f"OP RX: Setup recv error: {e}")
-                        break
-                        
-                if not setup_success:
-                    logger.warning("OP RX: Setup handshake timed out or refused. Retrying in 5 seconds...")
-                    time.sleep(5.0)
-                    continue
-                    
-                logger.info(f"OP RX: Handshake success. Pi TX ID: 0x{self.pi_tx_id:03X}, Pi RX ID: 0x{self.pi_rx_id:03X}")
+                logger.info(f"OP RX: Handshaking with Comma on 0x{self.pi_tx_id:03X}/0x{self.pi_rx_id:03X}...")
                 
                 # Send Parameters Request (A0) on pi_tx_id
                 # Block size: 0x0F, T1: 0x8A (138ms), T3: 0x0A (1ms)
                 params_req = [0xA0, 0x0F, 0x8A, 0xFF, 0x0A, 0xFF]
-                self._send_can(self.pi_tx_id, params_req)
+                try:
+                    self._send_can(self.pi_tx_id, params_req)
+                except Exception as e:
+                    logger.error(f"OP RX: Handshake send failed: {e}")
+                    time.sleep(2.0)
+                    continue
                 
                 # Wait for Parameters Response (A1) on pi_rx_id
                 start_wait = time.time()
-                params_success = False
-                while time.time() - start_wait < 1.0:
+                handshake_success = False
+                while time.time() - start_wait < 1.5:
                     try:
                         msg = self.bus.recv(timeout=0.1)
                         if msg and msg.arbitration_id == self.pi_rx_id:
                             data = list(msg.data)
                             if len(data) >= 1 and data[0] == 0xA1:
-                                params_success = True
+                                handshake_success = True
                                 break
                     except Exception as e:
+                        logger.error(f"OP RX: Handshake recv error: {e}")
                         break
                         
-                if not params_success:
-                    logger.warning("OP RX: Parameters negotiation failed. Resetting channel...")
-                    time.sleep(2.0)
+                if not handshake_success:
+                    logger.warning("OP RX: Handshake timed out or refused. Retrying in 5 seconds...")
+                    time.sleep(5.0)
                     continue
                     
                 # Setup completed successfully!
