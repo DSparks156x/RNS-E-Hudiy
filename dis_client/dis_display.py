@@ -14,6 +14,7 @@ from apps.car_info import CarInfoApp
 from apps.coverart import CoverArtApp
 from apps.easteregg import EasterEggApp
 from apps.acceleration_test import AccelerationTestApp
+from apps.openpilot import OpenpilotApp
 import re
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -41,10 +42,11 @@ class DisplayEngine:
         self.apps['app_settings']     = SettingsApp(self) 
         self.apps['app_coverart']     = CoverArtApp(self.cfg) 
         self.apps['app_easteregg']    = EasterEggApp(self.cfg)
+        self.apps['app_openpilot']    = OpenpilotApp(self.cfg)
         self.egg_app = self.apps['app_easteregg']
 
         # --- Page Cycle Definition ---
-        configured_apps = center_display_cfg.get('applist', ['nav', 'media', 'phone', 'car_info', 'acceleration_test'])
+        configured_apps = center_display_cfg.get('applist', ['nav', 'media', 'phone', 'car_info', 'acceleration_test', 'openpilot'])
         
         self.pages = [f"app_{app}" for app in configured_apps if f"app_{app}" in self.apps]
         if not self.pages:
@@ -118,7 +120,7 @@ class DisplayEngine:
             logger.warning(f"Mock Mode/Windows: Could not connect to metric_stream: {e}")
             
         if self.hudiy_connected:
-            for t in [b'HUDIY_MEDIA', b'HUDIY_NAV', b'HUDIY_PHONE', b'HUDIY_NAV_STATUS', b'HUDIY_DIAG', b'HUDIY_COVERART']: 
+            for t in [b'HUDIY_MEDIA', b'HUDIY_NAV', b'HUDIY_PHONE', b'HUDIY_NAV_STATUS', b'HUDIY_DIAG', b'HUDIY_COVERART', b'HUDIY_OPENPILOT']: 
                 self.sub_hudiy.subscribe(t)
 
         self.draw = self.zmq_ctx.socket(zmq.PUSH)
@@ -620,6 +622,9 @@ class DisplayEngine:
                                     if topic == b'HUDIY_MEDIA':
                                         if 'app_media' in self.apps: self.apps['app_media'].update_hudiy(topic, data)
                                         self._handle_media_match(data)
+
+                                    if topic == b'HUDIY_OPENPILOT':
+                                        if 'app_openpilot' in self.apps: self.apps['app_openpilot'].update_hudiy(topic, data)
 
                                     if topic == b'HUDIY_COVERART':
                                         self.apps['app_coverart'].update_hudiy(topic, data)

@@ -27,7 +27,8 @@
         "media",
         "phone",
         "car_info",
-        "acceleration_test"
+        "acceleration_test",
+        "openpilot"
       ],
       "enabled": true,
       "mode": "media",

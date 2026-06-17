@@ -10,6 +10,20 @@ import signal
 import os
 from tp2_protocol import TP2Protocol, TP2Error
 from tp2_coding import TP2Coding
+from openpilot_receiver import OpenpilotReceiver
+
+class ThreadSafeZmqPub:
+    def __init__(self, socket):
+        self.socket = socket
+        self.lock = threading.Lock()
+
+    def send_multipart(self, parts, *args, **kwargs):
+        with self.lock:
+            return self.socket.send_multipart(parts, *args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self.socket, name)
+
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -56,7 +70,7 @@ class TP2Service:
             self.can_interface = 'can0'
 
         # Publisher (Data)
-        self.pub = self.context.socket(zmq.PUB)
+        self.pub = ThreadSafeZmqPub(self.context.socket(zmq.PUB))
         self.pub.bind(self.addr_pub)
         
         self.rep = self.context.socket(zmq.REP)
@@ -355,6 +369,10 @@ class TP2Service:
         # Start Command Thread
         t_cmd = threading.Thread(target=self.command_thread_func, daemon=True)
         t_cmd.start()
+
+        # Start Openpilot Receiver Thread
+        op_receiver = OpenpilotReceiver(can_interface=self.can_interface, zmq_pub=self.pub)
+        op_receiver.start()
         
         while not self.shutdown_event.is_set():
             try:
@@ -714,6 +732,8 @@ class TP2Service:
                 time.sleep(1)
 
         # Shutdown Cleanup
+        logger.info("Stopping OpenpilotReceiver...")
+        op_receiver.stop()
         for mod, sess in self.sessions.items():
             try: sess['protocol'].close()
             except: pass

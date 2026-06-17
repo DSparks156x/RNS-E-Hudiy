@@ -151,10 +151,58 @@
             transition: border 0.2s;
         }
 
-        input:focus, select:focus {
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus {
             outline: none;
             border: 2px solid var(--primary);
             padding: 11px 15px;
+        }
+
+        /* Premium custom styling for range inputs (sliders) */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #262626;
+            outline: none;
+            margin: 12px 0;
+            transition: background 0.3s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--dis-red);
+            cursor: pointer;
+            transition: transform 0.1s, background-color 0.3s;
+            box-shadow: 0 0 5px rgba(255, 51, 0, 0.5);
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            background: #ff5533;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border: none;
+            border-radius: 50%;
+            background: var(--dis-red);
+            cursor: pointer;
+            transition: transform 0.1s, background-color 0.3s;
+            box-shadow: 0 0 5px rgba(255, 51, 0, 0.5);
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            transform: scale(1.2);
+            background: #ff5533;
         }
 
         select option {
@@ -450,6 +498,104 @@
                     <button class="btn" onclick="emitMockPhone()" style="flex: 1;">Sync Phone</button>
                 </div>
             </div>
+
+            <div class="control-group">
+                <h3>Hudiy: Openpilot</h3>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                    <label style="font-size: 12px; color: var(--text-muted);">Engaged</label>
+                    <input type="checkbox" id="mock-op-engaged" onchange="emitMockOpenpilot()" checked style="width: 20px; height: 20px; cursor: pointer; accent-color: var(--dis-red);">
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+                        <span>Curvature</span>
+                        <span id="lbl-op-curvature">Straight</span>
+                    </div>
+                    <input type="range" id="mock-op-curvature" min="-500" max="500" value="0" step="5" oninput="updateCurvatureLabel(this.value); emitMockOpenpilot();" style="width:100%; accent-color:var(--dis-red);">
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <span style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 6px;">Active Lines & Edges</span>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px;">
+                        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                            <input type="checkbox" id="mock-op-ll0" onchange="emitMockOpenpilot()" style="width: 14px; height: 14px; accent-color: var(--dis-red);">
+                            Adj Left Lane
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                            <input type="checkbox" id="mock-op-ll3" onchange="emitMockOpenpilot()" style="width: 14px; height: 14px; accent-color: var(--dis-red);">
+                            Adj Right Lane
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                            <input type="checkbox" id="mock-op-ll1" onchange="emitMockOpenpilot()" checked style="width: 14px; height: 14px; accent-color: var(--dis-red);">
+                            Left Lane
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                            <input type="checkbox" id="mock-op-ll2" onchange="emitMockOpenpilot()" checked style="width: 14px; height: 14px; accent-color: var(--dis-red);">
+                            Right Lane
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                            <input type="checkbox" id="mock-op-re0" onchange="emitMockOpenpilot()" checked style="width: 14px; height: 14px; accent-color: var(--dis-red);">
+                            Left Edge
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                            <input type="checkbox" id="mock-op-re1" onchange="emitMockOpenpilot()" checked style="width: 14px; height: 14px; accent-color: var(--dis-red);">
+                            Right Edge
+                        </label>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+                        <span>Steer Torque (actuator)</span>
+                        <span id="lbl-op-torque">0%</span>
+                    </div>
+                    <input type="range" id="mock-op-torque" min="-100" max="100" value="0" step="5" oninput="document.getElementById('lbl-op-torque').innerText = this.value + '%'; emitMockOpenpilot();" style="width:100%; accent-color:var(--dis-red);">
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+                        <span>Model Confidence</span>
+                        <span id="lbl-op-conf">100%</span>
+                    </div>
+                    <input type="range" id="mock-op-conf" min="0" max="100" value="100" step="5" oninput="document.getElementById('lbl-op-conf').innerText = this.value + '%'; emitMockOpenpilot();" style="width:100%; accent-color:var(--dis-red);">
+                </div>
+
+                <div style="margin-bottom: 12px; display: flex; gap: 10px;">
+                    <div style="flex: 1;">
+                        <span style="font-size: 11px; color: var(--text-muted);">Speed (mph)</span>
+                        <input type="number" id="mock-op-speed" value="62" min="0" max="150" oninput="emitMockOpenpilot();" style="margin-bottom: 0;">
+                    </div>
+                    <div style="flex: 1;">
+                        <span style="font-size: 11px; color: var(--text-muted);">Max Cruise</span>
+                        <input type="number" id="mock-op-max-speed" value="70" min="0" max="150" oninput="emitMockOpenpilot();" style="margin-bottom: 0;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+                        <span>Lead Vehicle Distance</span>
+                        <span id="lbl-op-lead-dist">35m</span>
+                    </div>
+                    <input type="range" id="mock-op-lead-dist" min="5" max="100" value="35" step="1" oninput="document.getElementById('lbl-op-lead-dist').innerText = this.value + 'm'; emitMockOpenpilot();" style="width:100%; accent-color:var(--dis-red);">
+                    
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
+                        <label style="font-size: 11px; color: var(--text-muted);">Lead Detected</label>
+                        <input type="checkbox" id="mock-op-lead-prob" onchange="emitMockOpenpilot()" checked style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--dis-red);">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <span style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Demo Dataset</span>
+                    <select id="mock-op-dataset" style="width: 100%; margin-bottom: 0;">
+                        <option value="town">Town (curvy)</option>
+                        <option value="highway">Highway</option>
+                    </select>
+                </div>
+                <div class="btn-row">
+                    <button class="btn" id="btn-op-demo" onclick="toggleOpenpilotDemo()" style="flex: 1; border-color: #0f0; color: #0f0;">Start Driving Demo</button>
+                    <button class="btn" onclick="emitMockOpenpilot()" style="flex: 0.5;">Sync</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -628,6 +774,228 @@
             });
         }
 
+        let opDemoTimer = null;
+        let opDemoFrameIdx = 0;
+        let mockModelData = null;
+
+        // Load mock model data on page load
+        fetch('/static/mock_model_data.json')
+            .then(r => r.text())
+            .then(text => {
+                // JSON spec doesn't support NaN; replace with null before parsing
+                const cleaned = text.replace(/\bNaN\b/g, 'null');
+                mockModelData = JSON.parse(cleaned);
+                addLog(`Loaded mock model data: ${mockModelData.town.length} town, ${mockModelData.highway.length} highway frames`);
+            })
+            .catch(e => addLog(`Failed to load mock model data: ${e}`));
+
+        function cleanArr(arr) {
+            // Replace NaN with 0 in arrays from JSON
+            if (!arr) return [];
+            return arr.map(v => (v === null || Number.isNaN(v)) ? 0 : v);
+        }
+
+        function updateCurvatureLabel(val) {
+            const steerAngle = parseFloat(val) || 0;
+            const c = steerAngle * 0.0003;
+            const lbl = document.getElementById('lbl-op-curvature');
+            if (Math.abs(c) < 0.0001) {
+                lbl.innerText = "Straight";
+            } else {
+                const r = 1.0 / Math.abs(c);
+                const dir = steerAngle > 0 ? "Left" : "Right";
+                lbl.innerText = `${r.toFixed(1)}m ${dir}`;
+            }
+        }
+
+        function emitDemoFrame(frame) {
+            // Extract plan from position (x, y, z arrays -> [[x,y,z], ...])
+            const pos = frame.position;
+            const plan = [];
+            for (let i = 0; i < pos.x.length; i++) {
+                plan.push([pos.x[i], pos.y[i] || 0, pos.z[i] || 0]);
+            }
+
+            // Extract lane lines (4 lines, each with y array of 33 points)
+            const laneLines = frame.laneLines.map(ll => cleanArr(ll.y));
+
+            // Extract road edges (2 edges, each with y array)
+            const roadEdges = frame.roadEdges.map(re => cleanArr(re.y));
+
+            // Lane line probs (4 floats)
+            const laneLineProbs = frame.laneLineProbs || [0, 1, 1, 0];
+
+            // Road edge probs - not stored directly; use 1.0 if edge data exists
+            const roadEdgeProbs = [1.0, 1.0];
+
+            // Lead vehicle
+            let leadDist = 0;
+            let leadDetected = false;
+            if (frame.leadsV3 && frame.leadsV3.length > 0) {
+                const bestLead = frame.leadsV3.reduce((best, l) => l.prob > best.prob ? l : best, frame.leadsV3[0]);
+                if (bestLead.prob > 0.5 && bestLead.x && bestLead.x.length > 0) {
+                    leadDist = bestLead.x[0];
+                    leadDetected = true;
+                }
+            }
+
+            // Speed from velocity.x[0] (m/s -> mph)
+            const speedMps = (frame.velocity && frame.velocity.x) ? frame.velocity.x[0] : 0;
+            const speedMph = Math.round(speedMps * 2.237);
+
+            // Steer torque from action.desiredCurvature
+            const desiredCurv = frame.action ? frame.action.desiredCurvature : 0;
+            const steerTorque = Math.max(-1, Math.min(1, desiredCurv * 50));
+
+            // Confidence
+            const confMap = { 'green': 1.0, 'yellow': 0.6, 'red': 0.2 };
+            const confidence = confMap[frame.confidence] || 0.5;
+
+            // Update UI sliders to reflect current frame
+            document.getElementById('mock-op-speed').value = speedMph;
+            document.getElementById('mock-op-max-speed').value = Math.max(speedMph, 70);
+            const curvSlider = Math.round(desiredCurv / 0.0003);
+            document.getElementById('mock-op-curvature').value = Math.max(-500, Math.min(500, curvSlider));
+            updateCurvatureLabel(curvSlider);
+            const torquePct = Math.round(steerTorque * 100);
+            document.getElementById('mock-op-torque').value = torquePct;
+            document.getElementById('lbl-op-torque').innerText = torquePct + '%';
+            document.getElementById('mock-op-conf').value = Math.round(confidence * 100);
+            document.getElementById('lbl-op-conf').innerText = Math.round(confidence * 100) + '%';
+            document.getElementById('mock-op-lead-prob').checked = leadDetected;
+            if (leadDetected) {
+                document.getElementById('mock-op-lead-dist').value = Math.round(leadDist);
+                document.getElementById('lbl-op-lead-dist').innerText = Math.round(leadDist) + 'm';
+            }
+
+            // Update line toggle checkboxes from real probs
+            document.getElementById('mock-op-ll0').checked = laneLineProbs[0] > 0.5;
+            document.getElementById('mock-op-ll1').checked = laneLineProbs[1] > 0.5;
+            document.getElementById('mock-op-ll2').checked = laneLineProbs[2] > 0.5;
+            document.getElementById('mock-op-ll3').checked = laneLineProbs[3] > 0.5;
+            document.getElementById('mock-op-re0').checked = true;
+            document.getElementById('mock-op-re1').checked = true;
+
+            emitHudiy('HUDIY_OPENPILOT', {
+                engaged: true,
+                steer_angle: curvSlider,
+                steer_torque: steerTorque,
+                model_confidence: confidence,
+                speed: speedMph,
+                max_speed: Math.max(speedMph, 70),
+                lead_dist: leadDist,
+                lead_detected: leadDetected,
+                plan: plan,
+                lane_lines: laneLines,
+                lane_line_probs: laneLineProbs,
+                road_edges: roadEdges,
+                road_edge_probs: roadEdgeProbs,
+                timestamp: Date.now() / 1000
+            });
+        }
+
+        function emitMockOpenpilot() {
+            // If demo is running, frames are emitted by the demo timer directly
+            // This function is for manual slider mode only
+            const engaged = document.getElementById('mock-op-engaged').checked;
+            const steerAngle = parseFloat(document.getElementById('mock-op-curvature').value) || 0;
+            const steerTorque = (parseFloat(document.getElementById('mock-op-torque').value) || 0) / 100.0;
+            const confidence = (parseFloat(document.getElementById('mock-op-conf').value) || 0) / 100.0;
+            const speed = parseInt(document.getElementById('mock-op-speed').value) || 0;
+            const maxSpeed = parseInt(document.getElementById('mock-op-max-speed').value) || 0;
+            const leadDist = parseFloat(document.getElementById('mock-op-lead-dist').value) || 0;
+            const leadDetected = document.getElementById('mock-op-lead-prob').checked;
+
+            // Line Toggles
+            const ll0 = document.getElementById('mock-op-ll0').checked;
+            const ll1 = document.getElementById('mock-op-ll1').checked;
+            const ll2 = document.getElementById('mock-op-ll2').checked;
+            const ll3 = document.getElementById('mock-op-ll3').checked;
+            const re0 = document.getElementById('mock-op-re0').checked;
+            const re1 = document.getElementById('mock-op-re1').checked;
+
+            // Generate Mock Model Output Curves
+            const c = -steerAngle * 0.0003;
+            const laneWidth = 3.2;
+            const roadWidth = 4.5;
+
+            const xIdxs = [];
+            for (let i = 0; i < 33; i++) {
+                xIdxs.push(192.0 * Math.pow(i / 32.0, 2));
+            }
+
+            const laneLines = [[], [], [], []];
+            const roadEdges = [[], []];
+
+            for (let i = 0; i < 33; i++) {
+                const x = xIdxs[i];
+                const yCenter = c * x * x;
+                laneLines[0].push(yCenter + laneWidth * 1.5);
+                laneLines[1].push(yCenter + laneWidth * 0.5);
+                laneLines[2].push(yCenter - laneWidth * 0.5);
+                laneLines[3].push(yCenter - laneWidth * 1.5);
+                roadEdges[0].push(yCenter + roadWidth * 0.5);
+                roadEdges[1].push(yCenter - roadWidth * 0.5);
+            }
+
+            const plan = [];
+            for (let i = 0; i < 33; i++) {
+                const x = xIdxs[i];
+                const y = c * x * x;
+                plan.push([x, y, 0.0]);
+            }
+
+            emitHudiy('HUDIY_OPENPILOT', {
+                engaged: engaged,
+                steer_angle: steerAngle,
+                steer_torque: steerTorque,
+                model_confidence: confidence,
+                speed: speed,
+                max_speed: maxSpeed,
+                lead_dist: leadDist,
+                lead_detected: leadDetected,
+                plan: plan,
+                lane_lines: laneLines,
+                lane_line_probs: [ll0 ? 0.9 : 0.0, ll1 ? 0.9 : 0.0, ll2 ? 0.9 : 0.0, ll3 ? 0.9 : 0.0],
+                road_edges: roadEdges,
+                road_edge_probs: [re0 ? 0.9 : 0.0, re1 ? 0.9 : 0.0],
+                timestamp: Date.now() / 1000
+            });
+        }
+
+        function toggleOpenpilotDemo() {
+            const btn = document.getElementById('btn-op-demo');
+            if (opDemoTimer) {
+                clearInterval(opDemoTimer);
+                opDemoTimer = null;
+                btn.innerText = "Start Driving Demo";
+                btn.style.borderColor = "#0f0";
+                btn.style.color = "#0f0";
+            } else {
+                if (!mockModelData) {
+                    addLog('Mock model data not loaded yet!');
+                    return;
+                }
+                const datasetKey = document.getElementById('mock-op-dataset').value;
+                const frames = mockModelData[datasetKey];
+                if (!frames || frames.length === 0) {
+                    addLog(`No frames in dataset "${datasetKey}"`);
+                    return;
+                }
+
+                btn.innerText = `Stop Demo (${datasetKey})`;
+                btn.style.borderColor = "#ff3300";
+                btn.style.color = "#ff3300";
+                opDemoFrameIdx = 0;
+
+                opDemoTimer = setInterval(() => {
+                    const frame = frames[opDemoFrameIdx];
+                    emitDemoFrame(frame);
+                    opDemoFrameIdx = (opDemoFrameIdx + 1) % frames.length;
+                }, 66); // ~15 FPS
+            }
+        }
+
         function setDisState(state) {
             if (socket && socket.connected) {
                 socket.emit('set_dis_state', { state: state });
@@ -679,11 +1047,20 @@
         // Native HUDIY bitmaps are now pushed directly over Socket.IO from the backend
 
         function addLog(msg) {
+            const windowScrollY = window.scrollY;
+            const windowScrollX = window.scrollX;
+            const isAtBottom = (log.scrollHeight - log.clientHeight - log.scrollTop) < 30;
+
             const div = document.createElement('div');
             div.innerText = `> ${msg}`;
             log.appendChild(div);
             while (log.childNodes.length > 20) log.removeChild(log.firstChild);
-            log.scrollTop = log.scrollHeight;
+            
+            if (isAtBottom) {
+                log.scrollTop = log.scrollHeight;
+            }
+
+            window.scrollTo(windowScrollX, windowScrollY);
         }
 
         function toggleLogPause() {
@@ -701,6 +1078,12 @@
             if (commandsLog.innerText === "Waiting for commands...") {
                 commandsLog.innerText = "";
             }
+
+            const windowScrollY = window.scrollY;
+            const windowScrollX = window.scrollX;
+
+            // Check if user is scrolled near the bottom of commandsLog
+            const isAtBottom = (commandsLog.scrollHeight - commandsLog.clientHeight - commandsLog.scrollTop) < 30;
 
             const div = document.createElement('div');
             div.className = 'command-entry';
@@ -723,7 +1106,12 @@
 
             commandsLog.appendChild(div);
             while (commandsLog.childNodes.length > 50) commandsLog.removeChild(commandsLog.firstChild);
-            commandsLog.scrollTop = commandsLog.scrollHeight;
+            
+            if (isAtBottom) {
+                commandsLog.scrollTop = commandsLog.scrollHeight;
+            }
+
+            window.scrollTo(windowScrollX, windowScrollY);
         }
 
         function estimateCommandBytes(cmd) {
@@ -735,6 +1123,10 @@
         }
 
         function updateLastCommandSet(set) {
+            const savedScroll = lastCommandSet.scrollTop;
+            const windowScrollY = window.scrollY;
+            const windowScrollX = window.scrollX;
+
             lastCommandSet.innerHTML = "";
             if (set.length === 0) {
                 lastCommandSet.innerText = "(Empty)";
@@ -767,8 +1159,10 @@
 
                 lastCommandSet.appendChild(div);
             });
-            lastCommandSet.scrollTop = 0;
+            lastCommandSet.scrollTop = savedScroll;
             if (lastCommandBytes) lastCommandBytes.innerText = totalBytes + " B";
+
+            window.scrollTo(windowScrollX, windowScrollY);
         }
 
         function initEmulator() {
@@ -776,6 +1170,7 @@
             socket.on('connect', () => {
                 connStatus.innerText = "CONNECTED";
                 addLog("Connected to Bridge");
+                emitMockOpenpilot();
             });
             socket.on('disconnect', () => {
                 connStatus.innerText = "DISCONNECTED";
@@ -884,12 +1279,23 @@
                     currentCommandSet = [];
                     break;
                 case 'debug_log':
-                    const div = document.createElement('div');
-                    div.innerText = `[DEV] ${cmd.text}`;
-                    div.style.color = '#ffaa00';
-                    log.appendChild(div);
-                    while (log.childNodes.length > 30) log.removeChild(log.firstChild);
-                    log.scrollTop = log.scrollHeight;
+                    {
+                        const windowScrollY = window.scrollY;
+                        const windowScrollX = window.scrollX;
+                        const isAtBottom = (log.scrollHeight - log.clientHeight - log.scrollTop) < 30;
+
+                        const div = document.createElement('div');
+                        div.innerText = `[DEV] ${cmd.text}`;
+                        div.style.color = '#ffaa00';
+                        log.appendChild(div);
+                        while (log.childNodes.length > 30) log.removeChild(log.firstChild);
+                        
+                        if (isAtBottom) {
+                            log.scrollTop = log.scrollHeight;
+                        }
+
+                        window.scrollTo(windowScrollX, windowScrollY);
+                    }
                     break;
             }
         }

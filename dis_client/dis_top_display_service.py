@@ -373,7 +373,7 @@ class LineController:
                     "centered": True,
                     "fixed_width": True
                 }
-                logger.info("[%s] Sending mock top text: %s", self.name, data.hex())
+                logger.debug("[%s] Sending mock top text: %s", self.name, data.hex())
                 self._push.send_json(payload)
                 self._fail_count = 0
                 return True
