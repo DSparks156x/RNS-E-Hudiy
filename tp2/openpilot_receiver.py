@@ -295,7 +295,9 @@ class OpenpilotReceiver(threading.Thread):
                 # Send Parameters Request (A0) on pi_tx_id
                 # Block size: 0x0F, T1: 0x8A (138ms), T3: 0x0A (1ms)
                 params_req = [0xA0, 0x0F, 0x8A, 0xFF, 0x0A, 0xFF]
+                logger.info(f"OP RX: Sending params request (A0) on 0x{self.pi_tx_id:03X}...")
                 self._send_can(self.pi_tx_id, params_req)
+                logger.info(f"OP RX: Params request sent. Waiting for A1 on 0x{self.pi_rx_id:03X}...")
                 
                 # Wait for Parameters Response (A1) on pi_rx_id
                 start_wait = time.time()
@@ -303,12 +305,15 @@ class OpenpilotReceiver(threading.Thread):
                 while time.time() - start_wait < 1.0:
                     try:
                         msg = self.bus.recv(timeout=0.1)
+                        if msg:
+                            logger.info(f"OP RX: params wait got msg: ID=0x{msg.arbitration_id:03X} data={msg.data.hex()}")
                         if msg and msg.arbitration_id == self.pi_rx_id:
                             data = list(msg.data)
                             if len(data) >= 1 and data[0] == 0xA1:
                                 params_success = True
                                 break
                     except Exception as e:
+                        logger.error(f"OP RX: params wait error: {e}")
                         break
                         
                 if not params_success:
