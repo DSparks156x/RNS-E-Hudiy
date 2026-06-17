@@ -388,8 +388,9 @@ class DisService:
 
     def get_line_payload(self, x: int, y: int, length: int, vertical: bool = True) -> List[int]:
         orientation = 0x10 if vertical else 0x20
-        abs_y = y + self.region_y_offset
-        return [0x63, 0x04, orientation, x, abs_y, length]
+        # 0x63 uses region-relative coordinates (like 0x57 text), NOT absolute
+        # coordinates (like 0x52 region commands). No offset needed.
+        return [0x63, 0x04, orientation, x, y, length]
 
     def draw_line(self, x: int, y: int, length: int, vertical: bool = True):
         payload = self.get_line_payload(x, y, length, vertical)
