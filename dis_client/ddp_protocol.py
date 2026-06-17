@@ -112,6 +112,7 @@ class DDPProtocol:
         self.i_am_opener = False
         self.last_ka_sent = 0.0
         self.send_seq_num = 0
+        self.screen_released_by_cluster = False
 
         # For _recv_specific to store stray packets
         self._last_received_ack = None
@@ -180,6 +181,9 @@ class DDPProtocol:
 
         if new_state == DDPState.READY and old_state == DDPState.PAUSED:
             logger.info("Resuming from PAUSE.")
+        
+        if new_state in [DDPState.DISCONNECTED, DDPState.PAUSED]:
+            self.screen_released_by_cluster = True
         
         # Reset context on disconnection
         if new_state == DDPState.DISCONNECTED:
@@ -891,11 +895,13 @@ class DDPProtocol:
             # --- DETECT FREE (Cluster Releases Screen) ---
             elif payload in [DDPMessages.STAT_FREE_HALF, DDPMessages.STAT_FREE_FULL]:
                 logger.info(f"Cluster Status FREE ({payload}). Waiting for Re-Init Request (2E)...")
+                self.screen_released_by_cluster = True
                 # Do not resume yet. Protocol dictates we wait for 0x2E.
 
             # --- HANDLE RE-INIT (Resume Sequence) ---
             elif payload == DDPMessages.CMD_REINIT_REQ:
                 logger.info("Received Re-Init Request (2E). Sending Confirm (2F).")
+                self.screen_released_by_cluster = True
                 
                 # 1. Reply with 2F (Confirmation)
                 first_byte = self.PKT_TYPE_DATA_END + self.send_seq_num

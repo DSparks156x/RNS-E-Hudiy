@@ -539,6 +539,10 @@ class DisService:
                 elif self.ddp.state == DDPState.READY:
                     self.ddp.send_keepalive_if_needed()
                     self.ddp.poll_bus_events()
+                    if getattr(self.ddp, 'screen_released_by_cluster', False):
+                        logger.info("Screen release/re-init detected from cluster. Resetting screen_is_active flag.")
+                        self.screen_is_active = False
+                        self.ddp.screen_released_by_cluster = False
                     self._broadcast_status()
                     if self.ddp.state != DDPState.READY: pass
                     if not self.screen_is_active and self.command_cache:
