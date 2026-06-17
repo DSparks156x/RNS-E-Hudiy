@@ -248,11 +248,6 @@ class OpenpilotReceiver(threading.Thread):
                 # Attempt to open CAN interface
                 try:
                     self.bus = can.Bus(interface=self.can_interface_type, channel=self.can_interface, bitrate=100000)
-                    if hasattr(self.bus, 'set_filters'):
-                        try:
-                            self.bus.set_filters([{"can_id": self.pi_rx_id, "can_mask": 0x7FF}])
-                        except Exception as fe:
-                            logger.warning(f"OP RX: Failed to set CAN filters: {fe}")
                 except Exception as e:
                     logger.error(f"OP RX: Failed to open CAN bus: {e}")
                     time.sleep(5.0)
