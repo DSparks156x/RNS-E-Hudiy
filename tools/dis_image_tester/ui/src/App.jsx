@@ -16,7 +16,9 @@ const INITIAL_PARAMS = {
   gamma: 2.2,
   black_floor: 45,
   boldness: 0.0,
-  diffusion: 0.85
+  diffusion: 0.85,
+  width: 64,
+  height: 48
 };
 
 // --- Helper Hook: Debounce ---
@@ -94,7 +96,7 @@ const ImageCard = ({ filename, params }) => {
   return (
     <div className="image-card glass fade-in">
       <div className="image-container">
-        <div className="image-label">Processed (64x48)</div>
+        <div className="image-label">Processed ({params.width || 64}x{params.height || 48})</div>
         <img 
           src={data.processed} 
           alt={filename} 
@@ -177,6 +179,15 @@ function App() {
           <div className="divider" />
 
           <h3>Algorithms</h3>
+          <ControlRow label="Resolution">
+            <select value={`${params.width || 64}x${params.height || 48}`} onChange={e => {
+              const [w, h] = e.target.value.split('x').map(Number);
+              setParams(prev => ({ ...prev, width: w, height: h }));
+            }}>
+              <option value="64x48">64x48 (Default)</option>
+              <option value="128x96">128x96</option>
+            </select>
+          </ControlRow>
           <ControlRow label="Dither">
             <select value={params.dither} onChange={e => updateParam('dither', e.target.value)}>
               <option value="fs">Floyd-Steinberg</option>

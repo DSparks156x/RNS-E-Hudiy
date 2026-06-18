@@ -49,6 +49,8 @@ class ProcessRequest(BaseModel):
     black_floor: int = 45
     boldness: float = 0.0
     diffusion: float = 0.85
+    width: int = 64
+    height: int = 48
 
 
 @app.get("/api/images")
@@ -74,6 +76,7 @@ async def process_image(req: ProcessRequest):
         with Image.open(img_path) as img:
             processed = dis_image.process_image(
                 img,
+                target_size=(req.width, req.height),
                 contrast=req.contrast,
                 sharpen=req.sharpen,
                 dither=req.dither,
@@ -106,6 +109,8 @@ async def process_image(req: ProcessRequest):
             # Generate config string for hudiy_data.py
             # Only include non-default values to keep it clean
             params = []
+            if req.width != 64 or req.height != 48:
+                params.append(f"target_size=({req.width}, {req.height})")
             if req.contrast != 1.4:
                 params.append(f"contrast={req.contrast}")
             if req.sharpen != 1.5:
@@ -138,7 +143,8 @@ async def process_image(req: ProcessRequest):
             )
 
             # JSON format - provide the full set of arguments for easy copying
-            config_json = {k: v for k, v in req.dict().items() if k != "filename"}
+            config_json = {k: v for k, v in req.dict().items() if k not in ("filename", "width", "height")}
+            config_json["target_size"] = [req.width, req.height]
 
             # Generate the full config.json snippet
             config_snippet = {

@@ -360,6 +360,8 @@ def process_image(
         boldness:       0.0 = off, float = morphological dilation "thickness".
         diffusion:      Error diffusion for Atkinson dither (0.75-1.0). Default 0.85.
     """
+    if isinstance(target_size, list):
+        target_size = tuple(target_size)
     frame = img.copy().convert("RGB")
     frame.thumbnail(target_size, Image.Resampling.LANCZOS)
     

@@ -16,3 +16,4 @@ references/hi res ddp/dis_service_hd.py
 dis_emulator/teststuff/albumcovers/
 dis_tests/comparisons/
 references/logs
+tools/dis_image_tester/albumcovers

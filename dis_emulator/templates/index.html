@@ -1336,6 +1336,13 @@
             if (topLine2) drawAudscii(topLine2, 8, 13, 0x06, true, true);
         }
 
+        function getFontTable(flags) {
+            const fontFlag = flags & 0x0C;
+            if (fontFlag === 0x00 && typeof FONT_DATA_FIXED !== 'undefined') return FONT_DATA_FIXED;
+            if (fontFlag === 0x08 && typeof FONT_DATA_GRAPHICS !== 'undefined') return FONT_DATA_GRAPHICS;
+            return typeof FONT_DATA_PROP !== 'undefined' ? FONT_DATA_PROP : null;
+        }
+
         function drawText(text, x, y, flags) {
             const isInverted = (flags & 0x80) !== 0;
             const isCentered = (flags & 0x20) !== 0; // Native DIS Center Flag
@@ -1347,6 +1354,7 @@
             const CHAR_H = 9;
 
             let currentX = x;
+            const fontTable = getFontTable(flags);
 
             // Pre-calculate full proportional width if centering is requested
             if (isCentered) {
@@ -1354,7 +1362,7 @@
                 for (let i = 0; i < text.length; i++) {
                     const charCode = text.charCodeAt(i);
                     const audsciiIndex = charCode < 256 ? AUDSCII[charCode] : 0x20;
-                    const charData = typeof FONT_DATA !== 'undefined' ? FONT_DATA[audsciiIndex] : null;
+                    const charData = fontTable ? fontTable[audsciiIndex] : null;
                     let charW = CHAR_MAX_W;
                     if (charData && charData.length === 8) {
                         charW = charData[0];
@@ -1369,7 +1377,7 @@
             for (let i = 0; i < text.length; i++) {
                 const charCode = text.charCodeAt(i);
                 const audsciiIndex = charCode < 256 ? AUDSCII[charCode] : 0x20;
-                const charData = typeof FONT_DATA !== 'undefined' ? FONT_DATA[audsciiIndex] : null;
+                const charData = fontTable ? fontTable[audsciiIndex] : null;
 
                 // Determine character width
                 // For proportional fonts, charData[0] is the width (1 to 6)
@@ -1411,12 +1419,13 @@
             const FIXED_W = 6;
 
             let currentX = x;
+            const fontTable = getFontTable(flags);
 
             if (centered) {
                 let totalWidth = 0;
                 for (let i = 0; i < bytes.length; i++) {
                     const audsciiIndex = bytes[i];
-                    const charData = typeof FONT_DATA !== 'undefined' ? FONT_DATA[audsciiIndex] : null;
+                    const charData = fontTable ? fontTable[audsciiIndex] : null;
                     let charW = FIXED_W;
                     if (!fixedWidth && charData && charData.length === 8) {
                         charW = charData[0];
@@ -1429,7 +1438,7 @@
 
             for (let i = 0; i < bytes.length; i++) {
                 const audsciiIndex = bytes[i];
-                const charData = typeof FONT_DATA !== 'undefined' ? FONT_DATA[audsciiIndex] : null;
+                const charData = fontTable ? fontTable[audsciiIndex] : null;
 
                 let charW = FIXED_W;
                 let rowsOffset = 0;
