@@ -25,10 +25,31 @@ class OpenpilotApp(BaseApp):
         self.last_update_time = 0
         self.update_interval = 0.066 # ~15 FPS max refresh rate
         self.cached_view = []
+        
+        # Sequence tracking for flow control
+        self.last_sent_seq = 0
+        self.last_acked_seq = 0
+        self.last_frame_sent_time = 0.0
+        self.prev_road_img = None
 
     def update_hudiy(self, topic, data):
         if topic == b'HUDIY_OPENPILOT':
             self.state.update(data)
+
+    def on_enter(self):
+        super().on_enter()
+        self.last_sent_seq = 0
+        self.last_acked_seq = 0
+        self.last_frame_sent_time = 0.0
+        self.prev_road_img = None
+
+    def on_frame_sent(self, seq):
+        self.last_sent_seq = seq
+        self.last_frame_sent_time = time.time()
+
+    def on_frame_acked(self, seq):
+        if seq > self.last_acked_seq:
+            self.last_acked_seq = seq
 
     def _project_point(self, x, y, z=0.0):
         if x <= 0.1:
@@ -84,6 +105,11 @@ class OpenpilotApp(BaseApp):
 
     def get_view(self):
         now = time.time()
+        # Flow control: Don't send a new frame until the previous one is fully acknowledged,
+        # with a 1.0 second timeout to prevent getting stuck if an ACK is lost.
+        if self.last_sent_seq > self.last_acked_seq and (now - self.last_frame_sent_time < 1.0) and self.cached_view:
+            return self.cached_view
+
         # Rate Limit check
         if (now - self.last_update_time) < self.update_interval and self.cached_view:
             return self.cached_view
@@ -113,25 +139,25 @@ class OpenpilotApp(BaseApp):
         # Group 1: Top Dashboard Info (Speed & Status & Conf)
         # ----------------------------------------------------
         status_text = "ENG" if engaged else "IDL"
-        status_flag = self.FLAG_ITEM | 0x80 if engaged else self.FLAG_ITEM
+        status_flag = self.FLAG_ITEM
         
-        speed_str = f"{speed}/{max_speed}" if max_speed > 0 else f"{speed}"
+        speed_str = f"{max_speed}" if (0 < max_speed < 255) else ""
         
         # Horizontal Confidence Progress Bar at X=52..62, Y=4
         bar_len = max(0, min(11, int(model_confidence * 11.0)))
         
         top_commands = [
-            {'cmd': 'clear_area', 'x': 0, 'y': 0, 'w': 64, 'h': 9, 'group': 'road'},
+            {'cmd': 'clear_area', 'x': 0, 'y': 0, 'w': 64, 'h': 9, 'group': 'road_top'},
             # Status Text
-            {'cmd': 'draw_text', 'text': status_text, 'x': 2, 'y': 1, 'flags': status_flag, 'group': 'road'},
+            {'cmd': 'draw_text', 'text': status_text, 'x': 2, 'y': 1, 'flags': status_flag, 'group': 'road_top'},
             # Centered Speed Text
-            {'cmd': 'draw_text', 'text': speed_str, 'y': 1, 'flags': self.FLAG_ITEM_CENTERED, 'group': 'road'},
+            {'cmd': 'draw_text', 'text': speed_str, 'y': 1, 'flags': self.FLAG_ITEM_CENTERED, 'group': 'road_top'},
             # Confidence Progress Bar (Baseline at Y=5)
-            {'cmd': 'draw_line', 'x': 52, 'y': 5, 'length': 11, 'vertical': False, 'group': 'road'}
+            {'cmd': 'draw_line', 'x': 52, 'y': 5, 'length': 11, 'vertical': False, 'group': 'road_top'}
         ]
         if bar_len > 0:
             top_commands.append(
-                {'cmd': 'draw_line', 'x': 52, 'y': 4, 'length': bar_len, 'vertical': False, 'group': 'road'}
+                {'cmd': 'draw_line', 'x': 52, 'y': 4, 'length': bar_len, 'vertical': False, 'group': 'road_top'}
             )
 
         # ----------------------------------------------------
@@ -360,25 +386,25 @@ class OpenpilotApp(BaseApp):
                     draw.point((x1 + 1, y_mid + h_body // 2), fill=1)
                     draw.point((x2 - 1, y_mid + h_body // 2), fill=1)
 
-        bitmap_bytes = dis_image.image_to_bitmap(road_img)
-        bitmap_hex = bitmap_bytes.hex()
-        
-        # Prepend clear_area for road region (Y=7 to 42)
-        view_commands.extend([
-            {'cmd': 'clear_area', 'x': 0, 'y': 7, 'w': 64, 'h': 36, 'group': 'road'},
-            {
+        if not hasattr(self, 'prev_road_img'):
+            self.prev_road_img = None
+        blocks = dis_image.extract_deltas(self.prev_road_img, road_img, granular=True)
+        self.prev_road_img = road_img.copy()
+
+        # Add granular delta drawing commands
+        for block in blocks:
+            w_pix = (len(block['data']) // block['h']) * 8
+            view_commands.append({
                 'cmd': 'draw_raw_bitmap',
-                'data_hex': bitmap_hex,
-                'w': 64,
-                'h': 36,
-                'x': 0,
-                'y': 7,
-                'mode_flag': 0x02,
-                'group': 'road'
-            }
-        ])
+                'data_hex': block['data'].hex(),
+                'w': w_pix,
+                'h': block['h'],
+                'x': block['x'],
+                'y': 7 + block['y'],
+                'mode_flag': 0x02
+            })
         
-        # Append top commands on top of the road bitmap
+        # Append top commands
         view_commands.extend(top_commands)
 
         # ----------------------------------------------------

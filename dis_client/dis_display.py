@@ -526,6 +526,8 @@ class DisplayEngine:
     def force_redraw(self, send_clear=False):
         self.last_sent = {}
         self.last_sent_flags = {}
+        if hasattr(self.current_app, 'prev_road_img'):
+            self.current_app.prev_road_img = None
         if send_clear:
             self._send_draw({'command': 'clear'})
             self._send_draw({'command': 'commit'})
@@ -999,7 +1001,8 @@ class DisplayEngine:
                 self._send_draw({'command': 'commit', 'seq': self.frame_seq_counter})
                 self.current_app.on_frame_sent(self.frame_seq_counter)
                 
-            self.last_sent['groups'] = last_groups
+            # Prune last_groups to prevent memory leak of one-off delta groups
+            self.last_sent['groups'] = {g: v for g, v in last_groups.items() if g in groups_current}
             for k in self.Y: self.last_sent[k] = None
             return
 

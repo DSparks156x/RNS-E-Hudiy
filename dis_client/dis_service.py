@@ -739,7 +739,7 @@ class DisService:
                                             
                                             for part in cmd_parts:
                                                 if current_payload and (len(current_payload) + len(part) > 42):
-                                                    self.ddp.send_ddp_frame(current_payload)
+                                                    self.ddp.send_ddp_frame(current_payload, pacing=False)
                                                     current_payload = []
                                                     self.ddp.poll_bus_events()
                                                     self.ddp.send_keepalive_if_needed()
