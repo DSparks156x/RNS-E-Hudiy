@@ -17,3 +17,5 @@ dis_emulator/teststuff/albumcovers/
 dis_tests/comparisons/
 references/logs
 tools/dis_image_tester/albumcovers
+references/scratch
+scratch/
