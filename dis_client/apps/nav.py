@@ -169,24 +169,28 @@ class NavApp(BaseApp):
                 return 0.0
             
             import re
-            m = re.search(r'([\d.,]+)\s*([a-z]*)', s)
+            m = re.search(r'([\d.,/]+)\s*([a-z]*)', s)
             if not m:
                 return -1.0
             
             num_str = m.group(1)
             unit = m.group(2)
             
-            # Clean thousands separators
-            if ',' in num_str:
-                if '.' in num_str:
-                    num_str = num_str.replace(',', '')
-                else:
-                    if len(num_str.split(',')[-1]) == 3:
+            if '/' in num_str:
+                parts = num_str.split('/')
+                val = float(parts[0]) / float(parts[1])
+            else:
+                # Clean thousands separators
+                if ',' in num_str:
+                    if '.' in num_str:
                         num_str = num_str.replace(',', '')
                     else:
-                        num_str = num_str.replace(',', '.')
+                        if len(num_str.split(',')[-1]) == 3:
+                            num_str = num_str.replace(',', '')
+                        else:
+                            num_str = num_str.replace(',', '.')
+                val = float(num_str)
             
-            val = float(num_str)
             if 'km' in unit: val *= 1000.0
             elif 'mi' in unit: val *= 1609.34
             elif 'ft' in unit: val *= 0.3048
@@ -212,20 +216,29 @@ class NavApp(BaseApp):
         return s, ""
 
     def _get_progress_height(self) -> int:
-        """Convert distance string to bar height (0..36 px, configured m = full)"""
+        """Convert distance string to bar height (0..48 px, configured m = full)"""
         val = self._meters
         if val < 0:
             return 36 if self.distance_label else 0
         
         # "Approach Bar" Logic
-        nav_cfg = self.config.get('display', {}).get('center_display', {}).get('navigation', {})
+        nav_cfg = {}
+        if self.config:
+            display = self.config.get('display') or {}
+            center_display = display.get('center_display') or {}
+            nav_cfg = center_display.get('navigation') or {}
+        
         max_dist = nav_cfg.get('approach_bar_max_distance', 300)
+        if max_dist is None or max_dist <= 0:
+            max_dist = 300
         
         if val > max_dist: return 0
         
         # Calculate fill ratio
         ratio = (max_dist - val) / max_dist
-        return int(ratio * 47)
+        if ratio < 0.0:
+            ratio = 0.0
+        return int(ratio * 48)
 
     def get_view(self) -> List[Dict]:
         # If no route, show text fallback
@@ -289,26 +302,23 @@ class NavApp(BaseApp):
         # When bar_h > 0 (bar is drawn), we restrict clear width to w=19 to protect the bar at x=61.
         clear_w = 22 if bar_h == 0 else 19
 
+        dist_commands = []
         if val_str:
             x_pos = 42
             
-            # If the string shrank, surgically clear the area so we don't ghost,
-            # avoiding padding spaces that would overlap the progress bar.
-            if len(val_str) < self.last_val_len:
-                commands.append({
-                    'group': 'dist',
-                    'cmd': 'clear_area',
-                    'x': x_pos,
-                    'y': 8,
-                    'w': clear_w,
-                    'h': 9
-                })
+            # Always clear the value area first to prevent ghosting
+            dist_commands.append({
+                'cmd': 'clear_area',
+                'x': 42,
+                'y': 8,
+                'w': clear_w,
+                'h': 9
+            })
             
             self.last_val_len = len(val_str)
 
             # Draw numeric value on top
-            commands.append({
-                'group': 'dist',
+            dist_commands.append({
                 'cmd': 'draw_text',
                 'text': val_str,
                 'x': x_pos,
@@ -318,20 +328,17 @@ class NavApp(BaseApp):
             
             # Draw units below if present
             if unit_str:
-                if len(unit_str) < self.last_unit_len:
-                    commands.append({
-                        'group': 'dist',
-                        'cmd': 'clear_area',
-                        'x': x_pos,
-                        'y': 17,
-                        'w': clear_w,
-                        'h': 9
-                    })
+                dist_commands.append({
+                    'cmd': 'clear_area',
+                    'x': 42,
+                    'y': 17,
+                    'w': clear_w,
+                    'h': 9
+                })
                 
                 self.last_unit_len = len(unit_str)
 
-                commands.append({
-                    'group': 'dist',
+                dist_commands.append({
                     'cmd': 'draw_text',
                     'text': unit_str,
                     'x': x_pos,
@@ -339,30 +346,30 @@ class NavApp(BaseApp):
                     'flags': 0x06
                 })
             else:
-                if self.last_unit_len > 0:
-                     commands.append({
-                         'group': 'dist',
-                         'cmd': 'clear_area',
-                         'x': x_pos,
-                         'y': 17,
-                         'w': clear_w,
-                         'h': 9
-                     })
-                self.last_unit_len = 0
-        else:
-            if self.last_val_len > 0 or self.last_unit_len > 0:
-                commands.append({
-                    'group': 'dist',
+                dist_commands.append({
                     'cmd': 'clear_area',
                     'x': 42,
-                    'y': 8,
+                    'y': 17,
                     'w': clear_w,
-                    'h': 18
+                    'h': 9
                 })
+                self.last_unit_len = 0
+        else:
+            dist_commands.append({
+                'cmd': 'clear_area',
+                'x': 42,
+                'y': 8,
+                'w': clear_w,
+                'h': 18
+            })
             self.last_val_len = 0
             self.last_unit_len = 0
 
-        # 3. Street name (bottom, centered)
+        # Assign group='dist' to dist_commands
+        for cmd in dist_commands:
+            cmd['group'] = 'dist'
+
+        # 3. Street name (bottom, centered/scrolling)
         # Extract just the street name if possible
         street = self.description
         prefixes = [
@@ -374,52 +381,69 @@ class NavApp(BaseApp):
             if p.lower() in street.lower():
                 street = street.lower().split(p.lower(), 1)[-1]
                 break
-        
-        # (Removed hardcoded truncation so _scroll_text can actually scroll it)
-        pass
-        # Scroll the street name if it's too long (limit to 12 chars as requested)
-        # Use a unique key for the scroll state, explicitly set alignment to 'center'
-        street_display = self._scroll_text(street, 'nav_street', 12, align='center')
 
-        blank_char = chr(0x1F)
+        # Determine if it needs to scroll
+        scrolling = len(street) > 12
+        max_len = 12
         
-        # First clear the street name area surgically (x=0 to x=60)
-        # This protects the progress bar starting at x=61
-        commands.append({
-            'group': 'street',
-            'cmd': 'clear_area',
-            'x': 0,
-            'y': 39,
-            'w': 61,
-            'h': 9
-        })
+        # Use 'center' alignment if it fits, 'left' if it scrolls
+        align_mode = 'center' if not scrolling else 'left'
+        street_display = self._scroll_text(street, 'nav_street', max_len, align=align_mode)
+        
+        # Set flags based on whether it is scrolling
+        street_flags = self.FLAG_ITEM if scrolling else self.FLAG_ITEM_CENTERED
+        # When left-aligned, start at x=2. When centered, start at x=0
+        street_x = 2 if scrolling else 0
 
-        # Then draw the actual centered text on top of the blank wiped area
-        commands.append({
-            'group': 'street',
-            'cmd': 'draw_text',
-            'text': street_display, 
-            'x': 0, 
-            'y': 39, 
-            'flags': self.FLAG_ITEM_CENTERED
-        })
+        street_commands = [
+            # First clear the street name area surgically (x=0 to x=60)
+            # This protects the progress bar starting at x=61
+            {
+                'group': 'street',
+                'cmd': 'clear_area',
+                'x': 0,
+                'y': 39,
+                'w': 61,
+                'h': 9
+            },
+            # Then draw the actual centered/scrolling text on top
+            {
+                'group': 'street',
+                'cmd': 'draw_text',
+                'text': street_display, 
+                'x': street_x, 
+                'y': 39, 
+                'flags': street_flags
+            }
+        ]
 
         # 4. Red: Progress bar (Right Edge)
-        # Independent group 'bar' so it only redraws when distance changes
-        
         self.last_bar_h = bar_h
 
         bar_commands = []
+        # Always clear the bar area (x=61..63, y=0..47) to erase old pixels and any text overflow
+        bar_commands.append({'cmd': 'clear_area', 'x': 61, 'y': 0, 'w': 3, 'h': 48})
+        
         if bar_h > 0:
             start_y = 48 - bar_h # Anchor to bottom (Y=48)
             
             # Draw 3 vertical lines for a thick bar
-            bar_commands = [
-                {'group': 'bar', 'cmd': 'draw_line', 'x': 61, 'y': start_y, 'length': bar_h, 'vertical': True},
-                {'group': 'bar', 'cmd': 'draw_line', 'x': 62, 'y': start_y, 'length': bar_h, 'vertical': True},
-                {'group': 'bar', 'cmd': 'draw_line', 'x': 63, 'y': start_y, 'length': bar_h, 'vertical': True},
-            ]
+            bar_commands.append({'cmd': 'draw_line', 'x': 61, 'y': start_y, 'length': bar_h, 'vertical': True})
+            bar_commands.append({'cmd': 'draw_line', 'x': 62, 'y': start_y, 'length': bar_h, 'vertical': True})
+            bar_commands.append({'cmd': 'draw_line', 'x': 63, 'y': start_y, 'length': bar_h, 'vertical': True})
 
-        commands += bar_commands
+        # Append bar commands to both dist_commands and street_commands groups, 
+        # so the bar is drawn AFTER either is updated.
+        for bc in bar_commands:
+            bc_dist = bc.copy()
+            bc_dist['group'] = 'dist'
+            dist_commands.append(bc_dist)
+            
+            bc_street = bc.copy()
+            bc_street['group'] = 'street'
+            street_commands.append(bc_street)
+
+        commands += dist_commands
+        commands += street_commands
 
         return commands

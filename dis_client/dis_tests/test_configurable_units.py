@@ -166,5 +166,13 @@ class TestConfigurableUnits(unittest.TestCase):
         self.assertEqual(car_info.data['oil'], '194°F')
         self.assertEqual(car_info.data['coolant'], '185°F')
 
+    def test_fraction_parsing(self):
+        # 1/2 mi should parse as 0.5 miles = 804.67 meters
+        self.assertAlmostEqual(NavApp.parse_distance("1/2 mi"), 804.67, places=1)
+        # 1/4 mi should parse as 0.25 miles = 402.335 meters
+        self.assertAlmostEqual(NavApp.parse_distance("1/4 mi"), 402.335, places=1)
+        # 1/8 mi should parse as 0.125 miles = 201.1675 meters
+        self.assertAlmostEqual(NavApp.parse_distance("1/8 mi"), 201.1675, places=1)
+
 if __name__ == '__main__':
     unittest.main()
