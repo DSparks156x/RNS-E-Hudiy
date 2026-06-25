@@ -15,6 +15,40 @@ class BaseApp:
         # Scroll State: { 'key': {'offset': 0, 'last_tick': 0, 'pause': 0} }
         self._scroll_state = {}
 
+    def get_effective_unit(self, key, default='metric'):
+        """
+        Gets the effective unit for a given key ('speed', 'cartemp', 'ambient_temp', 'boost').
+        Resolves the configuration setting (e.g., 'imperial', 'metric', 'car').
+        If 'car', checks the dynamic 'car_units' parsed from CAN message mEinheiten (0x60E).
+        """
+        units_cfg = self.config.get('display', {}).get('units', {})
+        cfg_val = units_cfg.get(key, default)
+        
+        if cfg_val == 'car':
+            car_units = self.config.get('car_units', {})
+            if key == 'speed':
+                return car_units.get('speed', 'metric')
+            elif key in ('cartemp', 'ambient_temp'):
+                return car_units.get('temp', 'metric')
+            elif key == 'boost':
+                # Map car pressure unit to 'imperial' (if psi) or 'metric' (if bar or kPa)
+                car_pressure = car_units.get('pressure', 'bar')
+                return 'imperial' if car_pressure == 'psi' else 'metric'
+            
+        return cfg_val
+
+    def format_temp(self, celsius_val, unit_type):
+        """Converts Celsius to Fahrenheit if unit_type is imperial, and formats it."""
+        try:
+            val = float(celsius_val)
+            if unit_type == 'imperial':
+                f_val = val * 1.8 + 32.0
+                return f"{int(round(f_val))}°F"
+            else:
+                return f"{int(round(val))}°C"
+        except (ValueError, TypeError):
+            return f"{celsius_val}"
+
     def set_topics(self, *args):
         for t_set in args: self.topics.update(t_set)
 

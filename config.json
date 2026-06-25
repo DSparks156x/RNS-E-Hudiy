@@ -75,7 +75,8 @@
       "speed": "imperial",
       "ambient_temp": "imperial",
       "boost": "metric",
-      "boost_mode": "absolute"
+      "boost_mode": "absolute",
+      "cartemp": "metric"
     },
     "text_scrolling": {
       "continuous": true,

@@ -629,9 +629,10 @@
             "display.top_display.nav_line1_mode": { label: "Nav Line 1 Mode", help: "Formatting: key-key-key (description, maneuver, distance)", type: "text", options: ["description", "maneuver", "distance"] },
             "display.top_display.nav_line2_mode": { label: "Nav Line 2 Mode", help: "Formatting: key-key-key (description, maneuver, distance)", type: "text", options: ["description", "maneuver", "distance"] },
 
-            "display.units.speed": { help: "Velocity units.", type: "select", options: ["imperial", "metric"] },
-            "display.units.ambient_temp": { help: "Temperature readout units.", type: "select", options: ["imperial", "metric"] },
-            "display.units.boost": { help: "Boost Units.", type: "select", options: ["imperial", "metric"] },
+            "display.units.speed": { help: "Velocity units.", type: "select", options: ["imperial", "metric", "car"] },
+            "display.units.ambient_temp": { help: "Temperature readout units.", type: "select", options: ["imperial", "metric", "car"] },
+            "display.units.boost": { help: "Boost Units.", type: "select", options: ["imperial", "metric", "car"] },
+            "display.units.cartemp": { help: "Car Temperature units (oil/coolant).", type: "select", options: ["imperial", "metric", "car"] },
             "display.units.boost_mode": { help: "Absolute manifold pressure or manifold minus atmosphere", type: "select", options: ["absolute", "relative"] },
             "display.text_scrolling.continuous": { help: "Loop long text indefinitely.", type: "boolean" },
             "display.text_scrolling.continuous_gap": { help: "space between end and start of scroll text" },

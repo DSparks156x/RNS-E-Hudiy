@@ -81,16 +81,17 @@ class CarInfoApp(BaseApp):
                         pass
 
             if group == 0: # Temperatures
-                if len(data) > 0: self.data['oil'] = f"{data[0]['value']}{data[0]['unit']}"
-                if len(data) > 2: self.data['coolant'] = f"{data[2]['value']}{data[2]['unit']}"
-                if len(data) > 3: self.data['iat'] = f"{data[3]['value']}{data[3]['unit']}"
+                cartemp_unit = self.get_effective_unit('cartemp', 'metric')
+                if len(data) > 0: self.data['oil'] = self.format_temp(data[0]['value'], cartemp_unit)
+                if len(data) > 2: self.data['coolant'] = self.format_temp(data[2]['value'], cartemp_unit)
+                if len(data) > 3: self.data['iat'] = self.format_temp(data[3]['value'], cartemp_unit)
             elif group == 1: # Performance
                 if len(data) > 1: 
                     try:
                         raw_boost = float(data[1]['value'])
                         
                         # Configuration
-                        boost_unit = self.config.get('display', {}).get('units', {}).get('boost', 'metric')
+                        boost_unit = self.get_effective_unit('boost', 'metric')
                         boost_mode = self.config.get('display', {}).get('units', {}).get('boost_mode', 'absolute')
                         
                         display_val = raw_boost

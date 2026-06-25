@@ -27,6 +27,12 @@ class DisplayEngine:
 
     def __init__(self, config_path='/home/pi/config.json', mock=False):
         with open(config_path) as f: self.cfg = json.load(f)
+        self.car_units = {
+            'speed': 'metric',
+            'temp': 'metric',
+            'pressure': 'bar'
+        }
+        self.cfg['car_units'] = self.car_units
         self.settings = self.load_settings()
         
         center_display_cfg = self.cfg.get('display', {}).get('center_display', {})
@@ -93,6 +99,8 @@ class DisplayEngine:
         if self.can_connected:
             self.sub.subscribe(b"CAN_351")
             self.sub.subscribe(b"CAN_0x351")
+            self.sub.subscribe(b"CAN_60E")
+            self.sub.subscribe(b"CAN_0x60E")
             for t in self.t_btn | self.t_car | self.t_mfsw:
                 self.sub.subscribe(t.encode())
         
@@ -875,6 +883,20 @@ class DisplayEngine:
                     topic, msg = parts
                     t_str = topic.decode()
                     payload = bytes.fromhex(json.loads(msg)['data_hex'])
+                    
+                    if '60E' in t_str or '1550' in t_str:
+                        if len(payload) >= 1:
+                            byte0 = payload[0]
+                            self.car_units['speed'] = 'imperial' if (byte0 & 0x01) else 'metric'
+                            self.car_units['temp'] = 'imperial' if (byte0 & 0x02) else 'metric'
+                            press_val = (byte0 >> 4) & 0x03
+                            if press_val == 1:
+                                self.car_units['pressure'] = 'psi'
+                            elif press_val == 3:
+                                self.car_units['pressure'] = 'kPa'
+                            else:
+                                self.car_units['pressure'] = 'bar'
+                                
                     self.current_app.update_can(t_str, payload)
                     
                     if 'app_acceleration_test' in self.apps and self.current_app != self.apps['app_acceleration_test']:

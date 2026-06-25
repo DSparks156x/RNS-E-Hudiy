@@ -213,7 +213,7 @@ class NavApp(BaseApp):
 
     def _get_progress_height(self) -> int:
         """Convert distance string to bar height (0..36 px, configured m = full)"""
-        val = self.parse_distance(self.distance_label)
+        val = self._meters
         if val < 0:
             return 36 if self.distance_label else 0
         
@@ -263,7 +263,26 @@ class NavApp(BaseApp):
         })
 
         # 2. Distance (top-right) — only draw if we have real data
-        val_str, unit_str = self._split_distance(self.distance_label)
+        speed_unit = self.get_effective_unit('speed', 'imperial')
+        
+        # Determine value and unit strings based on configuration
+        if self._meters >= 0:
+            if speed_unit == 'imperial':
+                if self._meters < 160.9: # 0.1 mile is 160.934 meters
+                    val_str = str(int(round(self._meters * 3.28084)))
+                    unit_str = "ft"
+                else:
+                    val_str = f"{self._meters / 1609.344:.1f}"
+                    unit_str = "mi"
+            else: # metric
+                if self._meters < 1000.0:
+                    val_str = str(int(round(self._meters)))
+                    unit_str = "m"
+                else:
+                    val_str = f"{self._meters / 1000.0:.1f}"
+                    unit_str = "km"
+        else:
+            val_str, unit_str = self._split_distance(self.distance_label)
         
         # When bar_h == 0 (no bar), we can safely clear the entire remaining width (w=22, up to x=63).
         # This handles 4-digit distances that reach into the bar's empty coordinate space.

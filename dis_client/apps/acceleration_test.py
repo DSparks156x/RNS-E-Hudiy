@@ -11,16 +11,10 @@ class AccelerationTestApp(BaseApp):
         self.tolerance_display = acc_cfg.get('tolerance_display', True)
         self.stop_time_start = 0.0
         
-        self.speed_unit = self.config.get('display', {}).get('units', {}).get('speed', 'imperial')
-        self.dist_unit_str = "mi" if self.speed_unit == 'imperial' else "km"
-        self.speed_unit_str = "mph" if self.speed_unit == 'imperial' else "kmh"
-        
-        # Parse after units are defined so we can append the label
-        self.thresholds = []
-        for i in range(1, 5):
-            val = acc_cfg.get(f'line_{i}', '')
-            t = self.parse_threshold(val)
-            self.thresholds.append(t)
+        self.speed_unit = None
+        self.dist_unit_str = ""
+        self.speed_unit_str = ""
+        self.update_units()
         
         # State tracking
         self.total_distance = 0.0
@@ -38,7 +32,25 @@ class AccelerationTestApp(BaseApp):
         self.current_dt = 0.05 # Initial guess (20Hz)
         self.last_can_time = 0.0
         
+    def update_units(self):
+        resolved_speed_unit = self.get_effective_unit('speed', 'imperial')
+        if hasattr(self, 'speed_unit') and self.speed_unit == resolved_speed_unit:
+            return
+        
+        self.speed_unit = resolved_speed_unit
+        self.dist_unit_str = "mi" if self.speed_unit == 'imperial' else "km"
+        self.speed_unit_str = "mph" if self.speed_unit == 'imperial' else "kmh"
+        
+        # Re-parse thresholds because they depend on self.speed_unit
+        acc_cfg = self.config.get('display', {}).get('center_display', {}).get('acceleration_test', {})
+        self.thresholds = []
+        for i in range(1, 5):
+            val = acc_cfg.get(f'line_{i}', '')
+            t = self.parse_threshold(val)
+            self.thresholds.append(t)
+
     def on_enter(self):
+        self.update_units()
         super().on_enter()
         self.last_update_time = 0 # Force refresh immediately on view
         self.cached_view = {}
@@ -138,6 +150,7 @@ class AccelerationTestApp(BaseApp):
     def update_can(self, topic, payload):
         # We listen directly to CAN_351 for high-res speed updates.
         if '351' in topic and len(payload) >= 3:
+            self.update_units()
             now = time.time()
             if self.last_can_time > 0:
                 self.current_dt = now - self.last_can_time
