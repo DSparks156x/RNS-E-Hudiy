@@ -32,6 +32,7 @@
       ],
       "enabled": true,
       "mode": "media",
+      "start_inactive": false,
       "navigation": {
         "auto_switch": true,
         "auto_switch_approach_threshold": 500,

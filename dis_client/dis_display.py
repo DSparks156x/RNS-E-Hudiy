@@ -36,6 +36,7 @@ class DisplayEngine:
         self.settings = self.load_settings()
         
         center_display_cfg = self.cfg.get('display', {}).get('center_display', {})
+        self.start_inactive = center_display_cfg.get('start_inactive', False)
 
         # --- Apps Definition (No Menu) ---
         self.apps = {}
@@ -232,6 +233,8 @@ class DisplayEngine:
         self.nav_release_on_no_nav = nav_cfg.get('release_on_no_nav', False)
         self.last_valid_route_time = 0
         self.user_paused = False
+        self.boot_inactive_hold = self.start_inactive
+        self.has_entered_paused_state = False
 
         # --- Advanced Nav Auto-Switching ---
         self.nav_auto_triggered = False
@@ -397,6 +400,9 @@ class DisplayEngine:
         self.publish_status()
 
     def process_input(self, action):
+        if getattr(self, 'boot_inactive_hold', False):
+            return
+
         # Ignore stalk inputs if the display is paused (unless we paused it ourselves)
         if not getattr(self, 'service_ready', False) and not self.user_paused:
             # logger.info(f"Ignoring input {action} while paused")
@@ -427,6 +433,9 @@ class DisplayEngine:
 
     def _check_nav_availability_pause(self):
         """Monitor nav availability and request center release/resume if configured."""
+        if getattr(self, 'boot_inactive_hold', False):
+            return
+
         if not self.nav_claim_on_nav and not self.nav_release_on_no_nav:
             return
 
@@ -545,7 +554,12 @@ class DisplayEngine:
         logger.info("DIS Engine V5.8 Running")
         self.publish_status()
         time.sleep(1.0) 
-        self.force_redraw(send_clear=True)
+        if getattr(self, 'start_inactive', False):
+            logger.info("Configured to start inactive. Sending startup pause command...")
+            self._send_draw({'command': 'pause'})
+            self.user_paused = True
+        else:
+            self.force_redraw(send_clear=True)
         self.last_loop = time.time()
         
         logger.info("Main loop started.")
@@ -673,11 +687,33 @@ class DisplayEngine:
                                 try:
                                     state = msg.split(" ")[1]
                                     is_ready = (state == "READY")
+                                    
+                                    # Reset hold flags on disconnection (ignition cycle)
+                                    if state == "DISCONNECTED":
+                                        if self.start_inactive and not self.boot_inactive_hold:
+                                            logger.info("Service disconnected. Resetting boot inactive hold flags.")
+                                        self.boot_inactive_hold = self.start_inactive
+                                        self.has_entered_paused_state = False
+                                    
+                                    # Set paused flag once service acknowledges pause
+                                    if state == "PAUSED":
+                                        self.has_entered_paused_state = True
+                                        
+                                    # Detect cluster-triggered wakeup (user cycled to tab)
+                                    if state == "READY" and self.boot_inactive_hold and self.has_entered_paused_state:
+                                        logger.info("Cluster-triggered wakeup/re-init detected. Clearing boot inactive hold.")
+                                        self.boot_inactive_hold = False
+                                        self.user_paused = False
+                                        self._send_draw({'command': 'resume'})
+                                        
                                     if self.service_ready != is_ready:
                                         self.service_ready = is_ready
                                         logger.info(f"DIS Service State Changed to: {state}. Ready={self.service_ready}")
                                         if self.service_ready:
-                                            self.force_redraw(send_clear=True)
+                                            if not self.boot_inactive_hold:
+                                                self.force_redraw(send_clear=True)
+                                            else:
+                                                logger.info("Service READY but holding inactive. Skipping redraw.")
                                         self.publish_status()
                                 except Exception as split_err:
                                     logger.error(f"Failed to parse DIS_STATE message '{msg}': {split_err}")
