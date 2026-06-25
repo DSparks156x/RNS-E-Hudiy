@@ -81,11 +81,70 @@ class AppState:
         
         self.zmq_pub = None # ZMQ Publisher socket
 
-    async def check_shutdown_condition(self) -> bool:
-        """Check if shutdown delay has been reached and execute shutdown."""
+        # NM Sleep state
+        self.gateway_sleep_ind: Optional[bool] = None
+        self.nav_sleep_ind: Optional[bool] = None
+        self.last_gateway_nm_time: float = 0.0
+        self.last_nav_nm_time: float = 0.0
+        self.ignition_off_timestamp: Optional[float] = None
+        
+        # Physical wake signal state (from GPIO)
+        self.wake_signal_active: bool = True
+
+    def is_bus_ready_to_sleep(self) -> bool:
+        """
+        Check if the bus is ready to transition to sleep.
+        Returns True if:
+        - Ignition (kl15) is OFF AND
+        - Either NM messages indicate sleep (SleepInd == 1) OR they have timed out (quiet bus).
+        Also handles a safety fallback timeout from ignition OFF.
+        """
+        if self.last_kl15_status == 1:
+            return False
+            
+        now = time.time()
+        
+        # Check safety fallback: if ignition has been OFF for too long, force sleep ready
+        if self.ignition_off_timestamp:
+            pw_mgmt = FEATURES.get('power_management', {})
+            fallback_timeout = pw_mgmt.get('listen_only_mode', {}).get('fallback_seconds', 900)
+            if now - self.ignition_off_timestamp >= fallback_timeout:
+                logger.info(f"Listen-only fallback timeout ({fallback_timeout}s) reached since ignition OFF. Forcing sleep ready.")
+                return True
+                
+        # Check if NM status messages are actively being received
+        gw_active = (now - self.last_gateway_nm_time < 5.0)
+        nav_active = (now - self.last_nav_nm_time < 5.0)
+        
+        # If no active messages, assume bus is already quiet or asleep
+        if not gw_active and not nav_active:
+            return True
+            
+        # If gateway is active, it must indicate sleep readiness
+        if gw_active and self.gateway_sleep_ind is False:
+            return False
+            
+        # If nav/radio is active, it must indicate sleep readiness
+        if nav_active and self.nav_sleep_ind is False:
+            return False
+            
+        return True
+
+    def is_wake_signal_active(self) -> bool:
+        """Returns True if the physical wake signal (GPIO 12) is active/ON."""
+        return getattr(self, 'wake_signal_active', True)
+
+    async def check_shutdown_condition(self, wake_signal_active: bool = True) -> bool:
+        """Check if shutdown delay has been reached and execute shutdown (guarded by wake line)."""
         if self.shutdown_pending and self.shutdown_trigger_timestamp:
             delay = getattr(self, '_current_shutdown_delay', CONFIG.get('shutdown_delay', 300))
             if time.time() - self.shutdown_trigger_timestamp >= delay:
+                if wake_signal_active:
+                    logger.warning("Auto-shutdown delay reached, but wake signal is still active! Postponing shutdown to avoid getting stuck.")
+                    # Postpone the shutdown trigger timestamp by 30 seconds to re-evaluate later
+                    self.shutdown_trigger_timestamp = time.time() - delay + 30
+                    return False
+
                 logger.info(f"Shutdown delay ({delay}s) reached. Shutting down system NOW.")
                 shutdown_command = ["sudo", "shutdown", "-h", "now"]
                 if await execute_system_command_async(shutdown_command):
@@ -137,6 +196,8 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
                 'tv_presence': int(can_ids.get('tv_presence', '0x602'), 16),
                 'time_data': int(can_ids.get('time_data', '0x623'), 16),
                 'ignition_status': int(can_ids.get('ignition_status', '0x2C3'), 16),
+                'gateway_nm_status': int(can_ids.get('gateway_nm_status', '0x42B'), 16),
+                'nav_nm_status': int(can_ids.get('nav_nm_status', '0x436'), 16),
             },
             'time_data_format': FEATURES['time_sync'].get('data_format', 'old_logic'),
             'time_sync_threshold_seconds': FEATURES['time_sync'].get('threshold_minutes', 1.0) * 60,
@@ -262,8 +323,52 @@ async def handle_time_data_message(msg: Dict[str, Any], state: AppState):
     except Exception as e:
         logger.warning(f"Could not parse time message (data_hex: {data_hex}): {e}")
 
+def publish_power_status(state: AppState):
+    if state.zmq_pub:
+        try:
+            bus_active = not state.is_bus_ready_to_sleep()
+            payload = {
+                'kl15': bool(state.last_kl15_status), 
+                'kls': bool(state.last_kls_status), 
+                'bus_active': bus_active,
+                'timestamp': time.time()
+            }
+            state.zmq_pub.send_multipart([b'POWER_STATUS', json.dumps(payload).encode()])
+        except Exception as e:
+            logger.error(f"Failed to publish POWER_STATUS: {e}")
+
+def handle_gateway_nm_message(msg: Dict[str, Any], state: AppState):
+    if msg.get('dlc', 0) < 2:
+        return
+    try:
+        data_hex = msg['data_hex']
+        payload = bytes.fromhex(data_hex)
+        # Bit 12: SleepInd (bit 4 of byte 1)
+        sleep_ind = bool((payload[1] >> 4) & 1)
+        state.gateway_sleep_ind = sleep_ind
+        state.last_gateway_nm_time = time.time()
+        logger.debug(f"Gateway NM SleepInd: {sleep_ind}")
+        publish_power_status(state)
+    except Exception as e:
+        logger.warning(f"Could not parse Gateway NM message: {e}")
+
+def handle_nav_nm_message(msg: Dict[str, Any], state: AppState):
+    if msg.get('dlc', 0) < 2:
+        return
+    try:
+        data_hex = msg['data_hex']
+        payload = bytes.fromhex(data_hex)
+        # Bit 12: SleepInd (bit 4 of byte 1)
+        sleep_ind = bool((payload[1] >> 4) & 1)
+        state.nav_sleep_ind = sleep_ind
+        state.last_nav_nm_time = time.time()
+        logger.debug(f"Nav NM SleepInd: {sleep_ind}")
+        publish_power_status(state)
+    except Exception as e:
+        logger.warning(f"Could not parse Nav NM message: {e}")
+
 def handle_power_status_message(msg: Dict[str, Any], state: AppState):
-    """Handle ignition/key status messages for auto-shutdown and listen-only."""
+    """Handle ignition/key status messages for auto-shutdown."""
     if msg.get('dlc', 0) < 1:
         logger.debug(f"Power status message too short (DLC: {msg.get('dlc', 'N/A')}). Skipping.")
         return
@@ -281,6 +386,11 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
         # Update State
         state.last_kls_status = kls_status
         state.last_kl15_status = kl15_status
+        if kl15_changed:
+            if kl15_status == 0:
+                state.ignition_off_timestamp = time.time()
+            else:
+                state.ignition_off_timestamp = None
 
         # Power Management Logic
         pw_mgmt = FEATURES.get('power_management', {})
@@ -315,45 +425,8 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
                     state.shutdown_pending = False
                     state.shutdown_trigger_timestamp = None
 
-        # --- Publish Power Status (Ignition / Key) ---
-        if state.zmq_pub:
-            try:
-                payload = {
-                    'kl15': bool(kl15_status), 
-                    'kls': bool(kls_status), 
-                    'timestamp': time.time()
-                }
-                state.zmq_pub.send_multipart([b'POWER_STATUS', json.dumps(payload).encode()])
-            except Exception as e:
-                logger.error(f"Failed to publish POWER_STATUS: {e}")
-
-        # Listen-Only Mode Logic
-        if pw_mgmt.get('listen_only_mode', {}).get('enabled', False):
-            listen_only_cfg = pw_mgmt['listen_only_mode']
-            delay = listen_only_cfg.get('delay_seconds', 0)
-            
-            if kl15_changed:
-                if kl15_status == 0: # Ignition OFF
-                    if delay > 0:
-                        if not state.listen_only_pending and not state.can_listen_only:
-                            logger.info(f"Ignition OFF detected (or initial state). Starting {delay}s listen-only delay.")
-                            state.listen_only_pending = True
-                            state.listen_only_trigger_timestamp = time.time()
-                            state.desired_listen_only = False
-                    else:
-                        logger.info("Ignition OFF detected. Queuing immediate listen-only transition.")
-                        state.desired_listen_only = True
-                        state.listen_only_pending = False
-                        state.listen_only_trigger_timestamp = None
-                            
-                elif kl15_status == 1: # Ignition ON
-                    if state.listen_only_pending:
-                        logger.info("Ignition ON detected. Cancelling pending listen-only transition.")
-                        state.listen_only_pending = False
-                        state.listen_only_trigger_timestamp = None
-                    state.desired_listen_only = False
-                    if state.can_listen_only:
-                        logger.info("Ignition ON detected. Queuing return to normal CAN mode.")
+        # --- Publish Power Status (Ignition / Key / Bus Active) ---
+        publish_power_status(state)
                 
     except (IndexError, ValueError) as e:
         logger.warning(f"Could not parse power status message (data_hex: {msg.get('data_hex', 'N/A')}): {e}")
@@ -367,20 +440,11 @@ class GpioShutdownMonitor:
         self.button = None
         
         if GPIO_AVAILABLE:
-            # gpiozero.Button handles pull-up/down logic based on active_state/pull_up.
-            # If active_low is True: pull_up=True, active_state=False (default behavior of Button).
-            # If active_low is False: pull_up=False, active_state=True.
-            
             try:
-                # Button(pin, pull_up=None, active_state=..., bounce_time=None)
-                # pull_up=None disables internal resistors (floating).
-                # active_state=False means active Low. active_state=True means active High.
                 target_active_state = False if active_low else True
-                
                 self.button = Button(pin, pull_up=None, active_state=target_active_state, bounce_time=0.1)
                 logger.info(f"GPIO Shutdown Monitor initialized on pin {pin} (Active Low: {active_low}) with NO internal resistors.")
                 
-                # Verify initial state
                 initial_state = "PRESSED" if self.button.is_pressed else "RELEASED"
                 logger.info(f"DEBUG: Initial GPIO {self.pin} State: {initial_state}")
                 
@@ -394,9 +458,7 @@ class GpioShutdownMonitor:
         return self.button.is_pressed
 
     def check(self):
-        """Original check logic for immediate triggers (legacy/compatibility)."""
         if not self.button or self.shutdown_triggered: return False
-        
         if self.button.is_pressed:
             logger.info("GPIO Shutdown Monitor triggered!")
             self.shutdown_triggered = True
@@ -435,6 +497,8 @@ async def listen_for_can_messages_task(state: AppState):
         # Subscribe to relevant topics
         time_topic = f"CAN_{CONFIG['can_ids']['time_data']:03X}"
         power_topic = f"CAN_{CONFIG['can_ids']['ignition_status']:03X}"
+        gw_nm_topic = f"CAN_{CONFIG['can_ids']['gateway_nm_status']:03X}"
+        nav_nm_topic = f"CAN_{CONFIG['can_ids']['nav_nm_status']:03X}"
         
         if FEATURES.get('time_sync', {}).get('enabled', False):
             sub_stream.transport.subscribe(time_topic.encode('utf-8'))
@@ -443,6 +507,13 @@ async def listen_for_can_messages_task(state: AppState):
         # Always subscribe to power status (Ignition/Key) because other services (e.g., dis_service, tp2_worker) rely on POWER_STATUS
         sub_stream.transport.subscribe(power_topic.encode('utf-8'))
         logger.info(f"Subscribing to power status topic: {power_topic}")
+
+        # Subscribe to NM status topics
+        pw_mgmt = FEATURES.get('power_management', {})
+        if pw_mgmt.get('listen_only_mode', {}).get('enabled', False):
+            sub_stream.transport.subscribe(gw_nm_topic.encode('utf-8'))
+            sub_stream.transport.subscribe(nav_nm_topic.encode('utf-8'))
+            logger.info(f"Subscribing to NM topics: {gw_nm_topic}, {nav_nm_topic}")
 
         while RUNNING:
             msg = await sub_stream.read()
@@ -472,6 +543,10 @@ async def listen_for_can_messages_task(state: AppState):
                     await handle_time_data_message(msg_dict, state)
                 elif can_id == CONFIG['can_ids']['ignition_status']:
                     handle_power_status_message(msg_dict, state)
+                elif can_id == CONFIG['can_ids']['gateway_nm_status']:
+                    handle_gateway_nm_message(msg_dict, state)
+                elif can_id == CONFIG['can_ids']['nav_nm_status']:
+                    handle_nav_nm_message(msg_dict, state)
                     
             except json.JSONDecodeError as e:
                 logger.warning(f"Failed to decode JSON from message: {msg_bytes[:100]}... ({e})")
@@ -506,20 +581,50 @@ async def shutdown_monitor_task(state: AppState):
             pw_mgmt = FEATURES.get('power_management', {})
             now = time.time()
             
-            # 1. Check existing auto_shutdown logic
-            if await state.check_shutdown_condition():
+            # Update physical GPIO wake signal status
+            is_pressed = False
+            if gpio_monitor:
+                gpio_cfg = pw_mgmt.get('gpio_shutdown', {})
+                is_pressed = gpio_monitor.is_pressed()
+                active_low = gpio_cfg.get('active_low', True)
+                state.wake_signal_active = (not is_pressed) if active_low else is_pressed
+
+            # 1. Check existing auto_shutdown logic (Guarded by wake signal)
+            if await state.check_shutdown_condition(state.wake_signal_active):
                 RUNNING = False
                 break
             
-            # 2. Check Listen-Only delay countdown
-            if state.listen_only_pending and state.listen_only_trigger_timestamp:
-                delay = pw_mgmt.get('listen_only_mode', {}).get('delay_seconds', 0)
-                if now - state.listen_only_trigger_timestamp >= delay:
-                    logger.info(f"Listen-only delay ({delay}s) reached. Queuing listen-only mode.")
-                    state.desired_listen_only = True
-                    state.listen_only_pending = False
-                    state.listen_only_trigger_timestamp = None
-
+            # 2. Check and reconcile listen-only mode
+            if pw_mgmt.get('listen_only_mode', {}).get('enabled', False):
+                bus_sleep_ready = state.is_bus_ready_to_sleep()
+                
+                if bus_sleep_ready:
+                    # Bus is ready to sleep. Should transition to listen-only.
+                    if not state.can_listen_only and not state.listen_only_pending:
+                        delay = pw_mgmt.get('listen_only_mode', {}).get('delay_seconds', 0)
+                        logger.info(f"Bus sleep condition met. Starting {delay}s listen-only delay.")
+                        state.listen_only_pending = True
+                        state.listen_only_trigger_timestamp = now
+                    
+                    # If delay reached, switch to listen-only mode
+                    if state.listen_only_pending and state.listen_only_trigger_timestamp:
+                        delay = pw_mgmt.get('listen_only_mode', {}).get('delay_seconds', 0)
+                        if now - state.listen_only_trigger_timestamp >= delay:
+                            logger.info(f"Listen-only delay ({delay}s) reached. Queuing listen-only mode.")
+                            state.desired_listen_only = True
+                            state.listen_only_pending = False
+                            state.listen_only_trigger_timestamp = None
+                else:
+                    # Bus is active. CAN should be in normal mode.
+                    if state.listen_only_pending:
+                        logger.info("Bus became active. Cancelling pending listen-only transition.")
+                        state.listen_only_pending = False
+                        state.listen_only_trigger_timestamp = None
+                    
+                    if state.can_listen_only:
+                        logger.info("Bus became active. Transitioning CAN back to normal mode.")
+                        state.desired_listen_only = False
+                        
             # 2b. Reconcile actual CAN mode with desired mode.
             if state.can_listen_only != state.desired_listen_only and not state.listen_only_transition_in_progress:
                 state.listen_only_transition_in_progress = True
@@ -527,6 +632,8 @@ async def shutdown_monitor_task(state: AppState):
                 try:
                     if await set_listen_only_async(target_mode):
                         state.can_listen_only = target_mode
+                        # Publish status change when CAN mode transitions
+                        publish_power_status(state)
                     else:
                         logger.warning(
                             "CAN mode transition to %s failed. Will retry.",
@@ -539,16 +646,14 @@ async def shutdown_monitor_task(state: AppState):
             if gpio_monitor:
                 gpio_cfg = pw_mgmt.get('gpio_shutdown', {})
                 delay = gpio_cfg.get('delay_seconds', 0)
-                is_pressed = gpio_monitor.is_pressed()
-                
-                if is_pressed:
+                if is_pressed: # Wake signal is OFF
                     if not state.gpio_shutdown_pending:
                         if delay > 0:
-                            logger.info(f"GPIO Shutdown trigger detected. Starting {delay}s delay.")
+                            logger.info(f"GPIO Shutdown trigger detected (wake signal OFF). Starting {delay}s delay.")
                             state.gpio_shutdown_pending = True
                             state.gpio_shutdown_trigger_timestamp = now
                         else:
-                            logger.info("GPIO Shutdown trigger detected. Shutting down system NOW (delay=0).")
+                            logger.info("GPIO Shutdown trigger detected (wake signal OFF). Shutting down system NOW (delay=0).")
                             if await execute_system_command_async(["sudo", "shutdown", "-h", "now"]):
                                 RUNNING = False
                                 break
@@ -562,9 +667,12 @@ async def shutdown_monitor_task(state: AppState):
                 else:
                     # Not pressed - cancel pending if any
                     if state.gpio_shutdown_pending:
-                        logger.info("GPIO button released. Cancelling pending GPIO shutdown.")
+                        logger.info("GPIO button released (wake signal ON). Cancelling pending GPIO shutdown.")
                         state.gpio_shutdown_pending = False
                         state.gpio_shutdown_trigger_timestamp = None
+
+            # Periodically publish POWER_STATUS to keep subscribers updated
+            publish_power_status(state)
 
             await asyncio.sleep(1.0)
         except Exception as e:

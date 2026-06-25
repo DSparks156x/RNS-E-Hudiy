@@ -23,6 +23,7 @@ class OpenpilotReceiver(threading.Thread):
         
         self.daemon = True
         self._running = True
+        self.stop_event = threading.Event()
         
         # Openpilot state dictionary
         self.state = {
@@ -57,6 +58,7 @@ class OpenpilotReceiver(threading.Thread):
 
     def stop(self):
         self._running = False
+        self.stop_event.set()
 
     def _send_can(self, arbitration_id, data):
         if not self.bus:
@@ -235,7 +237,7 @@ class OpenpilotReceiver(threading.Thread):
     def run(self):
         logger.info("OpenpilotReceiver background thread started.")
         
-        while self._running:
+        while not self.stop_event.is_set():
             if not self.connected:
                 # Cleanup if necessary
                 if self.bus:
@@ -250,7 +252,7 @@ class OpenpilotReceiver(threading.Thread):
                     self.bus = can.Bus(interface=self.can_interface_type, channel=self.can_interface, bitrate=100000)
                 except Exception as e:
                     logger.error(f"OP RX: Failed to open CAN bus: {e}")
-                    time.sleep(5.0)
+                    self.stop_event.wait(5.0)
                     continue
                 
                 logger.info(f"OP RX: Handshaking with Comma on 0x{self.pi_tx_id:03X}/0x{self.pi_rx_id:03X}...")
@@ -264,14 +266,14 @@ class OpenpilotReceiver(threading.Thread):
                     logger.info("OP RX: Handshake request sent successfully.")
                 except Exception as e:
                     logger.error(f"OP RX: Handshake send failed: {e}")
-                    time.sleep(2.0)
+                    self.stop_event.wait(2.0)
                     continue
                 
                 # Wait for Parameters Response (A1) on pi_rx_id
                 start_wait = time.time()
                 handshake_success = False
                 logger.info("OP RX: Entering handshake recv loop...")
-                while time.time() - start_wait < 1.5:
+                while time.time() - start_wait < 1.5 and not self.stop_event.is_set():
                     try:
                         msg = self.bus.recv(timeout=0.1)
                         if msg:
@@ -289,9 +291,12 @@ class OpenpilotReceiver(threading.Thread):
                         logger.error(f"OP RX: Handshake recv error: {e}")
                         break
                         
+                if self.stop_event.is_set():
+                    break
+
                 if not handshake_success:
                     logger.warning("OP RX: Handshake timed out or refused. Retrying in 5 seconds...")
-                    time.sleep(5.0)
+                    self.stop_event.wait(5.0)
                     continue
                     
                 # Setup completed successfully!
@@ -381,7 +386,7 @@ class OpenpilotReceiver(threading.Thread):
             except Exception as e:
                 logger.error(f"OP RX: Loop error: {e}")
                 self.connected = False
-                time.sleep(1.0)
+                self.stop_event.wait(1.0)
                 
         # Thread exit cleanup
         if self.connected and self.bus:

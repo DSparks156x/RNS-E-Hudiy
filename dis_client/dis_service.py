@@ -462,7 +462,7 @@ class DisService:
                             parts = self.ignition_sub.recv_multipart(flags=zmq.NOBLOCK)
                             if len(parts) == 2 and parts[0] == b'POWER_STATUS':
                                 pwr = json.loads(parts[1])
-                                new_ign = pwr.get('kl15', False)
+                                new_ign = pwr.get('kl15', False) or pwr.get('bus_active', False)
                                 
                                 if new_ign != self.ignition_on:
                                     self.ignition_on = new_ign

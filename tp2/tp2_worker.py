@@ -371,9 +371,7 @@ class TP2Service:
         t_cmd = threading.Thread(target=self.command_thread_func, daemon=True)
         t_cmd.start()
 
-        # Start Openpilot Receiver Thread
-        op_receiver = OpenpilotReceiver(can_interface=self.can_interface, zmq_pub=self.pub)
-        op_receiver.start()
+        op_receiver = None
         
         while not self.shutdown_event.is_set():
             try:
@@ -386,6 +384,19 @@ class TP2Service:
                     is_running = self.running
                     # Copy dict keys/values to avoid modification issues
                     current_sessions = list(self.sessions.items())
+
+                # Manage Openpilot Receiver based on service running state
+                if is_running:
+                    if op_receiver is None:
+                        logger.info("Starting OpenpilotReceiver background thread...")
+                        op_receiver = OpenpilotReceiver(can_interface=self.can_interface, zmq_pub=self.pub)
+                        op_receiver.start()
+                else:
+                    if op_receiver is not None:
+                        logger.info("Stopping OpenpilotReceiver background thread...")
+                        op_receiver.stop()
+                        op_receiver.join(timeout=1.0)
+                        op_receiver = None
                 
                 # 1. Global Enable Check
                 if not is_running:
@@ -733,8 +744,10 @@ class TP2Service:
                 time.sleep(1)
 
         # Shutdown Cleanup
-        logger.info("Stopping OpenpilotReceiver...")
-        op_receiver.stop()
+        if op_receiver is not None:
+            logger.info("Stopping OpenpilotReceiver...")
+            op_receiver.stop()
+            op_receiver.join(timeout=1.0)
         for mod, sess in self.sessions.items():
             try: sess['protocol'].close()
             except: pass

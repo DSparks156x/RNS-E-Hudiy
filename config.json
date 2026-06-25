@@ -122,7 +122,8 @@
       },
       "listen_only_mode": {
         "enabled": true,
-        "delay_seconds": 10
+        "delay_seconds": 10,
+        "fallback_seconds": 900
       },
       "gpio_shutdown": {
         "enabled": true,
@@ -155,6 +156,8 @@
     "light_status": "0x635",
     "time_data": "0x623",
     "ignition_status": "0x2C3",
+    "gateway_nm_status": "0x42B",
+    "nav_nm_status": "0x436",
     "tv_presence": "0x602",
     "fis_line1": "0x363",
     "fis_line2": "0x365",
