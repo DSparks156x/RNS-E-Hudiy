@@ -41,8 +41,7 @@
         "approach_bar_max_distance": 300,
         "hide_inactive_route": true,
         "inactive_route_debounce": 5.0,
-        "claim_on_nav": false,
-        "release_on_no_nav": false
+        "claim_on_nav": false
       },
       "coverart": {
         "brief": true,
@@ -104,7 +103,8 @@
       "nav_line2_mode": "distance"
     },
     "phone": {
-      "scroll_wheel_phone_menu": true
+      "scroll_wheel_phone_menu": true,
+      "claim_on_phone": false
     }
   },
   "features": {

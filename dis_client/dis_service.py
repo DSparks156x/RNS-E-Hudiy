@@ -386,14 +386,15 @@ class DisService:
         # 3. Reset window (pacing=True: give cluster time to render before next command)
         self.ddp.send_ddp_frame([0x52, 0x05, 0x00, 0x00, self.region_y_offset, 0x40, self.region_height])
 
-    def get_line_payload(self, x: int, y: int, length: int, vertical: bool = True) -> List[int]:
-        orientation = 0x10 if vertical else 0x20
+    def get_line_payload(self, x: int, y: int, length: int, vertical: bool = True, orientation: Optional[int] = None) -> List[int]:
+        if orientation is None:
+            orientation = 0x10 if vertical else 0x20
         # 0x63 uses region-relative coordinates (like 0x57 text), NOT absolute
         # coordinates (like 0x52 region commands). No offset needed.
         return [0x63, 0x04, orientation, x, y, length]
 
-    def draw_line(self, x: int, y: int, length: int, vertical: bool = True):
-        payload = self.get_line_payload(x, y, length, vertical)
+    def draw_line(self, x: int, y: int, length: int, vertical: bool = True, orientation: Optional[int] = None):
+        payload = self.get_line_payload(x, y, length, vertical, orientation)
         self.ddp.send_ddp_frame(payload)
 
     def get_clear_area_payload(self, x: int, y: int, w: int, h: int) -> List[int]:
@@ -432,7 +433,7 @@ class DisService:
             elif c == 'draw_bitmap':
                 self.draw_bitmap(cmd.get('x',0), cmd.get('y',0), cmd.get('icon_name'))
             elif c == 'draw_line':
-                self.draw_line(cmd.get('x',0), cmd.get('y',0), cmd.get('length',0), cmd.get('vertical', True))
+                self.draw_line(cmd.get('x',0), cmd.get('y',0), cmd.get('length',0), cmd.get('vertical', True), cmd.get('orientation', None))
         
         self.commit_frame()
 
@@ -670,7 +671,13 @@ class DisService:
                                     self.draw_bitmap(cmd.get('x', 0), cmd.get('y', 0), cmd.get('icon_name'))
                                     continue
                                 elif c == 'draw_line':
-                                    p = self.get_line_payload(cmd.get('x', 0), cmd.get('y', 0), cmd.get('length', 0), cmd.get('vertical', True))
+                                    p = self.get_line_payload(
+                                        cmd.get('x', 0),
+                                        cmd.get('y', 0),
+                                        cmd.get('length', 0),
+                                        cmd.get('vertical', True),
+                                        cmd.get('orientation', None)
+                                    )
                                 elif c == 'clear_area':
                                     # Flush whatever was pending BEFORE starting the clear,
                                     # so the clear begins a fresh frame with its paired draw.

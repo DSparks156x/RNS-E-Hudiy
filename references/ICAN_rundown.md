@@ -6,6 +6,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m airbag 1**
 - **Log Frequency**: 107 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 4
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 - **Description**: CAN comfort CAN infotainment
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
@@ -35,6 +36,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m LSM 1**
 - **Log Frequency**: 107 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 6
+- **CAN Bus Routing**: `Convenience -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -84,6 +86,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m ZAS status**
 - **Log Frequency**: 106 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 1
+- **CAN Bus Routing**: `Convenience -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -99,13 +102,14 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m Gateway 1**
 - **Log Frequency**: 107 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
 | `GW1_FhzgGeschw_alt` | **GW1_Vehicle_Speed_​​Obsolete** | Bit 0, 1b, Intel | Scale: 1.0 | `1`: outdated<br>`0`: currently received |
 | `GW1_Rueckfahrlicht` | **GW1_reversing_light**<br>*Note: 1 = reversing light on* | Bit 1, 1b, Intel | Scale: 1.0 | `1`: Reversing light on |
 | `GW1_FzgGeschw` | **GW1_vehicle_speed** | Bit 9, 15b, Intel | Scale: 0.01, Unit: 'Unit_KiloMeterPerHour' | `32725`: Undervoltage<br>`32708`: Init_PQ25_35_46<br>`32742`: Sensor error |
-| `KKO_alt_mBSG_Kombi` | **KKO Obsolete m BSG station wagon** | Bit 63, 1b, Intel | Scale: 1.0 | `1`: outdated<br>`0`: currently received |
+| `KKO_alt_mBSG_Kombi` | **KKO Obsolete m BSG Kombi** | Bit 63, 1b, Intel | Scale: 1.0 | `1`: outdated<br>`0`: currently received |
 
 ---
 
@@ -113,6 +117,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m GW brake transmission**
 - **Log Frequency**: 106 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -152,6 +157,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m GW engine**
 - **Log Frequency**: 107 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -187,6 +193,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m Radio 1 new**
 - **Log Frequency**: 171 occurrences
 - **Sender**: `Vector__XXX` | **DLC**: 8
+- **CAN Bus Routing**: `Infotainment -> Instrument Cluster`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -205,6 +212,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m Radio 2 new**
 - **Log Frequency**: 158 occurrences
 - **Sender**: `Vector__XXX` | **DLC**: 8
+- **CAN Bus Routing**: `Infotainment -> Instrument Cluster`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -223,6 +231,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m steering angle 1**
 - **Log Frequency**: 107 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -244,6 +253,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m Climate 1**
 - **Log Frequency**: 108 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Convenience -> Infotainment`
 - **Description**: CAN comfort
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
@@ -275,6 +285,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m Climate 2**
 - **Log Frequency**: 14 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Convenience -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -297,6 +308,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m NM Gateway I**
 - **Log Frequency**: 115 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 6
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -326,6 +338,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **NWM RNA**
 - **Log Frequency**: 114 occurrences
 - **Sender**: `RNS_300_NF` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -380,9 +393,10 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 ---
 
 ## Message: `mBSG_Kombi` (0x470 / 1136 Dec)
-- **English Translation**: **m BSG station wagon**
+- **English Translation**: **m BSG Kombi**
 - **Log Frequency**: 214 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Convenience -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -419,14 +433,14 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 | `BSK_Parklicht_rechts` | **BSK parking light on the right** | Bit 42, 1b, Intel | Scale: 1.0 | `1`: Parking light R on |
 | `BSK_Abblendlicht` | **BSK low beam** | Bit 43, 1b, Intel | Scale: 1.0 | `1`: Kl56b_ein<br>`0`: out of |
 | `BSK_Nebellicht` | **BSK fog light** | Bit 44, 1b, Intel | Scale: 1.0 | `1`: Kl83a<br>`0`: out of |
-| `BSK_Heckscheibenhzg` | **BSK rear window heating**<br>*Note: The status of the rear window heating control is reported for display in the station wagon.* | Bit 45, 1b, Intel | Scale: 1.0 | - |
-| `BSK_Tankklappe` | **BSK fuel filler flap**<br>*Note: A text 'tank flap open' or the CAR outline symbol is displayed in the station wagon. The right sliding door goes into local 'E-Ki Si mode' as long as the fuel filler flap is open.* | Bit 46, 1b, Intel | Scale: 1.0 | `0`: Fuel filler flap closed<br>`1`: Fuel filler flap open |
+| `BSK_Heckscheibenhzg` | **BSK rear window heating**<br>*Note: The status of the rear window heating control is reported for display in the Kombi.* | Bit 45, 1b, Intel | Scale: 1.0 | - |
+| `BSK_Tankklappe` | **BSK fuel filler flap**<br>*Note: A text 'tank flap open' or the CAR outline symbol is displayed in the Kombi. The right sliding door goes into local 'E-Ki Si mode' as long as the fuel filler flap is open.* | Bit 46, 1b, Intel | Scale: 1.0 | `0`: Fuel filler flap closed<br>`1`: Fuel filler flap open |
 | `BSK_FFB_Bat` | **BSK FFB Bat**<br>*Note: Text display battery status FFB* | Bit 47, 1b, Intel | Scale: 1.0 | `0`: no text<br>`1`: text |
 | `BSK_FLA_Soft_LED` | **BSK FLA Soft LED**<br>*Note: 1 = FLA active, display in the combination (soft LED)* | Bit 48, 1b, Intel | Scale: 1.0 | `0`: inactive<br>`1`: active |
 | `BSK_FLA_Sensor_blockiert` | **BSK FLA sensor blocked** | Bit 49, 1b, Intel | Scale: 1.0 | `1`: Sensor blocked<br>`0`: Sensor OK |
 | `BSK_FLA_Defekt` | **BSK FLA defect**<br>*Note: 1 = FLA defective* | Bit 50, 1b, Intel | Scale: 1.0 | `1`: System defective<br>`0`: System OK |
 | `BCM_Remotestart_Betrieb` | **BCM_Remotestart_Betrieb** | Bit 55, 1b, Intel | Scale: 1.0 | `1`: RS_Betrieb<br>`0`: no RS operation |
-| `BSK_Ruhespannung` | **BSK rest voltage**<br>*Note: In transport mode, the resting battery voltage in the station wagon is displayed at the position of the total distance traveled.* | Bit 56, 5b, Intel | Scale: 0.1, Offset: 10.5, Unit: 'Unit_Volt' | `0`: Init<br>`31`: Mistake |
+| `BSK_Ruhespannung` | **BSK rest voltage**<br>*Note: In transport mode, the resting battery voltage in the Kombi is displayed at the position of the total distance traveled.* | Bit 56, 5b, Intel | Scale: 0.1, Offset: 10.5, Unit: 'Unit_Volt' | `0`: Init<br>`31`: Mistake |
 | `BSK_Nebelschlusslicht` | **BSK rear fog light** | Bit 61, 1b, Intel | Scale: 1.0 | `1`: Kl83b<br>`0`: out of |
 | `BSK_Fernlicht` | **BSK high beam** | Bit 62, 1b, Intel | Scale: 1.0 | `1`: Kl56a<br>`0`: out of |
 | `BSK_Tagfahrlicht` | **BSK daytime running lights**<br>*Note: 1 = daytime running lights are switched on* | Bit 63, 1b, Intel | Scale: 1.0 | `1`: Daytime running lights on |
@@ -437,6 +451,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m GW COM INF**
 - **Log Frequency**: 53 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -462,15 +477,16 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 ---
 
 ## Message: `mGW_Kombi` (0x527 / 1319 Dec)
-- **English Translation**: **m GW station wagon**
+- **English Translation**: **m GW Kombi**
 - **Log Frequency**: 53 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
-| `GWK_Alt_3_Kombi` | **GWK Obsolete 3 station wagon** | Bit 0, 1b, Intel | Scale: 1.0 | `1`: outdated<br>`0`: currently received |
-| `GWK_Alt_2_Kombi` | **GWK Obsolete 2 station wagon**<br>*Note: outdated signals from embassy station wagon 2* | Bit 1, 1b, Intel | Scale: 1.0 | `1`: outdated<br>`0`: currently received |
-| `GWK_Alt_1_Kombi` | **GWK Obsolete 1 station wagon** | Bit 2, 1b, Intel | Scale: 1.0 | `1`: outdated<br>`0`: currently received |
+| `GWK_Alt_3_Kombi` | **GWK Obsolete 3 Kombi** | Bit 0, 1b, Intel | Scale: 1.0 | `1`: outdated<br>`0`: currently received |
+| `GWK_Alt_2_Kombi` | **GWK Obsolete 2 Kombi**<br>*Note: outdated signals from embassy Kombi 2* | Bit 1, 1b, Intel | Scale: 1.0 | `1`: outdated<br>`0`: currently received |
+| `GWK_Alt_1_Kombi` | **GWK Obsolete 1 Kombi** | Bit 2, 1b, Intel | Scale: 1.0 | `1`: outdated<br>`0`: currently received |
 | `GWK_Reifenumfang_empf` | **GWK tire circumference recommended** | Bit 4, 1b, Intel | Scale: 1.0 | `0`: Content not received<br>`1`: Currently received |
 | `GWK_FzgGeschw_Quelle` | **GWK vehicle speed source** | Bit 8, 1b, Intel | Scale: 1.0 | `0`: Speedometer sensor<br>`1`: ABS signals |
 | `GWK_FzgGeschw` | **GWK vehicle speed** | Bit 9, 15b, Intel | Scale: 0.01, Unit: 'Unit_KiloMeterPerHour' | - |
@@ -479,7 +495,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 | `GWK_AussenTemp_ungefiltert` | **GWK outside temp unfiltered** | Bit 48, 8b, Intel | Scale: 0.5, Offset: -50.0, Unit: 'Unit_DegreCelsi' | `255`: Mistake |
 | `GWK_AussenTemp_Fehler` | **GWK outside temp error** | Bit 56, 1b, Intel | Scale: 1.0 | `1`: OK<br>`0`: OK |
 | `GWK_Warn_Heiss` | **GWK Warn Hot** | Bit 57, 1b, Intel | Scale: 1.0 | `1`: warning<br>`0`: no warning |
-| `GWK_Passiv_Autolock` | **GWK passive autolock**<br>*Note: 1 = switching request from the station wagon: 'Passive Autolock / Autounlock'* | Bit 58, 1b, Intel | Scale: 1.0 | `0`: inactive<br>`1`: active |
+| `GWK_Passiv_Autolock` | **GWK passive autolock**<br>*Note: 1 = switching request from the Kombi: 'Passive Autolock / Autounlock'* | Bit 58, 1b, Intel | Scale: 1.0 | `0`: inactive<br>`1`: active |
 | `GWK_WFS_Schl_Ort` | **GWK WFS Schl Ort**<br>*Note: Key recognition via reading coil or keyless* | Bit 59, 1b, Intel | Scale: 1.0 | `0`: keyless<br>`1`: Reading coil |
 | `KB1_Lenkh_Lampe` | **KB1_steering_lamp**<br>*Note: Power steering safety lamp has been turned on* | Bit 60, 1b, Intel | Scale: 1.0 | `1`: lamp on<br>`0`: Lamp off |
 
@@ -489,6 +505,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m Light 1 Obsolete**
 - **Log Frequency**: 214 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 4
+- **CAN Bus Routing**: `Convenience -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -521,6 +538,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m engine7**
 - **Log Frequency**: 107 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Powertrain -> Infotainment (part, check 588)`
 - **Description**: CAN comfort 100ms
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
@@ -554,6 +572,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m KD error**
 - **Log Frequency**: 21 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -626,6 +645,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m BSG 2**
 - **Log Frequency**: 22 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 6
+- **CAN Bus Routing**: `Convenience -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -666,6 +686,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m BSG 3**
 - **Log Frequency**: 66 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 4
+- **CAN Bus Routing**: `Convenience -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -706,6 +727,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m engine 10**
 - **Log Frequency**: 107 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -753,6 +775,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m brake 10**
 - **Log Frequency**: 53 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Powertrain -> Infotainment (check 3A0)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -781,6 +804,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m MFL Cmd**
 - **Log Frequency**: 21 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 2
+- **CAN Bus Routing**: `Convenience -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -793,6 +817,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m NAV 1**
 - **Log Frequency**: 10 occurrences
 - **Sender**: `RNS_300_NF` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -814,6 +839,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m units**
 - **Log Frequency**: 11 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 2
+- **CAN Bus Routing**: `Instrument Cluster -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -831,9 +857,10 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 ---
 
 ## Message: `mKombi_K1` (0x621 / 1569 Dec)
-- **English Translation**: **m station wagon K1**
+- **English Translation**: **m Kombi K1**
 - **Log Frequency**: 107 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 7
+- **CAN Bus Routing**: `Instrument Cluster -> Infotainment`
 - **Description**: PQ35
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
@@ -845,7 +872,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 | `KO1_FT_geoeffnet` | **KO1_FT_open**<br>*Note: 1 = Driver's door open* | Bit 4, 1b, Intel | Scale: 1.0 | - |
 | `KO1_Handbremse` | **KO1_handbrake** | Bit 5, 1b, Intel | Scale: 1.0 | `1`: dressed<br>`0`: not dressed |
 | `KO1_AFL` | **KO1_AFL**<br>*Note: Light switch position to AFL* | Bit 6, 1b, Intel | Scale: 1.0 | - |
-| `KO1_Klemme_L` | **KO1_terminal_L**<br>*Note: The station wagon has its charging control lamp switched on (receiver: currently Batman), not PQ35/46, not Audi D3/C6* | Bit 7, 1b, Intel | Scale: 1.0 | `0`: Lamp off<br>`1`: lamp on |
+| `KO1_Klemme_L` | **KO1_terminal_L**<br>*Note: The Kombi has its charging control lamp switched on (receiver: currently Batman), not PQ35/46, not Audi D3/C6* | Bit 7, 1b, Intel | Scale: 1.0 | `0`: Lamp off<br>`1`: lamp on |
 | `KO1_Standzeit` | **KO1_service_life** | Bit 8, 15b, Intel | Scale: 4.0, Unit: 'Unit_Secon' | - |
 | `KO1_Standzeit_Fehler` | **KO1_Service_life_error**<br>*Note: Reset service life* | Bit 23, 1b, Intel | Scale: 1.0 | `1`: Terminal 30 was gone<br>`0`: Service life OK |
 | `KO1_Tankinhalt` | **KO1_tank_content** | Bit 24, 7b, Intel | Scale: 1.0, Unit: 'Unit_Liter' | `127`: Mistake |
@@ -862,9 +889,10 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 ---
 
 ## Message: `mKombi_K2` (0x623 / 1571 Dec)
-- **English Translation**: **m station wagon K2**
+- **English Translation**: **m Kombi K2**
 - **Log Frequency**: 10 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Instrument Cluster -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -884,9 +912,10 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 ---
 
 ## Message: `mKombi_K4` (0x627 / 1575 Dec)
-- **English Translation**: **m station wagon K4**
+- **English Translation**: **m Kombi K4**
 - **Log Frequency**: 22 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Instrument Cluster -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -909,6 +938,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m dimming**
 - **Log Frequency**: 53 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 3
+- **CAN Bus Routing**: `Instrument Cluster -> Infotainment` / `Convenience -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -924,6 +954,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m System info 1**
 - **Log Frequency**: 107 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 - **Description**: CAN dashboard CAN comfort CAN infotainment
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
@@ -962,6 +993,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m Gateway 3**
 - **Log Frequency**: 22 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 3
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -979,6 +1011,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m new shoring**
 - **Log Frequency**: 22 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 - **Description**: CAN dashboard CAN comfort CAN infotainment
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
@@ -986,7 +1019,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 | `VBN_Motor_A` | **VBN Engine A**<br>*Note: always 1! (Engine control unit always installed)* | Bit 0, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
 | `VBN_Getriebe_A` | **VBN gearbox A**<br>*Note: Target installation of transmission control unit* | Bit 1, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
 | `VBN_Bremse_A` | **VBN brake A**<br>*Note: Target installation of ABS for bad road information* | Bit 2, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
-| `VBN_Kombi_A` | **VBN station wagon A**<br>*Note: 1 = Combi installed on the drive CAN* | Bit 3, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
+| `VBN_Kombi_A` | **VBN Kombi A**<br>*Note: 1 = Combi installed on the drive CAN* | Bit 3, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
 | `VBN_LSM_A` | **VBN LSM A**<br>*Note: Target steering angle* | Bit 4, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
 | `VBN_Airbag_A` | **VBN Airbag A** | Bit 5, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
 | `VBN_Lenkhilfe_A` | **VBN steering aid A** | Bit 6, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
@@ -1005,7 +1038,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 | `VBN_RKA_Plus_A` | **VBN RKA Plus A**<br>*Note: RKA-SG (RKA Plus) on the CAN drive* | Bit 19, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
 | `VBN_PLA_A` | **VBN PLA A**<br>*Note: PDC / Park steering assistant on the drive train* | Bit 20, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
 | `VBN_WFS_KBI` | **VBN WFS KBI**<br>*Note: 1 = Immobilizer on the combination CAN or drive CAN* | Bit 21, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
-| `VBN_Kombi_KBI` | **VBN station wagon KBI**<br>*Note: 1 = Combi installed on the combination CAN* | Bit 22, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
+| `VBN_Kombi_KBI` | **VBN Kombi KBI**<br>*Note: 1 = Combi installed on the combination CAN* | Bit 22, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
 | `VBN_Soll_Ist_OK` | **VBN Should Is OK** | Bit 23, 1b, Intel | Scale: 1.0 | `1`: Target installation equals actual installation<br>`0`: Target shoring is not the same as actual shoring |
 | `VBN_BSG_K` | **VBN BSG K**<br>*Note: Target installation BSG comfort or ILM comfort* | Bit 24, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
 | `VBN_KSG_K` | **VBN KSG K**<br>*Note: Target installation ZKE* | Bit 25, 1b, Intel | Scale: 1.0 | `0`: no target construction<br>`1`: Target installation |
@@ -1054,6 +1087,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m BEM 02**
 - **Log Frequency**: 107 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -1080,6 +1114,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m diagnosis 1**
 - **Log Frequency**: 10 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Local (Stays on Infotainment)`
 - **Description**: CAN dashboard CAN comfort CAN infotainment
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
@@ -1101,6 +1136,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m Vehicle Ident**
 - **Log Frequency**: 53 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Instrument Cluster -> Infotainment`
 - **Description**: CAN comfort
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
@@ -1134,6 +1170,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m Radio 4**
 - **Log Frequency**: 10 occurrences
 - **Sender**: `Radio_2DIN` | **DLC**: 8
+- **CAN Bus Routing**: `Infotainment -> Convenience` / `Infotainment -> Instrument Cluster`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -1159,6 +1196,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m Tp NSL COM**
 - **Log Frequency**: 11 occurrences
 - **Sender**: `Vector__XXX` | **DLC**: 8
+- **CAN Bus Routing**: `Infotainment -> Instrument Cluster`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -1170,6 +1208,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m Tp KOM NSL**
 - **Log Frequency**: 11 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Instrument Cluster -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -1181,6 +1220,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **m Tp TM COM**
 - **Log Frequency**: 105 occurrences
 - **Sender**: `Vector__XXX` | **DLC**: 8
+- **CAN Bus Routing**: `Infotainment -> Instrument Cluster`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|
@@ -1192,6 +1232,7 @@ This document evaluates `canlog.txt` against `PQ35_46_ICAN.dbc`. All 41 unique C
 - **English Translation**: **BAP_Clima**
 - **Log Frequency**: 12 occurrences
 - **Sender**: `Gateway_PQ35` | **DLC**: 8
+- **CAN Bus Routing**: `Convenience -> Infotainment`
 
 | German Signal Name | English Translation | Details (Bit/Len/Endian) | Scale/Offset/Unit | Values/States |
 |---|---|---|---|---|

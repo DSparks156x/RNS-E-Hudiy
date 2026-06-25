@@ -230,11 +230,15 @@ class DisplayEngine:
         self.nav_hide_inactive = nav_cfg.get('hide_inactive_route', False)
         self.nav_inactive_debounce = nav_cfg.get('inactive_route_debounce', 5.0)
         self.nav_claim_on_nav = nav_cfg.get('claim_on_nav', False)
-        self.nav_release_on_no_nav = nav_cfg.get('release_on_no_nav', False)
         self.last_valid_route_time = 0
         self.user_paused = False
         self.boot_inactive_hold = self.start_inactive
         self.has_entered_paused_state = False
+
+        # Load Phone Config
+        phone_cfg = self.cfg.get('display', {}).get('phone', {})
+        self.phone_claim_on_phone = phone_cfg.get('claim_on_phone', False)
+        self.phone_auto_claimed = False
 
         # --- Advanced Nav Auto-Switching ---
         self.nav_auto_triggered = False
@@ -434,9 +438,26 @@ class DisplayEngine:
     def _check_nav_availability_pause(self):
         """Monitor nav availability and request center release/resume if configured."""
         if getattr(self, 'boot_inactive_hold', False):
-            return
+            current_app_name = self.pages[self.current_page_idx]
+            is_nav_page = (current_app_name == 'app_nav')
+            is_available = self.is_nav_available()
+            
+            break_hold = False
+            if is_nav_page and is_available and self.nav_claim_on_nav:
+                logger.info("Active route maneuver detected during boot hold. Breaking hold to claim.")
+                break_hold = True
+            elif getattr(self, 'phone_auto_overlay', False):
+                logger.info("Active phone call detected during boot hold. Breaking hold to claim.")
+                break_hold = True
+                
+            if break_hold:
+                self.boot_inactive_hold = False
+                self.user_paused = False
+                self._send_draw({'command': 'resume'})
+            else:
+                return
 
-        if not self.nav_claim_on_nav and not self.nav_release_on_no_nav:
+        if not self.nav_claim_on_nav:
             return
 
         if not getattr(self, 'service_ready', False) and not self.user_paused:
@@ -447,7 +468,7 @@ class DisplayEngine:
         is_available = self.is_nav_available()
         
         # Logic for release: on nav page but it's not available
-        if is_nav_page and not is_available and self.nav_release_on_no_nav:
+        if is_nav_page and not is_available:
             if not self.user_paused:
                 logger.info("Navigation unavailable: Releasing center.")
                 self._send_draw({'command': 'pause'})
@@ -465,11 +486,9 @@ class DisplayEngine:
         elif self.user_paused:
             # Resume if we switched away from nav page, or nav page became available
             if not is_nav_page or (is_nav_page and is_available):
-                # If it's a nav page resuming, check claim_on_nav
-                if not is_nav_page or self.nav_claim_on_nav:
-                    logger.info("Navigation available or app switched: Resuming center.")
-                    self._send_draw({'command': 'resume'})
-                    self.user_paused = False
+                logger.info("Navigation available or app switched: Resuming center.")
+                self._send_draw({'command': 'resume'})
+                self.user_paused = False
 
     def is_nav_available(self):
         """Check if the Nav app should be visible in the rotation."""
@@ -903,8 +922,24 @@ class DisplayEngine:
             
             if interesting:
                 self.phone_auto_overlay = True
+                self.pre_phone_app_name = self.pages[self.current_page_idx]
+                
+                # Check if phone call should claim the display
+                if self.phone_claim_on_phone:
+                    if self.user_paused:
+                        logger.info("Active phone call: Resuming and claiming center.")
+                        self.boot_inactive_hold = False
+                        self.user_paused = False
+                        self.phone_auto_claimed = True
+                        self._send_draw({'command': 'resume'})
             else:
                 self.phone_auto_overlay = False
+                if self.phone_claim_on_phone and getattr(self, 'phone_auto_claimed', False):
+                    if self.pre_phone_app_name is not None:
+                        logger.info("Phone call ended (auto-claimed). Releasing center.")
+                        self._send_draw({'command': 'pause'})
+                        self.user_paused = True
+                self.phone_auto_claimed = False
                 self.pre_phone_app_name = None
 
     def _handle_can(self):
