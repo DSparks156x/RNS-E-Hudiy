@@ -48,7 +48,8 @@ class CANService:
             'load_actual': None,
             'load_spec': None,
             'iat': None,
-            'speed': None
+            'speed': None,
+            'atmosphere': None
         }
 
     def connect(self):
@@ -100,6 +101,8 @@ class CANService:
                      {'value': round(self.latest_data['load_actual'], 1) if self.latest_data['load_actual'] is not None else 0, 'unit': '%'}
                 ]
             }
+            if self.latest_data.get('atmosphere') is not None:
+                payload1['atmosphere'] = self.latest_data['atmosphere']
             self.pub_sock.send_multipart([b'HUDIY_DIAG', json.dumps(payload1).encode()])
 
         # Group 2: Electrical & Fuel & Speed
@@ -142,23 +145,28 @@ class CANService:
                                 self.latest_data['fuel'] = payload[5]
                                 
                             if '555' in t_str and len(payload) >= 8:
-                                # Data mapping based on TP2 correlation:
-                                # B0: Static? (e8)
-                                # B1: Load-related (Inverted 1:1 match discovered via analysis)
-                                # B2: IAT
-                                # B3-B4: Boost
-                                # B7: Oil Temp (payload[7] - 60)
+                                # Data mapping based on DBC definitions:
+                                # B1: DFM Alternator Load
+                                # B2: Hoeheninfo (Altitude correction factor)
+                                # B4: Ladedruckneu (Boost Pressure)
+                                # B7: Oeltemperatur (Oil Temp)
                                 
                                 # Load: Matches actual diagnostic load with (188 - payload[1])
                                 self.latest_data['load_actual'] = max(0, float(188 - payload[1]))
                                 self.latest_data['load_spec'] = self.latest_data['load_actual'] # Fallback
                                 
-                                # IAT: byte * 0.75 - 58.5 (Matches decoder.txt perfectly for ~20C)
-                                self.latest_data['iat'] = (payload[2] * 0.75) - 58.5
+                                # Altitude & Atmospheric pressure calculation using MO7_Hoeheninfo
+                                # Scale: 0.0078125. 1.0 factor = 1013.25 mbar.
+                                altitude_factor = payload[2] * 0.0078125
+                                self.latest_data['atmosphere'] = altitude_factor * 1013.25
 
-                                # Boost Actual: Original "close" formula
-                                self.latest_data['boost'] = (payload[3] + payload[4] * 256) * 0.078
-                                self.latest_data['oil'] = payload[7] - 60
+                                # Boost Actual: Correct DBC formula (MO7_Ladedruckneu in Byte 4)
+                                # Scale: 0.02 Bar. Mapped to mbar (val * 1000).
+                                self.latest_data['boost'] = (payload[4] * 0.02) * 1000.0
+                                
+                                # Oil Temp: Correct DBC formula (Oeltemperatur in Byte 7)
+                                # Scale: 1.0, Offset: -60.0
+                                self.latest_data['oil'] = payload[7] - 60.0
                                 
                             if '527' in t_str and len(payload) >= 6:
                                 self.latest_data['ambient'] = (payload[5] * 0.5) - 50

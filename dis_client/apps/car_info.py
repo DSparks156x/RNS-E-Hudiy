@@ -40,8 +40,15 @@ class CarInfoApp(BaseApp):
             group = payload.get('group')
             data = payload.get('data', [])
             
-            # Module 01, Group 113: Atmospheric Pressure (Block 4)
-            if mod == 1 and group == 113:
+            # Use real-time atmosphere from CAN if available in payload
+            if 'atmosphere' in payload:
+                try:
+                    self.atmosphere = float(payload['atmosphere'])
+                except (ValueError, TypeError):
+                    pass
+            
+            # Module 01, Group 113: Atmospheric Pressure (Block 4) (Diagnostic fallback)
+            elif mod == 1 and group == 113:
                 if len(data) >= 4:
                     try:
                         self.atmosphere = float(data[3]['value'])
