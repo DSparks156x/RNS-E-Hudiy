@@ -131,6 +131,16 @@
         "pin": 12,
         "active_low": true,
         "delay_seconds": 60
+      },
+      "connection_management": {
+        "enabled": true,
+        "connect_on_ignition": true,
+        "connect_on_radio": true,
+        "door_open_window_seconds": 15,
+        "unlock_wake_window_seconds": 15,
+        "manage_bluetooth": true,
+        "manage_android_auto": true,
+        "disconnect_delay_seconds": 0
       }
     },
     "tv_simulation": {
@@ -157,6 +167,7 @@
     "light_status": "0x635",
     "time_data": "0x623",
     "ignition_status": "0x2C3",
+    "door_status": "0x470",
     "gateway_nm_status": "0x42B",
     "nav_nm_status": "0x436",
     "tv_presence": "0x602",

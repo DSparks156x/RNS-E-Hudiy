@@ -27,6 +27,7 @@ try:
     
     from common.Client import Client, ClientEventHandler
     import common.Api_pb2 as hudiy_api
+    from connection_manager import ConnectionManager
     
     # Add root to path for dis_client
     sys.path.insert(0, os.path.join(script_dir, '..'))
@@ -754,6 +755,9 @@ class HudiyData:
             _zmq = config['interfaces'].get('zmq', {})
             self.tp2_status_addr = _zmq.get('tp2_stream', self.tp2_status_addr)
 
+        # Connection Manager (Manages Bluetooth/BLE & AA Connection Lifecycle)
+        self.connection_manager = ConnectionManager(config_path=config_path)
+
         self.running = True
         self._setup_signals()
         
@@ -765,6 +769,7 @@ class HudiyData:
     def _shutdown(self, signum, frame):
         logger.info(f"Shutdown signal {signum} received. Stopping HudiyDataService...")
         self.running = False
+        self.connection_manager.stop()
 
     def _close_connection(self):
         """Perform additional cleanup on shutdown."""
@@ -789,6 +794,7 @@ class HudiyData:
                 self.data_client = Client("DATA")
                 self.data_client.set_event_handler(self.handler)
                 self.data_client.connect('127.0.0.1', 44405)
+                self.connection_manager.set_hudiy_client(self.data_client)
                 logger.info("DATA Thread ACTIVE — subscriptions requested")
                 while self.data_client._connected and self.running:
                     if not self.data_client.wait_for_message():
@@ -853,6 +859,7 @@ class HudiyData:
 
     def run(self):
         logger.info("THREADING Hudiy Data ACTIVE!")
+        self.connection_manager.start()
         data_thread    = threading.Thread(target=self.connect_data,         daemon=True, name="DATA")
         tp2_thread     = threading.Thread(target=self.connect_tp2,          daemon=True, name="TP2_BRIDGE")
         tp2_status_thread = threading.Thread(target=self.tp2_status_subscriber, daemon=True, name="TP2_STATUS")
@@ -869,6 +876,7 @@ class HudiyData:
         finally:
             logger.info("Main loop finished. Cleaning up...")
             self.running = False
+            self.connection_manager.stop()
             self.safe_pub.stop()
             self._close_connection()
             logger.info("HudiyDataService stopped.")

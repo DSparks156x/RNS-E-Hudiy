@@ -16,6 +16,7 @@
 - [obd](#obd)
 - [api](#api)
 - [reverseCamera](#reversecamera)
+- [bluetooth](#bluetooth)
 
 ## Introduction
 
@@ -111,6 +112,31 @@ The configuration is stored in JSON format.
     - true – request a frameless window
     - false – request to draw a frame
 
+- `activeBoundaries`:  
+    Enable or disable active boundaries of input scopes (scrolling on the outermost controls jumps to the next/previous input scope).
+
+    *Enabling this option reduces the need to use the D-pad for controlling Hudiy UI (left, right, up, down).*
+
+    Possible values:
+    - true – active boundaries are enabled
+    - false – active boundaries are disabled
+
+- `rotation`:  
+    Specifies the rotation of the application window.
+
+   Possible values:
+   - "NORMAL" - 0 degrees (no rotation)
+   - "RIGHT" - 90 degrees
+   - "INVERTED" - 180 degrees
+   - "LEFT" - 270 degrees
+
+- `useWebCache`:  
+    Enables or disables caching HTML/JS content loaded by the WebView (widgets, overlays, applications). It can be useful to disable the cache during development of an extension.
+
+    Possible values:
+    - true – web cache is enabled
+    - false – web cache is disabled
+
 ## appearance
 
 - `timeFormat`:  
@@ -143,38 +169,28 @@ The configuration is stored in JSON format.
     - true – the dark theme is enabled  
     - false – the dark theme is disabled and the light theme is used
 
-- `darkContrastLevel`:  
-    Color contrast level for the dark theme.
-
-    Possible values:
-    - A range between -1.0 and 1.0
-
-- `darkSourceColor`:  
-    The source color for the dark theme.
-
-    Possible values:
-    - Hex color code (RGB)
-
-- `lightContrastLevel`:  
-    Color contrast level for the light theme.
-
-    Possible values:
-    - A range between -1.0 and 1.0
-
-- `lightSourceColor`:  
-    The source color for the light theme.
-
-    Possible values:
-    - Hex color code (RGB)
-
 - `availableColors`:  
     A list of predefined source colors that can later be selected in the settings.
 
     Possible values:
     - Array of hex color codes (RGB)
 
-- `lightBackgroundsMap`:  
-    An object (key-value pairs) that defines background images for each menu action in the light theme.
+### dark/light
+
+- `contrastLevel`:  
+    Color contrast level for the theme.
+
+    Possible values:
+    - A range between -1.0 and 1.0
+
+- `sourceColor`:  
+    The source color for the theme.
+
+    Possible values:
+    - Hex color code (RGB)
+
+- `backgroundsMap`:  
+    An object (key-value pairs) that defines background images for each menu action in the theme.
 
     Example values:
     ```json
@@ -184,42 +200,84 @@ The configuration is stored in JSON format.
     }
     ```
 
-- `darkBackgroundsMap`:  
-    An object (key-value pairs) that defines background images for each menu action in the dark theme.  
-    The key (property name) is the name of an action.  
-    The value is the absolute path to the image file.
+- `defaultBackground`:  
+    The absolute path to the default background image file for the theme.  
+    Backgrounds defined in `backgroundsMap` take precedence.
+
+- `backgroundOpacity`:  
+    The opacity level of background images in the theme.
+
+- `opacity`:  
+    Opacity for widgets background and bottom bar in the theme.
+
+    *Note: Applies only to built-in widgets. HTML/JavaScript widgets handle background in their code.*
+
+- `colorOverwrite`:  
+    An object (key-value pairs) for overriding color values in the theme.
 
     Example values:
     ```json
     {
-        "storage_music_player": "/home/hudiy/Pictures/backgrounds/dark/background_for_storage_music_player.jpg",
-        "fm_radio_player": "/home/hudiy/Pictures/backgrounds/dark/fm_radio_player_background.jpg"
+        "surface": "#000000",
+        "onSurface": "#ffffff"
     }
     ```
 
-- `defaultDarkBackground`:  
-    The absolute path to the default background image file for the dark theme.  
-    Backgrounds defined in `darkBackgroundsMap` take precedence.
-
-- `defaultLightBackground`:  
-    The absolute path to the default background image file for the light theme.  
-    Backgrounds defined in `lightBackgroundsMap` take precedence.
-
-- `darkBackgroundOpacity`:  
-    The opacity level of background images in the dark theme. Applies to both `darkBackgroundsMap` and `defaultDarkBackground`.
-
-- `lightBackgroundOpacity`:  
-    The opacity level of background images in the light theme. Applies to both `lightBackgroundsMap` and `defaultLightBackground`.
-
-- `darkOpacity`:  
-    Opacity for widgets background and bottom bar in dark mode.
-
-    *Note: Applies only to built-in widgets. HTML/JavaScript widgets handle background in their code.*
-
-- `lightOpacity`:  
-    Opacity for widgets background and bottom bar in light mode.
-
-    *Note: Applies only to built-in widgets. HTML/JavaScript widgets handle background in their code.*
+    Color names:
+    - primaryPaletteKeyColor
+    - secondaryPaletteKeyColor
+    - tertiaryPaletteKeyColor
+    - neutralPaletteKeyColor
+    - neutralVariantPaletteKeyColor
+    - background
+    - onBackground
+    - surface
+    - surfaceDim
+    - surfaceBright
+    - surfaceContainerLowest
+    - surfaceContainerLow
+    - surfaceContainer
+    - surfaceContainerHigh
+    - surfaceContainerHighest
+    - onSurface
+    - surfaceVariant
+    - onSurfaceVariant
+    - inverseSurface
+    - inverseOnSurface
+    - outline
+    - outlineVariant
+    - shadow
+    - scrim
+    - surfaceTint
+    - primary
+    - onPrimary
+    - primaryContainer
+    - onPrimaryContainer
+    - inversePrimary
+    - secondary
+    - onSecondary
+    - secondaryContainer
+    - onSecondaryContainer
+    - tertiary
+    - onTertiary
+    - tertiaryContainer
+    - onTertiaryContainer
+    - error
+    - onError
+    - errorContainer
+    - onErrorContainer
+    - primaryFixed
+    - primaryFixedDim
+    - onPrimaryFixed
+    - onPrimaryFixedVariant
+    - secondaryFixed
+    - secondaryFixedDim
+    - onSecondaryFixed
+    - onSecondaryFixedVariant
+    - tertiaryFixed
+    - tertiaryFixedDim
+    - onTertiaryFixed
+    - onTertiaryFixedVariant
 
 ## sound
 
@@ -379,7 +437,7 @@ The configuration is stored in JSON format.
     - "60"
 
 - `useRpiDrm`:  
-    Enable/disable the use of the Android Auto codec that supports rendering via DRM (Direct Rendering Manager) and full zero-copy. Works only on Wayland.
+    Enable/disable the use of the Android Auto codec that supports rendering via DRM (Direct Rendering Manager).
 
     *Note: Available only on Raspberry Pi 4 and 5.*
 
@@ -390,7 +448,7 @@ The configuration is stored in JSON format.
 - `useX86Drm`:  
     Enable/disable the use of the Android Auto codec that supports rendering via DRM (Direct Rendering Manager).
 
-    *Note: Available only on x86.*
+    *Note: Available only on x86_64.*
 
     Possible values:
     - true – force to use the codec compatible with DRM
@@ -474,6 +532,18 @@ The configuration is stored in JSON format.
     Possible values:
     - true – the equalizer is enabled  
     - false – the equalizer is disabled
+
+- `bassBoostFrequency`:  
+    Sets the target frequency for the low-shelf filter. This determines the point below which the audio spectrum is affected.
+
+- `bassBoostGain`:  
+    Specifies the amount of amplification applied to the bass frequencies.
+
+- `trebleBoostFrequency`:  
+    Sets the target frequency for the high-shelf filter. This determines the point above which the audio spectrum is affected.
+
+- `trebleBoostGain`:  
+    Specifies the amount of amplification applied to the treble frequencies.
 
 - `step`:  
     The value that will be added to or subtracted from the current level of a particular band.
@@ -630,6 +700,15 @@ Each preset includes a name and values for each frequency band:
     - `frequency`:  
         Frequency of the radio station.
 
+- `wideband`:  
+    Enables/disables wideband mode.
+
+- `compensation`:  
+    Size of the FIR filter.
+
+- `volumeMultiplier`:  
+    Multiply volume level of decoded audio stream. Result value will be clipped within 16-bit audio limits.
+
 ## autobox
 
 - `dpi`:  
@@ -714,6 +793,16 @@ Each preset includes a name and values for each frequency band:
     - "day" - Request day mode  
     - "night" - Request night mode
 
+- `navigationUnits`:  
+    Units for navigation maneuvers reported by the dongle.
+
+    Possible values:
+    - "metric" - Metric units (m, km)
+    - "imperial" - Imperial units (ft, mi)
+
+- `maneuverMininalDisplayTimeMs`:  
+    Minimum validity time of a reported maneuver. All maneuvers reported faster than this interval will be queued.
+
 ## obd
 
 - `deviceType`:  
@@ -784,3 +873,13 @@ Each preset includes a name and values for each frequency band:
 
     Example value:
     - 00:01:02:03:04:05
+
+- `registerDummyHfpProfile`:  
+    Enables or disables registering a dummy HFP Bluetooth profile by Hudiy. This allows you to route audio from the phone to a separate Bluetooth device (e.g., a factory head unit) without losing Android Auto functionality on Hudiy.
+
+    Note: Please ensure that HFP Bluetooth profile registration is disabled in the OS (e.g., via PipeWire) to prevent collisions with the dummy profile.
+
+- `registerDummyA2DPProfile`:  
+    Enables or disables registering a dummy A2DP Bluetooth profile by Hudiy. This allows you to route audio from the phone to a separate Bluetooth device (e.g., a factory head unit) without losing Android Auto functionality on Hudiy.
+
+    Note: Please ensure that A2DP Bluetooth profile registration is disabled in the OS (e.g., via PipeWire) to prevent collisions with the dummy profile.

@@ -38,13 +38,16 @@ ZMQ_PUSH_SOCKET: Optional[zmq.Socket] = None
 # --- Logging Setup ---
 def setup_logging():
     log_file = '/var/log/rnse_control/can_base_function.log'
+    handlers = [logging.StreamHandler(sys.stdout)]
+    try:
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        handlers.append(logging.FileHandler(log_file))
+    except Exception:
+        pass
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s [%(levelname)s] %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler(sys.stdout)
-        ]
+        handlers=handlers
     )
     return logging.getLogger(__name__)
 
@@ -88,8 +91,31 @@ class AppState:
         self.last_nav_nm_time: float = 0.0
         self.ignition_off_timestamp: Optional[float] = None
         
+        # Door state (0x470 mBSG_Kombi)
+        self.doors: Dict[str, bool] = {
+            'driver': False,
+            'passenger': False,
+            'rear_left': False,
+            'rear_right': False,
+            'hood': False,
+            'trunk': False
+        }
+        self.any_door_open: bool = False
+        self.door_opened_transition: bool = False
+        
         # Physical wake signal state (from GPIO)
         self.wake_signal_active: bool = True
+
+    def is_radio_active(self) -> bool:
+        """
+        Check if RNS-E radio / nav unit is active (powered ON).
+        Returns True if nav NM status message (0x436) was received within 5.0s
+        and nav_sleep_ind is False.
+        """
+        now = time.time()
+        if (now - self.last_nav_nm_time < 5.0) and (self.nav_sleep_ind is False):
+            return True
+        return False
 
     def is_bus_ready_to_sleep(self) -> bool:
         """
@@ -196,6 +222,7 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
                 'tv_presence': int(can_ids.get('tv_presence', '0x602'), 16),
                 'time_data': int(can_ids.get('time_data', '0x623'), 16),
                 'ignition_status': int(can_ids.get('ignition_status', '0x2C3'), 16),
+                'door_status': int(can_ids.get('door_status', '0x470'), 16),
                 'gateway_nm_status': int(can_ids.get('gateway_nm_status', '0x42B'), 16),
                 'nav_nm_status': int(can_ids.get('nav_nm_status', '0x436'), 16),
             },
@@ -327,15 +354,65 @@ def publish_power_status(state: AppState):
     if state.zmq_pub:
         try:
             bus_active = not state.is_bus_ready_to_sleep()
+            radio_active = state.is_radio_active()
+            door_event = state.door_opened_transition
+            state.door_opened_transition = False  # Reset one-shot event after publishing
             payload = {
                 'kl15': bool(state.last_kl15_status), 
                 'kls': bool(state.last_kls_status), 
                 'bus_active': bus_active,
+                'radio_active': radio_active,
+                'door_open': bool(state.any_door_open),
+                'door_event': bool(door_event),
+                'doors': state.doors,
+                'wake_signal': bool(state.is_wake_signal_active()),
                 'timestamp': time.time()
             }
             state.zmq_pub.send_multipart([b'POWER_STATUS', json.dumps(payload).encode()])
         except Exception as e:
             logger.error(f"Failed to publish POWER_STATUS: {e}")
+
+def handle_door_status_message(msg: Dict[str, Any], state: AppState):
+    """Handle door / latch status message (0x470 mBSG_Kombi)."""
+    if msg.get('dlc', 0) < 2:
+        return
+    try:
+        data_hex = msg['data_hex']
+        payload = bytes.fromhex(data_hex)
+        # Byte 1:
+        # Bit 0: Driver door (BSK_FT_geoeffnet)
+        # Bit 1: Passenger door (BSK_BT_geoeffnet)
+        # Bit 2: Rear Left door (BSK_HL_geoeffnet)
+        # Bit 3: Rear Right door (BSK_HR_geoeffnet)
+        # Bit 4: Hood open (BSK_MH_geoeffnet)
+        # Bit 5: Trunk open (BSK_HD_Hauptraste)
+        byte1 = payload[1]
+        driver = bool(byte1 & 0x01)
+        passenger = bool(byte1 & 0x02)
+        rear_left = bool(byte1 & 0x04)
+        rear_right = bool(byte1 & 0x08)
+        hood = bool(byte1 & 0x10)
+        trunk = bool(byte1 & 0x20)
+        
+        any_open = driver or passenger or rear_left or rear_right or hood or trunk
+        
+        # Check for rising edge (transition from closed to open)
+        if not state.any_door_open and any_open:
+            state.door_opened_transition = True
+            logger.info(f"Door open transition detected (Driver={driver}, Pass={passenger}, RL={rear_left}, RR={rear_right}, Trunk={trunk})")
+            
+        state.doors = {
+            'driver': driver,
+            'passenger': passenger,
+            'rear_left': rear_left,
+            'rear_right': rear_right,
+            'hood': hood,
+            'trunk': trunk
+        }
+        state.any_door_open = any_open
+        publish_power_status(state)
+    except Exception as e:
+        logger.warning(f"Could not parse Door Status message: {e}")
 
 def handle_gateway_nm_message(msg: Dict[str, Any], state: AppState):
     if msg.get('dlc', 0) < 2:
@@ -497,6 +574,7 @@ async def listen_for_can_messages_task(state: AppState):
         # Subscribe to relevant topics
         time_topic = f"CAN_{CONFIG['can_ids']['time_data']:03X}"
         power_topic = f"CAN_{CONFIG['can_ids']['ignition_status']:03X}"
+        door_topic = f"CAN_{CONFIG['can_ids']['door_status']:03X}"
         gw_nm_topic = f"CAN_{CONFIG['can_ids']['gateway_nm_status']:03X}"
         nav_nm_topic = f"CAN_{CONFIG['can_ids']['nav_nm_status']:03X}"
         
@@ -507,6 +585,10 @@ async def listen_for_can_messages_task(state: AppState):
         # Always subscribe to power status (Ignition/Key) because other services (e.g., dis_service, tp2_worker) rely on POWER_STATUS
         sub_stream.transport.subscribe(power_topic.encode('utf-8'))
         logger.info(f"Subscribing to power status topic: {power_topic}")
+
+        # Subscribe to door status topic
+        sub_stream.transport.subscribe(door_topic.encode('utf-8'))
+        logger.info(f"Subscribing to door status topic: {door_topic}")
 
         # Subscribe to NM status topics
         pw_mgmt = FEATURES.get('power_management', {})
@@ -543,6 +625,8 @@ async def listen_for_can_messages_task(state: AppState):
                     await handle_time_data_message(msg_dict, state)
                 elif can_id == CONFIG['can_ids']['ignition_status']:
                     handle_power_status_message(msg_dict, state)
+                elif can_id == CONFIG['can_ids']['door_status']:
+                    handle_door_status_message(msg_dict, state)
                 elif can_id == CONFIG['can_ids']['gateway_nm_status']:
                     handle_gateway_nm_message(msg_dict, state)
                 elif can_id == CONFIG['can_ids']['nav_nm_status']:

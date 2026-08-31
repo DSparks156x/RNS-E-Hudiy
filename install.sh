@@ -325,6 +325,7 @@ echo -e "${GREEN}? Project files installed and cleaned.${NC}"
 echo -e "${YELLOW}? Step 3: Configuring Device Permissions...${NC}"
 
 usermod -a -G input $REAL_USER
+usermod -a -G bluetooth $REAL_USER 2>/dev/null || true
 echo 'uinput' | tee /etc/modules-load.d/uinput.conf > /dev/null
 echo 'KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"' | tee /etc/udev/rules.d/99-uinput.rules > /dev/null
 

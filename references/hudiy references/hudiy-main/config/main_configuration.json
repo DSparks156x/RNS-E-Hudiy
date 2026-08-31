@@ -15,21 +15,21 @@
         "windowHeight" : 0,
         "handleKeyboardEvents" : true,
         "translationFile" : "",
-        "framelessWindow" : true
+        "framelessWindow" : true,
+        "rotation" : "NORMAL",
+        "activeBoundaries" : true,
+        "useWebCache" : true
     },
     "appearance" : {
         "timeFormat" : "24h",
         "showClock" : true,
         "fonts" : [
 
-        ]
+        ],
+        "bottomBarHeight" : 100
     },
     "theme" : {
         "darkThemeEnabled" : true,
-        "darkContrastLevel" : 0,
-        "darkSourceColor" : "#F78500",
-        "lightContrastLevel" : 0,
-        "lightSourceColor" : "#F78500",
         "availableColors" : [
             "#769CDF",
             "#862272",
@@ -40,22 +40,38 @@
             "#E02129",
             "#4AD155"
         ],
-        "lightBackgroundsMap" : {
+        "dark" : {
+            "sourceColor" : "#F78500",
+            "contrastLevel" : 0,
+            "backgroundsMap" : {
 
-        },
-        "darkBackgroundsMap" : {
+            },
+            "defaultBackground" : "",
+            "backgroundOpacity" : 100,
+            "opacity" : 100,
+            "colorOverwrite" : {
 
+            }
         },
-        "defaultDarkBackground" : "",
-        "defaultLightBackground" : "",
-        "darkBackgroundOpacity" : 100,
-        "lightBackgroundOpacity" : 100
+        "light" : {
+            "sourceColor" : "#F78500",
+            "contrastLevel" : 0,
+            "backgroundsMap" : {
+
+            },
+            "defaultBackground" : "",
+            "backgroundOpacity" : 100,
+            "opacity" : 100,
+            "colorOverwrite" : {
+
+            }
+        }
     },
     "sound" : {
         "startupSoundFile" : "",
         "notificationSoundFile" : "",
         "volumeSinkName" : "",
-        "playbackSinkName" : "hudiy_equalizer_sink",
+        "playbackSinkName" : "",
         "sourceName" : "",
         "sourceMaxVolume" : 100,
         "sinkMaxVolume" : 100,
@@ -70,7 +86,8 @@
         "storageMusicAutoplay" : false,
         "fmRadioAutoplay" : false,
         "subwooferBalanceAsVolume" : false,
-        "ringtoneFile" : ""
+        "ringtoneFile" : "",
+        "defaultMediaPath" : ""
     },
     "androidAuto" : {
         "speechAudio" : true,
@@ -86,7 +103,9 @@
         "height" : 0,
         "x" : 0,
         "y" : 0,
-        "useRpiDrm" : false
+        "gpsDataSource" : "GPSD",
+        "useRpiDrm" : false,
+        "dayNightMode" : "COMMON"
     },
     "hotspot" : {
         "enabled" : true,
@@ -94,10 +113,18 @@
         "ipAddress" : "192.168.12.1",
         "passphrase" : "1234567890",
         "ssid" : "Hudiy",
-        "bandwidth" : "A"
+        "bandwidth" : "A",
+        "channelConfigurationType" : "AUTO",
+        "channelBandwidth" : "40MHz",
+        "channel" : 36
+
     },
     "equalizer" : {
         "enabled" : true,
+        "bassBoostFrequency" : 80,
+        "bassBoostGain" : 0,
+        "trebleBoostFrequency" : 9000,
+        "trebleBoostGain" : 0,
         "step" : 0.25,
         "minValue" : -10,
         "maxValue" : 15,
@@ -136,76 +163,76 @@
                 "band16000" : 0
             },
             {
-                "name" : "Rock",
-                "band25" : 3,
-                "band40" : 4,
-                "band63" : 5,
-                "band100" : 4,
-                "band160" : 1,
-                "band250" : -3,
-                "band400" : -2,
-                "band630" : 2,
-                "band1000" : 2,
-                "band1600" : 4,
-                "band2500" : 4,
-                "band4000" : 4,
-                "band6300" : 3,
-                "band10000" : 4,
-                "band16000" : 3
-            },
-            {
-                "name" : "Jazz",
-                "band25" : 2,
-                "band40" : 3,
+                "name" : "Pop",
+                "band25" : 0,
+                "band40" : 2,
                 "band63" : 4,
-                "band100" : 2,
-                "band160" : -2,
-                "band250" : 0,
-                "band400" : 2,
-                "band630" : 2,
-                "band1000" : 3,
-                "band1600" : 3,
+                "band100" : 4,
+                "band160" : 2,
+                "band250" : -1,
+                "band400" : -2,
+                "band630" : -1,
+                "band1000" : 1,
+                "band1600" : 2,
                 "band2500" : 2,
                 "band4000" : 3,
                 "band6300" : 3,
+                "band10000" : 2,
+                "band16000" : 1
+            },
+            {
+                "name" : "Rock",
+                "band25" : 0,
+                "band40" : 3,
+                "band63" : 5,
+                "band100" : 4,
+                "band160" : 2,
+                "band250" : -1,
+                "band400" : -3,
+                "band630" : -4,
+                "band1000" : -2,
+                "band1600" : 0,
+                "band2500" : 2,
+                "band4000" : 4,
+                "band6300" : 5,
                 "band10000" : 4,
-                "band16000" : 3
+                "band16000" : 2
+            },
+            {
+                "name" : "Jazz",
+                "band25" : 0,
+                "band40" : 1,
+                "band63" : 2,
+                "band100" : 3,
+                "band160" : 4,
+                "band250" : 3,
+                "band400" : 1,
+                "band630" : 0,
+                "band1000" : -1,
+                "band1600" : -1,
+                "band2500" : 0,
+                "band4000" : 1,
+                "band6300" : 2,
+                "band10000" : 2,
+                "band16000" : 1
             },
             {
                 "name" : "Classical",
-                "band25" : 3,
-                "band40" : 3,
-                "band63" : 2,
-                "band100" : -2,
+                "band25" : 0,
+                "band40" : 0,
+                "band63" : 0,
+                "band100" : 0,
                 "band160" : 0,
-                "band250" : -3,
-                "band400" : -2,
-                "band630" : 0,
-                "band1000" : 2,
-                "band1600" : 3,
-                "band2500" : 3,
-                "band4000" : 2,
-                "band6300" : 4,
-                "band10000" : 4,
-                "band16000" : 4
-            },
-            {
-                "name" : "Pop",
-                "band25" : 3,
-                "band40" : 4,
-                "band63" : 5,
-                "band100" : 4,
-                "band160" : -2,
-                "band250" : -3,
-                "band400" : 0,
-                "band630" : 2,
-                "band1000" : 3,
-                "band1600" : 3,
-                "band2500" : 4,
-                "band4000" : 4,
-                "band6300" : 4,
-                "band10000" : 5,
-                "band16000" : 4
+                "band250" : 0,
+                "band400" : -1,
+                "band630" : -1,
+                "band1000" : 0,
+                "band1600" : 0,
+                "band2500" : 1,
+                "band4000" : 1,
+                "band6300" : 2,
+                "band10000" : 3,
+                "band16000" : 2
             }
         ]
     },
@@ -223,6 +250,9 @@
         "rdsEnabled" : true,
         "autoGain" : true,
         "gain" : 0,
+        "compensation" : 0,
+        "wideband" : false,
+        "volumeMultiplier" : 3,
         "presets" : [
 
         ]
@@ -235,7 +265,7 @@
         "videoHeight" : 0,
         "x" : 0,
         "y" : 0,
-        "oemName" : "",
+        "oemName" : "Hudiy",
         "autoWirelessConnection" : true,
         "allowedDevices" : [
             {
@@ -249,7 +279,11 @@
         ],
         "bandwidth" : "AUTO",
         "fps" : "30",
-        "enumerateUsb" : true
+        "enumerateUsb" : true,
+        "captureAudioOutput" : true,
+        "dayNightMode" : "COMMON",
+        "navigationUnits" : "METRIC",
+        "maneuverMininalDisplayTimeMs" : 500
     },
     "obd" : {
         "deviceType" : "NONE",
@@ -277,5 +311,10 @@
         "x" : 0,
         "y" : 0,
         "pipeline" : "v4l2src device=/dev/video0 ! videoconvert ! video/x-raw,format=RGBA,width=640,height=480 ! glupload ! qml6glsink name=video-sink"
+    },
+    "bluetooth" : {
+        "adapterHardwareAddress" : "",
+        "registerDummyHfpProfile" : false,
+        "registerDummyA2DPProfile" : false
     }
 }

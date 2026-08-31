@@ -115,7 +115,7 @@ class TP2Coding:
 
         elif t == 3:  # 0.002 * a * b deg
             val = 0.002 * a * b
-            unit = "deg"
+            unit = "°"
 
         elif t == 4:  # abs(b - 127) * 0.01 * a deg OR 0.75*b - 48.0 °C if a == 1
             if a == 1:
@@ -123,7 +123,7 @@ class TP2Coding:
                 unit = "°C"
             else:
                 val = abs(b - 127) * 0.01 * a
-                unit = "deg"
+                unit = "°"
 
         elif t == 5:  # Temp: a * (b - 100) * 0.1 °C
             val = a * (b - 100) * 0.1
@@ -143,7 +143,7 @@ class TP2Coding:
 
         elif t == 9:  # (b - 127) * 0.02 * a deg
             val = (b - 127) * 0.02 * a
-            unit = "deg"
+            unit = "°"
 
         elif t == 10:  # Status COLD / WARM
             val = "COLD" if b == 0 else "WARM"
@@ -224,7 +224,7 @@ class TP2Coding:
 
         elif t == 27:  # abs(b - 128) * 0.01 * a deg
             val = abs(b - 128) * 0.01 * a
-            unit = "deg"
+            unit = "°"
 
         elif t == 28:  # Temp: b - a °C
             val = b - a
@@ -232,7 +232,7 @@ class TP2Coding:
 
         elif t == 30:  # Angle: (b / 12.0) * a deg
             val = (b / 12.0) * a
-            unit = "deg"
+            unit = "°"
 
         elif t == 31:  # Temp: (b / 2560.0) * a °C
             val = (b / 2560.0) * a
@@ -250,29 +250,17 @@ class TP2Coding:
             val = 0.01 * a * b
             unit = "L/h"
 
-        elif t == 36:  # Distance: (a * 256 + b) * 10 km
-            val = (a * 256 + b) * 10
-            unit = "km"
+        elif t == 36:  # 256 * a + b
+            val = a * 256 + b
+            unit = "°"
 
-        elif t == 37:  # Status string
-            status_map = {
-                0x00: "-",
-                0x02: "ADP OK",
-                0x05: "Idle",
-                0x06: "Partial thr",
-                0x07: "WOT",
-                0x08: "Enrichment",
-                0x09: "Deceleration",
-                0x0E: "A/C low",
-                0x10: "Compr. OFF",
-                0xEB: "Test OFF",
-            }
-            val = status_map.get(b, f"0x{b:02X}")
-            unit = ""
+        elif t == 37:  # Time: a * 256 + b s
+            val = a * 256 + b
+            unit = "s"
 
         elif t == 38:  # (b - 128) * 0.001 * a deg
-            val = (b - 128.0) * a * 0.001
-            unit = "deg"
+            val = (b - 128) * 0.001 * a
+            unit = "°"
 
         elif t == 39:  # b / 256 * a mg/h
             val = (b / 256.0) * a
@@ -304,7 +292,7 @@ class TP2Coding:
 
         elif t == 46:  # (a * b - 3200) * 0.0027 deg
             val = (a * b - 3200.0) * 0.0027
-            unit = "deg"
+            unit = "°"
 
         elif t == 47:  # (b - 128) * a ms
             val = (b - 128) * a
@@ -385,11 +373,11 @@ class TP2Coding:
 
         elif t == 67:  # (640 * a) + b * 2.5 deg
             val = (640.0 * a) + b * 2.5
-            unit = "deg"
+            unit = "°"
 
         elif t == 68:  # Angular speed: (256 * a + b) / 7.365 deg/s
             val = (256.0 * a + b) / 7.365
-            unit = "deg/s"
+            unit = "°/s"
 
         elif t == 69:  # Pressure: (256 * a + b) * 0.3254 bar
             val = (256.0 * a + b) * 0.3254
@@ -398,6 +386,14 @@ class TP2Coding:
         elif t == 70:  # Acceleration: (256 * a + b) * 0.192 m/s2
             val = (256.0 * a + b) * 0.192
             unit = "m/s2"
+
+        elif t == 71:  # 0.1 * a * b %
+            val = 0.1 * a * b
+            unit = "%"
+
+        elif t == 72:  # 0.1 * a * b L
+            val = 0.1 * a * b
+            unit = "L"
 
         elif t == 83:  # Pressure: (a * 256 + b) * 0.01 bar
             val = (a * 256 + b) * 0.01
