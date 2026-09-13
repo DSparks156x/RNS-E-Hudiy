@@ -76,22 +76,50 @@ class TP2Service:
         self.rep = self.context.socket(zmq.REP)
         self.rep.bind(self.addr_rep)
         
-        self.running = True
-
-        # Initial status push
-        self._publish_status()
-        
-        # Connection Management
-        self.sessions = {}
-        self._tester_id_pool = list(range(0x300, 0x307))  # 0x300-0x306 (0x307 reserved for Openpilot)
-        self._setup_signals()
-        
         # Threading
         self.lock = threading.Lock()
         self.shutdown_event = threading.Event()
         
         # State Tracking
         self.last_ignition_state = None 
+
+        # Settings persistence
+        self.settings_file = os.path.expanduser("~/.tp2_settings.json")
+        self.settings = self.load_settings()
+        self.user_enabled = self.settings.get('enabled', True)
+        self.running = self.user_enabled
+        logger.info(f"TP2 Initial User Enabled State: {self.user_enabled}")
+
+        # Connection Management
+        self.sessions = {}
+        self._tester_id_pool = list(range(0x300, 0x307))  # 0x300-0x306 (0x307 reserved for Openpilot)
+        self._setup_signals()
+
+        # Initial status push
+        self._publish_status() 
+
+    def load_settings(self):
+        cfg_default = True
+        if hasattr(self, 'config') and self.config:
+            cfg_default = self.config.get('diagnostics', {}).get('enabled', True)
+        default = {'enabled': cfg_default}
+        try:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, 'r') as f:
+                    data = json.load(f)
+                    default.update(data)
+                logger.info(f"Loaded TP2 settings from {self.settings_file}: {default}")
+        except Exception as e:
+            logger.error(f"Failed to load TP2 settings: {e}")
+        return default
+
+    def save_settings(self):
+        try:
+            with open(self.settings_file, 'w') as f:
+                json.dump(self.settings, f, indent=4)
+            logger.info(f"Saved TP2 settings to {self.settings_file}: {self.settings}")
+        except Exception as e:
+            logger.error(f"Failed to save TP2 settings: {e}")
 
     def _setup_signals(self):
         """Register signal handlers for graceful shutdown."""
@@ -105,7 +133,11 @@ class TP2Service:
 
     def _publish_status(self):
         try:
-            payload = {"enabled": self.running}
+            payload = {
+                "enabled": self.user_enabled,
+                "running": self.running,
+                "ignition": self.last_ignition_state
+            }
             self.pub.send_multipart([b"HUDIY_TP2_STATUS", json.dumps(payload).encode()])
             logger.info(f"Published TP2 Status: {payload}")
         except Exception as e:
@@ -219,27 +251,28 @@ class TP2Service:
                     
                     with self.lock:
                         # Logic:
-                        # 1. First Run: Always Sync
-                        # 2. Change Detected: Sync
-                        # 3. Steady State: Do Nothing (Preserve Manual Toggles)
+                        # 1. self.user_enabled dictates whether diagnostics is permitted to run.
+                        # 2. kl15 dictates whether ignition is currently active.
+                        # 3. Target running state is user_enabled AND kl15.
+                        # If user_enabled is False, running MUST remain False regardless of ignition transitions.
+                        target_running = self.user_enabled and kl15
                         
                         if self.last_ignition_state is None:
                             # First startup sync
-                            self.running = kl15
                             self.last_ignition_state = kl15
+                            self.running = target_running
                             status = "Enabled" if self.running else "Disabled"
-                            logger.info(f"Ignition Startup Sync: TP2 Service {status}")
+                            logger.info(f"Ignition Startup Sync: TP2 Service {status} (User Enabled: {self.user_enabled}, KL15: {kl15})")
+                            self._publish_status()
                             
                         elif kl15 != self.last_ignition_state:
                             # Edge detected
-                            self.running = kl15
                             self.last_ignition_state = kl15
+                            self.running = target_running
                             status = "Enabled" if self.running else "Disabled"
-                            logger.info(f"Ignition Change: TP2 Service {status}")
+                            logger.info(f"Ignition Change: TP2 Service {status} (User Enabled: {self.user_enabled}, KL15: {kl15})")
                             self._publish_status()
                             
-                        # If steady, we respect the current self.running state (which might be manually toggled)
-                        
                         if not self.running:
                             # We will handle disconnection in main loop logic
                             pass
@@ -276,7 +309,9 @@ class TP2Service:
                             })
                         response = {
                             "status": "ok", 
-                            "enabled": self.running, 
+                            "enabled": self.user_enabled,
+                            "running": self.running,
+                            "ignition": self.last_ignition_state,
                             "session_count": len(sess_info),
                             "sessions": sess_info
                         }
@@ -348,11 +383,42 @@ class TP2Service:
                 
                 elif cmd == "TOGGLE":
                     with self.lock:
-                        self.running = not self.running
-                        status = "Enabled" if self.running else "Disabled"
-                    logger.info(f"(Cmd) Service {status}")
+                        self.user_enabled = not self.user_enabled
+                        self.settings['enabled'] = self.user_enabled
+                        self.save_settings()
+                        if self.last_ignition_state is not None:
+                            self.running = self.user_enabled and self.last_ignition_state
+                        else:
+                            self.running = self.user_enabled
+                        status = "Enabled" if self.user_enabled else "Disabled"
+                    logger.info(f"(Cmd) User toggled diagnostics: {status} (Running: {self.running})")
                     self._publish_status()
-                    response = {"status": "ok", "message": f"Service {status}", "enabled": self.running}
+                    response = {
+                        "status": "ok",
+                        "message": f"Diagnostics {status}",
+                        "enabled": self.user_enabled,
+                        "running": self.running
+                    }
+
+                elif cmd == "SET_ENABLED":
+                    val = bool(msg.get("enabled", True))
+                    with self.lock:
+                        self.user_enabled = val
+                        self.settings['enabled'] = self.user_enabled
+                        self.save_settings()
+                        if self.last_ignition_state is not None:
+                            self.running = self.user_enabled and self.last_ignition_state
+                        else:
+                            self.running = self.user_enabled
+                        status = "Enabled" if self.user_enabled else "Disabled"
+                    logger.info(f"(Cmd) Set diagnostics: {status} (Running: {self.running})")
+                    self._publish_status()
+                    response = {
+                        "status": "ok",
+                        "message": f"Diagnostics {status}",
+                        "enabled": self.user_enabled,
+                        "running": self.running
+                    }
 
                 self.rep.send_json(response)
                 

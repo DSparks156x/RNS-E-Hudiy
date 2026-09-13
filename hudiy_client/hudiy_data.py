@@ -479,13 +479,16 @@ class TP2BridgeHandler(ClientEventHandler):
         
         self.icon_id = None
         self.icon_visible = None # Start with None to force initial update
+        self.toast_channel_id = None
         self.version_notification_channel_id = None
         self.client = None
         self.running = True
         self.timer = None
+        self.last_known_enabled = None
 
     def init_socket(self):
         with self.lock:
+            self.running = True
             if self.socket: self.socket.close()
             self.socket = ZMQ_CONTEXT.socket(zmq.REQ)
             self.socket.connect(self.zmq_addr)
@@ -501,6 +504,7 @@ class TP2BridgeHandler(ClientEventHandler):
 
     def on_hello_response(self, client, message):
         self.client = client
+        self.running = True
         logger.info(f"TP2 Bridge Connected to Hudiy: v{message.api_version.major}.{message.api_version.minor}")
         
         # 1. Register Action
@@ -532,6 +536,12 @@ class TP2BridgeHandler(ClientEventHandler):
         req_act_logs.action = "save_logs"
         client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_logs.SerializeToString())
         
+        # 1.4 Register Toast Channel for Diagnostics Status Notifications
+        req_toast = hudiy_api.RegisterToastChannelRequest()
+        req_toast.name = "Diagnostics"
+        req_toast.description = "Diagnostics Status"
+        client.send(hudiy_api.MESSAGE_REGISTER_TOAST_CHANNEL_REQUEST, 0, req_toast.SerializeToString())
+
         # 1.5 Register Notification Channel for Version Info
         req_notif = hudiy_api.RegisterNotificationChannelRequest()
         req_notif.name = "System Info"
@@ -548,12 +558,27 @@ class TP2BridgeHandler(ClientEventHandler):
     def on_register_action_response(self, client, message):
         logger.info(f"Action '{message.action}' Registered: {message.result}")
 
+    def on_register_toast_channel_response(self, client, message):
+        if message.result == 1: # OK
+            self.toast_channel_id = message.id
+            logger.info(f"Diagnostics Toast Channel Registered. ID: {self.toast_channel_id}")
+        else:
+            logger.error(f"Failed to register Diagnostics Toast Channel: {message.result}")
+
     def on_register_status_icon_response(self, client, message):
         if message.result == 1:  # OK
             self.icon_id = message.id
+            self.client = client
             logger.info(f"Status Icon Registered. ID: {self.icon_id}")
-            # Schedule the first poll with a short delay to ensure the server is fully ready to receive state updates
-            self.timer = threading.Timer(0.5, self.poll_status, [client])
+            # Immediately sync icon state at startup so icon is set by default
+            if self.last_known_enabled is not None:
+                self.update_icon_state(self.last_known_enabled)
+            else:
+                self.check_status_now(client)
+            # Schedule periodic polling
+            if self.timer:
+                self.timer.cancel()
+            self.timer = threading.Timer(2.0, self.poll_status, [client])
             self.timer.start()
         else:
             logger.error("Failed to register Status Icon")
@@ -565,11 +590,30 @@ class TP2BridgeHandler(ClientEventHandler):
         else:
             logger.error(f"Failed to register Notification Channel: {message.result}")
 
+    def show_toast(self, text, icon="car_repair"):
+        if self.toast_channel_id is not None and self.client is not None:
+            try:
+                msg = hudiy_api.ShowToast()
+                msg.channel_id = self.toast_channel_id
+                msg.message = text
+                msg.icon_name = icon
+                msg.icon_font_family = "Material Symbols Rounded"
+                self.client.send(hudiy_api.MESSAGE_SHOW_TOAST, 0, msg.SerializeToString())
+                logger.info(f"Sent Diagnostics Toast: '{text}'")
+            except Exception as e:
+                logger.error(f"Failed to show toast: {e}")
+
     def on_dispatch_action(self, client, message):
         if message.action == "toggle_diagnostics":
             logger.info("Hudiy Action: Toggle Diagnostics")
-            self.send_command("TOGGLE")
-            self.check_status_now(client)
+            resp = self.send_command("TOGGLE")
+            if resp and "enabled" in resp:
+                enabled = resp["enabled"]
+                self.update_icon_state(enabled)
+                status_str = "Enabled" if enabled else "Disabled"
+                self.show_toast(f"Diagnostics {status_str}")
+            else:
+                self.check_status_now(client)
         elif message.action == "update_rnse" or message.action == "restore_configs":
             logger.info(f"Hudiy Action: {message.action}")
             import subprocess
@@ -677,22 +721,12 @@ class TP2BridgeHandler(ClientEventHandler):
     def check_status_now(self, client):
         resp = self.send_command("STATUS")
         if resp and "enabled" in resp:
-            enabled = resp["enabled"]
-            target_visible = enabled
-            
-            if self.icon_id is not None:
-                if target_visible != self.icon_visible:
-                    self.icon_visible = target_visible
-                    
-                    msg = hudiy_api.ChangeStatusIconState()
-                    msg.id = self.icon_id
-                    msg.visible = self.icon_visible
-                    client.send(hudiy_api.MESSAGE_CHANGE_STATUS_ICON_STATE, 0, msg.SerializeToString())
-                    logger.info(f"Updated Icon Visibility: {self.icon_visible}")
+            self.update_icon_state(resp["enabled"])
 
     def update_icon_state(self, enabled):
-        """Called from ZMQ subscriber thread or polling"""
+        """Called from ZMQ subscriber thread, polling, or toggle response"""
         with self.lock:
+            self.last_known_enabled = enabled
             if self.icon_id is None or self.client is None:
                 return
                 
@@ -703,7 +737,7 @@ class TP2BridgeHandler(ClientEventHandler):
                 msg.visible = self.icon_visible
                 try:
                     self.client.send(hudiy_api.MESSAGE_CHANGE_STATUS_ICON_STATE, 0, msg.SerializeToString())
-                    logger.info(f"ZMQ/Poll Sync - Updated Icon Visibility: {self.icon_visible}")
+                    logger.info(f"Updated Status Icon Visibility: {self.icon_visible}")
                 except Exception as e:
                     logger.error(f"Failed to send icon state update: {e}")
 
@@ -815,6 +849,7 @@ class HudiyData:
         """Thread: TP2 Bridge TCP"""
         while self.running:
             try:
+                self.tp2_handler.running = True
                 self.tp2_client = Client("TP2_BRIDGE")
                 self.tp2_client.set_event_handler(self.tp2_handler)
                 self.tp2_client.connect('127.0.0.1', 44405)

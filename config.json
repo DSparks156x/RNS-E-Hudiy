@@ -20,6 +20,9 @@
       "tp2_command": "ipc:///run/rnse_control/tp2_cmd.ipc"
     }
   },
+  "diagnostics": {
+    "enabled": true
+  },
   "display": {
     "center_display": {
       "applist": [
