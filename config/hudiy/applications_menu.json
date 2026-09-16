@@ -195,6 +195,15 @@
                 "Hudiy"
             ],
             "iconFontFamily": "Material Symbols Rounded",
+            "iconName": "system_security_update",
+            "action": "toggle_flashing_mode",
+            "label": "Flashing Mode"
+        },
+        {
+            "categories": [
+                "Hudiy"
+            ],
+            "iconFontFamily": "Material Symbols Rounded",
             "iconName": "restart_alt",
             "action": "reboot_system",
             "label": "Reboot"

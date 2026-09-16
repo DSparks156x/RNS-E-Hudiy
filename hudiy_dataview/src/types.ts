@@ -27,3 +27,31 @@ export type TabId = 'engine' | 'transmission' | 'awd' | 'diagnostics';
 export function diagKey(module: number | string, group: number): string {
     return `${module}:${group}`;
 }
+
+export interface HaldexStatus {
+    status: 'synced' | 'switching' | 'reconciling' | 'offline';
+    desired_mode: number;
+    desired_name: string;
+    active_mode: number | null;
+    active_name: string | null;
+    token_ok: boolean;
+    b08_torque_nm: number;
+    a7c_slip_nm: number;
+    a72_ceiling_nm: number;
+    yaw_model_counts: number;
+    hold_a7e: number;
+    last_telemetry_age: number | null;
+    last_switch_time: number;
+}
+
+export interface LoggerStatus {
+    recording: boolean;
+    output_path: string;
+    frames_received: number;
+    rows_written: number;
+    markers_logged: number;
+    uptime_sec: number;
+    haldex_mode: number;
+    b08_torque_nm: number;
+    a7c_slip_torque_nm: number;
+}

@@ -8,6 +8,8 @@ import sys
 import threading
 import signal
 import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from flasher.traffic import flashing_mode_enabled
 from tp2_protocol import TP2Protocol, TP2Error
 from tp2_coding import TP2Coding
 from openpilot_receiver import OpenpilotReceiver
@@ -79,6 +81,8 @@ class TP2Service:
         # Threading
         self.lock = threading.Lock()
         self.shutdown_event = threading.Event()
+        self.diagnostic_owner = "recovery-required" if os.path.exists(os.path.expanduser("~/.hudiy/haldex_recovery_required.json")) else None
+        self.quiescent = threading.Event()
         
         # State Tracking
         self.last_ignition_state = None 
@@ -291,7 +295,36 @@ class TP2Service:
                 cmd = msg.get("cmd")
                 response = {"status": "error", "message": "Unknown command"}
                 
-                if cmd == "STATUS":
+                if cmd == "QUIESCE":
+                    token = msg.get("owner")
+                    with self.lock:
+                        if not isinstance(token, str) or not token:
+                            raise ValueError("Missing diagnostic owner")
+                        recovery_marker = os.path.exists(os.path.expanduser(
+                            "~/.hudiy/haldex_recovery_required.json"))
+                        recovery_takeover = (msg.get("recovery_resume") is True
+                                             and recovery_marker)
+                        if (self.diagnostic_owner not in (None, token, "recovery-required")
+                                and not recovery_takeover):
+                            raise RuntimeError("Diagnostics already owned")
+                        if self.diagnostic_owner == "recovery-required" or recovery_takeover:
+                            logger.info("Resuming incomplete flash under diagnostic owner %s", token)
+                        self.diagnostic_owner = token
+                        self.quiescent.clear()
+                    if not self.quiescent.wait(10):
+                        raise RuntimeError("Diagnostic closure not acknowledged; remains inhibited")
+                    response = {"status": "ok", "quiescent": True, "owner": token}
+                elif cmd == "RELEASE":
+                    with self.lock:
+                        if msg.get("owner") != self.diagnostic_owner:
+                            raise RuntimeError("Diagnostic owner mismatch")
+                        self.diagnostic_owner = ("recovery-required"
+                            if msg.get("recovery_required") is True else None)
+                        self.quiescent.clear()
+                    response = {"status": "ok"}
+                elif self.diagnostic_owner and cmd not in ("STATUS", "SYNC"):
+                    response = {"status": "error", "message": "Exclusive diagnostics in progress"}
+                elif cmd == "STATUS":
                     with self.lock:
                         sess_info = []
                         for mod, s in self.sessions.items():
@@ -447,12 +480,13 @@ class TP2Service:
                 # Get Snapshot of State to work on
                 # We do NOT stay locked during CAN I/O
                 with self.lock:
-                    is_running = self.running
+                    is_running = self.running and self.diagnostic_owner is None and not flashing_mode_enabled()
                     # Copy dict keys/values to avoid modification issues
                     current_sessions = list(self.sessions.items())
 
-                # Manage Openpilot Receiver based on service running state
-                if is_running:
+                # Manage Openpilot Receiver based on service running state and configuration
+                op_enabled = getattr(self, 'config', {}).get('openpilot', {}).get('enabled', False) if getattr(self, 'config', None) else False
+                if is_running and op_enabled:
                     if op_receiver is None:
                         logger.info("Starting OpenpilotReceiver background thread...")
                         op_receiver = OpenpilotReceiver(can_interface=self.can_interface, zmq_pub=self.pub)
@@ -461,21 +495,21 @@ class TP2Service:
                     if op_receiver is not None:
                         logger.info("Stopping OpenpilotReceiver background thread...")
                         op_receiver.stop()
-                        op_receiver.join(timeout=1.0)
+                        op_receiver.join(timeout=2.0)
+                        if op_receiver.is_alive():
+                            continue  # Never acknowledge while receiver can still transmit.
                         op_receiver = None
                 
                 # 1. Global Enable Check
                 if not is_running:
                     # Maintenance: Disconnect any connected sessions
                     for mod_id, session in current_sessions:
-                        if session['connected']:
-                            try: 
-                                session['protocol'].disconnect()
-                                session['connected'] = False
-                                logger.info(f"Module 0x{mod_id:02X} Disconnected (Disabled).")
-                            except: pass
+                        session['protocol'].close()
+                        session['connected'] = False
                     
-                    time.sleep(0.5)
+                    if self.diagnostic_owner:
+                        self.quiescent.set()
+                    time.sleep(0.05)
                     continue
 
                 # 2. Process Sessions
@@ -484,6 +518,8 @@ class TP2Service:
                     continue
                     
                 for mod_id, session in current_sessions:
+                    if self.diagnostic_owner:
+                        break
                     # Check for expired clients periodically
                     now = time.time()
                     if now - session.get('last_expiry_check', 0) > 5.0:
@@ -820,4 +856,3 @@ class TP2Service:
 
 if __name__ == "__main__":
     TP2Service().run()
-

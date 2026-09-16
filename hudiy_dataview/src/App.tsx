@@ -96,7 +96,7 @@ export function App() {
           {/* We no longer need to pass the giant data object to components */}
           <div className="tab-slide"><EngineTab /></div>
           <div className="tab-slide"><TransmissionTab /></div>
-          <div className="tab-slide"><AWDTab /></div>
+          <div className="tab-slide"><AWDTab socket={socket} /></div>
           <div className="tab-slide"><DiagnosticsTab isActive={currentTab === 'diagnostics'} /></div>
         </div>
       </div>

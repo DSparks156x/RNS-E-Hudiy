@@ -17,11 +17,24 @@
       "dis_status": "ipc:///run/rnse_control/dis_status.ipc",
       "dis_display_status": "ipc:///run/rnse_control/dis_display_status.ipc",
       "tp2_stream": "ipc:///run/rnse_control/tp2_stream.ipc",
-      "tp2_command": "ipc:///run/rnse_control/tp2_cmd.ipc"
+      "tp2_command": "ipc:///run/rnse_control/tp2_cmd.ipc",
+      "haldex_command": "ipc:///run/rnse_control/haldex_cmd.ipc",
+      "haldex_status": "ipc:///run/rnse_control/haldex_status.ipc"
     }
   },
   "diagnostics": {
     "enabled": true
+  },
+  "haldex": {
+    "enabled": true,
+    "default_mode": null,
+    "burst_count": 6,
+    "burst_interval_ms": 20,
+    "persistence_file": "/home/pi/.hudiy/haldex_mode.json",
+    "firmware_dir": "~/haldexfw"
+  },
+  "openpilot": {
+    "enabled": false
   },
   "display": {
     "center_display": {
@@ -30,8 +43,7 @@
         "media",
         "phone",
         "car_info",
-        "acceleration_test",
-        "openpilot"
+        "acceleration_test"
       ],
       "enabled": true,
       "mode": "media",

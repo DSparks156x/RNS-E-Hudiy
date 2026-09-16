@@ -9,6 +9,13 @@
 #
 import time
 import logging
+import sys
+from pathlib import Path
+
+# Shared gate for every application CAN transmitter (installed beside flasher/).
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from flasher.traffic import transmission_guard
+
 import can
 from typing import List, Optional
 from enum import Enum, auto
@@ -207,8 +214,33 @@ class DDPProtocol:
 
     # --- Low-Level CAN & DDP I/O ---
 
+    def _flashing_inhibited(self):
+        """Abandon the session without transmitting a disconnect or stale retries."""
+        with transmission_guard() as allowed:
+            if allowed:
+                return False
+        self._reset_for_flashing()
+        return True
+
+    def _reset_for_flashing(self):
+        self.state = DDPState.DISCONNECTED
+        self.dis_mode = DisMode.UNKNOWN
+        self.i_am_opener = False
+        self.send_seq_num = 0
+        self.last_ka_sent = 0.0
+        self.screen_released_by_cluster = True
+        self._last_received_ack = None
+        self._last_received_data = None
+        if self.bus is not None:
+            try:
+                self.bus.shutdown()
+            finally:
+                self.bus = None
+
     def send_can(self, can_id: int, data: List[int]):
         """Sends a raw CAN message to the bus with pacing and Error 105 retry."""
+        if self._flashing_inhibited():
+            raise DDPCANError("Flashing Mode inhibits DIS transmissions")
         if not hasattr(self, 'bus') or self.bus is None:
             logger.warning("CAN bus not initialized. Attempting to reconnect...")
             if not self.reconnect_bus():
@@ -222,7 +254,11 @@ class DDPProtocol:
         for attempt in range(max_retries):
             try:
                 msg = can.Message(arbitration_id=can_id, data=data, is_extended_id=False)
-                self.bus.send(msg, timeout=0.5)
+                with transmission_guard() as allowed:
+                    if not allowed:
+                        self._reset_for_flashing()
+                        raise DDPCANError("Flashing Mode inhibits DIS transmissions")
+                    self.bus.send(msg, timeout=0.5)
                 time.sleep(self.CAN_PACING_DELAY_S) # Critical pacing delay
                 return # Success
             except Exception as e:
@@ -545,6 +581,8 @@ class DDPProtocol:
         Detects cluster type (Red or White) and establishes a Keep-Alive session.
         This is Step 1 of the connection.
         """
+        if self._flashing_inhibited():
+            return False
         if self.state != DDPState.DISCONNECTED:
             logger.warning("Session already open.")
             return True
@@ -847,6 +885,8 @@ class DDPProtocol:
 
     def send_keepalive_if_needed(self):
         """Sends an A3 Keep-Alive ping if we are the opener and 2s have passed."""
+        if self._flashing_inhibited():
+            return
         # We must allow Keep-Alives even when PAUSED, to prevent session drop
         if self.state not in [DDPState.READY, DDPState.PAUSED]:
             return
@@ -861,6 +901,8 @@ class DDPProtocol:
         Main polling function. This must be called continuously.
         Handles background traffic, status interrupts (Busy/Free), and Re-Init requests.
         """
+        if self._flashing_inhibited():
+            return
         if self.state == DDPState.DISCONNECTED:
             return
 

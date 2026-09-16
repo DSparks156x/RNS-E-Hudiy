@@ -6,6 +6,11 @@
             "action": "hudiy_diagnostics"
         },
         {
+            "iconFontFamily": "Material Symbols Rounded",
+            "iconName": "all_inclusive",
+            "action": "toggle_haldex_mode"
+        },
+        {
             "iconFontFamily": "Hudiy Symbols",
             "iconName": "\ue900",
             "action": "resume_android_auto_projection"

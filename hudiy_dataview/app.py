@@ -4,16 +4,35 @@ import json
 import time
 import threading
 import queue
+import hashlib
+import uuid
 import logging
 import zmq
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, abort, send_file
 from flask_socketio import SocketIO, emit
+
+# Compatibility fix for Flask 3.1.3+ with older Flask-SocketIO:
+# Flask 3.1.3 made RequestContext.session a property without a setter.
+try:
+    from flask.ctx import RequestContext
+    if hasattr(RequestContext, "session") and (not hasattr(RequestContext.session, "fset") or RequestContext.session.fset is None):
+        def _set_session(self, val):
+            self._session = val
+        RequestContext.session = RequestContext.session.setter(_set_session)
+except Exception:
+    pass
 
 # Configuration — load ZMQ addresses from config.json (same as tp2_worker)
 _DEFAULT_TP2_STREAM  = 'ipc:///run/rnse_control/tp2_stream.ipc'
 _DEFAULT_TP2_COMMAND = 'ipc:///run/rnse_control/tp2_cmd.ipc'
 try:
     _base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _package_root = _base_dir
+    if _package_root not in sys.path:
+        sys.path.insert(0, _package_root)
+    from flasher.haldex_flasher import HaldexFlasher
+    from flasher.traffic import flashing_operation, set_flashing_mode
+
     with open(os.path.join(_base_dir, 'config.json')) as _f:
         _cfg = json.load(_f)
     _zmq = _cfg.get('interfaces', {}).get('zmq', {})
@@ -24,12 +43,27 @@ try:
     ZMQ_REQ_ADDR = _zmq.get('tp2_command', _DEFAULT_TP2_COMMAND)
     ZMQ_CAN_ADDR = _zmq.get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc')
     ZMQ_STATUS_STREAM = _zmq.get('status_stream', 'ipc:///run/rnse_control/status_stream.ipc')
+    ZMQ_HALDEX_CMD = _zmq.get('haldex_command', 'ipc:///run/rnse_control/haldex_cmd.ipc')
+    ZMQ_HALDEX_STATUS = _zmq.get('haldex_status', 'ipc:///run/rnse_control/haldex_status.ipc')
+    ZMQ_LOGGER_CMD = 'ipc:///run/rnse_control/fused_logger_cmd.ipc'
 except Exception as _e:
     logging.warning(f"Could not load config.json, using default ZMQ addresses: {_e}")
+    _cfg = {}
     ZMQ_PUB_ADDR = _DEFAULT_TP2_STREAM
     ZMQ_REQ_ADDR = _DEFAULT_TP2_COMMAND
     ZMQ_CAN_ADDR = 'ipc:///run/rnse_control/can_stream.ipc'
     ZMQ_STATUS_STREAM = 'ipc:///run/rnse_control/status_stream.ipc'
+    ZMQ_HALDEX_CMD = 'ipc:///run/rnse_control/haldex_cmd.ipc'
+    ZMQ_HALDEX_STATUS = 'ipc:///run/rnse_control/haldex_status.ipc'
+    ZMQ_LOGGER_CMD = 'ipc:///run/rnse_control/fused_logger_cmd.ipc'
+    try:
+        _package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if _package_root not in sys.path:
+            sys.path.insert(0, _package_root)
+        from flasher.haldex_flasher import HaldexFlasher
+        from flasher.traffic import flashing_operation, set_flashing_mode
+    except Exception:
+        HaldexFlasher = None
 
 # --- Setup Flask & SocketIO ---
 app = Flask(__name__)
@@ -196,7 +230,7 @@ class ZMQWorker:
     def _new_req_sock(self):
         s = self.context.socket(zmq.REQ)
         s.connect(ZMQ_REQ_ADDR)
-        s.setsockopt(zmq.RCVTIMEO, 2000)
+        s.setsockopt(zmq.RCVTIMEO, 15000)
         s.setsockopt(zmq.LINGER, 0)
         return s
 
@@ -251,7 +285,7 @@ class ZMQWorker:
         if fire_and_forget:
             return {"status": "queued"}
         try:
-            return result_q.get(timeout=5.0)
+            return result_q.get(timeout=20.0)
         except queue.Empty:
             return {"status": "error", "message": "Command queue timeout"}
 
@@ -455,6 +489,606 @@ def handle_client_log(data):
     else:
         logger.info(f"[JS Console] {msg}")
 
+# --- Haldex & Logger Helpers & Handlers ---
+def send_haldex_command(cmd_dict, timeout_ms=1000):
+    ctx = zmq.Context()
+    sock = ctx.socket(zmq.REQ)
+    sock.setsockopt(zmq.RCVTIMEO, timeout_ms)
+    sock.setsockopt(zmq.LINGER, 0)
+    try:
+        sock.connect(ZMQ_HALDEX_CMD)
+        sock.send_json(cmd_dict)
+        return sock.recv_json()
+    except Exception as e:
+        logger.debug(f"Haldex command error: {e}")
+        return None
+    finally:
+        sock.close()
+        ctx.term()
+
+def send_logger_command(cmd_dict, timeout_ms=1000):
+    ctx = zmq.Context()
+    sock = ctx.socket(zmq.REQ)
+    sock.setsockopt(zmq.RCVTIMEO, timeout_ms)
+    sock.setsockopt(zmq.LINGER, 0)
+    try:
+        sock.connect(ZMQ_LOGGER_CMD)
+        sock.send_json(cmd_dict)
+        return sock.recv_json()
+    except Exception as e:
+        logger.debug(f"Logger command error: {e}")
+        return None
+    finally:
+        sock.close()
+        ctx.term()
+
+@socketio.on('get_haldex_status')
+def handle_get_haldex_status():
+    resp = send_haldex_command({"cmd": "GET_STATUS"})
+    if resp and resp.get("status") == "ok":
+        emit('haldex_update', resp.get("data", {}))
+
+@socketio.on('set_haldex_mode')
+def handle_set_haldex_mode(data):
+    mode = data.get('mode', 0)
+    resp = send_haldex_command({"cmd": "SET_MODE", "mode": mode})
+    if resp and resp.get("status") == "ok":
+        socketio.emit('haldex_update', resp.get("data", {}))
+
+@socketio.on('cycle_haldex_mode')
+def handle_cycle_haldex_mode():
+    resp = send_haldex_command({"cmd": "CYCLE"})
+    if resp and resp.get("status") == "ok":
+        socketio.emit('haldex_update', resp.get("data", {}))
+
+@socketio.on('get_logger_status')
+def handle_get_logger_status():
+    resp = send_logger_command({"cmd": "STATUS"})
+    if resp and resp.get("status") == "ok":
+        emit('logger_update', resp.get("status_data", {}))
+
+@socketio.on('start_logger')
+def handle_start_logger(data):
+    out = data.get('output') if data else None
+    cmd = {"cmd": "START"}
+    if out:
+        cmd["output"] = out
+    resp = send_logger_command(cmd)
+    if resp and resp.get("status") == "ok":
+        status_resp = send_logger_command({"cmd": "STATUS"})
+        if status_resp and status_resp.get("status") == "ok":
+            socketio.emit('logger_update', status_resp.get("status_data", {}))
+
+@socketio.on('stop_logger')
+def handle_stop_logger():
+    resp = send_logger_command({"cmd": "STOP"})
+    if resp and resp.get("status") == "ok":
+        status_resp = send_logger_command({"cmd": "STATUS"})
+        if status_resp and status_resp.get("status") == "ok":
+            socketio.emit('logger_update', status_resp.get("status_data", {}))
+
+@socketio.on('add_logger_marker')
+def handle_add_logger_marker(data):
+    note = data.get('note', 'Driver Event') if data else 'Driver Event'
+    resp = send_logger_command({"cmd": "MARKER", "note": note})
+    if resp and resp.get("status") == "ok":
+        socketio.emit('logger_marker_added', {"note": note, "timestamp": time.time()})
+
+# --- Haldex Flashing Handlers ---
+def get_firmware_dir():
+    return os.path.abspath(os.path.expanduser(
+        _cfg.get('haldex', {}).get('firmware_dir') or '~/haldexfw'))
+
+
+def get_tunes_dirs():
+    # Keep existing tune locations readable during upgrades; create only the new root.
+    root = get_firmware_dir()
+    os.makedirs(root, exist_ok=True)
+    legacy = _cfg.get('haldex', {}).get('tunes_dir')
+    dirs = [root] + ([os.path.expanduser(legacy)] if legacy else []) + [
+        os.path.expanduser('~/tunes'),
+        os.path.join(_base_dir, 'tunes'),
+        os.path.join(_base_dir, 'flasher', 'tunes')]
+    return list(dict.fromkeys(os.path.abspath(d) for d in dirs if os.path.isdir(d)))
+
+
+def firmware_paths(directory):
+    for current, subdirs, names in os.walk(directory, followlinks=False):
+        subdirs[:] = sorted(d for d in subdirs if not d.startswith('.'))
+        # A capture directory can contain incomplete pass files. Only its completed
+        # image is eligible, even when a failed capture happens to be 320 KiB.
+        if 'report.json' in names:
+            try:
+                with open(os.path.join(current, 'report.json'), encoding='utf-8') as stream:
+                    report = json.load(stream)
+                names = [report['filename']] if report.get('status') == 'ok' else []
+                names = [name for name in names if isinstance(name, str)
+                         and name == os.path.basename(name) and not any(c in name for c in '/\\:')]
+            except (OSError, ValueError, KeyError, TypeError):
+                names = []
+        for name in sorted(names):
+            path = os.path.join(current, name)
+            if name.lower().endswith('.bin') and os.path.isfile(path):
+                yield os.path.relpath(path, directory), path
+
+
+def _validated_artifacts():
+    """Only engine-validated, installed whole images can enter the vehicle workflow."""
+    artifacts = {}
+    if HaldexFlasher is None:
+        return artifacts
+    for directory in get_tunes_dirs():
+        for name, path in firmware_paths(directory):
+            try:
+                HaldexFlasher.prepare_image(path)
+                with open(path, 'rb') as source:
+                    artifact_id = hashlib.sha256(source.read()).hexdigest()
+                artifacts[artifact_id] = {
+                    'artifact_id': artifact_id, 'name': name, '_path': path,
+                    'size_bytes': os.path.getsize(path), 'type': '320 KiB firmware image',
+                    'modified': time.strftime('%Y-%m-%d %H:%M', time.localtime(os.path.getmtime(path)))
+                }
+            except Exception as error:
+                logger.warning('Rejected firmware artifact %s: %s', name, error)
+    return artifacts
+
+
+def list_available_tunes():
+    return [{k: v for k, v in artifact.items() if k != '_path'}
+            for artifact in _validated_artifacts().values()]
+
+
+_flasher_lock = threading.Lock()
+_active_flasher = None
+_active_operation = None
+_flasher_running = False
+_flasher_thread = None
+_diagnostic_lock = threading.Lock()
+_recovery_file = os.path.expanduser('~/.hudiy/haldex_recovery_required.json')
+_readout_root = os.path.join(get_firmware_dir(), 'readouts')
+
+
+def _readout_download(capture_id, report=False):
+    # Only server-generated capture IDs and basenames from our report are allowed.
+    if len(capture_id) != 32 or any(c not in '0123456789abcdef' for c in capture_id):
+        abort(404)
+    directory = os.path.realpath(os.path.join(_readout_root, capture_id))
+    if os.path.dirname(directory) != os.path.realpath(_readout_root):
+        abort(404)
+    report_path = os.path.join(directory, 'report.json')
+    try:
+        with open(report_path, encoding='utf-8') as handle:
+            metadata = json.load(handle)
+        if report:
+            path = report_path
+            filename = capture_id + '_report.json'
+        else:
+            if metadata.get('status') != 'ok':
+                abort(404)
+            filename = metadata['filename']
+            if not isinstance(filename, str) or not filename or any(c in filename for c in '/\\:') or filename in ('.', '..'):
+                abort(404)
+            path = os.path.join(directory, filename)
+        if os.path.dirname(os.path.realpath(path)) != directory or not os.path.isfile(path):
+            abort(404)
+    except (OSError, ValueError, KeyError, TypeError):
+        abort(404)
+    return send_file(path, as_attachment=True, download_name=filename)
+
+
+@app.route('/haldex/readouts/<capture_id>/image')
+def download_haldex_readout(capture_id):
+    return _readout_download(capture_id)
+
+
+@app.route('/haldex/readouts/<capture_id>/report')
+def download_haldex_readout_report(capture_id):
+    return _readout_download(capture_id, report=True)
+
+
+class DiagnosticOwnership:
+    """Single lease shared by identification and flash/reset sessions.
+
+    Services acknowledge closure, not just receipt of an enable/disable command.
+    A lost acknowledgement deliberately retains their inhibit (fail closed).
+    """
+    def __init__(self):
+        self.token = uuid.uuid4().hex
+        self.acquired = False
+
+    def acquire(self, allow_incomplete_flash=False):
+        resuming_recovery = os.path.exists(_recovery_file)
+        if resuming_recovery and not allow_incomplete_flash:
+            raise RuntimeError('Controller is in bootloader after an incomplete flash; flash firmware to resume normal diagnostics')
+        if not _diagnostic_lock.acquire(blocking=False):
+            raise RuntimeError('Another diagnostic operation is in progress')
+        try:
+            for service, response in (
+                ('Haldex mode sender', send_haldex_command({
+                    'cmd': 'QUIESCE', 'owner': self.token,
+                    'recovery_resume': resuming_recovery}, timeout_ms=12000)),
+                ('TP2 worker', worker.send_command(
+                    'QUIESCE', owner=self.token,
+                    recovery_resume=resuming_recovery)),
+            ):
+                if not response or response.get('status') != 'ok' or response.get('quiescent') is not True or response.get('owner') != self.token:
+                    detail = response.get('message', 'invalid acknowledgement') if isinstance(response, dict) else 'no reply'
+                    raise RuntimeError(f'{service} did not acknowledge diagnostic pause: {detail}')
+            self.acquired = True
+        except Exception:
+            # A failed second handshake must not strand the first service under
+            # this token. Mismatched RELEASE requests are safely rejected.
+            try:
+                worker.send_command('RELEASE', owner=self.token,
+                                    recovery_required=resuming_recovery)
+            except Exception:
+                pass
+            try:
+                send_haldex_command({'cmd': 'RELEASE', 'owner': self.token,
+                                     'recovery_required': resuming_recovery})
+            except Exception:
+                pass
+            _diagnostic_lock.release()
+            raise
+
+    def release(self, recovery_required=False):
+        if not self.acquired:
+            return
+        try:
+            for response in (worker.send_command(
+                    'RELEASE', owner=self.token,
+                    recovery_required=recovery_required),
+                    send_haldex_command({
+                        'cmd': 'RELEASE', 'owner': self.token,
+                        'recovery_required': recovery_required})):
+                if not response or response.get('status') != 'ok':
+                    logger.error('Diagnostic ownership release failed: %s', response)
+        finally:
+            self.acquired = False
+            _diagnostic_lock.release()
+
+
+def _recovery_marker(active):
+    if active:
+        os.makedirs(os.path.dirname(_recovery_file), exist_ok=True)
+        temporary = _recovery_file + '.tmp'
+        with open(temporary, 'w') as handle:
+            json.dump({'recovery_required': True, 'time': time.time()}, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, _recovery_file)
+        if hasattr(os, 'O_DIRECTORY'):
+            directory_fd = os.open(os.path.dirname(_recovery_file), os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+    elif os.path.exists(_recovery_file):
+        os.unlink(_recovery_file)
+
+
+class FlashOperationLog:
+    RETAIN_OPERATIONS = 2
+
+    def __init__(self):
+        directory = os.path.expanduser('~/.hudiy/flash_logs')
+        os.makedirs(directory, exist_ok=True)
+        self._prune(directory, keep=self.RETAIN_OPERATIONS - 1)
+        self.path = os.path.join(directory, uuid.uuid4().hex + '.log')
+        self.handle = open(self.path, 'x', encoding='utf-8', buffering=1)
+        self.write('Operation log opened before diagnostic ownership')
+        os.fsync(self.handle.fileno())
+
+    @staticmethod
+    def _prune(directory, keep):
+        """Keep only the newest complete operation logs before opening a new one."""
+        try:
+            logs = []
+            for name in os.listdir(directory):
+                stem, extension = os.path.splitext(name)
+                if extension != '.log' or len(stem) != 32 or any(c not in '0123456789abcdef' for c in stem):
+                    continue
+                path = os.path.join(directory, name)
+                if os.path.isfile(path):
+                    logs.append((os.path.getmtime(path), path))
+            logs.sort(reverse=True)
+            for _, path in logs[keep:]:
+                for target in (path, path + '.json'):
+                    try:
+                        os.unlink(target)
+                    except FileNotFoundError:
+                        pass
+        except OSError as exc:
+            logger.warning('Could not prune old flash logs: %s', exc)
+
+    def write(self, message):
+        self.handle.write(time.strftime('%Y-%m-%dT%H:%M:%S') + ' ' + str(message) + '\n')
+
+    def finish(self, result):
+        self.write('TERMINAL ' + json.dumps(result, default=str, sort_keys=True))
+        self.handle.flush()
+        os.fsync(self.handle.fileno())
+        with open(self.path + '.json', 'w', encoding='utf-8') as terminal:
+            json.dump(result, terminal, default=str, indent=2)
+            terminal.flush()
+            os.fsync(terminal.fileno())
+
+    def close(self):
+        self.handle.close()
+
+
+@socketio.on('get_tunes_list')
+def handle_get_tunes_list():
+    emit('tunes_list', list_available_tunes())
+
+
+@socketio.on('get_ecu_flash_info')
+def handle_get_ecu_flash_info():
+    def read_info():
+        owner = DiagnosticOwnership()
+        flasher = None
+        try:
+            if HaldexFlasher is None:
+                raise RuntimeError('HaldexFlasher module unavailable')
+            owner.acquire()
+            flasher = HaldexFlasher(channel=_cfg.get('interfaces', {}).get('can', {}).get('diagnostic', 'can0'))
+            socketio.emit('ecu_flash_info', flasher.read_ecu_info())
+        except Exception as error:
+            socketio.emit('ecu_flash_info', {'error': str(error), 'connected': False})
+        finally:
+            try:
+                if flasher:
+                    flasher.close()
+            finally:
+                owner.release()
+    socketio.start_background_task(read_info)
+
+
+@socketio.on('start_haldex_flash')
+def handle_start_haldex_flash(data):
+    global _flasher_running, _flasher_thread
+    try:
+        if not isinstance(data, dict) or set(data) - {'artifact_id', 'dry_run', 'start_addr', 'end_addr'}:
+            raise ValueError('Only artifact_id, dry_run and sector bounds are accepted')
+        artifact_id = data.get('artifact_id')
+        dry_run = data.get('dry_run', False)
+        if not isinstance(artifact_id, str) or len(artifact_id) != 64:
+            raise ValueError('A validated artifact_id is required')
+        if type(dry_run) is not bool:
+            raise ValueError('dry_run must be boolean')
+        artifact = _validated_artifacts().get(artifact_id)
+        if artifact is None:
+            raise ValueError('Artifact is not an installed validated vehicle image')
+        start_addr = data.get('start_addr', 0x18000)
+        end_addr = data.get('end_addr', 0x4ffff)
+        HaldexFlasher.prepare_image(artifact['_path'], start_addr=start_addr, end_addr=end_addr)
+    except Exception as error:
+        emit('haldex_flash_error', {'message': str(error), 'recovery_required': os.path.exists(_recovery_file), 'stopped': not _flasher_running})
+        return
+    with _flasher_lock:
+        if _flasher_running:
+            emit('haldex_flash_error', {'message': 'A flash operation is already in progress', 'stopped': False})
+            return
+        _flasher_running = True
+
+    def progress(stage, percent, detail, speed, eta_sec=0.0):
+        logger.info('Flash %s %.1f%% %s', stage, percent, detail)
+        socketio.emit('haldex_flash_progress', {'stage': stage, 'percent': round(percent, 1),
+                      'detail': detail, 'speed': round(speed, 1), 'eta_sec': round(eta_sec, 1)})
+
+    def flash_worker():
+        global _flasher_running, _active_flasher, _active_operation
+        owner = DiagnosticOwnership()
+        flasher = None
+        recovery = False
+        marked = False
+        operation_log = None
+        traffic_operation = None
+        try:
+            operation_log = FlashOperationLog()
+            flasher = HaldexFlasher(channel=_cfg.get('interfaces', {}).get('can', {}).get('diagnostic', 'can0'), progress_cb=progress, log_cb=operation_log.write)
+            with _flasher_lock:
+                _active_flasher = flasher
+                _active_operation = 'flash'
+            # Offline preparation occurs before services change or hardware opens.
+            HaldexFlasher.prepare_image(artifact['_path'], start_addr=start_addr, end_addr=end_addr)
+            if not dry_run:
+                traffic_operation = flashing_operation()
+                traffic_operation.__enter__()
+                # An incomplete prior attempt deliberately leaves normal traffic
+                # inhibited, but the normal flasher is the path that completes it.
+                owner.acquire(allow_incomplete_flash=True)
+                set_flashing_mode(True)
+                _recovery_marker(True)  # Crash during flashing must not restart polling.
+                marked = True
+            result = flasher.flash_binary(artifact['_path'], start_addr=start_addr, end_addr=end_addr, dry_run=dry_run)
+            recovery = bool(result.get('recovery_required', False))
+            if not dry_run and not result.get('application_verified', result.get('boot_verified', False)):
+                recovery = bool(getattr(flasher, 'destructive_started', False))
+            result['recovery_required'] = recovery
+            result['stopped'] = True
+            result['log_path'] = operation_log.path
+            operation_log.finish(result)
+            logger.info('Flash terminal result: %s', json.dumps(result, default=str))
+            socketio.emit('haldex_flash_complete', result)
+        except Exception as error:
+            recovery = bool(flasher and (getattr(flasher, 'destructive_started', False) or getattr(flasher, 'recovery_required', False)))
+            logger.exception('Haldex flash stopped')
+            failure = dict(getattr(flasher, 'last_result', {}) if flasher else {},
+                           message=str(error), recovery_required=recovery, stopped=True,
+                           log_path=operation_log.path if operation_log else None)
+            if operation_log:
+                try:
+                    operation_log.finish(failure)
+                except Exception:
+                    logger.exception('Could not persist terminal flash result')
+            socketio.emit('haldex_flash_error', failure)
+        finally:
+            try:
+                if flasher:
+                    flasher.close()
+            finally:
+                try:
+                    if marked and not recovery:
+                        _recovery_marker(False)
+                    owner.release(recovery_required=recovery)
+                finally:
+                    try:
+                        if operation_log:
+                            operation_log.close()
+                    finally:
+                        try:
+                            if traffic_operation:
+                                traffic_operation.__exit__(None, None, None)
+                        finally:
+                            with _flasher_lock:
+                                _flasher_running = False
+                                _active_flasher = None
+                                _active_operation = None
+
+    _flasher_thread = threading.Thread(target=flash_worker, daemon=True)
+    socketio.emit('haldex_flash_started', {'artifact_id': artifact_id, 'dry_run': dry_run})
+    try:
+        _flasher_thread.start()
+    except Exception as error:
+        with _flasher_lock:
+            _flasher_running = False
+        socketio.emit('haldex_flash_error', {'message': str(error), 'stopped': True})
+
+
+
+@socketio.on('start_haldex_readout')
+def handle_start_haldex_readout(data):
+    global _flasher_running, _flasher_thread
+    try:
+        from flasher.readout import HaldexReadout, validate_selection
+        if not isinstance(data, dict) or set(data) - {'start_addr', 'end_addr'}:
+            raise ValueError('Only readout sector bounds are accepted')
+        start_addr = data.get('start_addr', 0x18000)
+        end_addr = data.get('end_addr', 0x4ffff)
+        validate_selection(start_addr, end_addr)
+    except Exception as error:
+        emit('haldex_readout_error', {'message': str(error), 'recovery_required': False, 'stopped': not _flasher_running})
+        return
+    with _flasher_lock:
+        if _flasher_running:
+            emit('haldex_readout_error', {'message': 'A flash or readout operation is already in progress', 'stopped': False})
+            return
+        _flasher_running = True
+
+    def progress(stage, percent, detail, speed, eta_sec=0.0):
+        socketio.emit('haldex_readout_progress', {'stage': stage, 'percent': round(percent, 1),
+                      'detail': detail, 'speed': round(speed, 1), 'eta_sec': round(eta_sec, 1)})
+
+    def readout_worker():
+        global _flasher_running, _active_flasher, _active_operation
+        owner = DiagnosticOwnership()
+        reader = None
+        operation_log = None
+        traffic_operation = None
+        traffic_entered = False
+        event = 'haldex_readout_error'
+        result = {'recovery_required': False, 'stopped': True}
+        try:
+            operation_log = FlashOperationLog()
+            reader = HaldexReadout(channel=_cfg.get('interfaces', {}).get('can', {}).get('diagnostic', 'can0'),
+                                  progress_cb=progress, log_cb=operation_log.write)
+            with _flasher_lock:
+                _active_flasher = reader
+                _active_operation = 'readout'
+            traffic_operation = flashing_operation()
+            traffic_operation.__enter__()
+            traffic_entered = True
+            owner.acquire()
+            set_flashing_mode(True)
+            result.update(reader.readout(_readout_root, start_addr=start_addr, end_addr=end_addr))
+            event = 'haldex_readout_complete'
+        except Exception as error:
+            logger.exception('Haldex readout stopped')
+            result.update(getattr(reader, 'last_result', {}) if reader else {})
+            result['message'] = str(error)
+        finally:
+            # Cleanup failures must still release the busy flag and be visible to UI.
+            for cleanup in (lambda: reader.close() if reader else None,
+                            lambda: owner.release(),
+                            lambda: traffic_operation.__exit__(None, None, None) if traffic_entered else None):
+                try:
+                    cleanup()
+                except Exception as error:
+                    logger.exception('Readout cleanup failed')
+                    result.update(cleanup_attention=True, message=str(error))
+                    event = 'haldex_readout_error'
+            result.update(recovery_required=False, stopped=True)
+            capture_id = result.get('capture_id')
+            if isinstance(capture_id, str) and len(capture_id) == 32 and all(c in '0123456789abcdef' for c in capture_id):
+                result['report_url'] = '/haldex/readouts/' + capture_id + '/report'
+                if event == 'haldex_readout_complete' and result.get('status') == 'ok':
+                    result['download_url'] = '/haldex/readouts/' + capture_id + '/image'
+            if operation_log:
+                result['log_path'] = operation_log.path
+                try:
+                    operation_log.finish(result)
+                except Exception:
+                    logger.exception('Could not persist terminal readout log')
+                finally:
+                    try:
+                        operation_log.close()
+                    except Exception:
+                        logger.exception('Could not close readout log')
+            with _flasher_lock:
+                _flasher_running = False
+                _active_flasher = None
+                _active_operation = None
+            socketio.emit(event, result)
+
+    _flasher_thread = threading.Thread(target=readout_worker, daemon=True)
+    socketio.emit('haldex_readout_started', {'start_addr': start_addr, 'end_addr': end_addr})
+    try:
+        _flasher_thread.start()
+    except Exception as error:
+        with _flasher_lock:
+            _flasher_running = False
+        socketio.emit('haldex_readout_error', {'message': str(error), 'recovery_required': False, 'stopped': True})
+
+
+@socketio.on('cancel_haldex_flash')
+def handle_cancel_haldex_flash():
+    with _flasher_lock:
+        # Firmware flashing is intentionally non-cancellable. Interrupting it
+        # after erase begins only leaves an incomplete controller. Readout is
+        # non-destructive and remains safe to cancel.
+        if _active_flasher and _active_operation == 'readout':
+            _active_flasher.abort_requested = True
+            emit('haldex_flash_cancel_requested', {'message': 'Cancellation requested; waiting for operation to stop', 'stopped': False})
+
+
+def haldex_status_subscriber_loop():
+    """Background loop listening for haldex status updates and emitting to clients."""
+    ctx = zmq.Context()
+    sub = ctx.socket(zmq.SUB)
+    sub.set_hwm(100)
+    try:
+        sub.connect(ZMQ_HALDEX_STATUS)
+        sub.subscribe(b"HALDEX_STATUS")
+        logger.info(f"Connected to Haldex status stream {ZMQ_HALDEX_STATUS}")
+    except Exception as e:
+        logger.warning(f"Could not connect to Haldex status stream: {e}")
+        return
+
+    poller = zmq.Poller()
+    poller.register(sub, zmq.POLLIN)
+
+    while True:
+        try:
+            events = dict(poller.poll(500))
+            if sub in events:
+                topic, msg_bytes = sub.recv_multipart(flags=zmq.NOBLOCK)
+                status_dict = json.loads(msg_bytes.decode('utf-8'))
+                socketio.emit('haldex_update', status_dict)
+            else:
+                socketio.sleep(0.1)
+        except Exception:
+            socketio.sleep(0.5)
 
 if __name__ == '__main__':
     socketio.start_background_task(worker.run)
@@ -462,4 +1096,5 @@ if __name__ == '__main__':
     logger.info("Starting Flask-SocketIO Server on port 5003")
     socketio.start_background_task(sync_subscriptions)
     socketio.start_background_task(interpolation_broadcast_loop)
+    socketio.start_background_task(haldex_status_subscriber_loop)
     socketio.run(app, host='0.0.0.0', port=5003, allow_unsafe_werkzeug=True)

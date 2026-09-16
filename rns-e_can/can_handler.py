@@ -8,6 +8,13 @@
 # This centralizes all hardware interaction for efficiency and robustness.
 #
 
+import sys
+from pathlib import Path
+
+# Shared gate for every application CAN transmitter (installed beside flasher/).
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from flasher.traffic import transmission_guard
+
 import can
 import zmq
 import time
@@ -162,6 +169,29 @@ def reload_config_handler(signum, frame):
 
 
 # --- Send Worker ---
+def acknowledge_barrier(parts):
+    """Acknowledge FIFO drain to a local Haldex owner; never transmit a CAN frame."""
+    if len(parts) != 3 or parts[0] != b'BARRIER':
+        return False
+    token = parts[1].decode('ascii')
+    endpoint = parts[2].decode('ascii')
+    if (len(token) != 32 or any(c not in '0123456789abcdef' for c in token)
+            or endpoint != f'ipc:///run/rnse_control/haldex_barrier_{token}.ipc'):
+        raise ValueError('Invalid local barrier endpoint')
+    reply = ZMQ_CONTEXT.socket(zmq.PUSH)
+    try:
+        reply.setsockopt(zmq.LINGER, 1000)
+        reply.setsockopt(zmq.SNDTIMEO, 1000)
+        reply.setsockopt(zmq.IMMEDIATE, 1)
+        reply.connect(endpoint)
+        with CAN_SEND_LOCK:
+            reply.send_json({'status': 'ok' if CAN_BUS is not None else 'error',
+                             'token': token, 'quiescent': CAN_BUS is not None})
+    finally:
+        reply.close()
+    return True
+
+
 def send_worker():
     """Dedicated thread: blocks on ZMQ PULL and immediately forwards to CAN bus."""
     while RUNNING:
@@ -169,6 +199,8 @@ def send_worker():
             parts = ZMQ_PULL_SOCKET.recv_multipart()
             if not RUNNING:
                 break
+            if acknowledge_barrier(parts):
+                continue
             if len(parts) != 2:
                 continue
             bus = CAN_BUS
@@ -181,8 +213,11 @@ def send_worker():
                 data=bytes.fromhex(data_hex),
                 is_extended_id=False
             )
-            with CAN_SEND_LOCK:
-                bus.send(msg_to_send)
+            with CAN_SEND_LOCK, transmission_guard() as allowed:
+                if not allowed:
+                    # Consume and discard queued app frames while inhibited.
+                    continue
+                bus.send(msg_to_send, timeout=0.5)
             logger.debug(f"Sent CAN message from ZMQ: ID={can_id:03X}, Data={data_hex}")
         except Exception as e:
             if RUNNING:

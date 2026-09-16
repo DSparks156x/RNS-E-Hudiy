@@ -32,6 +32,7 @@ try:
     # Add root to path for dis_client
     sys.path.insert(0, os.path.join(script_dir, '..'))
     import dis_client.dis_image as dis_image
+    from flasher.traffic import flashing_mode_enabled, toggle_flashing_mode
 except ImportError as e:
     print(f"FATAL: Could not import Hudiy client libraries: {e}")
     sys.exit(1)
@@ -471,14 +472,18 @@ class TP2BridgeHandler(ClientEventHandler):
     - Registers 'Diagnostics Active' Status Icon.
     - Polls TP2 Service for status to update Icon.
     """
-    def __init__(self, zmq_req_addr):
+    def __init__(self, zmq_req_addr, haldex_cmd_addr=None):
         super().__init__()
         self.zmq_addr = zmq_req_addr
+        self.haldex_cmd_addr = haldex_cmd_addr or 'ipc:///run/rnse_control/haldex_cmd.ipc'
         self.socket = None
         self.lock = threading.Lock()
         
         self.icon_id = None
         self.icon_visible = None # Start with None to force initial update
+        self.flashing_icon_id = None
+        self.flashing_icon_visible = None
+        self.pending_icon = None
         self.toast_channel_id = None
         self.version_notification_channel_id = None
         self.client = None
@@ -505,12 +510,20 @@ class TP2BridgeHandler(ClientEventHandler):
     def on_hello_response(self, client, message):
         self.client = client
         self.running = True
+        if self.timer:
+            self.timer.cancel()
+        self.icon_id = self.flashing_icon_id = None
+        self.icon_visible = self.flashing_icon_visible = None
         logger.info(f"TP2 Bridge Connected to Hudiy: v{message.api_version.major}.{message.api_version.minor}")
         
         # 1. Register Action
         req_act = hudiy_api.RegisterActionRequest()
         req_act.action = "toggle_diagnostics"
         client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act.SerializeToString())
+
+        req_flash = hudiy_api.RegisterActionRequest()
+        req_flash.action = "toggle_flashing_mode"
+        client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_flash.SerializeToString())
         
         req_act_update = hudiy_api.RegisterActionRequest()
         req_act_update.action = "update_rnse"
@@ -535,6 +548,10 @@ class TP2BridgeHandler(ClientEventHandler):
         req_act_logs = hudiy_api.RegisterActionRequest()
         req_act_logs.action = "save_logs"
         client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_logs.SerializeToString())
+
+        req_act_haldex = hudiy_api.RegisterActionRequest()
+        req_act_haldex.action = "toggle_haldex_mode"
+        client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_haldex.SerializeToString())
         
         # 1.4 Register Toast Channel for Diagnostics Status Notifications
         req_toast = hudiy_api.RegisterToastChannelRequest()
@@ -548,11 +565,15 @@ class TP2BridgeHandler(ClientEventHandler):
         req_notif.description = "Version and system details"
         client.send(hudiy_api.MESSAGE_REGISTER_NOTIFICATION_CHANNEL_REQUEST, 0, req_notif.SerializeToString())
         
-        # 2. Register Icon
+        # Register sequentially: callback messages do not expose request IDs.
+        self._register_icon(client, "diagnostics")
+
+    def _register_icon(self, client, kind):
+        self.pending_icon = kind
         req_icon = hudiy_api.RegisterStatusIconRequest()
-        req_icon.description = "Diagnostics Active"
+        req_icon.description = "Flashing Mode" if kind == "flashing" else "Diagnostics Active"
         req_icon.icon_font_family = "Material Symbols Rounded"
-        req_icon.icon_name = "car_repair" 
+        req_icon.icon_name = "system_security_update" if kind == "flashing" else "car_repair"
         client.send(hudiy_api.MESSAGE_REGISTER_STATUS_ICON_REQUEST, 0, req_icon.SerializeToString())
 
     def on_register_action_response(self, client, message):
@@ -566,10 +587,19 @@ class TP2BridgeHandler(ClientEventHandler):
             logger.error(f"Failed to register Diagnostics Toast Channel: {message.result}")
 
     def on_register_status_icon_response(self, client, message):
+        kind = self.pending_icon
+        self.pending_icon = None
+        if kind is None:
+            logger.warning("Ignoring unsolicited status icon registration response")
+            return
         if message.result == 1:  # OK
-            self.icon_id = message.id
+            if kind == "flashing":
+                self.flashing_icon_id = message.id
+                self.update_flashing_icon_state()
+            else:
+                self.icon_id = message.id
             self.client = client
-            logger.info(f"Status Icon Registered. ID: {self.icon_id}")
+            logger.info(f"{kind} Status Icon Registered. ID: {message.id}")
             # Immediately sync icon state at startup so icon is set by default
             if self.last_known_enabled is not None:
                 self.update_icon_state(self.last_known_enabled)
@@ -581,7 +611,9 @@ class TP2BridgeHandler(ClientEventHandler):
             self.timer = threading.Timer(2.0, self.poll_status, [client])
             self.timer.start()
         else:
-            logger.error("Failed to register Status Icon")
+            logger.error(f"Failed to register {kind} Status Icon")
+        if kind == "diagnostics":
+            self._register_icon(client, "flashing")
 
     def on_register_notification_channel_response(self, client, message):
         if message.result == 1: # OK
@@ -604,7 +636,15 @@ class TP2BridgeHandler(ClientEventHandler):
                 logger.error(f"Failed to show toast: {e}")
 
     def on_dispatch_action(self, client, message):
-        if message.action == "toggle_diagnostics":
+        if message.action == "toggle_flashing_mode":
+            try:
+                enabled = toggle_flashing_mode()
+                self.update_flashing_icon_state()
+                self.show_toast(f"Flashing Mode {'On' if enabled else 'Off'}", icon="system_security_update")
+            except (RuntimeError, OSError) as exc:
+                logger.warning(f"Cannot toggle Flashing Mode: {exc}")
+                self.show_toast(str(exc), icon="system_security_update")
+        elif message.action == "toggle_diagnostics":
             logger.info("Hudiy Action: Toggle Diagnostics")
             resp = self.send_command("TOGGLE")
             if resp and "enabled" in resp:
@@ -695,6 +735,29 @@ class TP2BridgeHandler(ClientEventHandler):
                 subprocess.Popen(["python3", save_logs_script])
             else:
                 logger.error(f"Save logs script not found: {save_logs_script}")
+        elif message.action == "toggle_haldex_mode":
+            logger.info("Hudiy Action: Toggle Haldex Mode")
+            mode_name = self.cycle_haldex_mode()
+            self.show_toast(f"Haldex: {mode_name}", icon="all_inclusive")
+
+    def cycle_haldex_mode(self):
+        ctx = zmq.Context()
+        sock = ctx.socket(zmq.REQ)
+        sock.setsockopt(zmq.RCVTIMEO, 1500)
+        sock.setsockopt(zmq.LINGER, 0)
+        try:
+            sock.connect(self.haldex_cmd_addr)
+            sock.send_json({"cmd": "CYCLE"})
+            resp = sock.recv_json()
+            if resp.get("status") == "ok":
+                data = resp.get("data", {})
+                return data.get("desired_name", "Updated")
+        except Exception as e:
+            logger.warning(f"Could not contact haldex_cmd: {e}")
+        finally:
+            sock.close()
+            ctx.term()
+        return "Toggled"
 
     def send_command(self, cmd):
         with self.lock:
@@ -719,9 +782,32 @@ class TP2BridgeHandler(ClientEventHandler):
                 return None
 
     def check_status_now(self, client):
+        self.update_flashing_icon_state()
         resp = self.send_command("STATUS")
         if resp and "enabled" in resp:
             self.update_icon_state(resp["enabled"])
+
+    def update_flashing_icon_state(self):
+        """Show the persistent inhibit independently of the diagnostics toggle."""
+        try:
+            enabled = flashing_mode_enabled()
+        except OSError as exc:
+            # Senders also fail closed if shared inhibition state is unreadable.
+            logger.error(f"Cannot read Flashing Mode state: {exc}")
+            enabled = True
+        with self.lock:
+            if self.flashing_icon_id is None or self.client is None:
+                return
+            if enabled == self.flashing_icon_visible:
+                return
+            msg = hudiy_api.ChangeStatusIconState()
+            msg.id = self.flashing_icon_id
+            msg.visible = enabled
+            try:
+                self.client.send(hudiy_api.MESSAGE_CHANGE_STATUS_ICON_STATE, 0, msg.SerializeToString())
+                self.flashing_icon_visible = enabled
+            except Exception as exc:
+                logger.error(f"Failed to update Flashing Mode icon: {exc}")
 
     def update_icon_state(self, enabled):
         """Called from ZMQ subscriber thread, polling, or toggle response"""
@@ -777,11 +863,13 @@ class HudiyData:
         
         # TP2 Bridge
         self.tp2_zmq_addr = 'tcp://localhost:5558'
+        self.haldex_cmd_addr = 'ipc:///run/rnse_control/haldex_cmd.ipc'
         if config and 'interfaces' in config:
             _zmq = config['interfaces'].get('zmq', {})
             self.tp2_zmq_addr = _zmq.get('tp2_command', self.tp2_zmq_addr)
+            self.haldex_cmd_addr = _zmq.get('haldex_command', self.haldex_cmd_addr)
             
-        self.tp2_handler = TP2BridgeHandler(self.tp2_zmq_addr)
+        self.tp2_handler = TP2BridgeHandler(self.tp2_zmq_addr, haldex_cmd_addr=self.haldex_cmd_addr)
         self.tp2_client = None
         
         self.tp2_status_addr = "ipc:///run/rnse_control/tp2_stream.ipc"

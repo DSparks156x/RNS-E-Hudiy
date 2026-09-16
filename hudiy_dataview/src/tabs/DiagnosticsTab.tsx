@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSocket } from '../hooks/useSocket';
 import { useHudiyTheme } from '../hooks/useHudiyTheme';
 import { Keypad } from '../components/Keypad';
+import { HaldexFlashModal } from '../components/HaldexFlashModal';
 
 interface FreezeFrameItem {
     label: string;
@@ -46,6 +47,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
     const [dtcs, setDtcs] = useState<DTC[]>([]);
     const [loadingDTCs, setLoadingDTCs] = useState(false);
     const [dtcError, setDtcError] = useState<string | null>(null);
+    const [showFlashModal, setShowFlashModal] = useState(false);
 
     // Group Subscriptions
     const [group1, setGroup1] = useState<string>('');
@@ -293,6 +295,18 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px' }}>
+                    {selectedModule === 0x0A && (
+                        <button
+                            style={{
+                                ...styles.actionBtn,
+                                backgroundColor: 'rgba(255, 140, 0, 0.85)',
+                                color: '#fff',
+                            }}
+                            onClick={() => setShowFlashModal(true)}
+                        >
+                            Flash Controller
+                        </button>
+                    )}
                     <button
                         style={{ ...styles.actionBtn, backgroundColor: loadingDTCs ? theme.surfaceVariant : 'rgba(255, 60, 60, 0.8)' }}
                         onClick={requestClearDTCs}
@@ -429,6 +443,14 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                     </div>
                 </div>
             </div>
+
+            {showFlashModal && (
+                <HaldexFlashModal
+                    socket={socket}
+                    theme={theme}
+                    onClose={() => setShowFlashModal(false)}
+                />
+            )}
         </section>
     );
 }

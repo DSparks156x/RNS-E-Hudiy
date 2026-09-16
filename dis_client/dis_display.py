@@ -53,7 +53,7 @@ class DisplayEngine:
         self.egg_app = self.apps['app_easteregg']
 
         # --- Page Cycle Definition ---
-        configured_apps = center_display_cfg.get('applist', ['nav', 'media', 'phone', 'car_info', 'acceleration_test', 'openpilot'])
+        configured_apps = center_display_cfg.get('applist', ['nav', 'media', 'phone', 'car_info', 'acceleration_test'])
         
         self.pages = [f"app_{app}" for app in configured_apps if f"app_{app}" in self.apps]
         if not self.pages:

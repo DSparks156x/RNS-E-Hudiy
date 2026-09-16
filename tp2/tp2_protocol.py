@@ -3,6 +3,13 @@
 import time
 import struct
 import logging
+import sys
+from pathlib import Path
+
+# Shared gate for every application CAN transmitter (installed beside flasher/).
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from flasher.traffic import transmission_guard
+
 import can
 from typing import List, Optional, Tuple, Dict, Union
 
@@ -62,7 +69,11 @@ class TP2Protocol:
         msg = can.Message(arbitration_id=arbitration_id, data=data, is_extended_id=False)
         try:
             logger.info(f"TX: ID={arbitration_id:03X} Data=[{' '.join(f'{b:02X}' for b in data)}]")
-            self.bus.send(msg, timeout=0.5)
+            with transmission_guard() as allowed:
+                if not allowed:
+                    self.connected = False
+                    raise TP2Error("Flashing Mode inhibits diagnostic transmissions")
+                self.bus.send(msg, timeout=0.5)
             # Use negotiated T3 delay. Default to T3_INTERVAL if not connected.
             sleep_time = self.t3 / 1000.0 if self.connected else self.T3_INTERVAL / 1000.0
             time.sleep(sleep_time)

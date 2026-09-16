@@ -4,6 +4,17 @@ import json
 import logging
 from flask import Flask, render_template, send_from_directory
 from flask_socketio import SocketIO
+
+# Compatibility fix for Flask 3.1.3+ with older Flask-SocketIO:
+# Flask 3.1.3 made RequestContext.session a property without a setter.
+try:
+    from flask.ctx import RequestContext
+    if hasattr(RequestContext, "session") and (not hasattr(RequestContext.session, "fset") or RequestContext.session.fset is None):
+        def _set_session(self, val):
+            self._session = val
+        RequestContext.session = RequestContext.session.setter(_set_session)
+except Exception:
+    pass
 import os
 import threading
 import time

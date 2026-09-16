@@ -5,6 +5,13 @@ import struct
 import logging
 import threading
 import json
+import sys
+from pathlib import Path
+
+# Shared gate for every application CAN transmitter (installed beside flasher/).
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from flasher.traffic import transmission_guard
+
 import can
 
 logger = logging.getLogger(__name__)
@@ -65,7 +72,13 @@ class OpenpilotReceiver(threading.Thread):
             return
         msg = can.Message(arbitration_id=arbitration_id, data=data, is_extended_id=False)
         try:
-            self.bus.send(msg, timeout=0.5)
+            with transmission_guard() as allowed:
+                if not allowed:
+                    self.connected = False
+                    self.rx_buffer.clear()
+                    self.expected_len = 0
+                    return
+                self.bus.send(msg, timeout=0.5)
             self.last_send_time = time.time()
             logger.info(f"OP RX Send: ID={arbitration_id:03X} Data=[{' '.join(f'{b:02X}' for b in data)}]")
         except Exception as e:

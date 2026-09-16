@@ -140,11 +140,18 @@ echo -e "${GREEN}? Dependencies installed.${NC}"
 # ------------------------------------------------------------------------------
 echo -e "${YELLOW}? Step 2: Downloading Project Files...${NC}"
 
-# Create a temporary directory for cloning
-TEMP_DIR=$(mktemp -d)
+# Create a temporary directory for cloning.
+TEMP_DIR=$(mktemp -d) || exit 1
 echo "   Cloning repository (optimized sparse-checkout)..."
-$GIT_CMD clone -b "$SELECTED_REF" --depth 1 --filter=blob:none --sparse --no-checkout "$REPO_URL" "$TEMP_DIR"
-(cd "$TEMP_DIR" && $GIT_CMD sparse-checkout set rns-e_can hudiy_client dis_client tp2 hudiy_dataview config.json config/hudiy && $GIT_CMD checkout)
+"$GIT_CMD" clone -b "$SELECTED_REF" --depth 1 --filter=blob:none --sparse --no-checkout "$REPO_URL" "$TEMP_DIR" || {
+    echo "ERROR: Repository clone failed."
+    exit 1
+}
+# Root files, including config.json, are included automatically.
+(cd "$TEMP_DIR" && "$GIT_CMD" sparse-checkout set rns-e_can hudiy_client dis_client tp2 hudiy_dataview flasher config/hudiy && "$GIT_CMD" checkout) || {
+    echo "ERROR: Sparse checkout failed."
+    exit 1
+}
 
 # Save version information
 echo "   Saving version information..."
@@ -163,24 +170,35 @@ chown $REAL_USER:$REAL_USER "$VERSION_FILE"
 
 echo "   Installing to $REAL_HOME..."
 
-# Helper to move folder if it doesn't exist
+# Preserve the original copy behavior for top-level project folders.
 install_folder() {
-    FOLDER=$1
+    local FOLDER="$1"
+    if [ ! -d "$TEMP_DIR/$FOLDER" ]; then
+        echo "ERROR: Missing source folder: $TEMP_DIR/$FOLDER"
+        return 1
+    fi
     if [ -d "$REAL_HOME/$FOLDER" ]; then
         echo "   - Folder $FOLDER already exists. Updating contents..."
-        cp -r "$TEMP_DIR/$FOLDER/"* "$REAL_HOME/$FOLDER/"
+        cp -r "$TEMP_DIR/$FOLDER/"* "$REAL_HOME/$FOLDER/" || return 1
     else
         echo "   - Installing $FOLDER..."
-        cp -r "$TEMP_DIR/$FOLDER" "$REAL_HOME/"
+        cp -r "$TEMP_DIR/$FOLDER" "$REAL_HOME/" || return 1
     fi
 }
 
 # Install Core Folders
-install_folder "rns-e_can"
-install_folder "hudiy_client"
-install_folder "dis_client"
-install_folder "tp2"
-install_folder "hudiy_dataview"
+install_folder "rns-e_can" || exit 1
+install_folder "hudiy_client" || exit 1
+install_folder "dis_client" || exit 1
+install_folder "tp2" || exit 1
+install_folder "hudiy_dataview" || exit 1
+install_folder "flasher" || exit 1
+
+# Verify deployed package and dependency without constructing a CAN device.
+(cd / && python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import can; from flasher import HaldexFlasher; from flasher.readout import HaldexReadout; from flasher.traffic import transmission_guard, flashing_mode_enabled; print("Installed Haldex flash/readout import OK")' "$REAL_HOME") || {
+    echo "ERROR: Installed Haldex flasher or python3-can is unavailable."
+    exit 1
+}
 
 # Helper to install or update config files with backups
 install_config() {
@@ -301,8 +319,7 @@ echo "   Removing temporary files..."
 rm -rf "$TEMP_DIR"
 
 # REMOVE UNWANTED FILES/FOLDERS (Explicit Cleanup)
-echo "   Removing tools, updater, and READMEs..."
-rm -rf "$REAL_HOME/tools"
+echo "   Removing legacy updater and READMEs (preserving runtime tools)..."
 rm -rf "$REAL_HOME/updater"
 find "$REAL_HOME" -name "README.md" -type f -delete
 
@@ -313,6 +330,7 @@ chown -R $REAL_USER:$REAL_USER "$REAL_HOME/hudiy_client"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/dis_client"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/tp2"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/hudiy_dataview"
+chown -R $REAL_USER:$REAL_USER "$REAL_HOME/flasher"
 chown $REAL_USER:$REAL_USER "$REAL_HOME/config.json"
 chmod +x "$REAL_HOME/hudiy_client/update_rnse.sh"
 chmod +x "$REAL_HOME/hudiy_client/restore_configs.sh"
@@ -428,6 +446,10 @@ tmpfs   /run/rnse_control       tmpfs   defaults,noatime,nosuid,uid=$REAL_USER,g
 EOF
 fi
 mount -a
+
+# Keep firmware user-visible.
+mkdir -p "${REAL_HOME}/haldexfw/readouts"
+chown -R ${REAL_USER}:${REAL_USER} "${REAL_HOME}/haldexfw"
 
 # ------------------------------------------------------------------------------
 # 7. Install Systemd Services (Networkd Method)
@@ -680,6 +702,26 @@ Group=input
 [Install]
 WantedBy=multi-user.target"
 
+# 9. haldex_manager
+write_service "haldex_manager.service" "[Unit]
+Description=Haldex Gen4 AWD Mode Manager
+Requires=can_handler.service
+After=can_handler.service
+
+[Service]
+User=${REAL_USER}
+Group=${REAL_USER}
+WorkingDirectory=${REAL_HOME}/rns-e_can
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 ${REAL_HOME}/rns-e_can/haldex_manager.py
+Restart=always
+RestartSec=5s
+KillSignal=SIGTERM
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target"
+
 # --- Clean up old service ---
 if [ -f "/etc/systemd/system/configure-can0.service" ]; then
     $SYSTEMCTL disable configure-can0.service 2>/dev/null
@@ -695,7 +737,8 @@ $SYSTEMCTL enable --now systemd-networkd
 echo "   Enabling and Starting Application Services..."
 $SYSTEMCTL enable --now can_handler.service can_base_function.service tp2_worker.service \
                         can_keyboard_control.service dark_mode_api.service hudiy_data_api.service \
-                        hudiy_dataview.service hudiy_status_service.service dis_top_display.service
+                        hudiy_dataview.service hudiy_status_service.service dis_top_display.service \
+                        haldex_manager.service
 
 # Start delayed services non-blocking
 $SYSTEMCTL enable --now --no-block dis_service.service dis_display.service

@@ -13,6 +13,17 @@ import zmq.green as zmq
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 
+# Compatibility fix for Flask 3.1.3+ with older Flask-SocketIO:
+# Flask 3.1.3 made RequestContext.session a property without a setter.
+try:
+    from flask.ctx import RequestContext
+    if hasattr(RequestContext, "session") and (not hasattr(RequestContext.session, "fset") or RequestContext.session.fset is None):
+        def _set_session(self, val):
+            self._session = val
+        RequestContext.session = RequestContext.session.setter(_set_session)
+except Exception:
+    pass
+
 # Configuration — load ZMQ addresses from config.json (same as tp2_worker)
 _DEFAULT_TP2_STREAM  = 'ipc:///run/rnse_control/tp2_stream.ipc'
 _DEFAULT_TP2_COMMAND = 'ipc:///run/rnse_control/tp2_cmd.ipc'
