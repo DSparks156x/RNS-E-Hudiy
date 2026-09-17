@@ -145,7 +145,7 @@ echo -e "${YELLOW}? Step 2: Downloading Project Files...${NC}"
 STAGING_DIR="$REAL_HOME/.cache/rns-e-hudiy-installer"
 TEMP_DIR="$STAGING_DIR" # Retain the existing source-path name below.
 STAGING_PARENT=$(dirname "$STAGING_DIR")
-SPARSE_PATHS=(rns-e_can hudiy_client dis_client tp2 hudiy_dataview flasher config/hudiy)
+SPARSE_PATHS=(rns-e_can hudiy_client vag_protocols dis_client tp2 hudiy_dataview flasher config/hudiy)
 
 mkdir -p "$STAGING_PARENT"
 
