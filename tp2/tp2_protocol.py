@@ -278,9 +278,16 @@ class TP2Protocol:
         """Reassembles incoming KWP response."""
         buffer = []
         expected_len = 0
+        # An A3 channel heartbeat is not the response to the outstanding KWP
+        # request. Without an overall deadline, recurring A3 frames keep this
+        # loop alive forever and stall every module in the TP2 worker.
+        frame_timeout = self.T1_TIMEOUT / 1000.0
+        deadline = time.monotonic() + frame_timeout
+        hard_deadline = time.monotonic() + 30.0
         
-        while True:
-            msg = self._recv(self.rx_id, self.T1_TIMEOUT)
+        while time.monotonic() < deadline:
+            remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
+            msg = self._recv(self.rx_id, remaining_ms)
             if not msg: raise TP2Error("Timeout waiting for response")
             
             # ACK Packet (B0) - Should not happen here unless keep-alive?
@@ -300,6 +307,7 @@ class TP2Protocol:
             # Wait Frame (0x9x) - Extend Timeout
             if (msg[0] & 0xF0) == 0x90:
                  logger.warning(f"TP2: Received 0x{msg[0]:02X} (Wait?). Extending timeout.")
+                 deadline = min(deadline + 1.0, hard_deadline)
                  continue
 
             seq = msg[0] & 0x0F
@@ -323,6 +331,9 @@ class TP2Protocol:
                 data_part = msg[1:] # Data starts immediately after header
             
             buffer.extend(data_part)
+            # T1 applies between response frames. Only response data, not
+            # channel-control traffic, earns another frame interval.
+            deadline = min(time.monotonic() + frame_timeout, hard_deadline)
             
             # If Type is 1x (End of Block), we must segments ACK.
             # In Multi-frame, 2x is "Don't ACK", 1x is "ACK me".
@@ -333,6 +344,8 @@ class TP2Protocol:
             # Check if we are done
             if expected_len > 0 and len(buffer) >= expected_len:
                 return buffer[:expected_len] # Trim any padding if present
+
+        raise TP2Error("Timeout waiting for complete KWP response")
 
     def send_keep_alive(self):
         """Sends Keep-Alive Ping (A3) and waits for response (A1/93)."""
@@ -375,4 +388,3 @@ class TP2Protocol:
         except Exception as e:
             logger.error(f"TP2: Keep-Alive Error: {e}")
             return False
-
