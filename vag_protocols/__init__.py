@@ -1,15 +1,10 @@
-"""Compatibility import for the shared TP2 implementation.
+"""Shared Volkswagen/Audi transport and application protocols."""
 
-New code should import from :mod:`vag_protocols.tp2`.
-"""
-import time  # Kept for compatibility with existing test/instrumentation patches.
-
-from vag_protocols.tp2 import (
+from .tp2 import (
     BROADCAST_ADDR,
     MessageTimeoutError,
     TP2Error,
     TP2MessageReassembler,
-    TP2Parameters,
     TP2Transport,
     TP20Transport,
     build_ack,
@@ -18,13 +13,13 @@ from vag_protocols.tp2 import (
     decode_timing_ms,
     segment_message,
 )
+from .kwp import KWPClient, KWPError, KWPNegativeResponse, KWPPendingTimeout, KWPProfile
 
 __all__ = [
     "BROADCAST_ADDR",
     "MessageTimeoutError",
     "TP2Error",
     "TP2MessageReassembler",
-    "TP2Parameters",
     "TP2Transport",
     "TP20Transport",
     "build_ack",
@@ -32,4 +27,9 @@ __all__ = [
     "classify_frame",
     "decode_timing_ms",
     "segment_message",
+    "KWPClient",
+    "KWPError",
+    "KWPNegativeResponse",
+    "KWPPendingTimeout",
+    "KWPProfile",
 ]

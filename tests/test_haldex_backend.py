@@ -402,6 +402,7 @@ class InstalledLayoutTests(unittest.TestCase):
     def test_installer_staged_package_import_and_update_preservation(self):
         source = (ROOT / 'install.sh').read_text()
         self.assertIn('install_folder "flasher" || exit 1', source)
+        self.assertIn('install_folder "vag_protocols" || exit 1', source)
         self.assertNotIn('rm -rf "$REAL_HOME/tools"', source)
         self.assertIn('python3-can', source)
         function = re.search(r'(?ms)^install_folder\(\) \{.*?^\}', source).group()
@@ -416,6 +417,7 @@ class InstalledLayoutTests(unittest.TestCase):
             (home / 'tools' / 'keep.txt').write_text('user tool')
             script = stage / 'stage.sh'
             script.write_text('set -eu\n' + function + '\nmkdir -p "$REAL_HOME/tools"\n'
+                              'install_folder "vag_protocols"\n'
                               'install_folder "flasher"\ninstall_folder "flasher"\n', newline='\n')
             environment = dict(os.environ, REAL_HOME=home.as_posix(), TEMP_DIR=ROOT.as_posix())
             subprocess.run([str(bash), str(script)], env=environment, check=True)

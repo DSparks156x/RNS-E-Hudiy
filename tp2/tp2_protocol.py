@@ -1,378 +1,180 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-import time
-import struct
-import logging
-import sys
-from pathlib import Path
+"""Compatibility façade for the shared TP2 and KWP libraries.
 
-# Shared gate for every application CAN transmitter (installed beside flasher/).
+The worker API historically exposed ``TP2Protocol.send_kvp_request``.  Keeping
+that API here avoids a flag-day migration while all framing and KWP response
+handling live in :mod:`vag_protocols`.
+"""
+import logging
+from pathlib import Path
+import sys
+import time
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from flasher.traffic import transmission_guard
 
 import can
-from typing import List, Optional, Tuple, Dict, Union
+from flasher.traffic import transmission_guard
+from vag_protocols.kwp import KWPClient
+from vag_protocols.tp2 import TP2Transport
+
 
 logger = logging.getLogger(__name__)
 
-class TP2Error(Exception):
-    pass
+
+class TP2Error(RuntimeError):
+    """Diagnostic-service compatibility error."""
+
+
+class _WorkerCANDevice:
+    """Adapt a worker-owned python-can socket to the shared transport API."""
+
+    def __init__(self, owner):
+        self.owner = owner
+
+    def can_send(self, address, data, bus=0):
+        if bus != 0:
+            raise ValueError("Unexpected CAN bus number")
+        self.owner._send(address, data, pace=False)
+
+    def can_recv(self, timeout_ms=20):
+        if self.owner.bus is None:
+            return []
+        first = self.owner.bus.recv(max(0.001, timeout_ms / 1000.0))
+        if first is None:
+            return []
+        messages = [(first.arbitration_id, bytes(first.data), 0)]
+        while True:
+            extra = self.owner.bus.recv(0.0)
+            if extra is None:
+                break
+            messages.append((extra.arbitration_id, bytes(extra.data), 0))
+        return messages
+
 
 class TP2Protocol:
-    """
-    Implements the VW TP2.0 Transport Protocol over CAN.
-    Manages Dynamic Channel Setup, Keep-Alives, Sequence Numbers, and Block Transmission.
-    """
+    """Legacy diagnostic API backed by the canonical TP2/KWP implementation."""
 
-    # --- Constants ---
-    CAN_BROADCAST_REQ = 0x200
-    CAN_BROADCAST_RESP = 0x201
-    
-    # Timing (ms)
-    T1_TIMEOUT = 2000   # Wait for response (Increased to 2000ms to allow for slow ECU responses)
-    T3_INTERVAL = 12    # Inter-frame gap (Default, will be overridden by negotiation)
+    T1_TIMEOUT = 2000
+    T3_INTERVAL = 12
 
     def __init__(self, channel='can0', tester_id=0x300):
         self.channel = channel
+        self.tester_id = tester_id
         self.bus = None
-        self.tester_id = tester_id # Standard is 0x300, but can be 0x301, etc.
-        self.tx_id = 0x000     # Will be dynamic
-        self.rx_id = 0x000     # Will be dynamic
-        
-        self.block_size = 0    # Negotiated Block Size (BS)
-        self.t1 = 100          # T1 Timeout (ms) for ACKs
-        self.t3 = 10           # T3 Gap (ms) between frames
-        
-        self.seq_tx = 0        # TX Sequence Number (0..F)
-        self.seq_rx = 0        # RX Sequence Number (0..F)
+        self.tx_id = 0
+        self.rx_id = 0
+        self.block_size = 0
+        self.t1 = 100.0
+        self.t3 = 10.0
+        self.seq_tx = 0
+        self.seq_rx = 0
         self.connected = False
         self.last_kwp_req = 0.0
+        self._transport = None
+        self._kwp = None
 
     def open(self):
-        """Opens the CAN Bus interface."""
         try:
             self.bus = can.Bus(interface='socketcan', channel=self.channel, bitrate=100000)
-            logger.info(f"TP2: CAN bus {self.channel} opened.")
-        except Exception as e:
-            logger.error(f"TP2: Failed to open CAN bus: {e}")
-            raise TP2Error(e)
+            logger.info("TP2: CAN bus %s opened.", self.channel)
+        except Exception as exc:
+            raise TP2Error(str(exc)) from exc
 
     def close(self):
-        """Closes the session and bus."""
         if self.connected:
             self.disconnect()
-        if self.bus:
+        if self.bus is not None:
             self.bus.shutdown()
             self.bus = None
 
-    def _send(self, arbitration_id, data):
-        msg = can.Message(arbitration_id=arbitration_id, data=data, is_extended_id=False)
+    def _send(self, arbitration_id, data, pace=True):
+        message = can.Message(arbitration_id=arbitration_id,
+                              data=bytes(data), is_extended_id=False)
         try:
-            logger.info(f"TX: ID={arbitration_id:03X} Data=[{' '.join(f'{b:02X}' for b in data)}]")
             with transmission_guard() as allowed:
                 if not allowed:
                     self.connected = False
                     raise TP2Error("Flashing Mode inhibits diagnostic transmissions")
-                self.bus.send(msg, timeout=0.5)
-            # Use negotiated T3 delay. Default to T3_INTERVAL if not connected.
-            sleep_time = self.t3 / 1000.0 if self.connected else self.T3_INTERVAL / 1000.0
-            time.sleep(sleep_time)
-        except can.CanError as e:
-            logger.error(f"TP2: CAN Send Error: {e}")
-            raise TP2Error(e)
+                self.bus.send(message, timeout=0.5)
+            if pace:
+                delay_ms = self.t3 if self.connected else self.T3_INTERVAL
+                time.sleep(delay_ms / 1000.0)
+        except TP2Error:
+            raise
+        except Exception as exc:
+            raise TP2Error(str(exc)) from exc
 
-    def _recv(self, arbitration_id, timeout_ms=None) -> Optional[List[int]]:
-        """Waits for a specific ID."""
-        if timeout_ms is None: timeout_ms = self.t1
-        
-        end_time = time.time() + (timeout_ms / 1000.0)
-        while time.time() < end_time:
-            msg = self.bus.recv(0.05) # Poll
-            if msg:
-                # Log everything for debugging
-                if msg.arbitration_id == arbitration_id:
-                     logger.info(f"RX: ID={msg.arbitration_id:03X} Data=[{' '.join(f'{b:02X}' for b in msg.data)}]")
-                     return list(msg.data)
-                elif msg.arbitration_id == self.rx_id: # Also log expected RX ID if we filter
-                     logger.info(f"RX (Ignored): ID={msg.arbitration_id:03X} Data=[{' '.join(f'{b:02X}' for b in msg.data)}]")
-        return None
-
-    def _clear_rx_buffer(self):
-        """Drains the CAN buffer of any pending messages."""
-        while True:
-            msg = self.bus.recv(0.01) # Non-blocking check
-            if not msg: break
-            # logger.debug(f"TP2: Drained stale msg ID {msg.arbitration_id:X}")
+    def _sync_state(self):
+        if self._transport is None:
+            return
+        self.tx_id = self._transport.tx_addr
+        self.rx_id = self._transport.rx_addr
+        self.block_size = self._transport.block_size
+        self.t1 = self._transport.t1_ms
+        self.t3 = self._transport.time_between_packets * 1000.0
+        self.seq_tx = self._transport.tx_seq
+        self.seq_rx = self._transport.rx_seq
+        self.connected = self._transport.connected
 
     def connect(self, target_module_id: int) -> bool:
-        """
-        Performs the TP2.0 Channel Setup.
-        target_module_id: e.g. 0x01 (Engine), 0x17 (Instruments)
-        """
-        logger.info(f"TP2: Connecting to Module 0x{target_module_id:02X}...")
-        
-        # 0. Clear buffer to avoid stale messages
-        self._clear_rx_buffer()
-        
-        # 1. Broadcast Request (0x200)
-        # Format: [DestID, OpCode=C0, 00, 10, TX_ID_Low, TX_ID_High, 01]
-        tester_id_low = self.tester_id & 0xFF
-        tester_id_high = (self.tester_id >> 8) & 0x0F
-        req = [target_module_id, 0xC0, 0x00, 0x10, tester_id_low, tester_id_high, 0x01]
-        self._send(self.CAN_BROADCAST_REQ, req)
-
-        # 2. Wait for Response (0x200 + target_module_id)
-        # Format: [ModID, D0, CommID_Low, CommID_High, RX_ID_Low, RX_ID_High, 00]
-        expected_resp_id = self.CAN_BROADCAST_REQ + target_module_id
-        resp = self._recv(expected_resp_id, 1000)
-        if not resp:
-            logger.error(f"TP2: No response to connection request on ID 0x{expected_resp_id:X}.")
+        if self.bus is None:
+            raise TP2Error("CAN bus is not open")
+        try:
+            self._transport = TP2Transport(
+                _WorkerCANDevice(self), module=target_module_id,
+                tester_id=self.tester_id, timeout=self.T1_TIMEOUT / 1000.0,
+                debug=False)
+            self._kwp = KWPClient(self._transport, debug=False)
+            self._sync_state()
+            return True
+        except Exception as exc:
+            self.connected = False
+            logger.error("TP2: connection failed: %s", exc)
             return False
-        
-        if resp[0] != 0x00 or resp[1] != 0xD0:
-            logger.error(f"TP2: Invalid connection response: {resp}")
-            return False
-
-        # Parse RX ID (The ID we must Listen to)
-        self.rx_id = (resp[5] << 8) + resp[4]
-        # Calculate TX ID (The ID we must Send to) - Usually RX_ID - 1 or determined by logic
-        
-        # Correction:
-        # Byte 4/5 is the "CAN-ID for CAN-Response".
-        # So ECU sends D0 xx xx xx ID_LO ID_HI.
-        # That ID is what we should use to SEND to the ECU.
-        self.tx_id = (resp[5] << 8) | resp[4]
-        self.rx_id = self.tester_id # We listen on 0x300 (Standard)
-        
-        logger.info(f"TP2: Dynamic ID Assigned. TX to 0x{self.tx_id:X}, RX on 0x{self.rx_id:X}")
-
-        # 3. Send Timing Parameters (A0)
-        # Format: [A0, BlockSize, T1_Low, T1_High, T3, Reserved]
-        # BlockSize: 0x0F (15 frames) or 0x00 (Blocksize 0?)
-        # vwtp.c: {0xA0, 0x0F, 0x8A, 0xFF, 0x32, 0xFF}
-        # T1 = 0x8A = 138 * 1ms = 138ms?
-        # T3 = 0x32 = 50 * 100us?
-        
-        params = [0xA0, 0x0F, 0x8A, 0xFF, 0x32, 0xFF]
-        self._send(self.tx_id, params)
-
-        # 4. Wait for Parameter Response (A1)
-        # Format: [A1, ...]
-        resp = self._recv(self.rx_id, 1000)
-        if not resp or resp[0] != 0xA1:
-             logger.error(f"TP2: Parameter negotiation failed. Resp: {resp}")
-             return False
-        
-        # Parse ECU's Timing Preferences
-        # A1: [A1, BS, T1, T2, T3, T4]
-        # T1 = unit of 10ms (Byte 2)
-        # T3 = unit of 100us (Byte 4)
-        if len(resp) >= 5:
-            self.block_size = resp[1]
-            # T1 negotiation can be complex, often 10ms scaling
-            self.t1 = resp[2] * 10 
-            # T3 is inter-packet gap in 100us units. e.g. 0x4A = 74 = 7.4ms
-            # We enforce a minimum floor of 1ms to prevent bus saturation
-            self.t3 = max(1.0, resp[4] * 0.1)
-            logger.info(f"TP2: Timing Negotiated: BS={self.block_size}, T1={self.t1}ms, T3={self.t3}ms")
-             
-        self.connected = True
-        self.seq_tx = 0
-        self.seq_rx = 0
-        logger.info("TP2: Connected.")
-        return True
 
     def disconnect(self):
-        """Sends Disconnect (A8)."""
-        if self.tx_id:
-            try:
-                self._send(self.tx_id, [0xA8])
-            except: pass
-        self.connected = False
-        logger.info("TP2: Disconnected.")
+        try:
+            if self._transport is not None:
+                self._transport.disconnect()
+        except Exception as exc:
+            logger.debug("TP2 disconnect failed: %s", exc)
+        finally:
+            self.connected = False
 
-    def send_kvp_request(self, payload: List[int]) -> Optional[List[int]]:
-        """
-        Sends a KWP2000 payload wrapped in TP2.0 frames and returns the KWP response.
-        Handles segmentation (TX) and reassembly (RX).
-        """
-        if not self.connected: raise TP2Error("Not connected")
-        
+    def send_kvp_request(self, payload):
+        """Send one KWP request; retained misspelling for API compatibility."""
+        if not self.connected or self._kwp is None:
+            raise TP2Error("Not connected")
         self.last_kwp_req = time.time()
-        
-        # Drain any late/stale packets from previous interactions
-        self._clear_rx_buffer()
-        
-        # --- TX PATH ---
-        # Payload Format: [Len, SID, Data...] (If < packet)
-        
-        full_len = len(payload)
-        
-        # Standard TP2.0 Rolling Sequence Number
-        # We start at 0 (set in connect) and increment.
-        
-        frame = [0x10 + self.seq_tx, 0x00, full_len] + payload
-        
-        self.seq_tx = (self.seq_tx + 1) % 16
-        self._send(self.tx_id, frame)
-        
-        # Wait for ACK (B0 + Seq)
-        ack = self._wait_ack(self.seq_tx - 1)
-        if not ack:
-            raise TP2Error("No ACK for Request")
+        try:
+            response = self._kwp.request(bytes(payload), raise_negative=False)
+            self._sync_state()
+            return list(response)
+        except Exception as exc:
+            self._sync_state()
+            raise TP2Error(str(exc)) from exc
 
-        # --- RX PATH ---
-        return self._read_multiframe_response()
-
-    def _wait_ack(self, seq_num):
-        """Waits for 0xB0 + (seq+1), handling Wait frames and Keep-Alives."""
-        expected = 0xB0 + ((seq_num + 1) % 16)
-        
-        # We use a total timeout for the whole wait process
-        timeout_ms = self.T1_TIMEOUT
-        end_time = time.time() + (timeout_ms / 1000.0)
-        
-        while time.time() < end_time:
-            # Calculate remaining time for this poll
-            remaining_ms = int((end_time - time.time()) * 1000)
-            if remaining_ms <= 0: break
-            
-            msg = self._recv(self.rx_id, remaining_ms)
-            if not msg: break
-            
-            # 1. Success (ACK)
-            if msg[0] == expected:
-                return True
-                
-            # 2. Wait Frame (0x9x) - Extend Timeout
-            if (msg[0] & 0xF0) == 0x90:
-                logger.warning(f"TP2: Received Wait Frame 0x{msg[0]:02X} while waiting for ACK. Extending.")
-                end_time += 1.0 # Extend by 1 second
-                continue
-                
-            # 3. Keep Alive (A3) - Reply A1
-            if msg[0] == 0xA3:
-                self._send(self.tx_id, [0xA1])
-                # Don't extend timeout here, just continue waiting
-                continue
-
-            # 4. Disconnect (A8)
-            if msg[0] == 0xA8:
-                logger.info("TP2: Received Disconnect from ECU while waiting for ACK.")
-                self.connected = False
-                return False
-                
-            # 5. ACK for a DIFFERENT sequence? 
-            # This can happen if we missed an earlier ACK or if there's out-of-order delivery
-            if (msg[0] & 0xF0) == 0xB0:
-                logger.warning(f"TP2: Received ACK 0x{msg[0]:02X} but expected 0x{expected:02X}. Potential sync issue.")
-                continue
-
-            # 6. Anything else? Log and ignore if it's on our RX ID
-            logger.debug(f"TP2: Ignored unexpected 0x{msg[0]:02X} while waiting for ACK.")
-            
-        return False
-
-
-    def _read_multiframe_response(self) -> List[int]:
-        """Reassembles incoming KWP response."""
-        buffer = []
-        expected_len = 0
-        
-        while True:
-            msg = self._recv(self.rx_id, self.T1_TIMEOUT)
-            if not msg: raise TP2Error("Timeout waiting for response")
-            
-            # ACK Packet (B0) - Should not happen here unless keep-alive?
-            if (msg[0] & 0xF0) == 0xB0: continue 
-
-            # Keep Alive (A3) - Reply A1
-            if msg[0] == 0xA3:
-                self._send(self.tx_id, [0xA1])
-                continue
-
-            # Disconnect (A8) - Reply A8 and close
-            if msg[0] == 0xA8:
-                logger.info("TP2: Received Disconnect from ECU.")
-                self.disconnect()
-                raise TP2Error("Disconnected by ECU")
-            
-            # Wait Frame (0x9x) - Extend Timeout
-            if (msg[0] & 0xF0) == 0x90:
-                 logger.warning(f"TP2: Received 0x{msg[0]:02X} (Wait?). Extending timeout.")
-                 continue
-
-            seq = msg[0] & 0x0F
-            type_ = msg[0] & 0xF0
-            
-            data_part = []
-            
-            # If this is the FIRST frame we've accepted, it MUST contain the length.
-            # It can be Type 1x (Single/Last) or Type 2x (First of many).
-            if expected_len == 0:
-                if len(msg) < 4:
-                     # Packet too short to contain Length + SID?
-                     # Standard Header: [Type, LenHi, LenLo, SID...]
-                     continue
-                
-                expected_len = (msg[1] << 8) + msg[2]
-                logger.info(f"TP2: Incoming Block Length: {expected_len}")
-                data_part = msg[3:] # Data starts after Length (2 bytes)
-            else:
-                # Continuation Frame (Type 2x or 1x)
-                data_part = msg[1:] # Data starts immediately after header
-            
-            buffer.extend(data_part)
-            
-            # If Type is 1x (End of Block), we must segments ACK.
-            # In Multi-frame, 2x is "Don't ACK", 1x is "ACK me".
-            if type_ == 0x10:
-                # Check for underflow if needed, but mostly we just ACK
-                self._send(self.tx_id, [0xB0 + ((seq + 1) % 16)])
-            
-            # Check if we are done
-            if expected_len > 0 and len(buffer) >= expected_len:
-                return buffer[:expected_len] # Trim any padding if present
+    # Correct spelling for new code.
+    send_kwp_request = send_kvp_request
 
     def send_keep_alive(self):
-        """Sends Keep-Alive Ping (A3) and waits for response (A1/93)."""
-        if not self.tx_id: return False
-        
+        if self._transport is None:
+            return False
         try:
-            self._send(self.tx_id, [0xA3])
-            
-            timeout_ms = self.T1_TIMEOUT
-            end_time = time.time() + (timeout_ms / 1000.0)
-            
-            while time.time() < end_time:
-                remaining_ms = int((end_time - time.time()) * 1000)
-                if remaining_ms <= 0: break
-                
-                resp = self._recv(self.rx_id, remaining_ms)
-                if not resp: break
-                
-                # 1. Success (A1 or 0x93 seen in logs)
-                if resp[0] == 0xA1 or resp[0] == 0x93:
-                    return True
-                    
-                # 2. Wait Frame (0x9x) - Extend Timeout
-                if (resp[0] & 0xF0) == 0x90:
-                    logger.warning(f"TP2: Received Wait Frame 0x{resp[0]:02X} during Keep-Alive. Extending.")
-                    end_time += 1.0
-                    continue
-                    
-                # 3. Disconnect (A8)
-                if resp[0] == 0xA8:
-                    logger.info("TP2: Received Disconnect from ECU during Keep-Alive.")
-                    self.disconnect()
-                    return False
-                
-                logger.debug(f"TP2: Ignored unexpected 0x{resp[0]:02X} during Keep-Alive.")
-                
-            logger.warning("TP2: Keep-Alive timeout.")
-            return False
-            
-        except Exception as e:
-            logger.error(f"TP2: Keep-Alive Error: {e}")
-            return False
+            result = self._transport.send_keep_alive()
+            self._sync_state()
+            return bool(result)
+        except Exception as exc:
+            self._sync_state()
+            raise TP2Error(str(exc)) from exc
 
+    def maybe_send_keep_alive(self, force=False):
+        if self._transport is None:
+            return False
+        try:
+            result = self._transport.maybe_send_keep_alive(force=force)
+            self._sync_state()
+            return bool(result)
+        except Exception as exc:
+            self._sync_state()
+            raise TP2Error(str(exc)) from exc

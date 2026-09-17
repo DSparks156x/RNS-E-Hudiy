@@ -272,14 +272,15 @@ install_folder() {
 # Install Core Folders
 install_folder "rns-e_can" || exit 1
 install_folder "hudiy_client" || exit 1
+install_folder "vag_protocols" || exit 1
 install_folder "dis_client" || exit 1
 install_folder "tp2" || exit 1
 install_folder "hudiy_dataview" || exit 1
 install_folder "flasher" || exit 1
 
 # Verify deployed package and dependency without constructing a CAN device.
-(cd / && python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import can; from flasher import HaldexFlasher; from flasher.readout import HaldexReadout; from flasher.traffic import transmission_guard, flashing_mode_enabled; print("Installed Haldex flash/readout import OK")' "$REAL_HOME") || {
-    echo "ERROR: Installed Haldex flasher or python3-can is unavailable."
+(cd / && python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import can; from vag_protocols import TP2Transport, KWPClient; from flasher import HaldexFlasher; from flasher.readout import HaldexReadout; from flasher.traffic import transmission_guard, flashing_mode_enabled; print("Installed shared protocol and Haldex imports OK")' "$REAL_HOME") || {
+    echo "ERROR: Installed shared protocols, Haldex flasher, or python3-can is unavailable."
     exit 1
 }
 

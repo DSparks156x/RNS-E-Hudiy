@@ -11,10 +11,12 @@ import time
 import logging
 import sys
 from pathlib import Path
+from dataclasses import dataclass
 
 # Shared gate for every application CAN transmitter (installed beside flasher/).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from flasher.traffic import transmission_guard
+from vag_protocols.tp2 import build_ack, build_data_frame, classify_frame, segment_message
 
 import can
 from typing import List, Optional
@@ -40,6 +42,24 @@ class DDPAckTimeoutError(DDPError):
 class DDPHandshakeError(DDPError):
     """Raised when a handshake or initialization step fails."""
     pass
+
+
+@dataclass(frozen=True)
+class DDPTransportProfile:
+    """Observed cluster limits, kept separate from generic TP2 semantics."""
+    frame_gap_s: float = 0.002
+    max_message_bytes: int = 42
+    max_unacked_frames: int = 6
+    white_post_message_delay_s: float = 0.020
+
+    def __post_init__(self):
+        if self.frame_gap_s < 0 or self.white_post_message_delay_s < 0:
+            raise ValueError("DDP pacing delays cannot be negative")
+        if self.max_message_bytes < 1 or self.max_unacked_frames < 1:
+            raise ValueError("DDP framing limits must be positive")
+
+
+DEFAULT_DDP_TRANSPORT = DDPTransportProfile()
 
 
 # --- Protocol State & Mode ---
@@ -89,7 +109,7 @@ class DDPProtocol:
     """
 
     # --- CAN & Protocol Constants ---
-    CAN_PACING_DELAY_S = 0.002  # Critical 2ms pacing delay for packets
+    CAN_PACING_DELAY_S = 0.002  # Mirrors DEFAULT_DDP_TRANSPORT for compatibility.
 
     # -- Keep-Alive (KA) Payloads --
     KA_WHITE_OPEN = [0xA0, 0x0F, 0x8A, 0xFF, 0x4A, 0xFF]  # Session Open Request
@@ -110,10 +130,21 @@ class DDPProtocol:
     
     # -- Block Limits --
     # Vlad's Limit: Clusters corrupt data if >6 frames (42 bytes) are sent without ACK.
-    MAX_BYTES_PER_BLOCK = 42
+    MAX_BYTES_PER_BLOCK = 42  # Mirrors DEFAULT_DDP_TRANSPORT for compatibility.
 
     def __init__(self, config: dict):
         self.cfg = config
+        self.transport_profile = DDPTransportProfile(
+            frame_gap_s=float(config.get(
+                'ddp_frame_gap_s', DEFAULT_DDP_TRANSPORT.frame_gap_s)),
+            max_message_bytes=int(config.get(
+                'ddp_max_message_bytes', DEFAULT_DDP_TRANSPORT.max_message_bytes)),
+            max_unacked_frames=int(config.get(
+                'ddp_max_unacked_frames', DEFAULT_DDP_TRANSPORT.max_unacked_frames)),
+            white_post_message_delay_s=float(config.get(
+                'ddp_white_post_message_delay_s',
+                DEFAULT_DDP_TRANSPORT.white_post_message_delay_s)),
+        )
         self.state = DDPState.DISCONNECTED
         self.dis_mode = DisMode.UNKNOWN
         self.i_am_opener = False
@@ -139,6 +170,10 @@ class DDPProtocol:
         self.bus = None
         if not self.reconnect_bus():
             raise DDPCANError(f"Failed to open CAN bus on {self.channel}")
+
+    def _transport_settings(self):
+        """Return the explicit DDP-on-TP2 compatibility settings."""
+        return getattr(self, 'transport_profile', DEFAULT_DDP_TRANSPORT)
 
     def reconnect_bus(self) -> bool:
         """Closes and re-opens the CAN bus interface to recover from network/socket errors."""
@@ -259,7 +294,7 @@ class DDPProtocol:
                         self._reset_for_flashing()
                         raise DDPCANError("Flashing Mode inhibits DIS transmissions")
                     self.bus.send(msg, timeout=0.5)
-                time.sleep(self.CAN_PACING_DELAY_S) # Critical pacing delay
+                time.sleep(self._transport_settings().frame_gap_s)
                 return # Success
             except Exception as e:
                 # 105 is 'No buffer space available' on SocketCAN
@@ -283,7 +318,7 @@ class DDPProtocol:
                 if msg.arbitration_id == self.rx_id:
                     data = list(msg.data)
                     logger.debug("<- 0x%03X: %s", self.rx_id, ' '.join(f'{b:02X}' for b in data))
-                    time.sleep(self.CAN_PACING_DELAY_S)
+                    time.sleep(self._transport_settings().frame_gap_s)
                     return data
             return None
         except (can.CanError, OSError) as e:
@@ -292,8 +327,7 @@ class DDPProtocol:
 
     def send_ack(self, received_seq_num: int):
         """Sends a DDP ACK (0xB0 + seq+1) for a received packet."""
-        ack_seq = (received_seq_num + 1) % 16
-        ack_packet = [self.PKT_TYPE_ACK + ack_seq]
+        ack_packet = list(build_ack(received_seq_num))
         logger.debug(f"Sending ACK {ack_packet[0]:02X}")
         self.send_can(self.tx_id, ack_packet)
 
@@ -305,7 +339,8 @@ class DDPProtocol:
         if not data:
             return False
 
-        msg_type_prefix = data[0] & self.PKT_TYPE_MASK
+        opcode, _ = classify_frame(data)
+        msg_type_prefix = opcode << 4
         
         # --- Type 0xA_ (Session Control) ---
         if msg_type_prefix == 0xA0:
@@ -418,8 +453,8 @@ class DDPProtocol:
                 continue # It was an ACK or KA, keep waiting for data
 
             # If it wasn't a background packet, it must be data.
-            msg_type = data[0] & self.PKT_TYPE_MASK
-            msg_seq = data[0] & self.PKT_SEQ_MASK
+            opcode, msg_seq = classify_frame(data)
+            msg_type = opcode << 4
             
             if msg_type in [0x00, self.PKT_TYPE_DATA_END]:
                 self.send_ack(msg_seq)
@@ -438,13 +473,12 @@ class DDPProtocol:
         Handles sequence numbers and waits for ACK on 0x1x (end-of-frame) packets.
         Raises DDPAckTimeoutError on failure.
         """
-        packet_type = self.PKT_TYPE_DATA_BODY if is_multi_packet_frame_body else self.PKT_TYPE_DATA_END
-        first_byte = packet_type + self.send_seq_num
-        packet = [first_byte] + data
+        opcode = 2 if is_multi_packet_frame_body else 1
+        packet = list(build_data_frame(bytes(data), self.send_seq_num, opcode))
         
         self.send_can(self.tx_id, packet)
         
-        expected_ack_byte = self.PKT_TYPE_ACK + (self.send_seq_num + 1) % 16
+        expected_ack_byte = build_ack(self.send_seq_num)[0]
         self.send_seq_num = (self.send_seq_num + 1) % 16
         
         if is_multi_packet_frame_body:
@@ -478,22 +512,27 @@ class DDPProtocol:
             return True
         
         # 1. Chunk the application payload into Protocol Blocks (Max 42 bytes)
-        payload_blocks = [payload[i:i + self.MAX_BYTES_PER_BLOCK] for i in range(0, len(payload), self.MAX_BYTES_PER_BLOCK)]
+        profile = self._transport_settings()
+        payload_blocks = [payload[i:i + profile.max_message_bytes]
+                          for i in range(0, len(payload), profile.max_message_bytes)]
 
         try:
             for block in payload_blocks:
-                # 2. Split each block into 7-byte CAN segments
-                chunks = [block[i:i + 7] for i in range(0, len(block), 7)]
-                if not chunks: continue
-
-                last_chunk = chunks.pop()
-
-                # Send Body Frames (0x2x) - No ACK
-                for chunk in chunks:
-                    self.send_data_packet(chunk, is_multi_packet_frame_body=True)
-                
-                # Send End Frame (0x1x) - Waits for ACK
-                self.send_data_packet(last_chunk, is_multi_packet_frame_body=False)
+                # DDP is end-delimited rather than KWP length-prefixed, but its
+                # sequence/opcode rules are the shared TP2 rules.
+                frames, _ = segment_message(
+                    bytes(block), self.send_seq_num,
+                    block_size=profile.max_unacked_frames,
+                    length_prefixed=False)
+                for frame in frames:
+                    sequence = frame[0] & self.PKT_SEQ_MASK
+                    self.send_can(self.tx_id, list(frame))
+                    self.send_seq_num = (sequence + 1) % 16
+                    if frame[0] >> 4 in (0, 1):
+                        expected_ack = list(build_ack(sequence))
+                        if not self._recv_specific(expected_ack, 1000):
+                            raise DDPAckTimeoutError(
+                                f"Timeout waiting for ACK {expected_ack[0]:02X}")
                 
                 # 3. INTER-BLOCK PACING
                 # Critical for White DIS: Pause after ACK to let the cluster CPU catch up.
@@ -501,7 +540,7 @@ class DDPProtocol:
                 # pacing=False skips this to allow rapid streaming of related chunks
                 # (e.g. consecutive rows of a bitmap) without inter-chunk delays.
                 if pacing and self.dis_mode == DisMode.WHITE:
-                    time.sleep(0.02) # 20ms delay between blocks
+                    time.sleep(profile.white_post_message_delay_s)
             
         except DDPAckTimeoutError as e:
             logger.error(f"DDP Frame ACK timeout: {e}. Session might be unstable.")
@@ -916,8 +955,8 @@ class DDPProtocol:
 
         # 2. Process Data Packets (Status Updates / Re-Init Requests)
         if not is_background_packet:
-            msg_type = data[0] & self.PKT_TYPE_MASK
-            msg_seq = data[0] & self.PKT_SEQ_MASK
+            opcode, msg_seq = classify_frame(data)
+            msg_type = opcode << 4
             payload = data[1:]
 
             # We must ALWAYS ACK data packets (Type 0x00 or 0x10) immediately,
@@ -946,8 +985,8 @@ class DDPProtocol:
                 self.screen_released_by_cluster = True
                 
                 # 1. Reply with 2F (Confirmation)
-                first_byte = self.PKT_TYPE_DATA_END + self.send_seq_num
-                pkt = [first_byte] + DDPMessages.CMD_REINIT_CONF
+                pkt = list(build_data_frame(
+                    bytes(DDPMessages.CMD_REINIT_CONF), self.send_seq_num, 1))
                 self.send_can(self.tx_id, pkt)
                 self.send_seq_num = (self.send_seq_num + 1) % 16
 

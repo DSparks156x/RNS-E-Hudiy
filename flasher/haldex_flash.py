@@ -10,9 +10,9 @@ import struct
 import logging
 import hashlib
 from pathlib import Path
-from typing import Optional, Callable
-from .tp20 import TP20Transport, MessageTimeoutError
+from .tp20 import TP20Transport
 from .haldex_patcher import application_checksums, APP_SECTORS, validate_image, selected_blocks
+from vag_protocols.kwp import KWPClient, KWPError, KWPProfile
 logger = logging.getLogger("HaldexFlasher")
 
 # Constants
@@ -36,67 +36,6 @@ ERASE_STAMP = bytes([0x20, 0x26, 0x01, 0x01, 0x00, 0x01])
 CHUNK_SIZE  = 240
 
 
-KWP_NRC = {
-    0x10: "GeneralReject",
-    0x11: "ServiceNotSupported / MovingLockout",
-    0x12: "SubFunctionNotSupported / InvalidFormat",
-    0x21: "Busy - RepeatRequest",
-    0x22: "ConditionsNotCorrect or RequestSequenceError",
-    0x23: "RoutineNotComplete",
-    0x31: "RequestOutOfRange",
-    0x33: "SecurityAccessDenied",
-    0x35: "InvalidKey",
-    0x36: "ExceedNumberOfAttempts (Lockout Active)",
-    0x37: "RequiredTimeDelayNotExpired (Penalty Timer Running)",
-    0x40: "DownloadNotAccepted",
-    0x42: "CantDownloadToSpecifiedAddress",
-    0x43: "CantDownloadNumberOfBytesRequested",
-    0x71: "TransferSuspended",
-    0x72: "TransferAborted",
-    0x74: "IllegalAddressInBlockTransfer",
-    0x75: "IllegalByteCountInBlockTransfer",
-    0x77: "BlockTransferDataChecksumError",
-    0x78: "RequestCorrectlyReceived - ResponsePending",
-}
-
-
-def describe_kwp(req: bytes) -> str:
-    """Returns human-readable description for KWP request"""
-    if not req:
-        return "Empty"
-    sid = req[0]
-    if sid == 0x10 and len(req) >= 2:
-        return f"StartDiagSession (0x{req[1]:02X})"
-    elif sid == 0x27 and len(req) >= 2:
-        sub = req[1]
-        desc = "RequestSeed" if sub % 2 != 0 else "SendKey"
-        return f"SecurityAccess {desc} (sub=0x{sub:02X})"
-    elif sid == 0x1A and len(req) >= 2:
-        sub = req[1]
-        sub_name = {
-            0x9B: "ECU_IDENT (0x9B)",
-            0x9C: "STATUS_FLASH (0x9C)",
-            0x90: "VIN (0x90)",
-            0x97: "SYSTEM_NAME (0x97)",
-        }.get(sub, f"id=0x{sub:02X}")
-        return f"ReadEcuIdent ({sub_name})"
-    elif sid == 0x34:
-        return "RequestDownload"
-    elif sid == 0x36:
-        return f"TransferData ({len(req)-1} bytes)"
-    elif sid == 0x37:
-        return "RequestTransferExit"
-    elif sid == 0x31 and len(req) >= 2:
-        return f"StartRoutine (0x{req[1]:02X})"
-    elif sid == 0x33 and len(req) >= 2:
-        return f"RoutineResults (0x{req[1]:02X})"
-    elif sid == 0x11:
-        return "ECUReset"
-    elif sid == 0x3E:
-        return "TesterPresent"
-    return f"SID 0x{sid:02X}"
-
-
 def a3(addr: int) -> bytes:
     """24-bit big-endian address field."""
     return struct.pack(">I", addr)[1:]
@@ -116,113 +55,36 @@ def parse_flash_date(raw: bytes) -> str:
     return raw[:4].hex()
 
 
-class Kwp:
-    def __init__(self, tp: TP20Transport, debug: bool = True, log_fn: Optional[Callable[[str], None]] = None):
-        self.tp = tp
-        self.debug = debug
-        self.log_fn = log_fn or logger.info
+HALDEX_KWP_PROFILE = KWPProfile(
+    busy_retry_services=frozenset({0x1A, 0x33}),
+    busy_retries=3,
+    exact_session_responses={
+        SESSION_EXTENDED: b"\x50\x89",
+        SESSION_PROGRAMMING: b"\x50\x85\x01",
+    },
+    exact_routine_responses={
+        RC_ERASE: b"\x71\xC4\x01",
+        RC_CHECKSUM: b"\x71\xC5",
+    },
+    reject_unprofiled_sessions=True,
+    reject_unprofiled_routines=True,
+    exact_key_status=0x34,
+    single_byte_positive_services=frozenset({0x20, 0x36, 0x37, 0x82}),
+    exact_response_lengths={0x33: 3},
+)
 
-    def raw(self, req: bytes) -> bytes:
-        desc = describe_kwp(req)
-        if self.debug:
-            self.log_fn(f"[KWP TX] {req.hex()} ({desc})")
-        self.tp.send(req)
-        resp = self.tp.recv()
-        deadline = time.monotonic() + 30.0
-        busy_count = 0
-        pending_count = 0
-        while resp and resp[0] == 0x7f:
-            if len(resp) != 3 or resp[1] != req[0]:
-                raise RuntimeError('Malformed or mismatched KWP negative response')
-            if resp[2] == 0x78:
-                pending_count += 1
-                if time.monotonic() >= deadline or pending_count > 30:
-                    raise TimeoutError('KWP pending deadline exceeded')
-                resp = self.tp.recv()  # pending means wait, never resend
-                continue
-            if resp[2] == 0x21 and req[0] in (0x1a, 0x33) and busy_count < 3:
-                busy_count += 1
-                time.sleep(0.2)
-                self.tp.send(req)
-                resp = self.tp.recv()
-                continue
-            break
-        if self.debug:
-            self.log_fn(f"[KWP RX] {resp.hex()}")
 
-        if resp and resp[0] == 0x7F:
-            service_id = resp[1] if len(resp) > 1 else -1
-            nrc = resp[2] if len(resp) > 2 else -1
-            nrc_desc = KWP_NRC.get(nrc, f"Unknown (0x{nrc:02X})")
-            err_msg = f"Negative response to {desc} (SID 0x{service_id:02X}): NRC 0x{nrc:02X} ({nrc_desc})"
-            logger.error(f"[KWP NEGATIVE RESPONSE] {err_msg}")
-            raise RuntimeError(err_msg)
+class Kwp(KWPClient):
+    """Haldex loader policy layered on the shared KWP implementation."""
 
-        if not resp or resp[0] != ((req[0] + 0x40) & 0xff):
-            raise RuntimeError(f'Unexpected positive KWP response: {resp.hex()}')
-        if req[0] in (0x10, 0x27, 0x1a, 0x31, 0x33, 0x11):
-            if len(resp) < 2 or resp[1] != req[1]:
-                raise RuntimeError('KWP subfunction/routine echo mismatch')
-        if req[0] == 0x27:
-            if req[1] & 1 and len(resp) != 6:
-                raise RuntimeError('Security seed must be four bytes')
-            if not req[1] & 1 and resp != bytes([0x67, req[1], 0x34]):
-                raise RuntimeError('Security key was not accepted (expected status 0x34)')
-        if req[0] == 0x33 and len(resp) != 3:
-            raise RuntimeError('Routine result must contain exactly one status byte')
-        if req[0] == 0x31:
-            expected = {RC_ERASE: b'\x71\xc4\x01', RC_CHECKSUM: b'\x71\xc5'}.get(req[1])
-            if expected is None or resp != expected:
-                raise RuntimeError('Unexpected routine-start response/status')
-        if req[0] == 0x10:
-            expected = {SESSION_EXTENDED: b'\x50\x89', SESSION_PROGRAMMING: b'\x50\x85\x01'}.get(req[1])
-            if expected is None or resp != expected:
-                raise RuntimeError('Unexpected session response/status')
-        if req[0] in (0x36, 0x37, 0x20, 0x82) and len(resp) != 1:
-            raise RuntimeError('Unexpected KWP response length')
-        return resp
+    def __init__(self, transport, **kwargs):
+        kwargs.setdefault("profile", HALDEX_KWP_PROFILE)
+        super().__init__(transport, **kwargs)
 
-    def session(self, s: int) -> bytes:
-        return self.raw(bytes([0x10, s]))
+    def security_seed(self, subfunction: int, *, length=4) -> bytes:
+        return super().security_seed(subfunction, length=length)
 
-    def sa_seed(self, sub: int) -> bytes:
-        return self.raw(bytes([0x27, sub]))[2:]
-
-    def sa_key(self, sub: int, key: bytes) -> bytes:
-        return self.raw(bytes([0x27, sub]) + key)
-
-    def read_ecu_ident(self, ident: int) -> bytes:
-        return self.raw(bytes([0x1A, ident]))
-
-    def request_download(self, addr: int, size: int) -> int:
-        a = struct.pack(">I", addr)[1:]
-        s = struct.pack(">I", size)[1:]
-        r = self.raw(bytes([0x34]) + a + b"\x00" + s)
-        if len(r) != 2 or r[1] < 5:
-            raise RuntimeError('Invalid RequestDownload block limit')
-        return r[1]
-
-    def transfer(self, data: bytes) -> bytes:
-        return self.raw(bytes([0x36]) + data)
-
-    def transfer_exit(self) -> bytes:
-        return self.raw(bytes([0x37]))
-
-    def routine(self, rid: int, data: bytes = b"") -> bytes:
-        return self.raw(bytes([0x31, rid]) + data)
-
-    def routine_result(self, rid: int) -> bytes:
-        return self.raw(bytes([0x33, rid]))
-
-    def ecu_reset(self) -> bytes:
-        return self.raw(bytes([0x11, 0x01]))
-
-    def tester_present(self):
-        try:
-            self.tp.can_send(b"\xa3")
-            self.tp.can_recv()
-        except Exception:
-            pass
+    sa_seed = security_seed
 
 
 APP_START, APP_END = 0x18000, 0x50000  # end exclusive
@@ -253,6 +115,7 @@ class ProtocolError(RuntimeError):
 class ApplicationReader:
     def __init__(self, transport, record=lambda event: None):
         self.transport = transport
+        self.kwp = KWPClient(transport, debug=False)
         self.record = record
         self.special_session = False
         self.upload_active = False
@@ -271,20 +134,11 @@ class ApplicationReader:
             validate_range(int.from_bytes(request[1:4], 'big'),
                            int.from_bytes(request[5:8], 'big'))
         self.record({'event': 'request', 'hex': request.hex()})
-        self.transport.send(request)
-        response = self.transport.recv()
+        try:
+            response = self.kwp.request(request)
+        except KWPError as exc:
+            raise ProtocolError(str(exc)) from exc
         self.record({'event': 'response', 'hex': response.hex()})
-        deadline = time.monotonic() + 30
-        pending = 0
-        while response == bytes([0x7f, request[0], 0x78]):
-            pending += 1
-            if pending > 30 or time.monotonic() >= deadline:
-                raise ProtocolError('Readout response-pending deadline exceeded')
-            # Pending means await completion, never repeat an upload transfer.
-            response = self.transport.recv()
-            self.record({'event': 'response', 'hex': response.hex()})
-        if response[:1] == b'\x7f':
-            raise ProtocolError('Negative response: ' + response.hex(' '))
         if not response.startswith(prefix):
             raise ProtocolError(f'Expected {prefix.hex()}, received {response.hex()}')
         if request in (b'\x10\x89', b'\x10\x84', b'\x37', b'\x20') and response != prefix:

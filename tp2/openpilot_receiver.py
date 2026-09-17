@@ -11,6 +11,7 @@ from pathlib import Path
 # Shared gate for every application CAN transmitter (installed beside flasher/).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from flasher.traffic import transmission_guard
+from vag_protocols.tp2 import TP2MessageReassembler
 
 import can
 
@@ -62,6 +63,7 @@ class OpenpilotReceiver(threading.Thread):
         # Reassembly buffer
         self.rx_buffer = bytearray()
         self.expected_len = 0
+        self._reassembler = None
 
     def stop(self):
         self._running = False
@@ -77,6 +79,8 @@ class OpenpilotReceiver(threading.Thread):
                     self.connected = False
                     self.rx_buffer.clear()
                     self.expected_len = 0
+                    if self._reassembler is not None:
+                        self._reassembler.clear_partial()
                     return
                 self.bus.send(msg, timeout=0.5)
             self.last_send_time = time.time()
@@ -317,6 +321,7 @@ class OpenpilotReceiver(threading.Thread):
                 self.last_recv_time = time.time()
                 self.rx_buffer = bytearray()
                 self.expected_len = 0
+                self._reassembler = TP2MessageReassembler()
                 logger.info("OP RX: Channel fully opened.")
                 
             # Channel is active: poll and receive frames
@@ -344,7 +349,6 @@ class OpenpilotReceiver(threading.Thread):
                             
                         opcode_byte = data[0]
                         opcode = opcode_byte & 0xF0
-                        seq = opcode_byte & 0x0F
                         
                         # 1. Keep Alive Ping (A3) -> Respond with Keep Alive Ack (A1)
                         if opcode_byte == 0xA3:
@@ -361,40 +365,18 @@ class OpenpilotReceiver(threading.Thread):
                             self.connected = False
                             continue
                             
-                        # 4. Data Frames (Opcodes 0x00, 0x10, 0x20, 0x30)
-                        # Reassembly logic:
-                        if opcode == 0x00 or opcode == 0x20:
-                            # Start or Continuation Frame
-                            if len(self.rx_buffer) == 0:
-                                # First frame must have length prefix (2 bytes)
-                                if len(data) >= 3:
-                                    self.expected_len = (data[1] << 8) | data[2]
-                                    self.rx_buffer.extend(data[3:])
-                            else:
-                                self.rx_buffer.extend(data[1:])
-                                
-                        elif opcode == 0x10 or opcode == 0x30:
-                            # Last Frame
-                            if len(self.rx_buffer) == 0:
-                                # Single-frame message
-                                if len(data) >= 3:
-                                    self.expected_len = (data[1] << 8) | data[2]
-                                    payload = data[3:3 + self.expected_len]
-                                    self._handle_payload(payload)
-                            else:
-                                self.rx_buffer.extend(data[1:])
-                                if len(self.rx_buffer) >= self.expected_len:
-                                    payload = list(self.rx_buffer[:self.expected_len])
-                                    self._handle_payload(payload)
-                            
-                            # Clean reassembly state
-                            self.rx_buffer = bytearray()
-                            self.expected_len = 0
-                            
-                            # Send ACK if sender is waiting for ACK (Opcodes 0x00 / 0x10)
-                            if opcode == 0x10:
-                                ack_seq = (seq + 1) % 16
-                                self._send_can(self.pi_tx_id, [0xB0 | ack_seq])
+                        # 4. Data frames use the canonical TP2 reassembler.
+                        if opcode in (0x00, 0x10, 0x20, 0x30):
+                            if self._reassembler is None:
+                                self._reassembler = TP2MessageReassembler()
+                            payload, ack = self._reassembler.feed(bytes(data))
+                            # Compatibility mirrors for status/debug tooling.
+                            self.rx_buffer = bytearray(self._reassembler.wire)
+                            self.expected_len = self._reassembler.expected_length or 0
+                            if ack is not None:
+                                self._send_can(self.pi_tx_id, list(ack))
+                            if payload is not None:
+                                self._handle_payload(list(payload))
                                 
             except Exception as e:
                 logger.error(f"OP RX: Loop error: {e}")

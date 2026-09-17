@@ -787,11 +787,10 @@ class TP2Service:
                             session['group_errors'][grp] = 0 
                             session['error_count'] = 0
                             
-                            # Keep ECU session alive after each successful read.
-                            # ECUs have a channel-level inactivity timeout; without this
-                            # the session drops when cycling through many groups.
+                            # Keep the channel alive periodically. The shared transport
+                            # suppresses redundant A3/A1 round trips during active polling.
                             try:
-                                proto.send_keep_alive()
+                                proto.maybe_send_keep_alive()
                             except Exception as ka_e:
                                 logger.warning(f"Mod 0x{mod_id:02X} Keep-Alive failed after read: {ka_e}")
                                 session['connected'] = False
