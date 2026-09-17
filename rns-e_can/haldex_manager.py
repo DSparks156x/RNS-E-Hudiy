@@ -6,7 +6,7 @@ Manages Haldex Gen4 AWD mode switching, persistence, reconciliation, and telemet
 
 Architecture:
 - Sends mode change bursts over CAN ID 0x67A via can_send.ipc (6 frames, 20ms apart).
-- Subscribes to can_stream.ipc to decode 0x6DD and 0x679 telemetry @ 50 Hz.
+- Subscribes to can_stream.ipc to decode 0x6DA and 0x679 telemetry @ 50 Hz.
 - Reconciles active vs desired mode (~1 Hz self-limiting retry loop).
 - Handles persistence according to config.json:
     - If "default_mode" is configured (0, 1, or 2), resets to that mode on startup.
@@ -40,7 +40,7 @@ MODE_NAMES = {
 
 CAN_ID_MODE_CMD = 0x67A
 CAN_ID_HALDEX_TELEMETRY_YAW = 0x679
-CAN_ID_HALDEX_TELEMETRY_STATE = 0x6DD
+CAN_ID_HALDEX_TELEMETRY_STATE = 0x6DA
 
 logger = logging.getLogger("HaldexManager")
 
@@ -73,9 +73,9 @@ def build_mode_burst(mode: int, start_counter: int = 0, count: int = 6) -> List[
     return burst
 
 
-def decode_0x6dd(payload_hex: str) -> Optional[Dict[str, Any]]:
+def decode_0x6da(payload_hex: str) -> Optional[Dict[str, Any]]:
     """
-    Decode 0x6DD state telemetry frame (DLC 8, little-endian):
+    Decode 0x6DA state telemetry frame (DLC 8, little-endian):
       bytes 0-1: A72 (u16, reference ceiling, 0.0625 Nm/count)
       bytes 2-3: A74 (u16, final reference, 0.0625 Nm/count)
       bytes 4-5: A7C (u16, slip integrator, 0.0625 Nm/count)
@@ -114,7 +114,7 @@ def decode_0x6dd(payload_hex: str) -> Optional[Dict[str, Any]]:
             'hold_a7e': hold_a7e
         }
     except Exception as e:
-        logger.debug(f"Error decoding 0x6DD: {e}")
+        logger.debug(f"Error decoding 0x6DA: {e}")
         return None
 
 
@@ -370,13 +370,13 @@ class HaldexManager:
         return self.set_mode(next_mode)
 
     def _can_listener_worker(self):
-        """Worker thread: listens to CAN stream for 0x6DD and 0x679."""
+        """Worker thread: listens to CAN stream for 0x6DA and 0x679."""
         sub = self.context.socket(zmq.SUB)
         sub.set_hwm(2000)
         try:
             sub.connect(self.can_stream_addr)
-            sub.subscribe(b"CAN_6DD")
-            sub.subscribe(b"CAN_0x6DD")
+            sub.subscribe(b"CAN_6DA")
+            sub.subscribe(b"CAN_0x6DA")
             sub.subscribe(b"CAN_679")
             sub.subscribe(b"CAN_0x679")
             logger.info(f"Subscribed to CAN telemetry at {self.can_stream_addr}")
@@ -399,8 +399,8 @@ class HaldexManager:
                             msg_dict = json.loads(msg_bytes.decode('utf-8'))
                             payload_hex = msg_dict.get('data_hex', '')
 
-                            if '6DD' in topic_str:
-                                decoded = decode_0x6dd(payload_hex)
+                            if '6DA' in topic_str:
+                                decoded = decode_0x6da(payload_hex)
                                 if decoded:
                                     with self.state_lock:
                                         self.active_mode = decoded['mode']

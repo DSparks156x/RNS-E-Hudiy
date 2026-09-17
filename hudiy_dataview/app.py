@@ -10,6 +10,10 @@ import logging
 import zmq
 from flask import Flask, render_template, request, abort, send_file
 from flask_socketio import SocketIO, emit
+try:
+    from .data_logger import DataLogger
+except ImportError:  # Direct execution on the installed Pi.
+    from data_logger import DataLogger
 
 # Compatibility fix for Flask 3.1.3+ with older Flask-SocketIO:
 # Flask 3.1.3 made RequestContext.session a property without a setter.
@@ -45,7 +49,6 @@ try:
     ZMQ_STATUS_STREAM = _zmq.get('status_stream', 'ipc:///run/rnse_control/status_stream.ipc')
     ZMQ_HALDEX_CMD = _zmq.get('haldex_command', 'ipc:///run/rnse_control/haldex_cmd.ipc')
     ZMQ_HALDEX_STATUS = _zmq.get('haldex_status', 'ipc:///run/rnse_control/haldex_status.ipc')
-    ZMQ_LOGGER_CMD = 'ipc:///run/rnse_control/fused_logger_cmd.ipc'
 except Exception as _e:
     logging.warning(f"Could not load config.json, using default ZMQ addresses: {_e}")
     _cfg = {}
@@ -55,7 +58,6 @@ except Exception as _e:
     ZMQ_STATUS_STREAM = 'ipc:///run/rnse_control/status_stream.ipc'
     ZMQ_HALDEX_CMD = 'ipc:///run/rnse_control/haldex_cmd.ipc'
     ZMQ_HALDEX_STATUS = 'ipc:///run/rnse_control/haldex_status.ipc'
-    ZMQ_LOGGER_CMD = 'ipc:///run/rnse_control/fused_logger_cmd.ipc'
     try:
         _package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         if _package_root not in sys.path:
@@ -73,6 +75,7 @@ socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*',
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] (DataView) %(message)s')
 logger = logging.getLogger(__name__)
+data_logger = DataLogger(_cfg)
 
 # Cache Busting
 @app.after_request
@@ -362,6 +365,26 @@ class ZMQWorker:
 worker = ZMQWorker()
 
 current_subscriptions = {}
+logger_subscriptions = {}
+
+
+def set_logger_subscriptions(groups):
+    """Give the logger its own TP2 subscriptions, independent of the visible tab."""
+    global logger_subscriptions
+    desired = {}
+    for item in groups:
+        module = int(item['module'])
+        group = int(item['group'])
+        entry = desired.setdefault(module, {'normal': set(), 'low': set()})
+        entry['low' if item.get('priority') == 'low' else 'normal'].add(group)
+
+    for module in set(logger_subscriptions) | set(desired):
+        entry = desired.get(module, {'normal': set(), 'low': set()})
+        worker.send_command(
+            "SYNC", module=module, groups=sorted(entry['normal']),
+            low_priority_groups=sorted(entry['low']), client_id="dataview_logger",
+            fire_and_forget=True)
+    logger_subscriptions = desired
 
 def sync_subscriptions():
     """Background task: periodically re-asserts subscriptions as a heartbeat.
@@ -370,6 +393,8 @@ def sync_subscriptions():
         socketio.sleep(10.0)
         for mod, groups_dict in list(current_subscriptions.items()):
             worker.send_command("SYNC", module=mod, groups=list(groups_dict['normal']), low_priority_groups=list(groups_dict['low']), client_id="dataview", fire_and_forget=True)
+        for mod, groups_dict in list(logger_subscriptions.items()):
+            worker.send_command("SYNC", module=mod, groups=list(groups_dict['normal']), low_priority_groups=list(groups_dict['low']), client_id="dataview_logger", fire_and_forget=True)
 
 @app.route('/')
 def index():
@@ -506,22 +531,6 @@ def send_haldex_command(cmd_dict, timeout_ms=1000):
         sock.close()
         ctx.term()
 
-def send_logger_command(cmd_dict, timeout_ms=1000):
-    ctx = zmq.Context()
-    sock = ctx.socket(zmq.REQ)
-    sock.setsockopt(zmq.RCVTIMEO, timeout_ms)
-    sock.setsockopt(zmq.LINGER, 0)
-    try:
-        sock.connect(ZMQ_LOGGER_CMD)
-        sock.send_json(cmd_dict)
-        return sock.recv_json()
-    except Exception as e:
-        logger.debug(f"Logger command error: {e}")
-        return None
-    finally:
-        sock.close()
-        ctx.term()
-
 @socketio.on('get_haldex_status')
 def handle_get_haldex_status():
     resp = send_haldex_command({"cmd": "GET_STATUS"})
@@ -543,35 +552,34 @@ def handle_cycle_haldex_mode():
 
 @socketio.on('get_logger_status')
 def handle_get_logger_status():
-    resp = send_logger_command({"cmd": "STATUS"})
-    if resp and resp.get("status") == "ok":
-        emit('logger_update', resp.get("status_data", {}))
+    emit('logger_update', data_logger.get_status())
 
 @socketio.on('start_logger')
 def handle_start_logger(data):
     out = data.get('output') if data else None
-    cmd = {"cmd": "START"}
-    if out:
-        cmd["output"] = out
-    resp = send_logger_command(cmd)
-    if resp and resp.get("status") == "ok":
-        status_resp = send_logger_command({"cmd": "STATUS"})
-        if status_resp and status_resp.get("status") == "ok":
-            socketio.emit('logger_update', status_resp.get("status_data", {}))
+    profile = data.get('profile') if data else None
+    try:
+        status = data_logger.start_recording(profile_name=profile, output_path=out)
+        set_logger_subscriptions(status.get('measuring_groups', []))
+        socketio.emit('logger_update', status)
+    except (ValueError, RuntimeError) as error:
+        emit('logger_error', {'message': str(error)})
 
 @socketio.on('stop_logger')
 def handle_stop_logger():
-    resp = send_logger_command({"cmd": "STOP"})
-    if resp and resp.get("status") == "ok":
-        status_resp = send_logger_command({"cmd": "STATUS"})
-        if status_resp and status_resp.get("status") == "ok":
-            socketio.emit('logger_update', status_resp.get("status_data", {}))
+    status = data_logger.stop_recording()
+    set_logger_subscriptions([])
+    socketio.emit('logger_update', status)
 
 @socketio.on('add_logger_marker')
 def handle_add_logger_marker(data):
     note = data.get('note', 'Driver Event') if data else 'Driver Event'
-    resp = send_logger_command({"cmd": "MARKER", "note": note})
-    if resp and resp.get("status") == "ok":
+    try:
+        added = data_logger.add_marker(note)
+    except ValueError as error:
+        emit('logger_error', {'message': str(error)})
+        return
+    if added:
         socketio.emit('logger_marker_added', {"note": note, "timestamp": time.time()})
 
 # --- Haldex Flashing Handlers ---
@@ -1091,10 +1099,14 @@ def haldex_status_subscriber_loop():
             socketio.sleep(0.5)
 
 if __name__ == '__main__':
+    data_logger.start()
     socketio.start_background_task(worker.run)
 
     logger.info("Starting Flask-SocketIO Server on port 5003")
     socketio.start_background_task(sync_subscriptions)
     socketio.start_background_task(interpolation_broadcast_loop)
     socketio.start_background_task(haldex_status_subscriber_loop)
-    socketio.run(app, host='0.0.0.0', port=5003, allow_unsafe_werkzeug=True)
+    try:
+        socketio.run(app, host='0.0.0.0', port=5003, allow_unsafe_werkzeug=True)
+    finally:
+        data_logger.close()

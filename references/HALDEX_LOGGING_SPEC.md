@@ -57,7 +57,7 @@ bytes can be re-parsed and a decoded-only CSV cannot.
 | Frame | Carries | Answers |
 | --- | --- | --- |
 | `0x679` | `YAW_MODEL` (or `B1A`), `C06`, `C22`, `B08` | Q1 yaw sizing, Q2 Tbl48 |
-| `0x6DD` | `A72`, `A74`, `A7C`, status word | Q3 A/B, Q4 slip loop |
+| `0x6DA` | `A72`, `A74`, `A7C`, status word | Q3 A/B, Q4 slip loop |
 
 The status word gives mode, B1CC selector, A78 force-zero, `token_ok` and A7E
 in one 16-bit field. **Take mode from this frame, never from what the button
@@ -65,9 +65,28 @@ was set to** — they disagree exactly when something interesting happened.
 
 ---
 
-## 2. From the car's own bus — do not spend Haldex bytes on these
+## 2. From ICAN and measuring groups — do not assume ACAN is available
 
-All of it already exists on PQ35 CAN. Log at whatever rate each is broadcast.
+The logger is attached to infotainment CAN only. Decode only messages present in
+`PQ35_46_ICAN.dbc`: `0x359` for ABS-sourced vehicle speed, averaged front-axle
+path pulses, brake/ABS/ESP/selector state; `0x351` provides another gateway
+vehicle-speed channel; `0x35B` provides RPM/coolant/brake state, `0x3C3`
+provides steering, `0x2A1` provides the
+navigation yaw signal, and `0x527`/`0x555` for optional temperatures. The raw
+ACAN frames (`0x4A0`, `0x0C2`, `0x1A0`, `0x280`, `0x288`, `0x4A8`, `0x428`)
+are not available to this installation and must not be decoded here.
+
+Signals absent from ICAN must come from TP2 measuring groups. A logging profile
+owns its group subscriptions for the duration of the recording, independently
+of whichever DataView tab is visible, and may subscribe to several groups on
+several modules concurrently.
+
+The default Haldex profile deliberately opens only one diagnostic session:
+ABS module `0x03`, group `1`, for four independent wheel speeds. RPM comes
+from ICAN `0x35B`; boost and oil temperature come from ICAN `0x555`. Engine
+torque and airflow are omitted unless a verified measuring group is explicitly
+added—the logger should not open extra module sessions merely to collect
+speculative or duplicated values.
 
 **Required:**
 
@@ -133,7 +152,7 @@ measuring block; `0x679` now carries both.
 
 **Q3 — do the modes actually feel different, and does the data agree?**
 Same corner, back-to-back, alternating mode 0 and mode 1, logged mode taken
-from `0x6DD`. Compare `B08` and `A7C` traces against matched speed, steering
+from `0x6DA`. Compare `B08` and `A7C` traces against matched speed, steering
 and lateral accel. **Alternate within a single drive** — tyre temperature,
 surface and weather move more between sessions than the tune does.
 *Needs: both frames, full bus set, markers.*
@@ -143,7 +162,7 @@ The bench slip loop is open: the simulator's slip is imposed, not produced by
 the controller's own torque. Real wheel speeds against the controller's own
 `A7C` response closes it, and that is what makes every future bench prediction
 trustworthy instead of indicative.
-*Needs: four wheel speeds, `0x6DD`, engine torque.*
+*Needs: four wheel speeds, `0x6DA`, engine torque.*
 
 ---
 

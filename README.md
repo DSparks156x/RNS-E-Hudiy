@@ -87,6 +87,10 @@ Managed via `systemd` services:
 *   `can_base_function`: TV tuner simulation and time sync.
 *   `can_keyboard_control`: Translates CAN signals to virtual keyboard inputs.
 *   `dis_service` & `dis_display`: DIS rendering and logic.
+*   `hudiy_dataview/data_logger.py`: profile-driven session logging built into DataView. The
+    `haldex` profile produces fused Haldex/relevant-ICAN/measuring-group CSV snapshots; `raw_can`
+    records arbitrary CAN traffic one frame per row. Logs default to `~/logs` and can be
+    extended by registering another `LogProfile`.
 *   `tp2_worker`: Diagnostics over TP2. currently not over the can handler. 
 *   `hudiy_dataview`: Provides Hudiy Dataview app
 *   `hudiy_status_service`: Decodes some of the status messages on the infotainment bus that contain various pieces of data (RPM/Boost/Coolant/Oil/Ambient/Bat Voltage)

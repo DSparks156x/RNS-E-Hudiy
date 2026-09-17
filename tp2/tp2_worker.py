@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flasher.traffic import flashing_mode_enabled
 from tp2_protocol import TP2Protocol, TP2Error
 from tp2_coding import TP2Coding
-from openpilot_receiver import OpenpilotReceiver
+from openpilot_receiver import OpenpilotReceiver, OPENPILOT_TRANSPORT_ENABLED, OPENPILOT_DISABLED_REASON
 
 class ThreadSafeZmqPub:
     def __init__(self, socket):
@@ -471,6 +471,7 @@ class TP2Service:
         t_cmd.start()
 
         op_receiver = None
+        openpilot_disabled_warning_sent = False
         
         while not self.shutdown_event.is_set():
             try:
@@ -485,7 +486,11 @@ class TP2Service:
                     current_sessions = list(self.sessions.items())
 
                 # Manage Openpilot Receiver based on service running state and configuration
-                op_enabled = getattr(self, 'config', {}).get('openpilot', {}).get('enabled', False) if getattr(self, 'config', None) else False
+                op_requested = getattr(self, 'config', {}).get('openpilot', {}).get('enabled', False) if getattr(self, 'config', None) else False
+                op_enabled = bool(op_requested and OPENPILOT_TRANSPORT_ENABLED)
+                if op_requested and not OPENPILOT_TRANSPORT_ENABLED and not openpilot_disabled_warning_sent:
+                    logger.error("Openpilot requested by config but disabled: %s", OPENPILOT_DISABLED_REASON)
+                    openpilot_disabled_warning_sent = True
                 if is_running and op_enabled:
                     if op_receiver is None:
                         logger.info("Starting OpenpilotReceiver background thread...")

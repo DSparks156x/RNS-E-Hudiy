@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Socket } from 'socket.io-client';
 import { Gauge } from '../components/Gauge';
 import { LiveText } from '../components/LiveText';
@@ -19,6 +20,7 @@ interface AWDTabProps {
 }
 
 export function AWDTab({ socket = null }: AWDTabProps) {
+  const [loggerProfile, setLoggerProfile] = useState('haldex');
   const {
     haldex,
     logger,
@@ -120,7 +122,7 @@ export function AWDTab({ socket = null }: AWDTabProps) {
           {/* Drive Session Logger Card */}
           <div className="logger-panel">
             <div className="logger-header">
-              <h3>Drive Logger</h3>
+              <h3>Drive Logger <small>{logger.profile}</small></h3>
               <span className={`rec-badge ${logger.recording ? 'recording' : 'idle'}`}>
                 <span className="rec-dot" />
                 {logger.recording ? 'REC' : 'IDLE'}
@@ -128,12 +130,35 @@ export function AWDTab({ socket = null }: AWDTabProps) {
             </div>
 
             <div className="logger-controls">
+              <select
+                className="logger-profile-select"
+                style={{
+                  minWidth: '108px',
+                  border: '1px solid var(--outline)',
+                  borderRadius: '8px',
+                  padding: '6px 8px',
+                  background: 'var(--surface-dim)',
+                  color: 'var(--on-surface)',
+                }}
+                value={loggerProfile}
+                disabled={logger.recording}
+                onChange={(event) => setLoggerProfile(event.target.value)}
+                aria-label="Logging profile"
+              >
+                {(logger.available_profiles.length ? logger.available_profiles : [
+                  { name: 'haldex', description: 'Fused Haldex logging' },
+                ]).map((profile) => (
+                  <option key={profile.name} value={profile.name} title={profile.description}>
+                    {profile.name === 'haldex' ? 'Haldex fused' : 'Raw CAN'}
+                  </option>
+                ))}
+              </select>
               {logger.recording ? (
                 <button className="rec-btn stop" onClick={() => stopLogging()}>
                   Stop Recording
                 </button>
               ) : (
-                <button className="rec-btn start" onClick={() => startLogging()}>
+                <button className="rec-btn start" onClick={() => startLogging(undefined, loggerProfile)}>
                   Start Logging
                 </button>
               )}

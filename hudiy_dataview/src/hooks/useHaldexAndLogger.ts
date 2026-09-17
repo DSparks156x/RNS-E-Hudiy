@@ -21,11 +21,16 @@ export function useHaldexAndLogger(socket: Socket | null) {
 
     const [logger, setLogger] = useState<LoggerStatus>({
         recording: false,
+        profile: 'haldex',
+        available_profiles: [],
+        measuring_groups: [],
         output_path: '',
         frames_received: 0,
         rows_written: 0,
         markers_logged: 0,
+        dropped_rows: 0,
         uptime_sec: 0,
+        last_error: '',
         haldex_mode: 0,
         b08_torque_nm: 0,
         a7c_slip_torque_nm: 0,
@@ -71,8 +76,8 @@ export function useHaldexAndLogger(socket: Socket | null) {
         socket?.emit('cycle_haldex_mode');
     }, [socket]);
 
-    const startLogging = useCallback((outputPath?: string) => {
-        socket?.emit('start_logger', { output: outputPath });
+    const startLogging = useCallback((outputPath?: string, profile = 'haldex') => {
+        socket?.emit('start_logger', { output: outputPath, profile });
     }, [socket]);
 
     const stopLogging = useCallback(() => {

@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 # Add the parent and sibling directories to sys.path so we can import openpilot_receiver
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.join(project_root, 'tp2'))
-from openpilot_receiver import OpenpilotReceiver
+from openpilot_receiver import OPENPILOT_TRANSPORT_ENABLED, OpenpilotReceiver
 
 class MockZmqPub:
     def __init__(self):
@@ -66,6 +66,10 @@ class MockZmqPub:
     def send_multipart(self, parts):
         self.published.append(parts)
 
+@unittest.skipUnless(
+    OPENPILOT_TRANSPORT_ENABLED,
+    "OpenPilot transport disabled because 0x67A/0x6DA are reserved for Haldex",
+)
 class TestOpenpilotTP2(unittest.TestCase):
     def setUp(self):
         self.zmq_pub = MockZmqPub()

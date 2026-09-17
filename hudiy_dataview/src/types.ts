@@ -46,11 +46,16 @@ export interface HaldexStatus {
 
 export interface LoggerStatus {
     recording: boolean;
+    profile: string;
+    available_profiles: Array<{ name: string; description: string }>;
+    measuring_groups: Array<{ module: number; group: number; priority: 'normal' | 'low' }>;
     output_path: string;
     frames_received: number;
     rows_written: number;
     markers_logged: number;
+    dropped_rows: number;
     uptime_sec: number;
+    last_error: string;
     haldex_mode: number;
     b08_torque_nm: number;
     a7c_slip_torque_nm: number;

@@ -17,11 +17,20 @@ import can
 
 logger = logging.getLogger(__name__)
 
+# The legacy OpenPilot TP2 link uses 0x67A/0x6DA. Those IDs are now owned by
+# Haldex mode control and state telemetry, so this transport must remain locked
+# out until it is assigned a non-conflicting pair and deliberately re-enabled.
+OPENPILOT_TRANSPORT_ENABLED = False
+OPENPILOT_DISABLED_REASON = "CAN IDs 0x67A/0x6DA are reserved for Haldex"
+
 class OpenpilotReceiver(threading.Thread):
     """
     Manages the TP2.0 connection setup and receives data streaming
     from the Comma (module 0x0C) to update Openpilot visualization state.
     """
+    TRANSPORT_ENABLED = False
+    DISABLED_REASON = "CAN IDs 0x67A/0x6DA are reserved for Haldex"
+
     def __init__(self, can_interface='can0', can_interface_type='socketcan', zmq_pub=None, pub_lock=None):
         super().__init__()
         self.can_interface = can_interface
@@ -70,6 +79,13 @@ class OpenpilotReceiver(threading.Thread):
         self.stop_event.set()
 
     def _send_can(self, arbitration_id, data):
+        if not self.TRANSPORT_ENABLED:
+            self.connected = False
+            self.rx_buffer.clear()
+            self.expected_len = 0
+            if self._reassembler is not None:
+                self._reassembler.clear_partial()
+            return
         if not self.bus:
             return
         msg = can.Message(arbitration_id=arbitration_id, data=data, is_extended_id=False)
@@ -252,6 +268,9 @@ class OpenpilotReceiver(threading.Thread):
             self._publish_state()
 
     def run(self):
+        if not self.TRANSPORT_ENABLED:
+            logger.error("OpenpilotReceiver disabled: %s", self.DISABLED_REASON)
+            return
         logger.info("OpenpilotReceiver background thread started.")
         
         while not self.stop_event.is_set():

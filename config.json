@@ -33,6 +33,21 @@
     "persistence_file": "/home/pi/.hudiy/haldex_mode.json",
     "firmware_dir": "~/haldexfw"
   },
+  "data_logger": {
+    "default_profile": "haldex",
+    "log_directory": "~/logs",
+    "queue_size": 10000,
+    "profiles": {
+      "haldex": {
+        "measuring_groups": [
+          {
+            "module": "0x03",
+            "groups": [1]
+          }
+        ]
+      }
+    }
+  },
   "openpilot": {
     "enabled": false
   },

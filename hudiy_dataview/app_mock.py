@@ -784,6 +784,70 @@ def handle_client_log(data):
     else:
         logger.info(f"[JS Console] {msg}")
 
+# Mirror the production logger socket contract so the AWD controls can be
+# developed without CAN hardware. No file is written in mock mode.
+_mock_logger_started = 0.0
+_mock_logger_status = {
+    'recording': False,
+    'profile': 'haldex',
+    'available_profiles': [
+        {'name': 'haldex', 'description': 'Fused Haldex telemetry, relevant ICAN signals, and selected measuring groups'},
+        {'name': 'raw_can', 'description': 'One event row per CAN frame, plus optional diagnostic events'},
+    ],
+    'measuring_groups': [
+        {'module': 0x03, 'group': 1, 'priority': 'normal'},
+    ],
+    'output_path': '~/logs/mock_haldex.csv',
+    'frames_received': 0,
+    'rows_written': 0,
+    'markers_logged': 0,
+    'dropped_rows': 0,
+    'uptime_sec': 0,
+    'last_error': '',
+    'haldex_mode': 0,
+    'b08_torque_nm': 0,
+    'a7c_slip_torque_nm': 0,
+}
+
+
+def _emit_mock_logger_status():
+    status = dict(_mock_logger_status)
+    if status['recording']:
+        status['uptime_sec'] = round(time.time() - _mock_logger_started, 1)
+        status['rows_written'] = int(status['uptime_sec'] * 50)
+        status['frames_received'] = status['rows_written'] * 5
+    emit('logger_update', status)
+
+
+@socketio.on('get_logger_status')
+def handle_get_logger_status():
+    _emit_mock_logger_status()
+
+
+@socketio.on('start_logger')
+def handle_start_logger(data):
+    global _mock_logger_started
+    _mock_logger_started = time.time()
+    _mock_logger_status['recording'] = True
+    _mock_logger_status['profile'] = (data or {}).get('profile') or 'haldex'
+    _mock_logger_status['output_path'] = (data or {}).get('output') or '~/logs/mock_haldex.csv'
+    _emit_mock_logger_status()
+
+
+@socketio.on('stop_logger')
+def handle_stop_logger():
+    _emit_mock_logger_status()
+    _mock_logger_status['recording'] = False
+    _emit_mock_logger_status()
+
+
+@socketio.on('add_logger_marker')
+def handle_add_logger_marker(data):
+    if _mock_logger_status['recording']:
+        _mock_logger_status['markers_logged'] += 1
+        socketio.emit('logger_marker_added', {
+            'note': (data or {}).get('note', 'Driver Event'), 'timestamp': time.time()})
+
 
 if __name__ == '__main__':
     socketio.start_background_task(worker.run)
