@@ -140,28 +140,111 @@ echo -e "${GREEN}? Dependencies installed.${NC}"
 # ------------------------------------------------------------------------------
 echo -e "${YELLOW}? Step 2: Downloading Project Files...${NC}"
 
-# Create a temporary directory for cloning.
-TEMP_DIR=$(mktemp -d) || exit 1
-echo "   Cloning repository (optimized sparse-checkout)..."
-"$GIT_CMD" clone -b "$SELECTED_REF" --depth 1 --filter=blob:none --sparse --no-checkout "$REPO_URL" "$TEMP_DIR" || {
-    echo "ERROR: Repository clone failed."
+# Keep the sparse repository between runs. A new temporary clone forces Git to
+# download every selected blob again, even when almost nothing changed.
+STAGING_DIR="$REAL_HOME/.cache/rns-e-hudiy-installer"
+TEMP_DIR="$STAGING_DIR" # Retain the existing source-path name below.
+STAGING_PARENT=$(dirname "$STAGING_DIR")
+SPARSE_PATHS=(rns-e_can hudiy_client dis_client tp2 hudiy_dataview flasher config/hudiy)
+
+mkdir -p "$STAGING_PARENT"
+
+# Root runs this installer, but the cache is owned by the target user between
+# invocations. The per-command safe.directory setting avoids changing global
+# Git configuration just for that ownership boundary.
+staging_git() {
+    "$GIT_CMD" -c safe.directory="$STAGING_DIR" -C "$STAGING_DIR" "$@"
+}
+
+# Git's --progress output shows actual transfer activity. This companion
+# heartbeat also confirms that a slow network operation is still running when
+# no new objects have arrived recently.
+run_with_heartbeat() {
+    local LABEL="$1"
+    shift
+
+    "$@" &
+    local COMMAND_PID=$!
+    (
+        while kill -0 "$COMMAND_PID" 2>/dev/null; do
+            sleep 15
+            if kill -0 "$COMMAND_PID" 2>/dev/null; then
+                echo "   [$(date +%H:%M:%S)] $LABEL is still running..."
+            fi
+        done
+    ) &
+    local HEARTBEAT_PID=$!
+
+    wait "$COMMAND_PID"
+    local COMMAND_STATUS=$?
+    kill "$HEARTBEAT_PID" 2>/dev/null || true
+    wait "$HEARTBEAT_PID" 2>/dev/null || true
+    return "$COMMAND_STATUS"
+}
+
+REUSED_STAGING=false
+if [ -d "$STAGING_DIR/.git" ]; then
+    REUSED_STAGING=true
+    echo "   Reusing persistent sparse repository: $STAGING_DIR"
+    staging_git remote set-url origin "$REPO_URL" || {
+        echo "ERROR: Could not update the staging repository remote."
+        exit 1
+    }
+elif [ -e "$STAGING_DIR" ]; then
+    # Preserve an unexpected/corrupt cache for diagnosis rather than deleting it.
+    BROKEN_STAGING_DIR="${STAGING_DIR}.invalid-$(date +%Y%m%d-%H%M%S)"
+    echo "   Existing staging path is not a Git repository."
+    echo "   Moving it to: $BROKEN_STAGING_DIR"
+    mv "$STAGING_DIR" "$BROKEN_STAGING_DIR" || exit 1
+fi
+
+if [ "$REUSED_STAGING" = false ]; then
+    echo "   Creating persistent sparse repository (first run downloads the selected files)..."
+    echo "   Git will report object counts, percentage, transfer size, and rate below."
+    run_with_heartbeat "Initial repository download" \
+        "$GIT_CMD" clone --progress -b "$SELECTED_REF" --depth 1 --filter=blob:none \
+        --sparse --no-checkout "$REPO_URL" "$STAGING_DIR" || {
+        echo "ERROR: Repository clone failed. The partial staging directory was kept for diagnosis."
+        exit 1
+    }
+    TARGET_COMMIT=$(staging_git rev-parse HEAD) || exit 1
+else
+    echo "   Fetching changes for $SELECTED_REF (unchanged Git objects stay cached)..."
+    echo "   Git will report object counts, percentage, transfer size, and rate below."
+    run_with_heartbeat "Repository update" \
+        staging_git fetch --progress --prune --depth 1 --filter=blob:none origin "$SELECTED_REF" || {
+        echo "ERROR: Repository update failed. The existing staging repository was preserved."
+        exit 1
+    }
+    TARGET_COMMIT=$(staging_git rev-parse FETCH_HEAD) || exit 1
+fi
+
+# Cone-mode sparse checkout includes root files (including config.json) plus
+# these project directories. Checkout may lazily download only changed blobs.
+staging_git sparse-checkout init --cone || exit 1
+staging_git sparse-checkout set "${SPARSE_PATHS[@]}" || {
+    echo "ERROR: Could not configure sparse checkout."
     exit 1
 }
-# Root files, including config.json, are included automatically.
-(cd "$TEMP_DIR" && "$GIT_CMD" sparse-checkout set rns-e_can hudiy_client dis_client tp2 hudiy_dataview flasher config/hudiy && "$GIT_CMD" checkout) || {
+echo "   Updating sparse working tree to commit ${TARGET_COMMIT:0:12}..."
+run_with_heartbeat "Sparse file checkout" \
+    staging_git checkout --progress --detach --force "$TARGET_COMMIT" || {
     echo "ERROR: Sparse checkout failed."
     exit 1
 }
+
+# Keep the persistent cache accessible to the target user. Future installer
+# runs still use safe.directory because this script itself runs as root.
+chown -R "$REAL_USER:$REAL_USER" "$STAGING_DIR"
 
 # Save version information
 echo "   Saving version information..."
 VERSION_FILE="$REAL_HOME/.hudiy_version.json"
 (
-  cd "$TEMP_DIR" || exit
-  V_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-  V_TAG=$(git describe --tags --always 2>/dev/null || echo "N/A")
-  V_HASH=$(git rev-parse HEAD)
-  V_MSG=$(git log -1 --pretty=%B | tr -d '\n' | sed 's/"/\\"/g')
+  V_BRANCH="$SELECTED_REF"
+  V_TAG=$(staging_git describe --tags --always 2>/dev/null || echo "N/A")
+  V_HASH=$(staging_git rev-parse HEAD)
+  V_MSG=$(staging_git log -1 --pretty=%B | tr -d '\n' | sed 's/"/\\"/g')
   
   # Use python to safely create JSON
   python3 -c "import json; print(json.dumps({'branch': '$V_BRANCH', 'tag': '$V_TAG', 'commit_hash': '$V_HASH', 'commit_msg': \"$V_MSG\"}, indent=4))" > "$VERSION_FILE"
@@ -314,14 +397,15 @@ else
     echo "   ⚠ No local config/hudiy directory found at ${TEMP_DIR}/config/hudiy. Skipping."
 fi
 
-# Cleanup
-echo "   Removing temporary files..."
-rm -rf "$TEMP_DIR"
+# The sparse source repository intentionally remains cached so the next update
+# downloads only new Git objects.
+echo "   Keeping update cache at $STAGING_DIR for faster future updates."
 
 # REMOVE UNWANTED FILES/FOLDERS (Explicit Cleanup)
 echo "   Removing legacy updater and READMEs (preserving runtime tools)..."
 rm -rf "$REAL_HOME/updater"
-find "$REAL_HOME" -name "README.md" -type f -delete
+# Do not dirty the persistent staging repository by deleting files inside it.
+find "$REAL_HOME" -path "$STAGING_DIR" -prune -o -name "README.md" -type f -delete
 
 # Fix Permissions
 echo "   Setting ownership to $REAL_USER..."
