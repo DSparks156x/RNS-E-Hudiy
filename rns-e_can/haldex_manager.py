@@ -75,44 +75,62 @@ def build_mode_burst(mode: int, start_counter: int = 0, count: int = 6) -> List[
 
 def decode_0x6da(payload_hex: str) -> Optional[Dict[str, Any]]:
     """
-    Decode 0x6DA state telemetry frame (DLC 8, little-endian):
-      bytes 0-1: A72 (u16, reference ceiling, 0.0625 Nm/count)
-      bytes 2-3: A74 (u16, final reference, 0.0625 Nm/count)
-      bytes 4-5: A7C (u16, slip integrator, 0.0625 Nm/count)
-      bytes 6-7: STATUS (u16 bitfield)
-        bits [1:0]: mode (0=Stock, 1=Perf, 2=Comp)
-        bits [4:2]: B1CC selector (0..6)
-        bit  [5]:   A78 force-zero (1 = forced 0)
-        bit  [6]:   token_ok (1 = policy armed)
-        bits [15:8]: A7E hold timer low byte
+    Decode one page of the 7016 0x6DA telemetry stream. Byte 0 is 0xD0|page,
+    byte 1 carries compact status, and bytes 2..7 contain three LE words.
     """
     try:
         data = bytes.fromhex(payload_hex)
-        if len(data) < 8:
+        if len(data) != 8 or data[0] & 0xF8 != 0xD0:
             return None
-
-        a72_raw, a74_raw, a7c_raw, status = struct.unpack('<HHHH', data[:8])
+        page = data[0] & 0x07
+        if page > 6:
+            return None
+        status = data[1]
+        words = struct.unpack('<HHH', data[2:8])
         mode = status & 0x03
-        selector = (status >> 2) & 0x07
-        force_zero = (status >> 5) & 0x01
-        token_ok = (status >> 6) & 0x01
-        hold_a7e = (status >> 8) & 0xFF
-
-        return {
-            'a72_raw': a72_raw,
-            'a72_nm': round(a72_raw * 0.0625, 2),
-            'a74_raw': a74_raw,
-            'a74_nm': round(a74_raw * 0.0625, 2),
-            'a7c_raw': a7c_raw,
-            'a7c_nm': round(a7c_raw * 0.0625, 2),
-            'status': status,
+        decoded = {
+            'page': page,
             'mode': mode,
             'mode_name': MODE_NAMES.get(mode, f"Unknown ({mode})"),
-            'selector': selector,
-            'force_zero': bool(force_zero),
-            'token_ok': bool(token_ok),
-            'hold_a7e': hold_a7e
+            'selector': (status >> 2) & 0x07,
+            'force_zero': bool((status >> 5) & 0x01),
+            'token_ok': bool((status >> 6) & 0x01),
+            'abs_braking': bool((status >> 7) & 0x01),
         }
+        signed = lambda value: value - 0x10000 if value & 0x8000 else value
+        if page == 0:
+            decoded.update({
+                'a72_raw': words[0], 'a72_nm': round(words[0] * 0.0625, 2),
+                'a74_raw': words[1], 'a74_nm': round(words[1] * 0.0625, 2),
+                'a7c_raw': words[2], 'a7c_nm': round(words[2] * 0.0625, 2),
+            })
+        elif page == 1:
+            measured_yaw = signed(words[2])
+            decoded.update({'c9e_demanded_accel': signed(words[0]),
+                            'c9c_actual_accel': signed(words[1]),
+                            'measured_yaw_raw': measured_yaw,
+                            'measured_yaw_deg_s': round(measured_yaw / 17.87, 3)})
+        elif page == 2:
+            decoded.update({'b26_lateral_feedforward': signed(words[0]),
+                            'bc4_curvature': words[1],
+                            'bb6_computed_axle_slip': signed(words[2])})
+        elif page == 3:
+            decoded.update({'wheel_vl_kmh': round(words[0] * 0.01, 2),
+                            'wheel_vr_kmh': round(words[1] * 0.01, 2),
+                            'wheel_hl_kmh': round(words[2] * 0.01, 2)})
+        elif page == 4:
+            decoded.update({'wheel_hr_kmh': round(words[0] * 0.01, 2),
+                            'lat_accel_measured': signed(words[1]),
+                            'throttle': words[2] & 0xFF,
+                            'bls': (words[2] >> 8) & 0xFF})
+        elif page == 5:
+            decoded.update({'hold_a7e': words[0], 'c10_liftoff_hold': words[1],
+                            'cd4_adaptation': signed(words[2])})
+        elif page == 6:
+            decoded.update({'c3a_slip_energy': words[0],
+                            'c26_energy_ceiling': words[1],
+                            'afe_fault_ceiling': words[2]})
+        return decoded
     except Exception as e:
         logger.debug(f"Error decoding 0x6DA: {e}")
         return None
@@ -121,22 +139,22 @@ def decode_0x6da(payload_hex: str) -> Optional[Dict[str, Any]]:
 def decode_0x679(payload_hex: str) -> Optional[Dict[str, Any]]:
     """
     Decode 0x679 yaw/torque telemetry frame (DLC 8, little-endian):
-      bytes 0-1: B1A or YAW_MODEL (s16, signed 0.0625 Nm/count or raw counts)
+      bytes 0-1: model yaw (s16, 17.87 counts/deg/s)
       bytes 2-3: C06 (u16, raw proactive reference)
       bytes 4-5: C22 (u16, pre-RefGen reference)
       bytes 6-7: B08 (u16, real commanded coupling torque uncensored, 0.0625 Nm/count)
     """
     try:
         data = bytes.fromhex(payload_hex)
-        if len(data) < 8:
+        if len(data) != 8:
             return None
 
-        b1a_raw = struct.unpack('<h', data[0:2])[0]
+        model_yaw_raw = struct.unpack('<h', data[0:2])[0]
         c06, c22, b08_raw = struct.unpack('<HHH', data[2:8])
 
         return {
-            'b1a_raw': b1a_raw,
-            'b1a_nm': round(b1a_raw * 0.0625, 2),
+            'model_yaw_raw': model_yaw_raw,
+            'model_yaw_deg_s': round(model_yaw_raw / 17.87, 3),
             'c06': c06,
             'c22': c22,
             'b08_raw': b08_raw,
@@ -300,7 +318,7 @@ class HaldexManager:
                 'b08_torque_nm': self.last_telemetry_yaw.get('b08_nm', 0.0),
                 'a7c_slip_nm': self.last_telemetry_state.get('a7c_nm', 0.0),
                 'a72_ceiling_nm': self.last_telemetry_state.get('a72_nm', 0.0),
-                'yaw_model_counts': self.last_telemetry_yaw.get('b1a_raw', 0),
+                'yaw_model_counts': self.last_telemetry_yaw.get('model_yaw_raw', 0),
                 'hold_a7e': self.last_telemetry_state.get('hold_a7e', 0),
                 'last_telemetry_age': round(now - self.last_telemetry_time, 2) if self.last_telemetry_time else None,
                 'last_switch_time': self.last_switch_time,
@@ -404,7 +422,7 @@ class HaldexManager:
                                 if decoded:
                                     with self.state_lock:
                                         self.active_mode = decoded['mode']
-                                        self.last_telemetry_state = decoded
+                                        self.last_telemetry_state.update(decoded)
                                         self.last_telemetry_time = time.time()
                             elif '679' in topic_str:
                                 decoded = decode_0x679(payload_hex)

@@ -9,39 +9,20 @@ one of them.
 
 ---
 
-## 0. The one thing that needs deciding before you flash
+## 0. Current firmware contract
 
 **Tbl27's axis is `(DAT_0F13F4 − DAT_0F1D1A) · sign(DAT_0F13F4)`** — measured
 yaw rate minus **model** yaw rate, 17.87 counts per deg/s.
 
-The measured half is a scaled copy of a CAN signal already on the bus. **The
-model half is computed inside the ECU by `FUN_0464B0` and appears nowhere
-else.** Without it, no amount of driving produces the error histogram Tbl27 has
-to be sized against — and Tbl27 is the whole reason for taking the
-"leverage the Haldex's own smarts" route on yaw.
+The measured half is on ICAN `0x2A1`. The model half is computed inside the ECU
+by `FUN_0464B0` and appears on current firmware's fixed `0x679` frame as a
+signed value at 17.87 counts/(deg/s). The logger treats this field as
+`model_yaw`, not the historical `B1A` telemetry variant.
 
-There is no free message object and no free byte. So there is a variant image
-that spends the one field provably carrying nothing:
-
-```
-artifacts/vehicle_taskf_yawcal_320k.bin
-SHA-256 3344504F7F98B400C5D55CCA9B26D7197B921D110981F4C42498CD87FC220F18
-```
-
-`0x679` bytes 0-1 carry **`YAW_MODEL`** (`0x0F1D1A`, s16) instead of `B1A`.
-
-`B1A` is `Tbl27 × Tbl32|33 × Tbl31 >> 30`. Tbl27 is all-zero in row 0 and below
-its ~600-count floor in both provisional rows, so `B1A` reads **0 in every
-mode** — confirmed on hardware in all three. It becomes interesting only after
-Tbl27 is sized, which is what this variant exists to enable.
-
-**It differs from the standard vehicle image by exactly two bytes:** one operand
-word in the payload (`0x9B1A` → `0x9D1A`) and one Layer-1 checksum byte. Same
-base, same everything else, checksums verified, no simulator patches.
-
-**Recommendation: drive the yaw-calibration image.** Swap back to the standard
-one once Tbl27 is real. If you would rather not, say so and drive the standard
-image — you get everything below except question 1.
+Current vehicle candidate 7116 uses fixed `0x679` plus tagged, multiplexed
+`0x6DA`. The executable format authority is
+`HaldexRE/phase2_can_telemetry_mux.py`; do not decode `0x6DA` as the older four
+little-endian words without first validating its `0xD0 | page` header.
 
 ---
 
@@ -56,12 +37,31 @@ bytes can be re-parsed and a decoded-only CSV cannot.
 
 | Frame | Carries | Answers |
 | --- | --- | --- |
-| `0x679` | `YAW_MODEL` (or `B1A`), `C06`, `C22`, `B08` | Q1 yaw sizing, Q2 Tbl48 |
-| `0x6DA` | `A72`, `A74`, `A7C`, status word | Q3 A/B, Q4 slip loop |
+| `0x679` | `YAW_MODEL`, `C06`, `C22`, `B08` | Q1 yaw sizing, Q2 Tbl48 |
+| `0x6DA` | Tagged pages 0..6; see below | Q1/Q3 context, Q4 slip loop |
 
-The status word gives mode, B1CC selector, A78 force-zero, `token_ok` and A7E
-in one 16-bit field. **Take mode from this frame, never from what the button
-was set to** — they disagree exactly when something interesting happened.
+Every `0x6DA` frame is eight bytes: byte 0 is `0xD0 | page`, byte 1 carries
+mode `[1:0]`, B1CC `[4:2]`, A78 `[5]`, `token_ok` `[6]`, and ABS `[7]`; the
+remaining bytes are three little-endian words. Reject frames whose header does
+not match `(byte0 & 0xF8) == 0xD0`. **Take mode from this status byte, never
+from what the button was set to.**
+
+The eight-frame page schedule is `0, 1, 2, 3, 4, 5, 6, 1`. Page 1 arrives at
+12.5 Hz; every other page arrives at 6.25 Hz.
+
+| Page | Word 0 | Word 1 | Word 2 |
+| ---: | --- | --- | --- |
+| 0 | A72 ceiling | A74 final reference | A7C slip integrator |
+| 1 | C9E demanded accel (s16) | C9C actual accel (s16) | measured yaw (s16, 17.87 counts/(deg/s)) |
+| 2 | B26 lateral feed-forward (s16) | BC4 curvature | BB6 computed axle slip (s16) |
+| 3 | wheel VL | wheel VR | wheel HL |
+| 4 | wheel HR | measured lateral acceleration (s16) | throttle low byte, BLS high byte |
+| 5 | A7E hold timer | C10 lift-off hold | CD4 axle-ratio adaptation (s16) |
+| 6 | C3A slip energy | C26 energy ceiling | AFE fault/derate ceiling |
+
+Wheel speeds use 0.01 km/h/count. Pages 3 and 4 occur on consecutive 20 ms
+ticks, so the reconstructed four-wheel sample is deliberately non-atomic.
+Preserve each raw page and its hardware timestamp.
 
 ---
 
@@ -76,17 +76,25 @@ navigation yaw signal, and `0x527`/`0x555` for optional temperatures. The raw
 ACAN frames (`0x4A0`, `0x0C2`, `0x1A0`, `0x280`, `0x288`, `0x4A8`, `0x428`)
 are not available to this installation and must not be decoded here.
 
-Signals absent from ICAN must come from TP2 measuring groups. A logging profile
-owns its group subscriptions for the duration of the recording, independently
-of whichever DataView tab is visible, and may subscribe to several groups on
-several modules concurrently.
+Signals absent from ICAN can come from the Haldex telemetry pages or, when
+known safe, TP2 measuring groups. A logging profile owns its group
+subscriptions for the duration of the recording, independently of whichever
+DataView tab is visible, and may subscribe to several groups on several
+modules concurrently.
 
-The default Haldex profile deliberately opens only one diagnostic session:
-ABS module `0x03`, group `1`, for four independent wheel speeds. RPM comes
-from ICAN `0x35B`; boost and oil temperature come from ICAN `0x555`. Engine
-torque and airflow are omitted unless a verified measuring group is explicitly
-added—the logger should not open extra module sessions merely to collect
-speculative or duplicated values.
+The default Haldex profile opens no diagnostic sessions. In particular, it
+does not poll ABS module `0x03`: doing so triggers an ESP fault and interferes
+with Haldex operation on this vehicle. RPM comes from ICAN `0x35B`; boost and
+oil temperature come from ICAN `0x555`. The logger remains configurable for
+verified measuring groups on other modules, but it should not open extra
+sessions merely to collect speculative or duplicated values.
+
+Four individual wheel speeds now come passively from `0x6DA` pages 3 and 4.
+Measured lateral acceleration comes from page 4; demanded and actual
+longitudinal acceleration plus measured yaw come from page 1. No ABS
+diagnostic session is required. ICAN `0x359` remains a useful independent
+vehicle-speed and front-axle-path reference, and ICAN `0x2A1` remains an
+independent yaw channel.
 
 **Required:**
 

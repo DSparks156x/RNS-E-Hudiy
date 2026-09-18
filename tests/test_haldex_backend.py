@@ -29,6 +29,49 @@ def definitions(path, names, namespace):
     return namespace
 
 
+class HaldexTelemetryMuxTests(unittest.TestCase):
+    def setUp(self):
+        self.ns = definitions('rns-e_can/haldex_manager.py',
+                              {'decode_0x6da', 'decode_0x679'}, {
+            'Optional': __import__('typing').Optional,
+            'Dict': __import__('typing').Dict,
+            'Any': __import__('typing').Any,
+            'struct': __import__('struct'),
+            'logger': logging.getLogger('test'),
+            'MODE_NAMES': {0: 'Stock', 1: 'Performance', 2: 'Competition'},
+        })
+
+    def test_manager_decodes_mux_pages_and_rejects_old_layout(self):
+        page0 = self.ns['decode_0x6da']('d041100020003000')
+        self.assertEqual(page0['page'], 0)
+        self.assertEqual(page0['mode'], 1)
+        self.assertEqual(page0['a72_nm'], 1.0)
+        self.assertEqual(page0['a74_nm'], 2.0)
+        self.assertEqual(page0['a7c_nm'], 3.0)
+
+        page1 = self.ns['decode_0x6da']('d1c2ffff0200fdff')
+        self.assertEqual(page1['c9e_demanded_accel'], -1)
+        self.assertEqual(page1['c9c_actual_accel'], 2)
+        self.assertEqual(page1['measured_yaw_raw'], -3)
+        self.assertAlmostEqual(page1['measured_yaw_deg_s'], -3 / 17.87,
+                               places=3)
+        self.assertNotIn('ca2_total_accel', page1)
+
+        page4 = self.ns['decode_0x6da']('d4c2a01385ff347f')
+        self.assertEqual(page4['wheel_hr_kmh'], 50.24)
+        self.assertEqual(page4['lat_accel_measured'], -123)
+        self.assertEqual(page4['throttle'], 0x34)
+        self.assertEqual(page4['bls'], 0x7F)
+        self.assertTrue(page4['abs_braking'])
+        self.assertIsNone(self.ns['decode_0x6da']('1000200030004102'))
+
+    def test_manager_treats_679_first_word_as_model_yaw(self):
+        decoded = self.ns['decode_0x679']('12008806370b371b')
+        self.assertEqual(decoded['model_yaw_raw'], 18)
+        self.assertAlmostEqual(decoded['model_yaw_deg_s'], 18 / 17.87, places=3)
+        self.assertNotIn('b1a_raw', decoded)
+
+
 class OwnershipTests(unittest.TestCase):
     def setUp(self):
         self.commands = []

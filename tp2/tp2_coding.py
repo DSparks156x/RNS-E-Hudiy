@@ -61,29 +61,26 @@ class TP2Coding:
     @staticmethod
     def normalize_display_value(value, unit: str = "", signal_name: str = ""):
         """
-        Normalizes numeric display values (e.g., OpenHaldex RPM scaling rule).
-        Some decoded RPM signals are published at 1/100 scale (8.25 -> 825).
+        Return a decoded value unchanged.
+
+        Unit-aware rounding and display conversion belong in the presentation
+        layer.  In particular, low RPM is valid data and must not trigger a
+        value-dependent x100 heuristic in the protocol decoder.
         """
-        if not isinstance(value, (int, float)):
-            return value
-
-        norm_unit = str(unit or "").strip().lower()
-        norm_name = str(signal_name or "").strip().lower()
-
-        if norm_unit == "rpm" or "rpm" in norm_name:
-            abs_v = abs(value)
-            if 0 < abs_v < 20:
-                scaled = value * 100
-                if 100 <= abs(scaled) <= 12000:
-                    return round(scaled, 2)
         return value
 
     @staticmethod
     def decode_block(raw_data: list) -> list:
         """
-        Decodes a KWP2000 measuring block response (usually 4 values).
-        Format: [Group, Val1_Type, Val1_A, Val1_B, Val2_Type...]
-        Returns a list of dicts: [{'value': 12.5, 'unit': 'V', 'type': 5}, ...]
+        Decode a measuring-value payload containing zero or more triples.
+
+        ``raw_data`` starts with the first ``[formula, a, b]`` triple.  It
+        must not include the KWP positive-response SID (0x61) or group number;
+        callers handling ``[0x61, group, ...]`` should pass ``response[2:]``.
+        A trailing incomplete triple is ignored, allowing a partially received
+        response to produce only its complete values.
+
+        Returns ``[{'value': 12.5, 'unit': 'V', 'type': 6}, ...]``.
         """
         results = []
         for i in range(0, len(raw_data), 3):
@@ -161,8 +158,8 @@ class TP2Coding:
             val = (b - 127) * 0.001 * a
             unit = "mm"
 
-        elif t == 14:  # 0.005 * a * b bar
-            val = 0.005 * a * b
+        elif t == 0x0E:  # 0.01 * a * (b - 100) bar
+            val = 0.01 * a * (b - 100)
             unit = "bar"
 
         elif t == 15:  # Time: 0.01 * a * b ms
@@ -238,8 +235,8 @@ class TP2Coding:
             val = (b / 2560.0) * a
             unit = "°C"
 
-        elif t == 33:  # 100 * b / a %
-            val = (100.0 * b / a) if a != 0 else (100.0 * b)
+        elif t == 0x21:  # 0.01 * a * b %
+            val = 0.01 * a * b
             unit = "%"
 
         elif t == 34:  # Power: (b - 128) * 0.01 * a kW
@@ -395,12 +392,19 @@ class TP2Coding:
             val = 0.1 * a * b
             unit = "L"
 
+        elif t == 0x51:  # Signed big-endian int16, scale 0.04375
+            raw = (a << 8) | b
+            if raw & 0x8000:
+                raw -= 0x10000
+            val = raw * 0.04375
+            unit = ""
+
         elif t == 83:  # Pressure: (a * 256 + b) * 0.01 bar
             val = (a * 256 + b) * 0.01
             unit = "bar"
 
-        elif t == 94:  # Torque: a * b * 0.1 Nm
-            val = a * b * 0.1
+        elif t == 0x5E:  # Torque: 0.1 * a * (b - 128) Nm
+            val = 0.1 * a * (b - 128)
             unit = "Nm"
 
         else:
@@ -408,11 +412,7 @@ class TP2Coding:
             val = f"0x{a:02X}{b:02X}"
             unit = f"Type_{t}"
 
-        # Clean float formatting & normalize display values / units
-        if isinstance(val, float):
-            val = round(val, 2)
-
-        val = TP2Coding.normalize_display_value(val, unit)
+        # Preserve protocol precision. Presentation code may round for display.
         unit = TP2Coding.normalize_unit(unit)
 
         return val, unit

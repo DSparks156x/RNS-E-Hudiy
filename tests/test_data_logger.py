@@ -18,6 +18,8 @@ from hudiy_dataview.data_logger import (  # noqa: E402
     ICAN_GATEWAY_SPEED_ID,
     ICAN_NAVIGATION_YAW_ID,
     ICAN_STEERING_ID,
+    _decode_haldex_state,
+    _decode_haldex_yaw,
 )
 
 
@@ -29,10 +31,15 @@ class DataLoggerTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / 'haldex.csv'
-            recorder = DataLogger({'data_logger': {'log_directory': temporary}})
+            recorder = DataLogger({'data_logger': {
+                'log_directory': temporary,
+                'profiles': {'haldex': {'measuring_groups': [
+                    {'module': '0x01', 'groups': [7]},
+                ]}},
+            }})
             recorder.start_recording(output_path=str(output))
             recorder.ingest_diagnostic({
-                'module': 0x03, 'group': 1,
+                'module': 0x01, 'group': 7,
                 'data': [{'value': 20.1, 'unit': 'km/h'}, {'value': 20.2, 'unit': 'km/h'}],
             }, timestamp=999.5)
             brake_bits = (
@@ -47,8 +54,8 @@ class DataLoggerTests(unittest.TestCase):
             engine_aux[4] = 75  # 1.5 bar according to the ICAN DBC.
             engine_aux[7] = 150  # 90 C oil.
             recorder.ingest_can(ICAN_ENGINE_AUX_ID, bytes(engine_aux), timestamp=999.8)
-            # A72=16, A74=32, A7C=48; mode=Performance, token valid, hold=2.
-            recorder.ingest_can(0x6DA, bytes.fromhex('1000200030004102'), timestamp=1000.25)
+            # Page 0: A72=16, A74=32, A7C=48; mode=Performance, token valid.
+            recorder.ingest_can(0x6DA, bytes.fromhex('d041100020003000'), timestamp=1000.25)
             recorder.add_marker('DRIVER: Test')
             status = recorder.stop_recording()
 
@@ -57,10 +64,11 @@ class DataLoggerTests(unittest.TestCase):
             with output.open(newline='', encoding='utf-8') as handle:
                 rows = list(csv.DictReader(handle))
             self.assertEqual(rows[0]['can_id'], '0x6DA')
-            self.assertEqual(rows[0]['raw_0x6da'], '1000200030004102')
+            self.assertEqual(rows[0]['raw_0x6da'], 'd041100020003000')
+            self.assertEqual(rows[0]['haldex_page'], '0')
             self.assertEqual(rows[0]['haldex_mode_name'], 'Performance')
             self.assertEqual(rows[0]['a7c_slip_torque_nm'], '3.0')
-            self.assertEqual(rows[0]['m03_g1_i1'], '20.2')
+            self.assertEqual(rows[0]['m01_g7_i1'], '20.2')
             self.assertEqual(rows[0]['vehicle_speed_kmh'], '123.45')
             self.assertEqual(rows[0]['gateway_vehicle_speed_kmh'], '43.21')
             self.assertEqual(rows[0]['front_axle_path_pulses'], '321')
@@ -73,6 +81,52 @@ class DataLoggerTests(unittest.TestCase):
             self.assertEqual(rows[1]['event_marker'], 'DRIVER: Test')
             self.assertEqual(rows[1]['source'], 'marker')
 
+    def test_haldex_mux_decodes_wheels_acceleration_and_protection_pages(self):
+        page1 = _decode_haldex_state(bytes.fromhex('d1c2ffff0200fdff'))
+        self.assertEqual(page1['haldex_mode'], 2)
+        self.assertEqual(page1['haldex_token_ok'], 1)
+        self.assertEqual(page1['haldex_abs_braking'], 1)
+        self.assertEqual(page1['c9e_demanded_accel_raw'], -1)
+        self.assertEqual(page1['c9c_actual_accel_raw'], 2)
+        self.assertEqual(page1['haldex_measured_yaw_raw'], -3)
+        self.assertAlmostEqual(page1['haldex_measured_yaw_deg_s'], -3 / 17.87,
+                               places=3)
+        self.assertNotIn('ca2_total_accel_raw', page1)
+
+        page2 = _decode_haldex_state(bytes.fromhex('d241f6ff34120b00'))
+        self.assertEqual(page2['b26_lateral_feedforward_raw'], -10)
+        self.assertEqual(page2['bc4_curvature_raw'], 0x1234)
+        self.assertEqual(page2['bb6_computed_axle_slip_raw'], 11)
+
+        page3 = _decode_haldex_state(bytes.fromhex('d341881390139813'))
+        self.assertEqual(page3['wheel_vl_kmh'], 50.0)
+        self.assertEqual(page3['wheel_vr_kmh'], 50.08)
+        self.assertEqual(page3['wheel_hl_kmh'], 50.16)
+
+        page4 = _decode_haldex_state(bytes.fromhex('d441a01385ff347f'))
+        self.assertEqual(page4['wheel_hr_kmh'], 50.24)
+        self.assertEqual(page4['lat_accel_measured_raw'], -123)
+        self.assertEqual(page4['haldex_throttle_raw'], 0x34)
+        self.assertEqual(page4['haldex_bls_raw'], 0x7F)
+
+        page5 = _decode_haldex_state(bytes.fromhex('d54196000c00f9ff'))
+        self.assertEqual(page5['hold_a7e_timer'], 150)
+        self.assertEqual(page5['c10_liftoff_hold_raw'], 12)
+        self.assertEqual(page5['cd4_axle_ratio_adaptation_raw'], -7)
+
+        page6 = _decode_haldex_state(bytes.fromhex('d641010002000300'))
+        self.assertEqual(page6['c3a_slip_energy_raw'], 1)
+        self.assertEqual(page6['c26_energy_ceiling_raw'], 2)
+        self.assertEqual(page6['afe_fault_ceiling_raw'], 3)
+
+        self.assertEqual(_decode_haldex_state(bytes.fromhex('0041100020003000')), {})
+
+    def test_current_679_is_model_yaw_not_b1a(self):
+        decoded = _decode_haldex_yaw(bytes.fromhex('12008806370b371b'))
+        self.assertEqual(decoded['model_yaw_raw'], 18)
+        self.assertAlmostEqual(decoded['model_yaw_deg_s'], 18 / 17.87, places=3)
+        self.assertNotIn('yaw_model_or_b1a', decoded)
+
     def test_haldex_profile_only_decodes_relevant_ican_ids(self):
         old_acan_ids = {0x4A0, 0x0C2, 0x1A0, 0x280, 0x288, 0x4A8, 0x428}
         self.assertTrue(old_acan_ids.isdisjoint(HALDEX_PROFILE.can_ids))
@@ -81,12 +135,8 @@ class DataLoggerTests(unittest.TestCase):
             ICAN_GATEWAY_SPEED_ID, ICAN_STEERING_ID, ICAN_NAVIGATION_YAW_ID,
         }.issubset(HALDEX_PROFILE.can_ids))
 
-    def test_default_haldex_groups_are_minimal_and_wheel_speeds_are_kept(self):
-        groups = {(item.module, item.group, item.priority)
-                  for item in HALDEX_PROFILE.measuring_groups}
-        self.assertEqual(groups, {
-            (0x03, 1, 'normal'),     # four wheel speeds
-        })
+    def test_default_haldex_profile_has_no_measuring_groups(self):
+        self.assertEqual(HALDEX_PROFILE.measuring_groups, ())
 
     def test_measuring_groups_are_configurable_across_modules(self):
         recorder = DataLogger({'data_logger': {'profiles': {'haldex': {

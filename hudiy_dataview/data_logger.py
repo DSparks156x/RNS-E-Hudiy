@@ -130,11 +130,12 @@ def _decode_ican_engine_aux(data: bytes) -> Dict[str, Any]:
 
 
 def _decode_haldex_yaw(data: bytes) -> Dict[str, Any]:
-    if len(data) < 8:
+    if len(data) != 8:
         return {}
-    yaw_model, proactive, pre_refgen, torque = struct.unpack("<hHHH", data[:8])
+    model_yaw, proactive, pre_refgen, torque = struct.unpack("<hHHH", data[:8])
     return {
-        "yaw_model_or_b1a": yaw_model,
+        "model_yaw_raw": model_yaw,
+        "model_yaw_deg_s": round(model_yaw / 17.87, 3),
         "c06_proactive_ref": proactive,
         "c22_pre_refgen": pre_refgen,
         "b08_torque_nm": round(torque * 0.0625, 2),
@@ -142,19 +143,74 @@ def _decode_haldex_yaw(data: bytes) -> Dict[str, Any]:
 
 
 def _decode_haldex_state(data: bytes) -> Dict[str, Any]:
-    if len(data) < 8:
+    if len(data) != 8 or data[0] & 0xF8 != 0xD0:
         return {}
-    ceiling, reference, slip, status = struct.unpack("<HHHH", data[:8])
-    mode = status & 0x03
-    return {
-        "a72_ceiling_nm": round(ceiling * 0.0625, 2),
-        "a74_ref_torque_nm": round(reference * 0.0625, 2),
-        "a7c_slip_torque_nm": round(slip * 0.0625, 2),
-        "haldex_mode": mode,
-        "haldex_mode_name": MODE_NAMES.get(mode, str(mode)),
+    page = data[0] & 0x07
+    if page > 6:
+        return {}
+    status = data[1]
+    words = struct.unpack("<HHH", data[2:8])
+
+    def signed(raw: int) -> int:
+        return raw - 0x10000 if raw & 0x8000 else raw
+
+    decoded: Dict[str, Any] = {
+        "haldex_page": page,
+        "haldex_page_rate_hz": 12.5 if page == 1 else 6.25,
+        "haldex_mode": status & 0x03,
+        "haldex_mode_name": MODE_NAMES.get(status & 0x03, str(status & 0x03)),
+        "haldex_selector_b1cc": (status >> 2) & 0x07,
+        "haldex_force_zero_a78": (status >> 5) & 0x01,
         "haldex_token_ok": (status >> 6) & 0x01,
-        "hold_a7e_timer": (status >> 8) & 0xFF,
+        "haldex_abs_braking": (status >> 7) & 0x01,
     }
+    if page == 0:
+        ceiling, reference, slip = words
+        decoded.update({
+            "a72_ceiling_nm": round(ceiling * 0.0625, 2),
+            "a74_ref_torque_nm": round(reference * 0.0625, 2),
+            "a7c_slip_torque_nm": round(slip * 0.0625, 2),
+        })
+    elif page == 1:
+        measured_yaw = signed(words[2])
+        decoded.update({
+            "c9e_demanded_accel_raw": signed(words[0]),
+            "c9c_actual_accel_raw": signed(words[1]),
+            "haldex_measured_yaw_raw": measured_yaw,
+            "haldex_measured_yaw_deg_s": round(measured_yaw / 17.87, 3),
+        })
+    elif page == 2:
+        decoded.update({
+            "b26_lateral_feedforward_raw": signed(words[0]),
+            "bc4_curvature_raw": words[1],
+            "bb6_computed_axle_slip_raw": signed(words[2]),
+        })
+    elif page == 3:
+        decoded.update({
+            "wheel_vl_kmh": round(words[0] * 0.01, 2),
+            "wheel_vr_kmh": round(words[1] * 0.01, 2),
+            "wheel_hl_kmh": round(words[2] * 0.01, 2),
+        })
+    elif page == 4:
+        decoded.update({
+            "wheel_hr_kmh": round(words[0] * 0.01, 2),
+            "lat_accel_measured_raw": signed(words[1]),
+            "haldex_throttle_raw": words[2] & 0xFF,
+            "haldex_bls_raw": (words[2] >> 8) & 0xFF,
+        })
+    elif page == 5:
+        decoded.update({
+            "hold_a7e_timer": words[0],
+            "c10_liftoff_hold_raw": words[1],
+            "cd4_axle_ratio_adaptation_raw": signed(words[2]),
+        })
+    elif page == 6:
+        decoded.update({
+            "c3a_slip_energy_raw": words[0],
+            "c26_energy_ceiling_raw": words[1],
+            "afe_fault_ceiling_raw": words[2],
+        })
+    return decoded
 
 
 Decoder = Callable[[bytes], Dict[str, Any]]
@@ -194,11 +250,7 @@ class LogProfile:
         return frozenset(self.can_decoders) | self.raw_can_ids | self.snapshot_can_ids
 
 
-DEFAULT_HALDEX_MEASURING_GROUPS = (
-    # Four independent wheel speeds are the one required Haldex-analysis input
-    # not exposed by ICAN. Keep the default to one diagnostic module/session.
-    MeasuringGroup(0x03, 1),
-)
+DEFAULT_HALDEX_MEASURING_GROUPS: tuple[MeasuringGroup, ...] = ()
 
 HALDEX_CAN_IDS = frozenset({
     HALDEX_YAW_ID, HALDEX_STATE_ID, HALDEX_MODE_COMMAND_ID,
@@ -207,10 +259,20 @@ HALDEX_CAN_IDS = frozenset({
 })
 
 HALDEX_SIGNAL_COLUMNS = (
-    "haldex_mode", "haldex_mode_name", "haldex_token_ok",
+    "haldex_page", "haldex_page_rate_hz", "haldex_mode", "haldex_mode_name",
+    "haldex_selector_b1cc", "haldex_force_zero_a78", "haldex_token_ok",
+    "haldex_abs_braking",
     "b08_torque_nm", "a7c_slip_torque_nm", "a74_ref_torque_nm",
     "a72_ceiling_nm", "c06_proactive_ref", "c22_pre_refgen",
-    "yaw_model_or_b1a", "hold_a7e_timer",
+    "model_yaw_raw", "model_yaw_deg_s",
+    "c9e_demanded_accel_raw", "c9c_actual_accel_raw",
+    "haldex_measured_yaw_raw", "haldex_measured_yaw_deg_s",
+    "b26_lateral_feedforward_raw", "bc4_curvature_raw",
+    "bb6_computed_axle_slip_raw",
+    "wheel_vl_kmh", "wheel_vr_kmh", "wheel_hl_kmh", "wheel_hr_kmh",
+    "lat_accel_measured_raw", "haldex_throttle_raw", "haldex_bls_raw",
+    "hold_a7e_timer", "c10_liftoff_hold_raw", "cd4_axle_ratio_adaptation_raw",
+    "c3a_slip_energy_raw", "c26_energy_ceiling_raw", "afe_fault_ceiling_raw",
     "vehicle_speed_kmh", "gateway_vehicle_speed_kmh", "vehicle_speed_from_abs",
     "front_axle_path_pulses", "path_pulse_status", "path_pulse_error",
     "path_pulses_per_revolution", "steer_angle_deg", "steer_rate_deg_s",
