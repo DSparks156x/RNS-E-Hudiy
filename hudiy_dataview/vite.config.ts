@@ -9,6 +9,18 @@ export default defineConfig(({ mode }) => ({
                 plugins: [['babel-plugin-react-compiler', {}]],
             },
         }),
+        {
+            name: 'file-portal-dev-route',
+            configureServer(server) {
+                server.middlewares.use((request, _response, next) => {
+                    const [pathname, query] = (request.url || '').split('?', 2);
+                    if (pathname === '/files' || pathname === '/files/') {
+                        request.url = `/files.html${query ? `?${query}` : ''}`;
+                    }
+                    next();
+                });
+            },
+        },
     ],
 
     // process.env.NODE_ENV must be 'production' in the IIFE bundle (no Vite runtime to inject it).
@@ -24,6 +36,10 @@ export default defineConfig(({ mode }) => ({
             '/socket.io': {
                 target: 'http://localhost:5003',
                 ws: true,           // proxy WebSocket upgrades
+                changeOrigin: true,
+            },
+            '/api': {
+                target: 'http://localhost:5003',
                 changeOrigin: true,
             },
         },

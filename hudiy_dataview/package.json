@@ -6,7 +6,7 @@
   "scripts": {
     "start": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app_mock.py --mock -d\" \"vite\"",
     "startl": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app_mock.py --mock -l\" \"vite\"",
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.portal.config.ts",
     "dev": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app_mock.py --mock\" \"vite\"",
     "typecheck": "tsc --noEmit"
   },

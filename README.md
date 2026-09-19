@@ -18,6 +18,10 @@ A fork of Korni92's RNS-E-Hudiy with new features and tweaks to my own preferenc
 *   **VW TP2.0 Diagnostics**: Pull and clear DTCs directly from the UI, on some modules. Engine works, others somewhat. 
 *   **Measuring Groups**: View specific module measuring blocks.
 *   **Diagnostic Toggle**: Safety switch to stop all diagnostic activity to allow use of VCDS/Scanners. 
+*   **Offline File Portal**: Open `/files` from a phone on the Pi network to upload
+    validated controller firmware or download drive logs, saved service journals, flash
+    operation logs, live service errors, and controller readouts. The head-unit DataView
+    remains a separate 800x480 interface.
 
 ### Inputs & Power
 *   **Unified Inputs**: Handles RNS-E and Steering Wheel Control (SWC) buttons.
@@ -66,6 +70,12 @@ To edit the configuration, use the built-in Config Editor tool:
 4. Click **Export config.json** to save the updated file, and overwrite the file on the device.
 
 Main configuration variables and descriptive guides are defined in the editor's schema.
+
+The `file_portal.firmware_targets` list controls upload destinations. Haldex is the
+default target and uses the existing image validator. Additional controllers can be
+added with their own ID, label, directory, allowed extensions, size limit, and validator
+name as support is added. Set `file_portal.upload_pin` to require a PIN for uploads;
+downloads remain available to devices on the Pi network.
 
 ---
 

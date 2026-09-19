@@ -746,6 +746,28 @@
                 label: "Log Directory",
                 help: "Path where logs will be saved. Supports relative ~/ paths.",
                 type: "text"
+            },
+            "file_portal": {
+                label: "File Portal"
+            },
+            "file_portal.upload_pin": {
+                label: "Upload PIN",
+                help: "Optional PIN required when uploading firmware from a phone. Leave empty to allow uploads from any device on the Pi network.",
+                type: "text"
+            },
+            "file_portal.archive_limit_mb": {
+                label: "Maximum Bundle Size (MB)",
+                help: "Maximum uncompressed size allowed by Download All.",
+                type: "number"
+            },
+            "file_portal.runtime_log_directory": {
+                label: "Live Service Log Directory",
+                help: "Directory containing current file-based service logs.",
+                type: "text"
+            },
+            "file_portal.firmware_targets": {
+                label: "Firmware Targets",
+                help: "Controller-specific upload destinations. Each target may define id, label, directory, extensions, validator, and max_size_mb."
             }
         };
 

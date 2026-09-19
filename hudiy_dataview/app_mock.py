@@ -12,6 +12,10 @@ import random
 import zmq.green as zmq
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
+try:
+    from .file_portal import register_file_portal
+except ImportError:
+    from file_portal import register_file_portal
 
 # Compatibility fix for Flask 3.1.3+ with older Flask-SocketIO:
 # Flask 3.1.3 made RequestContext.session a property without a setter.
@@ -42,6 +46,7 @@ try:
     ZMQ_CAN_ADDR = zmq_cfg.get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc')
 except Exception as _e:
     logging.warning(f"Could not load config.json, using default ZMQ addresses: {_e}")
+    _cfg = {}
     ZMQ_PUB_ADDR = _DEFAULT_TP2_STREAM
     ZMQ_REQ_ADDR = _DEFAULT_TP2_COMMAND
     ZMQ_CAN_ADDR = 'ipc:///run/rnse_control/can_stream.ipc'
@@ -54,6 +59,8 @@ socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins='*',
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] (DataView) %(message)s')
 logger = logging.getLogger(__name__)
+
+register_file_portal(app, _cfg, validators={'haldex': lambda path: None})
 
 # Cache Busting
 @app.after_request
@@ -596,6 +603,10 @@ def sync_subscriptions():
 def index():
     theme_json = json.dumps(MOCK_THEME_DATA) if MOCK_THEME_DATA else None
     return render_template('index.html', mock_theme_data=theme_json)
+
+@app.route('/files')
+def file_portal_page():
+    return render_template('files.html')
 
 @socketio.on('connect')
 def handle_connect():

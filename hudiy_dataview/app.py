@@ -12,8 +12,10 @@ from flask import Flask, render_template, request, abort, send_file
 from flask_socketio import SocketIO, emit
 try:
     from .data_logger import DataLogger
+    from .file_portal import register_file_portal
 except ImportError:  # Direct execution on the installed Pi.
     from data_logger import DataLogger
+    from file_portal import register_file_portal
 
 # Compatibility fix for Flask 3.1.3+ with older Flask-SocketIO:
 # Flask 3.1.3 made RequestContext.session a property without a setter.
@@ -76,6 +78,15 @@ socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*',
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] (DataView) %(message)s')
 logger = logging.getLogger(__name__)
 data_logger = DataLogger(_cfg)
+
+
+def _validate_haldex_portal_upload(path):
+    if HaldexFlasher is None:
+        raise RuntimeError('Haldex firmware validation is unavailable')
+    return HaldexFlasher.prepare_image(path)
+
+
+register_file_portal(app, _cfg, validators={'haldex': _validate_haldex_portal_upload})
 
 # Cache Busting
 @app.after_request
@@ -399,6 +410,10 @@ def sync_subscriptions():
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/files')
+def file_portal_page():
+    return render_template('files.html')
 
 @socketio.on('connect')
 def handle_connect():

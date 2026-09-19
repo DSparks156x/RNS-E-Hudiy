@@ -43,6 +43,24 @@
       }
     }
   },
+  "file_portal": {
+    "upload_pin": "",
+    "archive_limit_mb": 256,
+    "runtime_log_directory": "/var/log/rnse_control",
+    "firmware_targets": [
+      {
+        "id": "haldex",
+        "label": "Haldex AWD",
+        "description": "Validated Gen4 controller firmware images",
+        "directory": "~/haldexfw",
+        "extensions": [
+          ".bin"
+        ],
+        "validator": "haldex",
+        "max_size_mb": 4
+      }
+    ]
+  },
   "openpilot": {
     "enabled": false
   },
