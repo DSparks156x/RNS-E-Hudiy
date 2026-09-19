@@ -16,7 +16,7 @@ from dataclasses import dataclass
 # Shared gate for every application CAN transmitter (installed beside flasher/).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from flasher.traffic import transmission_guard
-from vag_protocols.tp2 import build_ack, build_data_frame, classify_frame, segment_message
+from flasher.vag_protocols.tp2 import build_ack, build_data_frame, classify_frame, segment_message
 
 import can
 from typing import List, Optional

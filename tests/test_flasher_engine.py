@@ -3,11 +3,12 @@ import hashlib
 import struct
 import unittest
 from unittest.mock import patch
-from flasher import haldex_flasher as engine
-from flasher import artifacts
-from flasher.haldex_patcher import APP_BLOCKS, HOOK_BYTES, ROUTINE_BYTES
-from flasher.haldex_patcher import patch_firmware
-from flasher.haldex_patcher import layer1
+from flasher import engine as shared_engine
+from flasher.controllers.haldex_gen4 import protocol as engine
+from flasher.controllers.haldex_gen4 import patches as artifacts
+from flasher.controllers.haldex_gen4.patches import APP_BLOCKS, HOOK_BYTES, ROUTINE_BYTES, SIMULATOR_PATCHES
+from flasher.controllers.haldex_gen4.patches import patch_firmware
+from flasher.controllers.haldex_gen4.patches import layer1
 
 
 def fixture():
@@ -68,6 +69,7 @@ class ProtocolTests(unittest.TestCase):
 
 class Device:
     closed = False
+    def can_clear(self, _flags): pass
     def close(self): self.closed = True
 
 
@@ -82,10 +84,15 @@ class FakeKwp:
     bad_seed = False
     calls = []
     def __init__(self, *args, **kwargs): pass
-    def sa_seed(self, sub): return b'bad!' if self.bad_seed else engine.LOADER_SEED
-    def sa_key(self, *args): return b'\x67\x02\x34'
+    def session(self, session): self.calls.append(('session', session))
+    def sa_seed(self, sub):
+        self.calls.append(('seed', sub))
+        return b'bad!' if self.bad_seed else engine.LOADER_SEED
+    def sa_key(self, *args):
+        self.calls.append(('key', args[0]))
+        return b'\x67\x02\x34'
     def request_download(self, *args): return 145
-    def routine(self, *args): pass
+    def routine(self, *args): self.calls.append(('routine', args))
     def routine_result(self, rid): return bytes([0x73, rid, 0])
     def transfer(self, data):
         self.calls.append(('transfer', len(data)))
@@ -96,6 +103,7 @@ class FakeKwp:
         if self.fail_commit and request == b'\x20': raise TimeoutError('commit timeout')
         return bytes([request[0]+0x40])
     def read_ecu_ident(self, ident):
+        self.calls.append(('ident', ident))
         if ident == 0x9b:
             return b'\x5a\x9b0BR907554A  6716' + bytes(10) + b'HaldexRE'
         return b'\x5a\x9c' + bytes(18)
@@ -115,13 +123,60 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(result['patches'], [])
         self.assertFalse(result['boot_verified'])
 
+    def test_flash_status_counter_attempts_and_date_layout(self):
+        ident = b'\x5a\x9b0BR907554A  7016' + bytes(10) + b'HaldexRE'
+        status = b'\x5a\x9c\x00\xc0\xb6\x00' + bytes.fromhex('20260918') + b'\x00\x01'
+        info = shared_engine.parse_vag_identification(ident, status)
+        self.assertEqual(info['flash_attempts'], 0xC0)
+        self.assertEqual(info['flash_counter'], 0xB6)
+        self.assertEqual(info['flash_date'], '2026-09-18')
+        self.assertEqual(info['flash_tool_id'], 1)
+
+    def test_default_transport_trace_is_quiet_and_verbose_is_opt_in(self):
+        for debug in (False, True):
+            flasher = engine.HaldexFlasher(device=Device(), debug=debug)
+            with patch.object(engine, 'TP20Transport', return_value=Session(0x764)) as factory:
+                flasher.reconnect_tp()
+            self.assertEqual(factory.call_args.kwargs['debug'], debug)
+
+    def test_system_date_is_written_into_erase_stamp(self):
+        with patch.object(shared_engine, 'system_flash_date', return_value='2031-12-09'):
+            result = self.run_flash()
+        erase_args = next(value for kind, value in FakeKwp.calls
+                          if kind == 'routine' and value[0] == engine.RC_ERASE)
+        self.assertEqual(erase_args[1][-6:], bytes.fromhex('203112090001'))
+        self.assertEqual(result['flash_date'], '2031-12-09')
+
     def test_invalid_preflight(self):
         for kwargs in ({'start_addr': 0x30001, 'end_addr': 0x3ffff}, {'file_off': -1},
-                       {'simulator_mode': True}, {'start_addr': True}):
+                       {'simulator_mode': 1}, {'start_addr': True}):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                 artifacts.prepare_image(self.image, **kwargs)
         for data in (self.image[:0x10000], self.image+b'0', bytes(0x50000)):
             with self.assertRaises(ValueError): artifacts.prepare_image(data)
+
+    def test_simulator_mode_is_applied_in_memory_to_selected_sectors(self):
+        source = bytearray(self.image)
+        for address, stock, _bench, _description in SIMULATOR_PATCHES:
+            source[address:address + len(stock)] = stock
+        for start, size in APP_BLOCKS:
+            struct.pack_into('<H', source, start + size - 2,
+                             layer1(source, start, size))
+        before = bytes(source)
+        result = artifacts.prepare_image(source, simulator_mode=True)
+        self.assertTrue(result['metadata']['simulator_mode'])
+        self.assertTrue(result['metadata']['bench_only'])
+        self.assertEqual(result['metadata']['patch_result']['sim_patches_applied'], 6)
+        self.assertEqual(bytes(source), before)
+        partial = artifacts.prepare_image(source, 0x30000, 0x3ffff,
+                                          simulator_mode=True)
+        expected = sum(0x30000 <= address <= 0x3ffff
+                       for address, _stock, _bench, _description in SIMULATOR_PATCHES)
+        self.assertEqual(partial['metadata']['patch_result']['sim_patches_applied'],
+                         expected)
+        self.assertTrue(partial['metadata']['simulator_mode'])
+        self.assertTrue(partial['metadata']['bench_only'])
+        self.assertEqual(bytes(source), before)
 
     def test_checksums_are_automatically_repaired_without_changing_source(self):
         data = bytearray(self.image)
@@ -168,6 +223,16 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(ValueError): patch_firmware(data)
         self.assertEqual(bytes(data), before)
 
+    def test_simulator_manifest_rejects_unknown_firmware_outside_selection(self):
+        data = bytearray(self.image)
+        for address, stock, _bench, _description in SIMULATOR_PATCHES:
+            data[address:address + len(stock)] = stock
+        data[SIMULATOR_PATCHES[0][0]] ^= 1
+        before = bytes(data)
+        with self.assertRaisesRegex(ValueError, "simulator-mode patch manifest"):
+            artifacts.prepare_image(data, 0x30000, 0x3FFFF, simulator_mode=True)
+        self.assertEqual(bytes(data), before)
+
     def test_patcher_failure_stops_before_can(self):
         with patch.object(artifacts, 'patch_firmware', side_effect=ValueError('patch failure')), patch.object(engine, 'SocketCANDevice') as device:
             with self.assertRaisesRegex(ValueError, 'patch failure'):
@@ -197,12 +262,38 @@ class EngineTests(unittest.TestCase):
         old.routine.assert_not_called()
         new.routine.assert_not_called()
 
-    def run_flash(self):
+    def run_flash(self, *, recovery=False):
         self.device = Device()
         self.flasher = engine.HaldexFlasher(device=self.device, log_cb=lambda _: None)
+        sessions = ([Session(0x765), Session(0x764)] if recovery else
+                    [Session(0x764), Session(0x765), Session(0x764)])
         with patch.object(engine, 'Kwp', FakeKwp), patch.object(self.flasher, 'reconnect_tp',
-                side_effect=[Session(0x765), Session(0x764)]):
-            return self.flasher.flash_binary(self.image)
+                side_effect=sessions):
+            return self.flasher.flash_binary(self.image, recovery=recovery)
+
+    def test_normal_flash_identifies_and_gates_before_programming(self):
+        result = self.run_flash()
+        self.assertEqual(result['source_controller']['software_part_number'], '0BR907554A')
+        self.assertEqual([value for kind, value in FakeKwp.calls if kind == 'ident'],
+                         [0x9B, 0x9C, 0x9B, 0x9C])
+        self.assertEqual([value for kind, value in FakeKwp.calls if kind == 'session'],
+                         [engine.SESSION_EXTENDED, engine.SESSION_PROGRAMMING])
+
+    def test_recovery_starts_in_loader_without_application_identification_or_sessions(self):
+        result = self.run_flash(recovery=True)
+        self.assertTrue(result['recovery_mode'])
+        self.assertNotIn('source_controller', result)
+        self.assertEqual([value for kind, value in FakeKwp.calls if kind == 'ident'],
+                         [0x9B, 0x9C])
+        self.assertFalse(any(kind == 'session' for kind, _value in FakeKwp.calls))
+
+    def test_recovery_refuses_an_application_channel(self):
+        flasher = engine.HaldexFlasher(device=Device(), log_cb=lambda _: None)
+        with patch.object(engine, 'Kwp', FakeKwp), \
+                patch.object(flasher, 'reconnect_tp', return_value=Session(0x764)), \
+                self.assertRaisesRegex(RuntimeError, 'did not enter loader'):
+            flasher.flash_binary(self.image, recovery=True)
+        self.assertFalse(flasher.destructive_started)
 
     def test_success_needs_fresh_application_and_cleanup(self):
         result = self.run_flash()
@@ -224,7 +315,7 @@ class EngineTests(unittest.TestCase):
     def test_transfer_failure_requires_recovery_and_closes(self):
         FakeKwp.fail_transfer = True
         with self.assertRaises(TimeoutError): self.run_flash()
-        self.assertEqual(len(FakeKwp.calls), 1)
+        self.assertEqual(sum(kind == 'transfer' for kind, _value in FakeKwp.calls), 1)
         self.assertTrue(self.flasher.recovery_required)
         self.assertTrue(self.device.closed)
 
@@ -234,13 +325,23 @@ class EngineTests(unittest.TestCase):
         self.assertFalse(self.flasher.destructive_started)
         self.assertTrue(self.device.closed)
 
-    def test_fresh_loader_does_not_count_as_application(self):
+    def test_normal_mode_redirects_an_already_bootloadered_module_to_recovery(self):
         with patch.object(engine.HaldexFlasher, '_ident', return_value={
                 'in_bootloader': True, 'sw_version': '6716', 'part_number': '0BR907554A',
                 'flash_status': 0}):
-            with self.assertRaisesRegex(RuntimeError, 'Fresh expected application'):
+            with self.assertRaisesRegex(RuntimeError, 'retry with --recovery'):
                 self.run_flash()
-        self.assertTrue(self.flasher.recovery_required)
+        self.assertFalse(self.flasher.destructive_started)
+        self.assertFalse(self.flasher.recovery_required)
+
+    def test_normal_flash_rejects_wrong_identified_family_before_programming(self):
+        with patch.object(engine.HaldexFlasher, '_ident', return_value={
+                'in_bootloader': False, 'firmware_revision': '2501',
+                'software_part_number': '1K0909144E', 'flash_status': 0}):
+            with self.assertRaisesRegex(RuntimeError, 'not a recognized Haldex'):
+                self.run_flash()
+        self.assertFalse(self.flasher.destructive_started)
+        self.assertFalse(any(kind == 'session' for kind, _value in FakeKwp.calls))
 
     def test_cancellation_during_write_requires_recovery(self):
         original = FakeKwp.transfer

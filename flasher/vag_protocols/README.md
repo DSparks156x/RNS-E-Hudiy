@@ -16,8 +16,9 @@ request/response behavior in this project.
   active/passive cluster handshake, display state machine, and empirical cluster
   limits.
 
-Compatibility modules (`flasher/tp20.py` and `tp2/tp2_protocol.py`) preserve old
-imports while delegating protocol work to this package.
+Consumers import this package directly. Higher-level applications such as
+`tp2/tp2_protocol.py` may compose these primitives, but no forwarding protocol
+module is maintained.
 
 ## DDP compatibility profile
 

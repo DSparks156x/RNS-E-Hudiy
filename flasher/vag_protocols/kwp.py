@@ -218,9 +218,33 @@ class KWPClient:
     def request_download(self, address: int, size: int) -> int:
         response = self.request(b"\x34" + address.to_bytes(3, "big")
                                 + b"\x00" + size.to_bytes(3, "big"))
-        if len(response) != 2 or response[1] < 5:
+        limit_bytes = response[1:]
+        # PQ loaders are split between one-byte (Haldex and some EPS) and
+        # two-byte (other EPS revisions) maximum-block-length responses.
+        if len(limit_bytes) not in (1, 2):
             raise KWPError("Invalid RequestDownload block limit")
-        return response[1]
+        limit = int.from_bytes(limit_bytes, "big")
+        if limit < 5:
+            raise KWPError("Invalid RequestDownload block limit")
+        return limit
+
+    def read_memory_by_address(self, address: int, size: int) -> bytes:
+        if not 0 <= address <= 0xFFFFFF or not 1 <= size <= 0xFF:
+            raise ValueError("KWP memory read requires a 24-bit address and 1..255 bytes")
+        return self.request(b"\x23" + address.to_bytes(3, "big") + bytes([size]))[1:]
+
+    def request_upload(self, address: int, size: int) -> int:
+        if not 0 <= address <= 0xFFFFFF or not 1 <= size <= 0xFFFFFF:
+            raise ValueError("KWP upload requires 24-bit address and size")
+        response = self.request(b"\x35" + address.to_bytes(3, "big")
+                                + b"\x00" + size.to_bytes(3, "big"))
+        limit_bytes = response[1:]
+        if len(limit_bytes) not in (1, 2):
+            raise KWPError("Invalid RequestUpload block limit")
+        limit = int.from_bytes(limit_bytes, "big")
+        if limit < 1:
+            raise KWPError("Invalid RequestUpload block limit")
+        return limit
 
     def transfer(self, data: bytes) -> bytes:
         return self.request(b"\x36" + bytes(data))

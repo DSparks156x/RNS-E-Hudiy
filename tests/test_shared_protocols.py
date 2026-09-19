@@ -6,12 +6,15 @@ from types import SimpleNamespace
 try:
     import can  # noqa: F401
 except ImportError:
-    sys.modules['can'] = SimpleNamespace(CanError=RuntimeError)
+    sys.modules['can'] = SimpleNamespace(
+        CanError=RuntimeError,
+        Message=lambda **kwargs: SimpleNamespace(**kwargs),
+    )
 
 from dis_client.ddp_protocol import DDPProtocol, DDPState, DisMode
-from flasher.haldex_flash import Kwp
-from vag_protocols.kwp import KWPClient, KWPError, KWPNegativeResponse
-from vag_protocols.tp2 import (
+from flasher.controllers.haldex_gen4.protocol import Kwp
+from flasher.vag_protocols.kwp import KWPClient, KWPError, KWPNegativeResponse
+from flasher.vag_protocols.tp2 import (
     TP2MessageReassembler, build_ack, decode_timing_ms, segment_message,
 )
 
@@ -82,6 +85,24 @@ class SharedKWPTests(unittest.TestCase):
         transport = ScriptedTransport([b'\x50\x86'])
         with self.assertRaises(KWPError):
             Kwp(transport, debug=False).session(0x86)
+
+    def test_pq_download_accepts_one_or_two_byte_block_limits(self):
+        for response, expected in ((b'\x74\x91', 0x91), (b'\x74\x01\x00', 0x100)):
+            with self.subTest(response=response):
+                transport = ScriptedTransport([response])
+                actual = KWPClient(transport, debug=False).request_download(0xA000, 0x10000)
+                self.assertEqual(actual, expected)
+                self.assertEqual(transport.sent, [bytes.fromhex('3400a00000010000')])
+
+    def test_pq_memory_read_and_upload_wire_formats(self):
+        transport = ScriptedTransport([b'\x63ABCD', b'\x75\x01\x00'])
+        client = KWPClient(transport, debug=False)
+        self.assertEqual(client.read_memory_by_address(0x123456, 4), b'ABCD')
+        self.assertEqual(client.request_upload(0xA000, 0x10000), 0x100)
+        self.assertEqual(
+            transport.sent,
+            [bytes.fromhex('2312345604'), bytes.fromhex('3500a00000010000')],
+        )
 
 
 class DDPSharedFramingTests(unittest.TestCase):

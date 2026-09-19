@@ -3,7 +3,7 @@
 
 The worker API historically exposed ``TP2Protocol.send_kvp_request``.  Keeping
 that API here avoids a flag-day migration while all framing and KWP response
-handling live in :mod:`vag_protocols`.
+handling live in :mod:`flasher.vag_protocols`.
 """
 import logging
 from pathlib import Path
@@ -14,8 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import can
 from flasher.traffic import transmission_guard
-from vag_protocols.kwp import KWPClient
-from vag_protocols.tp2 import TP2Transport
+from flasher.vag_protocols.kwp import KWPClient
+from flasher.vag_protocols.tp2 import TP2Transport
 
 
 logger = logging.getLogger(__name__)

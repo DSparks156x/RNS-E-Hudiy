@@ -5,9 +5,8 @@ from collections import deque
 from types import SimpleNamespace
 from unittest.mock import patch
 from flasher.socketcan_device import SocketCANDevice
-from flasher.tp20 import TP20Transport, decode_timing_ms
-from flasher.haldex_flasher import Kwp
-from flasher.tp20 import TP20Transport, MessageTimeoutError
+from flasher.vag_protocols.tp2 import TP20Transport, decode_timing_ms, MessageTimeoutError
+from flasher.controllers.haldex_gen4.protocol import Kwp
 
 
 def frame(addr, data, **flags):
@@ -53,7 +52,7 @@ class Endpoint:
 
 class TransportTests(unittest.TestCase):
     def setUp(self):
-        self.sleep = patch('flasher.tp20.time.sleep')
+        self.sleep = patch('flasher.vag_protocols.tp2.time.sleep')
         self.sleep.start()
         self.addCleanup(self.sleep.stop)
         self.endpoint = Endpoint()

@@ -25,6 +25,7 @@ const KNOWN_MODULES = [
     { name: 'Auto Trans', id: 0x02 },
     { name: 'ABS Brakes', id: 0x03 },
     { name: 'Instruments', id: 0x07 },
+    { name: 'Steering Assist', id: 0x09 },
     { name: 'AWD', id: 0x0A },
     { name: 'CAN Gateway', id: 0x1F },
     { name: 'Door Elect, Driver', id: 0x22 },
@@ -295,7 +296,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px' }}>
-                    {selectedModule === 0x0A && (
+                    {(selectedModule === 0x0A || selectedModule === 0x09) && (
                         <button
                             style={{
                                 ...styles.actionBtn,
@@ -448,6 +449,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                 <HaldexFlashModal
                     socket={socket}
                     theme={theme}
+                    initialModule={selectedModule === 0x09 ? 'pq-eps' : 'haldex-gen4'}
                     onClose={() => setShowFlashModal(false)}
                 />
             )}

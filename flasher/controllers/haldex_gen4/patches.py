@@ -12,9 +12,12 @@ Performs:
 5. Routine 0xC5 Additive Flash Checksum calculation for bootloader transfer.
 """
 import argparse
+import hashlib
 import struct
 import sys
 import os
+from dataclasses import dataclass
+from pathlib import Path
 
 CPU_RAM_FLAG_ADDR = 0x00F9FC
 BOOTLOADER_STAY_FLAG = 0x001119AB
@@ -159,6 +162,10 @@ def patch_firmware(data: bytearray, harden_traps: bool = True, simulator_mode: b
     validate_image(data)
     blocks = selected_blocks(start, end)
     patch_antibrick = any(address == 0x20000 for address, _ in blocks)
+    if simulator_mode:
+        # Feature patches are firmware-layout specific even though the flash
+        # protocol and checksum scheme are shared across the controller family.
+        SIMULATOR_MANIFEST.validate(data)
 
     # Validate fixed-address preimages before making any changes.
     if patch_antibrick and (
@@ -353,6 +360,133 @@ def checksum_image(path, verify=False, fix=None, out=None):
 
 
     return 0 if valid else 1
+
+
+
+
+DEFAULT_START, DEFAULT_END = 0x18000, 0x4FFFF
+
+
+@dataclass(frozen=True)
+class PatchSite:
+    address: int
+    expected: bytes
+    replacement: bytes
+    description: str
+
+    def state(self, image: bytes) -> str:
+        actual = image[self.address:self.address + len(self.expected)]
+        if actual == self.expected:
+            return "stock"
+        if actual == self.replacement:
+            return "applied"
+        return "mismatch"
+
+
+@dataclass(frozen=True)
+class PatchManifest:
+    name: str
+    feature: str
+    sites: tuple[PatchSite, ...]
+
+    def validate(self, image: bytes) -> dict:
+        validate_image(image)
+        states = {site.address: site.state(image) for site in self.sites}
+        mismatches = [site for site in self.sites if states[site.address] == "mismatch"]
+        if mismatches:
+            details = ", ".join(
+                f"0x{site.address:06X} {site.description}" for site in mismatches)
+            raise ValueError(f"{self.feature} patch manifest does not match image: {details}")
+        return {"manifest": self.name, "feature": self.feature, "states": states}
+
+
+SIMULATOR_MANIFEST = PatchManifest(
+    name="haldex-gen4-simulator-known-layout",
+    feature="simulator-mode",
+    sites=tuple(PatchSite(*site) for site in SIMULATOR_PATCHES),
+)
+
+
+def prepare_image(source, start_addr=DEFAULT_START, end_addr=DEFAULT_END,
+                  file_off=None, simulator_mode=False):
+    """Prepare a Haldex image using only this controller family's patch policy."""
+    if type(simulator_mode) is not bool:
+        raise ValueError("simulator_mode must be a boolean")
+    if type(start_addr) is not int or type(end_addr) is not int:
+        raise ValueError("Addresses must be integers")
+    selected_blocks(start_addr, end_addr)
+    if file_off is not None and (type(file_off) is not int or file_off != start_addr):
+        raise ValueError("Source offset must match CPU linear application address")
+
+    image = Path(source).read_bytes() if isinstance(source, (str, Path)) else bytes(source)
+    if len(image) != IMAGE_SIZE:
+        raise ValueError(
+            "Only validated 320KiB CPU linear images are supported; "
+            "64KiB calibration files and raw dumps are unsupported")
+    validate_image(image)
+    digest = hashlib.sha256(image).hexdigest()
+    original = image
+    if simulator_mode:
+        SIMULATOR_MANIFEST.validate(original)
+
+    prepared = bytearray(original)
+    patch_result = patch_firmware(
+        prepared, harden_traps=True, simulator_mode=simulator_mode,
+        start=start_addr, end=end_addr)
+    image = bytes(prepared)
+
+    changes = []
+    offset = 0
+    while offset < len(image):
+        if image[offset] == original[offset]:
+            offset += 1
+            continue
+        first = offset
+        while offset < len(image) and image[offset] != original[offset]:
+            offset += 1
+        changes.append({
+            "address": first,
+            "before": original[first:offset].hex(),
+            "after": image[first:offset].hex(),
+            "transferred": start_addr <= first and offset - 1 <= end_addr,
+        })
+
+    sectors = []
+    for address, size in APP_BLOCKS:
+        stored = struct.unpack_from("<H", image, address + size - 2)[0]
+        if start_addr <= address and address + size - 1 <= end_addr:
+            if stored != layer1(image, address, size):
+                raise ValueError(f"Application checksum mismatch at {address:#x}")
+            sectors.append({
+                "start": address,
+                "end": address + size - 1,
+                "source_offset": address,
+                "size": size,
+                "layer1_checksum": stored,
+                "transfer_checksum": sum(image[address:address + size]) & 0xFFFF,
+            })
+
+    region = image[start_addr:end_addr + 1]
+    metadata = {
+        "original_sha256": digest,
+        "prepared_sha256": hashlib.sha256(image).hexdigest(),
+        "patches": changes,
+        "patch_policy": (
+            "Haldex Gen4 recovery patches, trap hardening, optional exact-manifest "
+            "simulator patches, and checksum repairs in selected sectors"
+        ),
+        "patch_result": patch_result,
+        "patch_manifest": SIMULATOR_MANIFEST.name if simulator_mode else None,
+        "sectors": sectors,
+        "start_addr": start_addr,
+        "end_addr": end_addr,
+        "size": len(region),
+        "checksum": sum(region) & 0xFFFF,
+        "selection_policy": "user-selected whole application sectors",
+        "simulator_mode": simulator_mode,
+        "bench_only": simulator_mode,
+    }
+    return {"image": image, "region": region, "metadata": metadata}
 
 
 if __name__ == "__main__":

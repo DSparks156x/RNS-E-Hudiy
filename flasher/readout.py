@@ -7,10 +7,10 @@ import re
 import time
 import uuid
 
-from .haldex_flash import ApplicationReader, ProtocolError, capture
-from .haldex_patcher import selected_blocks, application_checksums
+from .controllers.haldex_gen4.protocol import ApplicationReader, ProtocolError, capture
+from .controllers.haldex_gen4.patches import selected_blocks, application_checksums
 from .socketcan_device import SocketCANDevice
-from .tp20 import TP20Transport
+from .vag_protocols.tp2 import TP20Transport
 
 
 def validate_selection(start_addr, end_addr):

@@ -11,7 +11,7 @@ from pathlib import Path
 # Shared gate for every application CAN transmitter (installed beside flasher/).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from flasher.traffic import transmission_guard
-from vag_protocols.tp2 import TP2MessageReassembler
+from flasher.vag_protocols.tp2 import TP2MessageReassembler
 
 import can
 

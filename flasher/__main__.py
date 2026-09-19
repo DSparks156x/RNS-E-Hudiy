@@ -1,7 +1,7 @@
 """Offline-only artifact validation entry point; no CAN path is exposed."""
 import argparse
 import json
-from .artifacts import prepare_image
+from .controllers.haldex_gen4.patches import prepare_image
 
 
 def main():

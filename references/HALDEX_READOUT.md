@@ -2,14 +2,16 @@
 
 Integrated from the 2026-09-16 `HaldexRE/flasher` refactor:
 
-- `flasher/haldex_flash.py` contains the shared KWP helpers and application
-  upload/capture implementation. Hudiy retains strict service-response checking,
-  bounded response-pending handling and no ambiguous TransferData retry.
+- `flasher/pq.py` contains the shared flash and memory-read state machines.
+  `flasher/targets.py` contains the Haldex and EPS policy. Hudiy retains strict
+  service-response checking, bounded response-pending handling and no ambiguous
+  TransferData retry.
 - `haldex_patcher.py` provides strict 320 KiB sizing, whole-sector selection,
   selected-sector patches and checksum repair. Unselected bytes remain unchanged.
-- `tp20.py` now supports segmented upload responses, intermediate ACKs and
-  sequence wrap while retaining channel/sequence/length checks.
-- `haldex_flasher.py` remains the Hudiy lifecycle adapter for progress,
+- `flasher/vag_protocols/tp2.py` supports segmented upload responses,
+  intermediate ACKs and sequence wrap while retaining channel/sequence/length
+  checks.
+- `flasher/targets.py` binds the shared lifecycle to Haldex progress,
   cancellation, cleanup and separately verified commit/application boot.
 - `readout.py` adds UI progress, automatic naming and persistent capture reports
   around the shared reader. No second dumper or standalone checksum script exists.

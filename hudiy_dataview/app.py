@@ -36,7 +36,8 @@ try:
     _package_root = _base_dir
     if _package_root not in sys.path:
         sys.path.insert(0, _package_root)
-    from flasher.haldex_flasher import HaldexFlasher
+    from flasher.controllers.haldex_gen4 import HaldexFlasher
+    from flasher.controllers.pq_eps import PQEPSFlasher
     from flasher.traffic import flashing_operation, set_flashing_mode
 
     with open(os.path.join(_base_dir, 'config.json')) as _f:
@@ -64,10 +65,12 @@ except Exception as _e:
         _package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         if _package_root not in sys.path:
             sys.path.insert(0, _package_root)
-        from flasher.haldex_flasher import HaldexFlasher
+        from flasher.controllers.haldex_gen4 import HaldexFlasher
+        from flasher.controllers.pq_eps import PQEPSFlasher
         from flasher.traffic import flashing_operation, set_flashing_mode
     except Exception:
         HaldexFlasher = None
+        PQEPSFlasher = None
 
 # --- Setup Flask & SocketIO ---
 app = Flask(__name__)
@@ -80,13 +83,25 @@ logger = logging.getLogger(__name__)
 data_logger = DataLogger(_cfg)
 
 
-def _validate_haldex_portal_upload(path):
-    if HaldexFlasher is None:
-        raise RuntimeError('Haldex firmware validation is unavailable')
-    return HaldexFlasher.prepare_image(path)
+def _validate_vehicle_portal_upload(path):
+    errors = []
+    for flasher in (HaldexFlasher, PQEPSFlasher):
+        if flasher is None:
+            continue
+        try:
+            return flasher.prepare_image(path)
+        except Exception as error:
+            errors.append(str(error))
+            if flasher is PQEPSFlasher:
+                try:
+                    return flasher.prepare_image(
+                        path, start_addr=0x5e000, end_addr=0x5efff)
+                except Exception as dataset_error:
+                    errors.append(str(dataset_error))
+    raise ValueError('File is not a supported Haldex or PQ EPS image: ' + '; '.join(errors))
 
 
-register_file_portal(app, _cfg, validators={'haldex': _validate_haldex_portal_upload})
+register_file_portal(app, _cfg, validators={'haldex': _validate_vehicle_portal_upload})
 
 # Cache Busting
 @app.after_request
@@ -635,30 +650,53 @@ def firmware_paths(directory):
                 yield os.path.relpath(path, directory), path
 
 
-def _validated_artifacts():
-    """Only engine-validated, installed whole images can enter the vehicle workflow."""
+def _flasher_for_module(module):
+    if module in (None, 'haldex-gen4', 'haldex', 'awd'):
+        if HaldexFlasher is None:
+            raise RuntimeError('Haldex flasher is unavailable')
+        return HaldexFlasher
+    if module in ('pq-eps', 'eps', 'steering'):
+        if PQEPSFlasher is None:
+            raise RuntimeError('PQ EPS flasher is unavailable')
+        return PQEPSFlasher
+    raise ValueError('Unknown flash module')
+
+
+def _validated_artifacts(module='haldex-gen4'):
+    """Only controller-policy-validated installed images enter the vehicle workflow."""
     artifacts = {}
-    if HaldexFlasher is None:
+    try:
+        flasher_class = _flasher_for_module(module)
+    except (RuntimeError, ValueError):
         return artifacts
     for directory in get_tunes_dirs():
         for name, path in firmware_paths(directory):
             try:
-                HaldexFlasher.prepare_image(path)
+                try:
+                    prepared = flasher_class.prepare_image(path)
+                except ValueError:
+                    if flasher_class is not PQEPSFlasher:
+                        raise
+                    prepared = flasher_class.prepare_image(
+                        path, start_addr=0x5e000, end_addr=0x5efff)
                 with open(path, 'rb') as source:
                     artifact_id = hashlib.sha256(source.read()).hexdigest()
+                metadata = prepared['metadata']
                 artifacts[artifact_id] = {
                     'artifact_id': artifact_id, 'name': name, '_path': path,
-                    'size_bytes': os.path.getsize(path), 'type': '320 KiB firmware image',
+                    'size_bytes': os.path.getsize(path),
+                    'type': metadata.get('source_kind', '320 KiB firmware image'),
+                    'module': 'pq-eps' if flasher_class is PQEPSFlasher else 'haldex-gen4',
                     'modified': time.strftime('%Y-%m-%d %H:%M', time.localtime(os.path.getmtime(path)))
                 }
             except Exception as error:
-                logger.warning('Rejected firmware artifact %s: %s', name, error)
+                logger.debug('Rejected %s artifact %s: %s', module, name, error)
     return artifacts
 
 
-def list_available_tunes():
+def list_available_tunes(module='haldex-gen4'):
     return [{k: v for k, v in artifact.items() if k != '_path'}
-            for artifact in _validated_artifacts().values()]
+            for artifact in _validated_artifacts(module).values()]
 
 
 _flasher_lock = threading.Lock()
@@ -841,21 +879,30 @@ class FlashOperationLog:
 
 
 @socketio.on('get_tunes_list')
-def handle_get_tunes_list():
-    emit('tunes_list', list_available_tunes())
+def handle_get_tunes_list(data=None):
+    module = data.get('module', 'haldex-gen4') if isinstance(data, dict) else 'haldex-gen4'
+    try:
+        _flasher_for_module(module)
+        emit('tunes_list', list_available_tunes(module))
+    except Exception as error:
+        emit('tunes_list', [])
+        emit('haldex_flash_error', {'message': str(error), 'stopped': True})
 
 
 @socketio.on('get_ecu_flash_info')
-def handle_get_ecu_flash_info():
+def handle_get_ecu_flash_info(data=None):
+    module = data.get('module', 'haldex-gen4') if isinstance(data, dict) else 'haldex-gen4'
     def read_info():
         owner = DiagnosticOwnership()
         flasher = None
         try:
-            if HaldexFlasher is None:
-                raise RuntimeError('HaldexFlasher module unavailable')
+            flasher_class = _flasher_for_module(module)
             owner.acquire()
-            flasher = HaldexFlasher(channel=_cfg.get('interfaces', {}).get('can', {}).get('diagnostic', 'can0'))
-            socketio.emit('ecu_flash_info', flasher.read_ecu_info())
+            flasher = flasher_class(
+                channel=_cfg.get('interfaces', {}).get('can', {}).get('diagnostic', 'can0'))
+            result = flasher.read_ecu_info()
+            result['module'] = 'pq-eps' if flasher_class is PQEPSFlasher else 'haldex-gen4'
+            socketio.emit('ecu_flash_info', result)
         except Exception as error:
             socketio.emit('ecu_flash_info', {'error': str(error), 'connected': False})
         finally:
@@ -871,20 +918,33 @@ def handle_get_ecu_flash_info():
 def handle_start_haldex_flash(data):
     global _flasher_running, _flasher_thread
     try:
-        if not isinstance(data, dict) or set(data) - {'artifact_id', 'dry_run', 'start_addr', 'end_addr'}:
-            raise ValueError('Only artifact_id, dry_run and sector bounds are accepted')
+        if not isinstance(data, dict) or set(data) - {'artifact_id', 'dry_run', 'start_addr', 'end_addr', 'module'}:
+            raise ValueError('Only module, artifact_id, dry_run and region bounds are accepted')
+        module = data.get('module', 'haldex-gen4')
+        if module in (None, 'haldex-gen4', 'haldex', 'awd'):
+            flasher_class = HaldexFlasher
+        elif module in ('pq-eps', 'eps', 'steering'):
+            flasher_class = PQEPSFlasher
+        else:
+            raise ValueError('Unknown flash module')
+        if flasher_class is None:
+            raise RuntimeError(f'{module} flasher is unavailable')
         artifact_id = data.get('artifact_id')
         dry_run = data.get('dry_run', False)
         if not isinstance(artifact_id, str) or len(artifact_id) != 64:
             raise ValueError('A validated artifact_id is required')
         if type(dry_run) is not bool:
             raise ValueError('dry_run must be boolean')
-        artifact = _validated_artifacts().get(artifact_id)
+        artifact = (_validated_artifacts() if module in (None, 'haldex-gen4', 'haldex', 'awd')
+                    else _validated_artifacts(module)).get(artifact_id)
         if artifact is None:
             raise ValueError('Artifact is not an installed validated vehicle image')
-        start_addr = data.get('start_addr', 0x18000)
-        end_addr = data.get('end_addr', 0x4ffff)
-        HaldexFlasher.prepare_image(artifact['_path'], start_addr=start_addr, end_addr=end_addr)
+        default_bounds = ((0x0a000, 0x5ffff) if module in ('pq-eps', 'eps', 'steering')
+                          else (0x18000, 0x4ffff))
+        start_addr = data.get('start_addr', default_bounds[0])
+        end_addr = data.get('end_addr', default_bounds[1])
+        flasher_class.prepare_image(
+            artifact['_path'], start_addr=start_addr, end_addr=end_addr)
     except Exception as error:
         emit('haldex_flash_error', {'message': str(error), 'recovery_required': os.path.exists(_recovery_file), 'stopped': not _flasher_running})
         return
@@ -909,12 +969,12 @@ def handle_start_haldex_flash(data):
         traffic_operation = None
         try:
             operation_log = FlashOperationLog()
-            flasher = HaldexFlasher(channel=_cfg.get('interfaces', {}).get('can', {}).get('diagnostic', 'can0'), progress_cb=progress, log_cb=operation_log.write)
+            flasher = flasher_class(channel=_cfg.get('interfaces', {}).get('can', {}).get('diagnostic', 'can0'), progress_cb=progress, log_cb=operation_log.write)
             with _flasher_lock:
                 _active_flasher = flasher
                 _active_operation = 'flash'
             # Offline preparation occurs before services change or hardware opens.
-            HaldexFlasher.prepare_image(artifact['_path'], start_addr=start_addr, end_addr=end_addr)
+            flasher_class.prepare_image(artifact['_path'], start_addr=start_addr, end_addr=end_addr)
             if not dry_run:
                 traffic_operation = flashing_operation()
                 traffic_operation.__enter__()
@@ -936,7 +996,7 @@ def handle_start_haldex_flash(data):
             socketio.emit('haldex_flash_complete', result)
         except Exception as error:
             recovery = bool(flasher and (getattr(flasher, 'destructive_started', False) or getattr(flasher, 'recovery_required', False)))
-            logger.exception('Haldex flash stopped')
+            logger.exception('%s flash stopped', module)
             failure = dict(getattr(flasher, 'last_result', {}) if flasher else {},
                            message=str(error), recovery_required=recovery, stopped=True,
                            log_path=operation_log.path if operation_log else None)
@@ -970,7 +1030,8 @@ def handle_start_haldex_flash(data):
                                 _active_operation = None
 
     _flasher_thread = threading.Thread(target=flash_worker, daemon=True)
-    socketio.emit('haldex_flash_started', {'artifact_id': artifact_id, 'dry_run': dry_run})
+    socketio.emit('haldex_flash_started', {
+        'artifact_id': artifact_id, 'dry_run': dry_run, 'module': module})
     try:
         _flasher_thread.start()
     except Exception as error:

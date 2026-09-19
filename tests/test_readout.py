@@ -6,10 +6,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from flasher import readout
-from flasher.haldex_flash import ApplicationReader, ProtocolError
+from flasher.controllers.haldex_gen4.protocol import ApplicationReader, ProtocolError
 from test_flasher_engine import fixture, TP
-from flasher.haldex_flash import (ApplicationReader, ProtocolError,
-                                    upload_request, application_checksums)
+from flasher.controllers.haldex_gen4.protocol import (
+    ApplicationReader, ProtocolError, upload_request, application_checksums)
 
 
 class Device:

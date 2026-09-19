@@ -445,7 +445,7 @@ class InstalledLayoutTests(unittest.TestCase):
     def test_installer_staged_package_import_and_update_preservation(self):
         source = (ROOT / 'install.sh').read_text()
         self.assertIn('install_folder "flasher" || exit 1', source)
-        self.assertIn('install_folder "vag_protocols" || exit 1', source)
+        self.assertNotIn('install_folder "vag_protocols" || exit 1', source)
         sparse_paths = re.search(r'^SPARSE_PATHS=\((.*?)\)$', source, re.MULTILINE).group(1).split()
         installed_folders = re.findall(r'^install_folder "([^"]+)" \|\| exit 1$', source, re.MULTILINE)
         self.assertTrue(set(installed_folders).issubset(sparse_paths))
@@ -463,14 +463,13 @@ class InstalledLayoutTests(unittest.TestCase):
             (home / 'tools' / 'keep.txt').write_text('user tool')
             script = stage / 'stage.sh'
             script.write_text('set -eu\n' + function + '\nmkdir -p "$REAL_HOME/tools"\n'
-                              'install_folder "vag_protocols"\n'
                               'install_folder "flasher"\ninstall_folder "flasher"\n', newline='\n')
             environment = dict(os.environ, REAL_HOME=home.as_posix(), TEMP_DIR=ROOT.as_posix())
             subprocess.run([str(bash), str(script)], env=environment, check=True)
             self.assertEqual((home / 'tools' / 'keep.txt').read_text(), 'user tool')
             # Isolated process, unrelated cwd: repository import fallbacks cannot hide missing files.
             check = ('import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); '
-                     'import flasher; from flasher import HaldexFlasher; from flasher.readout import HaldexReadout; from flasher.traffic import transmission_guard; '
+                     'import flasher; from flasher.controllers.haldex_gen4 import HaldexFlasher; from flasher.controllers.pq_eps import PQEPSFlasher; from flasher.engine import PQFlasher; from flasher.readout import HaldexReadout; from flasher.traffic import transmission_guard; '
                      'assert Path(flasher.__file__).resolve().is_relative_to(Path(sys.argv[1]).resolve()); '
                      'print(flasher.__file__)')
             subprocess.run([sys.executable, '-I', '-B', '-c', check, str(home)],

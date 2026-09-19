@@ -18,6 +18,7 @@ interface EcuFlashInfo {
     flash_counter?: number | null;
     flash_attempts?: number | null;
     last_flash_date?: string | null;
+    flash_date?: string | null;
     last_tool_id?: number | null;
     system_desc?: string | null;
     error?: string;
@@ -35,9 +36,11 @@ interface HaldexFlashModalProps {
     socket: Socket | null;
     theme: Record<string, string>;
     onClose: () => void;
+    initialModule?: 'haldex-gen4' | 'pq-eps';
 }
 
-export function HaldexFlashModal({ socket, theme, onClose }: HaldexFlashModalProps) {
+export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'haldex-gen4' }: HaldexFlashModalProps) {
+    const [module, setModule] = useState<'haldex-gen4' | 'pq-eps'>(initialModule);
     const [tunes, setTunes] = useState<TuneFile[]>([]);
     const [selectedTune, setSelectedTune] = useState<string>('');
     const [ecuInfo, setEcuInfo] = useState<EcuFlashInfo | null>(null);
@@ -59,7 +62,8 @@ export function HaldexFlashModal({ socket, theme, onClose }: HaldexFlashModalPro
     const [cancelRequested, setCancelRequested] = useState(false);
     const [cancelArmed, setCancelArmed] = useState(false);
     const [recoveryRequired, setRecoveryRequired] = useState(false);
-    const [sectorRange, setSectorRange] = useState('98304:327679');
+    const [sectorRange, setSectorRange] = useState(
+        initialModule === 'pq-eps' ? '40960:393215' : '98304:327679');
     const sectorChosen = useRef(false);
 
     // Hold-to-flash button state
@@ -73,11 +77,15 @@ export function HaldexFlashModal({ socket, theme, onClose }: HaldexFlashModalPro
         if (!socket) return;
 
         setLoadingTunes(true);
-        socket.emit('get_tunes_list');
+        socket.emit('get_tunes_list', { module });
 
         const onTunesList = (data: TuneFile[]) => {
             setTunes(data || []);
             setLoadingTunes(false);
+            if (module === 'pq-eps' && data?.[0]?.size_bytes === 4096) {
+                sectorChosen.current = true;
+                setSectorRange('385024:389119');
+            }
             setSelectedTune(previous => data?.some(t => t.artifact_id === previous)
                 ? previous : (data?.[0]?.artifact_id || ''));
         };
@@ -85,7 +93,9 @@ export function HaldexFlashModal({ socket, theme, onClose }: HaldexFlashModalPro
         const onEcuInfo = (info: EcuFlashInfo) => {
             setEcuInfo(info);
             setLoadingInfo(false);
-            if (!sectorChosen.current) {
+            if (module === 'pq-eps' && !sectorChosen.current) {
+                setSectorRange('40960:393215');
+            } else if (!sectorChosen.current) {
                 setSectorRange(info.connected && !info.in_bootloader && info.sw_version?.trim()
                     && info.sw_version.trim() !== '3016' ? '196608:262143' : '98304:327679');
             }
@@ -205,18 +215,18 @@ export function HaldexFlashModal({ socket, theme, onClose }: HaldexFlashModalPro
             if (holdTimerRef.current) clearInterval(holdTimerRef.current);
             if (cancelArmTimerRef.current) clearTimeout(cancelArmTimerRef.current);
         };
-    }, [socket]);
+    }, [socket, module]);
 
     const handleReadEcuInfo = () => {
         if (!socket || isFlashing || recoveryRequired) return;
         setLoadingInfo(true);
-        socket.emit('get_ecu_flash_info');
+        socket.emit('get_ecu_flash_info', { module });
     };
 
     const handleRefreshTunes = () => {
         if (!socket || isFlashing) return;
         setLoadingTunes(true);
-        socket.emit('get_tunes_list');
+        socket.emit('get_tunes_list', { module });
     };
 
     const startHold = () => {
@@ -263,11 +273,11 @@ export function HaldexFlashModal({ socket, theme, onClose }: HaldexFlashModalPro
         setCancelRequested(false);
         setCancelArmed(false);
         const [start_addr, end_addr] = sectorRange.split(':').map(Number);
-        socket.emit('start_haldex_flash', { artifact_id: selectedTune, dry_run: false, start_addr, end_addr });
+        socket.emit('start_haldex_flash', { module, artifact_id: selectedTune, dry_run: false, start_addr, end_addr });
     };
 
     const executeReadout = () => {
-        if (!socket?.connected || isFlashing || loadingInfo || holdTimerRef.current) return;
+        if (module !== 'haldex-gen4' || !socket?.connected || isFlashing || loadingInfo || holdTimerRef.current) return;
         setIsFlashing(true);
         setIsReadout(true);
         setFlashResult(null);
@@ -312,11 +322,29 @@ export function HaldexFlashModal({ socket, theme, onClose }: HaldexFlashModalPro
                 <div style={styles.header}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                         <span style={{ fontWeight: 'bold', fontSize: '1rem', letterSpacing: '0.02em' }}>
-                            AWD Flasher
+                            Vehicle Module Flasher
                         </span>
                         <span style={{ fontSize: '0.8rem', opacity: 0.6, fontFamily: 'monospace' }}>
-                            Mod 0x0A (Haldex Gen4)
+                            {module === 'pq-eps' ? 'Mod 0x09 (PQ EPS)' : 'Mod 0x0A (Haldex Gen4)'}
                         </span>
+                        {!isFlashing && <select
+                            aria-label="Controller module"
+                            value={module}
+                            onChange={event => {
+                                const next = event.target.value as 'haldex-gen4' | 'pq-eps';
+                                setModule(next);
+                                setEcuInfo(null);
+                                setSelectedTune('');
+                                setFlashResult(null);
+                                setReadout(null);
+                                sectorChosen.current = false;
+                                setSectorRange(next === 'pq-eps' ? '40960:393215' : '98304:327679');
+                            }}
+                            style={{ ...styles.select, width: '145px', padding: '4px 6px', backgroundColor: theme.surfaceVariant || '#252525', color: theme.onSurface || '#eee' }}
+                        >
+                            <option value="haldex-gen4">Haldex Gen4</option>
+                            <option value="pq-eps">PQ EPS</option>
+                        </select>}
                     </div>
 
                     {!isFlashing && (
@@ -367,7 +395,7 @@ export function HaldexFlashModal({ socket, theme, onClose }: HaldexFlashModalPro
                             </div>
                             <div style={styles.tableRow}>
                                 <span style={styles.cellLabel}>Last Flash Date</span>
-                                <span style={styles.cellValue}>{ecuInfo?.last_flash_date || '—'}</span>
+                                <span style={styles.cellValue}>{ecuInfo?.last_flash_date || ecuInfo?.flash_date || '—'}</span>
                             </div>
                             <div style={styles.tableRow}>
                                 <span style={styles.cellLabel}>Active State</span>
@@ -377,25 +405,31 @@ export function HaldexFlashModal({ socket, theme, onClose }: HaldexFlashModalPro
                             </div>
                         </div>
 
-                        <label style={styles.checkLabel}>Sectors</label>
+                        <label style={styles.checkLabel}>{module === 'pq-eps' ? 'Flash region' : 'Sectors'}</label>
                         <select value={sectorRange} disabled={isFlashing}
                             onChange={e => { sectorChosen.current = true; setSectorRange(e.target.value); }}
                             style={{ ...styles.select, backgroundColor: theme.surfaceVariant || '#252525', color: theme.onSurface || '#eee' }}>
-                            <option value="196608:262143">Calibration — sector 6</option>
-                            <option value="98304:327679">Full application — sectors 4–7</option>
-                            <option value="98304:131071">Sector 4</option>
-                            <option value="131072:196607">Sector 5</option>
-                            <option value="262144:327679">Sector 7</option>
-                            <option value="98304:196607">Sectors 4–5</option>
-                            <option value="98304:262143">Sectors 4–6</option>
-                            <option value="131072:262143">Sectors 5–6</option>
-                            <option value="131072:327679">Sectors 5–7</option>
-                            <option value="196608:327679">Sectors 6–7</option>
+                            {module === 'pq-eps' ? <>
+                                <option value="40960:393215">Full firmware — 0x0A000–0x5FFFF</option>
+                                <option value="380928:385023">Configuration — block 0x5D</option>
+                                <option value="385024:389119">Steer dataset — block 0x5E</option>
+                            </> : <>
+                                <option value="196608:262143">Calibration — sector 6</option>
+                                <option value="98304:327679">Full application — sectors 4–7</option>
+                                <option value="98304:131071">Sector 4</option>
+                                <option value="131072:196607">Sector 5</option>
+                                <option value="262144:327679">Sector 7</option>
+                                <option value="98304:196607">Sectors 4–5</option>
+                                <option value="98304:262143">Sectors 4–6</option>
+                                <option value="131072:262143">Sectors 5–6</option>
+                                <option value="131072:327679">Sectors 5–7</option>
+                                <option value="196608:327679">Sectors 6–7</option>
+                            </>}
                         </select>
                         <div style={{ fontSize: '0.75rem', lineHeight: 1.4 }}>
-                            320 KiB images are automatically patched and checksums repaired. Query Controller to choose the default:
-                            Calibration for non-3016 application firmware; Full for 3016 or unknown.
-                            You can override the selection. Flash and readout use the selected sectors.
+                            {module === 'pq-eps'
+                                ? 'Full 384 KiB images may flash any listed region. Standalone 4 KiB files are accepted only for the 0x5E steer dataset and must pass CRC-16/XMODEM validation. EPS readout is unavailable over KWP.'
+                                : '320 KiB images are automatically patched and checksums repaired. Query Controller to choose the default: Calibration for non-3016 application firmware; Full for 3016 or unknown. Flash and readout use the selected sectors.'}
                         </div>
                         {ecuInfo?.error && <div role="alert">{ecuInfo.error}</div>}
                         {recoveryRequired && <div role="alert" style={{ color: '#ffb74d' }}>
@@ -420,7 +454,14 @@ export function HaldexFlashModal({ socket, theme, onClose }: HaldexFlashModalPro
 
                         <select
                             value={selectedTune}
-                            onChange={(e) => setSelectedTune(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedTune(e.target.value);
+                                const selected = tunes.find(t => t.artifact_id === e.target.value);
+                                if (module === 'pq-eps' && selected?.size_bytes === 4096) {
+                                    sectorChosen.current = true;
+                                    setSectorRange('385024:389119');
+                                }
+                            }}
                             disabled={isFlashing}
                             style={{
                                 ...styles.select,
@@ -490,7 +531,7 @@ export function HaldexFlashModal({ socket, theme, onClose }: HaldexFlashModalPro
 
                         {/* Action Buttons */}
                         <div style={styles.actionRow}>
-                            {!isFlashing && <button
+                            {!isFlashing && module === 'haldex-gen4' && <button
                                 onClick={executeReadout}
                                 disabled={loadingInfo || holdProgress > 0 || !socket?.connected}
                                 style={{ ...styles.btn, backgroundColor: theme.primaryContainer || '#2c3e50', color: theme.onPrimaryContainer || '#fff', width: '100%', marginBottom: '6px' }}
