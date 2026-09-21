@@ -44,6 +44,18 @@ class NavApp(BaseApp):
 
     def update_hudiy(self, topic: bytes, data: Dict[str, Any]):
         if topic == b'HUDIY_NAV':
+            # An empty full update is the producer's explicit "route ended"
+            # payload.  Clear every route-bearing field so a previous distance
+            # cannot keep navigation visible after the maneuver is gone.
+            if not data:
+                self.description = ""
+                self.distance_label = ""
+                self._meters = -1.0
+                self.maneuver_type = 0
+                self.maneuver_side = 3
+                self.maneuver_angle = 0
+                return
+
             # Full maneuver update
             self.description = data.get('description', '')
             self.maneuver_type = data.get('maneuver_type', 0)
@@ -52,6 +64,11 @@ class NavApp(BaseApp):
             if 'distance' in data:
                 self.distance_label = data['distance']
                 self._meters = self.parse_distance(self.distance_label)
+            else:
+                # Maneuver details arrive before their matching distance. Do
+                # not evaluate the new maneuver using the previous distance.
+                self.distance_label = ''
+                self._meters = -1.0
 
         elif topic == b'HUDIY_NAV_DISTANCE':
             self.distance_label = data.get('label', '')
@@ -152,6 +169,11 @@ class NavApp(BaseApp):
     def meters(self) -> float:
         """Cached unit-aware distance in meters."""
         return self._meters
+
+    @property
+    def has_route(self) -> bool:
+        """Whether Hudiy has supplied actual maneuver data."""
+        return bool(self.description or self.distance_label)
 
     @staticmethod
     def parse_distance(label: Any) -> float:

@@ -219,26 +219,21 @@ class DisplayEngine:
         # --- Advanced Nav Auto-Switching ---
         self.pre_nav_app_name = None
         self.pre_cover_app_name = None
-        self.auto_switch_back_at = 0
         
         # Load Navigation Auto-Switch Config
         nav_cfg = center_display_cfg.get('navigation', {})
         self.nav_auto_switch = nav_cfg.get('auto_switch', True)
         self.nav_approach_threshold = nav_cfg.get('auto_switch_approach_threshold', 500)
         self.nav_return_threshold = nav_cfg.get('auto_switch_return_threshold', 1000)
-        self.nav_return_delay = nav_cfg.get('auto_switch_return_delay', 10)
-        self.nav_hide_inactive = nav_cfg.get('hide_inactive_route', False)
-        self.nav_inactive_debounce = nav_cfg.get('inactive_route_debounce', 5.0)
         self.nav_claim_on_nav = nav_cfg.get('claim_on_nav', False)
-        self.last_valid_route_time = 0
         self.user_paused = False
         self.boot_inactive_hold = self.start_inactive
         self.has_entered_paused_state = False
+        self.content_auto_claimed = False
 
         # Load Phone Config
         phone_cfg = self.cfg.get('display', {}).get('phone', {})
         self.phone_claim_on_phone = phone_cfg.get('claim_on_phone', False)
-        self.phone_auto_claimed = False
 
         # --- Advanced Nav Auto-Switching ---
         self.nav_auto_triggered = False
@@ -358,8 +353,8 @@ class DisplayEngine:
             if target_name == 'app_nav' and not self.is_nav_available():
                 continue
             
-            # Sub-Check: Skip Phone if inactive
-            if target_name == 'app_phone' and not self.phone_active:
+            # Sub-Check: Skip Phone if it has no connected phone or live call
+            if target_name == 'app_phone' and not self.is_phone_available():
                 continue
                 
             # If we found a valid app, break loop
@@ -403,6 +398,18 @@ class DisplayEngine:
         self.force_redraw(send_clear=True)
         self.publish_status()
 
+    def _leave_empty_context_page(self, fallback):
+        """Replace an unavailable underlying page without disturbing overlays."""
+        if fallback not in self.pages:
+            return
+        if self.phone_auto_overlay and self.current_app == self.apps.get('app_phone'):
+            # Keep the live call overlay visible while changing the page that
+            # will be restored beneath it.
+            self.current_page_idx = self.pages.index(fallback)
+            self.publish_status()
+            return
+        self.switch_to_app(fallback)
+
     def process_input(self, action):
         if getattr(self, 'boot_inactive_hold', False):
             return
@@ -426,7 +433,6 @@ class DisplayEngine:
 
     def _cancel_auto_switches(self):
         """Reset all auto-switch states when the user manually interacts."""
-        self.auto_switch_back_at = 0 
         self.pre_nav_app_name = None
         self.pre_phone_app_name = None
         self.pre_cover_app_name = None
@@ -436,81 +442,80 @@ class DisplayEngine:
         self.phone_auto_overlay = False
 
     def _check_nav_availability_pause(self):
-        """Monitor nav availability and request center release/resume if configured."""
+        """Hide empty contextual pages and manage content-triggered claims."""
+        current_app_name = self.pages[self.current_page_idx]
+        is_nav_page = (current_app_name == 'app_nav')
+        nav_available = self.is_nav_available()
+        phone_available = self.is_phone_available()
+
+        # Contextual pages must never remain selected without content.
+        if is_nav_page and not nav_available:
+            fallback = self.pre_nav_app_name
+            if not fallback or fallback == 'app_nav' or fallback not in self.pages:
+                fallback = 'app_media' if 'app_media' in self.pages else next(
+                    (page for page in self.pages if page not in ('app_nav', 'app_phone')), None
+                )
+            if fallback:
+                logger.info("Navigation has no active maneuver: switching to %s.", fallback)
+                self.pre_nav_app_name = None
+                self.nav_auto_triggered = False
+                self._leave_empty_context_page(fallback)
+                current_app_name = fallback
+                is_nav_page = False
+
+        is_phone_page = (current_app_name == 'app_phone')
+        if is_phone_page and not phone_available:
+            fallback = 'app_media' if 'app_media' in self.pages else next(
+                (page for page in self.pages if page not in ('app_nav', 'app_phone')), None
+            )
+            if fallback:
+                logger.info("Phone has no available content: switching to %s.", fallback)
+                self._leave_empty_context_page(fallback)
+                current_app_name = fallback
+                is_phone_page = False
+
+        nav_should_claim = bool(
+            self.nav_claim_on_nav and is_nav_page and nav_available
+        )
+        phone_should_claim = bool(
+            self.phone_claim_on_phone
+            and self.phone_auto_overlay
+            and phone_available
+        )
+        should_claim = nav_should_claim or phone_should_claim
+
         if getattr(self, 'boot_inactive_hold', False):
-            current_app_name = self.pages[self.current_page_idx]
-            is_nav_page = (current_app_name == 'app_nav')
-            is_available = self.is_nav_available()
-            
-            break_hold = False
-            if is_nav_page and is_available and self.nav_claim_on_nav:
-                logger.info("Active route maneuver detected during boot hold. Breaking hold to claim.")
-                break_hold = True
-            elif getattr(self, 'phone_auto_overlay', False):
-                logger.info("Active phone call detected during boot hold. Breaking hold to claim.")
-                break_hold = True
-                
-            if break_hold:
+            if should_claim:
+                logger.info("Available navigation/phone content is claiming the center display.")
                 self.boot_inactive_hold = False
                 self.user_paused = False
+                self.content_auto_claimed = True
                 self._send_draw({'command': 'resume'})
             else:
                 return
 
-        if not self.nav_claim_on_nav:
-            return
-
         if not getattr(self, 'service_ready', False) and not self.user_paused:
             return
 
-        current_app_name = self.pages[self.current_page_idx]
-        is_nav_page = (current_app_name == 'app_nav')
-        is_available = self.is_nav_available()
-        
-        # Logic for release: on nav page but it's not available
-        if is_nav_page and not is_available:
-            if not self.user_paused:
-                logger.info("Navigation unavailable: Releasing center.")
-                self._send_draw({'command': 'pause'})
-                self.user_paused = True
-            
-            # If we were auto-switched here, return immediately now that it's unavailable
-            if getattr(self, 'pre_nav_app_name', None):
-                logger.info("Nav became unavailable (no maneuver). Returning to previous app.")
-                self.switch_to_app(self.pre_nav_app_name)
-                self.pre_nav_app_name = None
-                self.nav_auto_triggered = False
-                self.auto_switch_back_at = 0
-        
-        # Logic for claim (resume): 
-        elif self.user_paused:
-            # Resume if we switched away from nav page, or nav page became available
-            if not is_nav_page or (is_nav_page and is_available):
-                logger.info("Navigation available or app switched: Resuming center.")
-                self._send_draw({'command': 'resume'})
-                self.user_paused = False
+        if should_claim and self.user_paused:
+            logger.info("Available navigation/phone content is claiming the center display.")
+            self._send_draw({'command': 'resume'})
+            self.user_paused = False
+            self.content_auto_claimed = True
+        elif self.content_auto_claimed and not should_claim:
+            logger.info("Claiming content ended: releasing the center display.")
+            self._send_draw({'command': 'pause'})
+            self.user_paused = True
+            self.content_auto_claimed = False
 
     def is_nav_available(self):
-        """Check if the Nav app should be visible in the rotation."""
-        if not self.nav_active:
-            return False
-        
-        if not getattr(self, 'nav_hide_inactive', False):
-            return True
-            
-        nav_app = self.apps['app_nav']
-        has_route = bool(nav_app.description or nav_app.distance_label)
-        
-        now = time.time()
-        if has_route:
-            self.last_valid_route_time = now
-            return True
-            
-        # No route, check debounce
-        if (now - getattr(self, 'last_valid_route_time', 0)) < getattr(self, 'nav_inactive_debounce', 5.0):
-            return True
-            
-        return False
+        """Navigation exists only when the provider has a real route."""
+        return bool(self.nav_active and self.apps['app_nav'].has_route)
+
+    def is_phone_available(self):
+        """Phone exists only with a connection or live call."""
+        phone_app = self.apps.get('app_phone')
+        return bool(phone_app and phone_app.has_phone)
 
     def _resolve_app_priority(self):
         """Unified resolver for the current active app based on priority.
@@ -611,30 +616,11 @@ class DisplayEngine:
                                             self.nav_active = active
                                             logger.info(f"Nav Active State Changed: {active}")
                                             
+                                            # Provider activation is not an auto-switch condition.
+                                            # Re-evaluate the cached distance in case it arrived
+                                            # before NAV_STATUS, but enforce the same thresholds.
                                             if active:
-                                                # Initialize grace period when nav becomes active
-                                                self.last_valid_route_time = time.time()
-                                            
-                                            if active and getattr(self, 'nav_auto_switch', True):
-                                                # Auto-switch TO nav
-                                                nav_app = self.apps['app_nav']
-                                                meters = nav_app.meters
-                                                dist_label = nav_app.distance_label
-                                                current_name = self.pages[self.current_page_idx]
-
-                                                if current_name != 'app_nav':
-                                                    self.pre_nav_app_name = current_name
-                                                    self.switch_to_app('app_nav')
-                                                    
-                                                    # If far away (or unknown), start auto-return timer immediately
-                                                    return_threshold = getattr(self, 'nav_return_threshold', 1000)
-                                                    return_delay = getattr(self, 'nav_return_delay', 10)
-                                                    if meters > return_threshold or meters == -1:
-                                                        self.auto_switch_back_at = time.time() + return_delay
-                                                    else:
-                                                        self.auto_switch_back_at = 0
-                                                else:
-                                                    logger.debug(f"Nav activated but already on app_nav. meters={meters}")
+                                                self._handle_nav_auto_switch(self.apps['app_nav'])
                                             elif not active:
                                                 # Auto-switch AWAY from nav if currently on it
                                                 current_name = self.pages[self.current_page_idx]
@@ -645,7 +631,6 @@ class DisplayEngine:
                                                         self.switch_to_app('app_media')
                                             
                                                 # Clean up toggle state when nav deactivated
-                                                self.auto_switch_back_at = 0
                                                 self.pre_nav_app_name = None
 
                                     # Update NavApp specifically for background monitoring (auto-switch, availability)
@@ -653,10 +638,6 @@ class DisplayEngine:
                                         nav_app = self.apps['app_nav']
                                         nav_app.update_hudiy(topic, data)
                                         self._handle_nav_auto_switch(nav_app)
-
-                                        # Track when we last saw a valid route maneuver
-                                        if nav_app.description or nav_app.distance_label:
-                                            self.last_valid_route_time = now
 
                                     if topic == b'HUDIY_PHONE':
                                         if 'app_phone' in self.apps: self.apps['app_phone'].update_hudiy(topic, data)
@@ -713,6 +694,7 @@ class DisplayEngine:
                                             logger.info("Service disconnected. Resetting boot inactive hold flags.")
                                         self.boot_inactive_hold = self.start_inactive
                                         self.has_entered_paused_state = False
+                                        self.content_auto_claimed = False
                                     
                                     # Set paused flag once service acknowledges pause
                                     if state == "PAUSED":
@@ -723,6 +705,7 @@ class DisplayEngine:
                                         logger.info("Cluster-triggered wakeup/re-init detected. Clearing boot inactive hold.")
                                         self.boot_inactive_hold = False
                                         self.user_paused = False
+                                        self.content_auto_claimed = False
                                         self._send_draw({'command': 'resume'})
                                         
                                     if self.service_ready != is_ready:
@@ -731,6 +714,9 @@ class DisplayEngine:
                                         if self.service_ready:
                                             if not self.boot_inactive_hold:
                                                 self.force_redraw(send_clear=True)
+                                                # Navigation data may have arrived while the DIS
+                                                # service was paused. Re-evaluate it on readiness.
+                                                self._handle_nav_auto_switch(self.apps['app_nav'])
                                             else:
                                                 logger.info("Service READY but holding inactive. Skipping redraw.")
                                         self.publish_status()
@@ -757,13 +743,6 @@ class DisplayEngine:
                     self.current_app.on_enter()
                     self.last_tp2_sync = 0 # Force immediate TP2 sync on priority switch
                     self.force_redraw(send_clear=True)
-
-                # Handle Auto-Switch Back Timer for Nav (legacy cleanup)
-                if self.auto_switch_back_at > 0 and now > self.auto_switch_back_at:
-                    self.auto_switch_back_at = 0
-                    if self._resolve_app_priority() == 'app_nav' and self.pre_nav_app_name:
-                         # Force clear the pre_nav flag to trigger return
-                         self.pre_nav_app_name = None
 
                 # Periodic TP2 SYNC for Automotive Data
                 if hasattr(self, 'tp2_cmd') and now - self.last_tp2_sync > 10.0:
@@ -813,18 +792,26 @@ class DisplayEngine:
             except Exception as e: logger.error(f"Err: {e}", exc_info=True); time.sleep(1)
 
     def _handle_nav_auto_switch(self, nav_app):
-        # Distance-based Auto-Switch Logic
+        """Apply distance hysteresis for the navigation overlay.
+
+        Enter at/below the approach threshold. Once auto-entered, remain on Nav
+        until a known distance exceeds the return threshold. Unknown distance
+        is transitional and must not cause either transition.
+        """
         if not getattr(self, 'nav_auto_switch', True) or not self.nav_active or not getattr(self, 'service_ready', False): return
         
         meters = nav_app.meters
         current_name = self.pages[self.current_page_idx]
-        now = time.time()
-        
         approach_threshold = getattr(self, 'nav_approach_threshold', 500)
         return_threshold = getattr(self, 'nav_return_threshold', 1000)
 
-        # Reset the trigger when distance goes above return threshold
-        if meters > return_threshold or meters == -1:
+        # A details update precedes its matching distance update. Waiting here
+        # prevents a stale/unknown value from flickering the overlay.
+        if meters < 0:
+            return
+
+        # Above the return threshold arms the next approach transition.
+        if meters > return_threshold:
             self.nav_auto_triggered = False
 
         if current_name != 'app_nav':
@@ -833,20 +820,18 @@ class DisplayEngine:
                 logger.info(f"Distance Alert: {meters}m. Switching to Nav.")
                 self.nav_auto_triggered = True
                 self.pre_nav_app_name = current_name
-                self.auto_switch_back_at = 0
                 self.switch_to_app('app_nav')
         elif self.pre_nav_app_name:
-            # Currently on Nav via auto-switch, check for switch back
-            return_delay = getattr(self, 'nav_return_delay', 10)
-            
-            if meters > return_threshold or meters == -1:
-                if getattr(self, 'auto_switch_back_at', 0) == 0:
-                    logger.info(f"Distance {meters}m (or unknown). Returning to {self.pre_nav_app_name} in {return_delay}s.")
-                    self.auto_switch_back_at = now + return_delay
-            elif 0 <= meters <= return_threshold:
-                if getattr(self, 'auto_switch_back_at', 0) != 0:
-                    logger.info(f"Distance {meters}m <= {return_threshold}m, clearing return timer.")
-                    self.auto_switch_back_at = 0
+            # Only auto-entered Nav returns automatically. A manually selected
+            # Nav page has no pre_nav_app_name and remains user-controlled.
+            if meters > return_threshold:
+                previous_app = self.pre_nav_app_name
+                logger.info(
+                    "Next maneuver is %.1fm away (> %.1fm): returning to %s.",
+                    meters, return_threshold, previous_app,
+                )
+                self.pre_nav_app_name = None
+                self.switch_to_app(previous_app)
 
     def _handle_media_match(self, data):
         """Check for Easter Egg matches using regex."""
@@ -910,11 +895,8 @@ class DisplayEngine:
             logger.error(f"Failed to process Easter Eggs: {e}")
 
     def _handle_phone_status(self, data):
-        if not getattr(self, 'service_ready', False): return
-
         state = data.get('state', 'IDLE')
-        # Interesting if INCOMING, ALERTING, or ACTIVE
-        interesting = state in ['INCOMING', 'ALERTING', 'ACTIVE']
+        interesting = state in PhoneApp.CALL_STATES
         
         if interesting != self.phone_active:
             self.phone_active = interesting
@@ -923,23 +905,8 @@ class DisplayEngine:
             if interesting:
                 self.phone_auto_overlay = True
                 self.pre_phone_app_name = self.pages[self.current_page_idx]
-                
-                # Check if phone call should claim the display
-                if self.phone_claim_on_phone:
-                    if self.user_paused:
-                        logger.info("Active phone call: Resuming and claiming center.")
-                        self.boot_inactive_hold = False
-                        self.user_paused = False
-                        self.phone_auto_claimed = True
-                        self._send_draw({'command': 'resume'})
             else:
                 self.phone_auto_overlay = False
-                if self.phone_claim_on_phone and getattr(self, 'phone_auto_claimed', False):
-                    if self.pre_phone_app_name is not None:
-                        logger.info("Phone call ended (auto-claimed). Releasing center.")
-                        self._send_draw({'command': 'pause'})
-                        self.user_paused = True
-                self.phone_auto_claimed = False
                 self.pre_phone_app_name = None
 
     def _handle_can(self):

@@ -577,10 +577,7 @@
             "display.center_display.navigation.auto_switch": { help: "Automatic switching to Nav app.", type: "boolean" },
             "display.center_display.navigation.auto_switch_approach_threshold": { help: "Auto switch distance (meters).", type: "number" },
             "display.center_display.navigation.auto_switch_return_threshold": { help: "Switch back distance (meters).", type: "number" },
-            "display.center_display.navigation.auto_switch_return_delay": { help: "Switch back delay (seconds).", type: "number" },
             "display.center_display.navigation.approach_bar_max_distance": { help: "Distance visual fill starts (meters).", type: "number" },
-            "display.center_display.navigation.hide_inactive_route": { help: "Hide Nav app from rotation when no route is active.", type: "boolean" },
-            "display.center_display.navigation.inactive_route_debounce": { help: "Grace period before hiding Nav (seconds).", type: "number" },
             "display.center_display.navigation.claim_on_nav": { help: "Auto-claim center display when a route starts and release when it ends.", type: "boolean" },
             "display.center_display.coverart": { label: "Album Cover Art" },
             "display.center_display.coverart.brief": { help: "Show briefly on track start (5s).", type: "boolean" },
@@ -659,6 +656,11 @@
             "features.power_management.connection_management.manage_bluetooth": { help: "Toggle Bluetooth/BLE adapter power automatically.", type: "boolean" },
             "features.power_management.connection_management.manage_android_auto": { help: "Dispatch connect/disconnect to Hudiy Android Auto.", type: "boolean" },
             "features.power_management.connection_management.disconnect_delay_seconds": { help: "Delay before disconnecting when ignition/radio turns off (sec).", type: "number" },
+            // Hudiy API diagnostics
+            "diagnostics.hudiy_api_capture": { label: "Hudiy API Event Capture", help: "Records provider-tagged projection, media, navigation, and phone API callbacks for AA/CarPlay comparison." },
+            "diagnostics.hudiy_api_capture.enabled": { help: "Keep a bounded diagnostic capture available in the file portal.", type: "boolean" },
+            "diagnostics.hudiy_api_capture.path": { help: "Output file shown in the portal's Hudiy API captures collection." },
+            "diagnostics.hudiy_api_capture.max_size_mb": { help: "Maximum current capture size in MB; one previous capture is retained.", type: "number" },
             // MMI Specific Mappings
             "input_mappings.mmi": { label: "RNS-E (MMI)" },
             "input_mappings.mmi.cooldown_period": { help: "Min time between distinct button events (sec).", type: "number" },

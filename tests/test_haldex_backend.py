@@ -58,7 +58,7 @@ class HaldexTelemetryMuxTests(unittest.TestCase):
         self.assertNotIn('ca2_total_accel', page1)
 
         page4 = self.ns['decode_0x6da']('d4c2a01385ff347f')
-        self.assertEqual(page4['wheel_hr_kmh'], 50.24)
+        self.assertEqual(page4['wheel_hr_kmh'], 25.12)
         self.assertEqual(page4['lat_accel_measured'], -123)
         self.assertEqual(page4['throttle'], 0x34)
         self.assertEqual(page4['bls'], 0x7F)
@@ -70,6 +70,36 @@ class HaldexTelemetryMuxTests(unittest.TestCase):
         self.assertEqual(decoded['model_yaw_raw'], 18)
         self.assertAlmostEqual(decoded['model_yaw_deg_s'], 18 / 17.87, places=3)
         self.assertNotIn('b1a_raw', decoded)
+
+
+class HaldexModeCommandTests(unittest.TestCase):
+    def setUp(self):
+        self.ns = definitions('rns-e_can/haldex_manager.py',
+                              {'build_mode_frame', 'build_mode_burst'}, {
+            'Tuple': __import__('typing').Tuple,
+            'List': __import__('typing').List,
+            'CAN_ID_MODE_CMD': 0x67A,
+            'MODE_COMMAND_HEADERS': {
+                0: bytes.fromhex('5AA5'),
+                1: bytes.fromhex('A55A'),
+                2: bytes.fromhex('3CC3'),
+            },
+        })
+
+    def test_exact_7316_mode_headers(self):
+        self.assertEqual(self.ns['build_mode_frame'](0),
+                         (0x67A, '5aa5000000000000'))
+        self.assertEqual(self.ns['build_mode_frame'](1),
+                         (0x67A, 'a55a000000000000'))
+        self.assertEqual(self.ns['build_mode_frame'](2),
+                         (0x67A, '3cc3000000000000'))
+        with self.assertRaisesRegex(ValueError, 'Invalid mode'):
+            self.ns['build_mode_frame'](3)
+
+    def test_recommended_burst_is_five_identical_frames(self):
+        burst = self.ns['build_mode_burst'](2)
+        self.assertEqual(len(burst), 5)
+        self.assertEqual(set(burst), {(0x67A, '3cc3000000000000')})
 
 
 class OwnershipTests(unittest.TestCase):

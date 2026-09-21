@@ -5,7 +5,7 @@ haldex_manager.py
 Manages Haldex Gen4 AWD mode switching, persistence, reconciliation, and telemetry.
 
 Architecture:
-- Sends mode change bursts over CAN ID 0x67A via can_send.ipc (6 frames, 20ms apart).
+- Sends mode change bursts over CAN ID 0x67A via can_send.ipc (5 frames, 20ms apart).
 - Subscribes to can_stream.ipc to decode 0x6DA and 0x679 telemetry @ 50 Hz.
 - Reconciles active vs desired mode (~1 Hz self-limiting retry loop).
 - Handles persistence according to config.json:
@@ -42,40 +42,36 @@ CAN_ID_MODE_CMD = 0x67A
 CAN_ID_HALDEX_TELEMETRY_YAW = 0x679
 CAN_ID_HALDEX_TELEMETRY_STATE = 0x6DA
 
+MODE_COMMAND_HEADERS = {
+    MODE_STOCK: bytes.fromhex("5AA5"),
+    MODE_PERFORMANCE: bytes.fromhex("A55A"),
+    MODE_COMPETITION: bytes.fromhex("3CC3"),
+}
+
 logger = logging.getLogger("HaldexManager")
 
 
-def build_mode_frame(mode: int, counter: int) -> Tuple[int, str]:
+def build_mode_frame(mode: int) -> Tuple[int, str]:
     """
-    Build a single 0x67A CAN mode frame.
-    Format (8 bytes):
-      byte 0: 0x5A (magic low)
-      byte 1: 0xA5 (magic high)
-      byte 2: mode (0x00, 0x01, 0x02)
-      byte 3: mode ^ 0xFF
-      byte 4: rolling counter (0..255)
-      byte 5: 0x00 (reserved)
-      byte 6: 0x00 (reserved)
-      byte 7: 0x00 (reserved)
+    Build one compact 7316 0x67A mode command. The mode is encoded entirely
+    by bytes 0-1; Haldex ignores bytes 2-7 for recognized headers.
     """
-    mode = int(mode) & 0x03
-    complement = mode ^ 0xFF
-    ctr = int(counter) & 0xFF
-    data_bytes = bytes([0x5A, 0xA5, mode, complement, ctr, 0x00, 0x00, 0x00])
+    mode = int(mode)
+    if mode not in MODE_COMMAND_HEADERS:
+        raise ValueError(f"Invalid mode {mode}. Expected 0, 1, or 2.")
+    data_bytes = MODE_COMMAND_HEADERS[mode] + bytes(6)
     return CAN_ID_MODE_CMD, data_bytes.hex()
 
 
-def build_mode_burst(mode: int, start_counter: int = 0, count: int = 6) -> List[Tuple[int, str]]:
-    """Build a burst of 0x67A frames with sequential rolling counters."""
-    burst = []
-    for i in range(count):
-        burst.append(build_mode_frame(mode, (start_counter + i) & 0xFF))
-    return burst
+def build_mode_burst(mode: int, count: int = 5) -> List[Tuple[int, str]]:
+    """Build the recommended five-copy 0x67A command burst."""
+    frame = build_mode_frame(mode)
+    return [frame] * max(1, int(count))
 
 
 def decode_0x6da(payload_hex: str) -> Optional[Dict[str, Any]]:
     """
-    Decode one page of the 7016 0x6DA telemetry stream. Byte 0 is 0xD0|page,
+    Decode one page of the 7316 0x6DA telemetry stream. Byte 0 is 0xD0|page,
     byte 1 carries compact status, and bytes 2..7 contain three LE words.
     """
     try:
@@ -115,17 +111,18 @@ def decode_0x6da(payload_hex: str) -> Optional[Dict[str, Any]]:
                             'bc4_curvature': words[1],
                             'bb6_computed_axle_slip': signed(words[2])})
         elif page == 3:
-            decoded.update({'wheel_vl_kmh': round(words[0] * 0.01, 2),
-                            'wheel_vr_kmh': round(words[1] * 0.01, 2),
-                            'wheel_hl_kmh': round(words[2] * 0.01, 2)})
+            decoded.update({'wheel_vl_kmh': round(words[0] * 0.005, 3),
+                            'wheel_vr_kmh': round(words[1] * 0.005, 3),
+                            'wheel_hl_kmh': round(words[2] * 0.005, 3)})
         elif page == 4:
-            decoded.update({'wheel_hr_kmh': round(words[0] * 0.01, 2),
+            decoded.update({'wheel_hr_kmh': round(words[0] * 0.005, 3),
                             'lat_accel_measured': signed(words[1]),
                             'throttle': words[2] & 0xFF,
                             'bls': (words[2] >> 8) & 0xFF})
         elif page == 5:
-            decoded.update({'hold_a7e': words[0], 'c10_liftoff_hold': words[1],
-                            'cd4_adaptation': signed(words[2])})
+            decoded.update({'hold_a7e': words[0], 'c12_high_gear_factor': words[1],
+                            'target_gear_word': words[2],
+                            'target_gear': words[2] & 0xFF})
         elif page == 6:
             decoded.update({'c3a_slip_energy': words[0],
                             'c26_energy_ceiling': words[1],
@@ -174,7 +171,7 @@ class HaldexManager:
         self.haldex_cfg = self.config.get('haldex', {})
 
         # Settings
-        self.burst_count = int(self.haldex_cfg.get('burst_count', 6))
+        self.burst_count = int(self.haldex_cfg.get('burst_count', 5))
         self.burst_interval = float(self.haldex_cfg.get('burst_interval_ms', 20)) / 1000.0
         self.default_mode = self.haldex_cfg.get('default_mode')
         self.persistence_file = os.path.expanduser(
@@ -189,7 +186,6 @@ class HaldexManager:
         self.status_addr = _zmq.get('haldex_status', 'ipc:///run/rnse_control/haldex_status.ipc')
 
         # State Variables
-        self.rolling_counter = 0
         self.desired_mode = MODE_STOCK
         self.active_mode: Optional[int] = None
         self.last_telemetry_state: Dict[str, Any] = {}
@@ -351,8 +347,7 @@ class HaldexManager:
             return
 
         with self.state_lock:
-            burst = build_mode_burst(mode, start_counter=self.rolling_counter, count=self.burst_count)
-            self.rolling_counter = (self.rolling_counter + self.burst_count) & 0xFF
+            burst = build_mode_burst(mode, count=self.burst_count)
             self.last_switch_time = time.time()
 
         logger.info(f"Sending {len(burst)}x 0x67A burst for Mode {mode} ({MODE_NAMES.get(mode, 'Unknown')})...")

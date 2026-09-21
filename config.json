@@ -23,12 +23,17 @@
     }
   },
   "diagnostics": {
-    "enabled": true
+    "enabled": true,
+    "hudiy_api_capture": {
+      "enabled": true,
+      "path": "~/logs/hudiy-api/hudiy-api-events.log",
+      "max_size_mb": 8
+    }
   },
   "haldex": {
     "enabled": true,
     "default_mode": null,
-    "burst_count": 6,
+    "burst_count": 5,
     "burst_interval_ms": 20,
     "persistence_file": "/home/pi/.hudiy/haldex_mode.json",
     "firmware_dir": "~/haldexfw"
@@ -80,10 +85,7 @@
         "auto_switch": true,
         "auto_switch_approach_threshold": 500,
         "auto_switch_return_threshold": 1000,
-        "auto_switch_return_delay": 10,
         "approach_bar_max_distance": 300,
-        "hide_inactive_route": true,
-        "inactive_route_debounce": 5.0,
         "claim_on_nav": false
       },
       "coverart": {

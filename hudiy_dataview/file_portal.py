@@ -104,8 +104,19 @@ def build_collections(config: Mapping) -> list[Collection]:
         "log_directory", log_root))
     runtime_root = _expanded(portal.get("runtime_log_directory", "/var/log/rnse_control"))
     firmware_root = _expanded(config.get("haldex", {}).get("firmware_dir", "~/haldexfw"))
+    diagnostics = config.get("diagnostics", {})
+    capture_settings = diagnostics.get("hudiy_api_capture", {}) if isinstance(diagnostics, Mapping) else {}
+    if not isinstance(capture_settings, Mapping):
+        capture_settings = {}
+    capture_path = _expanded(str(capture_settings.get(
+        "path", "~/logs/hudiy-api/hudiy-api-events.log")))
+    capture_root = os.path.dirname(capture_path)
+    capture_extension = os.path.splitext(capture_path)[1].lower() or ".log"
 
     collections = targets + [
+        Collection("hudiy_api", "Hudiy API captures",
+                   "Provider-tagged projection, media, navigation, and phone events",
+                   capture_root, (capture_extension,), "logs", False),
         Collection("drive_logs", "Drive & DataView logs",
                    "CSV recordings created by logger profiles", log_root,
                    (".csv",), "logs", True),

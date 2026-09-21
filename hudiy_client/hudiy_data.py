@@ -27,6 +27,7 @@ try:
     
     from common.Client import Client, ClientEventHandler
     import common.Api_pb2 as hudiy_api
+    from api_event_capture import ApiEventCapture
     from connection_manager import ConnectionManager
     
     # Add root to path for dis_client
@@ -76,10 +77,16 @@ MEDIA_SOURCE_MAP = {
     6: "Web"            # MEDIA_SOURCE_WEB
 }
 
+PROJECTION_PROVIDER_MAP = {
+    1: "android_auto",
+    2: "carplay",
+}
+
 class HudiyEventHandler(ClientEventHandler):
-    def __init__(self, safe_publisher, coverart_args=None):
+    def __init__(self, safe_publisher, coverart_args=None, event_capture=None):
         super().__init__() 
         self.safe_pub = safe_publisher
+        self.event_capture = event_capture
         self.coverart_args = coverart_args if isinstance(coverart_args, dict) else {}
         self.last_sync_time = 0
         self.periodic_sync_interval = 300
@@ -101,14 +108,46 @@ class HudiyEventHandler(ClientEventHandler):
         self.current_nav_data = {}
         self.nav_active = False
         self.last_nav_state = None
+        self.current_nav_source = 0
         self.current_phone_data = {
             'connection_state': 'DISCONNECTED', 'name': '', 'state': 'IDLE', 
             'caller_name': '', 'caller_id': '', 'battery': 0, 'signal': 0,
             'timestamp': 0
         }
 
+    def _provider_name(self, source=None):
+        if source is None:
+            source = self.current_nav_source or self.current_media_data.get('source_id', 0)
+        if source in PROJECTION_PROVIDER_MAP:
+            return PROJECTION_PROVIDER_MAP[source]
+        if not source:
+            return "unknown"
+        return MEDIA_SOURCE_MAP.get(source, "unknown").lower()
+
+    def _capture_api_event(self, event, message=None, provider=None, derived=None):
+        if not self.event_capture:
+            return
+        self.event_capture.record(
+            event,
+            message,
+            provider=provider or self._provider_name(),
+            derived=derived,
+            context={
+                'nav_source_id': self.current_nav_source,
+                'nav_active': self.nav_active,
+                'media_source_id': self.current_media_data.get('source_id', 0),
+                'media_source_label': self.current_media_data.get('source_label', 'None'),
+                'projection_active': self.current_media_data.get('projection_active', False),
+            },
+        )
+
     def on_hello_response(self, client, message):
         logger.info(f"Client '{client._name}' Connected - API v{message.api_version.major}.{message.api_version.minor}")
+        self._capture_api_event('hello_response', message, derived={
+            'client_name': client._name,
+            'api_major': message.api_version.major,
+            'api_minor': message.api_version.minor,
+        })
         if client._name == "DATA":
             self._resubscribe(client)
 
@@ -123,6 +162,9 @@ class HudiyEventHandler(ClientEventHandler):
             hudiy_api.SetStatusSubscriptions.Subscription.PHONE,
         ])
         client.send(hudiy_api.MESSAGE_SET_STATUS_SUBSCRIPTIONS, 0, subs.SerializeToString())
+        self._capture_api_event('subscriptions_requested', derived={
+            'subscriptions': ['projection', 'media', 'navigation', 'phone']
+        })
         logger.info(f"Client '{client._name}': Subscribed to PROJECTION + MEDIA + NAVIGATION + PHONE")
     
     # --- Media Callbacks ---
@@ -143,6 +185,11 @@ class HudiyEventHandler(ClientEventHandler):
             'duration': getattr(message, 'duration_label', '0:00'),
             'timestamp': time.time()
         })
+        self._capture_api_event(
+            'media_metadata', message,
+            provider=self._provider_name(self.current_media_data.get('source_id', 0)),
+            derived=self.current_media_data.copy(),
+        )
         
         if new_meta != self.last_media:
             is_new_track = True
@@ -235,6 +282,11 @@ class HudiyEventHandler(ClientEventHandler):
             'source_label': src_label,
             'timestamp': time.time()
         })
+        self._capture_api_event(
+            'media_status', message,
+            provider=self._provider_name(src_id),
+            derived=self.current_media_data.copy(),
+        )
         
         self.publish_and_write_media(self.current_media_data)
 
@@ -246,6 +298,11 @@ class HudiyEventHandler(ClientEventHandler):
         self.current_media_data['projection_active'] = active
         if not active and self.current_media_data.get('source_id', 0) == 0:
             self.current_media_data['media_state'] = "NONE"
+        self._capture_api_event(
+            'projection_status', message,
+            provider=self._provider_name(self.current_media_data.get('source_id', 0)),
+            derived={'active': active},
+        )
         self.publish_and_write_media(self.current_media_data)
         # Rising edge: force re-subscription so server re-pushes current media/nav/phone state
         if active and not was_active:
@@ -307,6 +364,10 @@ class HudiyEventHandler(ClientEventHandler):
             except Exception as e:
                 logger.error(f"Failed to save NAV icon: {e}")
 
+        # The distance currently cached belongs to the previous maneuver.  Do
+        # not publish it with the new maneuver details: auto-switching must wait
+        # for the matching distance callback before making a threshold decision.
+        self.current_nav_data.pop('distance', None)
         self.current_nav_data.update({
             'description': desc,
             'maneuver_text': full_maneuver_text,
@@ -315,6 +376,11 @@ class HudiyEventHandler(ClientEventHandler):
             'maneuver_angle': angle_num,
             'timestamp': time.time()
         })
+        self._capture_api_event(
+            'navigation_maneuver_details', message,
+            provider=self._provider_name(self.current_nav_source),
+            derived=self.current_nav_data.copy(),
+        )
         self.publish_and_write_nav(self.current_nav_data)
 
     def on_navigation_maneuver_distance(self, client, message):
@@ -322,6 +388,11 @@ class HudiyEventHandler(ClientEventHandler):
         logger.info(f"NAV DISTANCE: '{dist}'")
         self.current_nav_data['distance'] = dist
         self.current_nav_data['timestamp'] = time.time()
+        self._capture_api_event(
+            'navigation_maneuver_distance', message,
+            provider=self._provider_name(self.current_nav_source),
+            derived=self.current_nav_data.copy(),
+        )
         self.publish_and_write_nav(self.current_nav_data)
 
     def on_navigation_status(self, client, message):
@@ -329,6 +400,7 @@ class HudiyEventHandler(ClientEventHandler):
         state = getattr(message, 'state', 2)  # 1=Active, 2=Inactive
         
         active = (state == 1)
+        self.current_nav_source = source
         status_text = "Active" if active else "Inactive"
         
         # Source Mapping: 1=Android Auto, 2=Autobox (CarPlay)
@@ -357,6 +429,11 @@ class HudiyEventHandler(ClientEventHandler):
             'state': state,
             'timestamp': time.time()
         }
+        self._capture_api_event(
+            'navigation_status', message,
+            provider=self._provider_name(source),
+            derived=nav_status,
+        )
         self.publish_nav_status(nav_status)
 
     def publish_nav_status(self, data: dict):
@@ -385,6 +462,10 @@ class HudiyEventHandler(ClientEventHandler):
             'name': name,
             'timestamp': time.time()
         })
+        self._capture_api_event(
+            'phone_connection_status', message,
+            derived=self.current_phone_data.copy(),
+        )
         self.publish_and_write_phone(self.current_phone_data)
 
     def on_phone_levels_status(self, client, message):
@@ -396,6 +477,10 @@ class HudiyEventHandler(ClientEventHandler):
             'signal': signal,
             'timestamp': time.time()
         })
+        self._capture_api_event(
+            'phone_levels_status', message,
+            derived=self.current_phone_data.copy(),
+        )
         self.publish_and_write_phone(self.current_phone_data)
 
     def on_phone_voice_call_status(self, client, message):
@@ -410,6 +495,10 @@ class HudiyEventHandler(ClientEventHandler):
             'caller_id': getattr(message, 'caller_id', ''),
             'timestamp': time.time()
         })
+        self._capture_api_event(
+            'phone_voice_call_status', message,
+            derived=self.current_phone_data.copy(),
+        )
         self.publish_and_write_phone(self.current_phone_data)
 
     def publish_and_write_phone(self, data: dict):
@@ -858,7 +947,17 @@ class HudiyData:
             if coverart_args:
                 logger.info(f"Loaded cover art processing overrides: {coverart_args}")
 
-        self.handler = HudiyEventHandler(self.safe_pub, coverart_args=coverart_args)
+        capture_settings = {}
+        if config:
+            diagnostics = config.get('diagnostics', {})
+            if isinstance(diagnostics, dict):
+                capture_settings = diagnostics.get('hudiy_api_capture', {})
+        self.api_event_capture = ApiEventCapture(capture_settings)
+        self.handler = HudiyEventHandler(
+            self.safe_pub,
+            coverart_args=coverart_args,
+            event_capture=self.api_event_capture,
+        )
         self.data_client = None
         
         # TP2 Bridge

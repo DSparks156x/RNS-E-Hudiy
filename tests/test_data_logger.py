@@ -18,6 +18,7 @@ from hudiy_dataview.data_logger import (  # noqa: E402
     ICAN_GATEWAY_SPEED_ID,
     ICAN_NAVIGATION_YAW_ID,
     ICAN_STEERING_ID,
+    _decode_haldex_mode_command,
     _decode_haldex_state,
     _decode_haldex_yaw,
 )
@@ -99,20 +100,23 @@ class DataLoggerTests(unittest.TestCase):
         self.assertEqual(page2['bb6_computed_axle_slip_raw'], 11)
 
         page3 = _decode_haldex_state(bytes.fromhex('d341881390139813'))
-        self.assertEqual(page3['wheel_vl_kmh'], 50.0)
-        self.assertEqual(page3['wheel_vr_kmh'], 50.08)
-        self.assertEqual(page3['wheel_hl_kmh'], 50.16)
+        self.assertEqual(page3['wheel_vl_kmh'], 25.0)
+        self.assertEqual(page3['wheel_vr_kmh'], 25.04)
+        self.assertEqual(page3['wheel_hl_kmh'], 25.08)
 
         page4 = _decode_haldex_state(bytes.fromhex('d441a01385ff347f'))
-        self.assertEqual(page4['wheel_hr_kmh'], 50.24)
+        self.assertEqual(page4['wheel_hr_kmh'], 25.12)
         self.assertEqual(page4['lat_accel_measured_raw'], -123)
         self.assertEqual(page4['haldex_throttle_raw'], 0x34)
         self.assertEqual(page4['haldex_bls_raw'], 0x7F)
 
         page5 = _decode_haldex_state(bytes.fromhex('d54196000c00f9ff'))
         self.assertEqual(page5['hold_a7e_timer'], 150)
-        self.assertEqual(page5['c10_liftoff_hold_raw'], 12)
-        self.assertEqual(page5['cd4_axle_ratio_adaptation_raw'], -7)
+        self.assertEqual(page5['c12_high_gear_factor_raw'], 12)
+        self.assertEqual(page5['target_gear_word_raw'], 0xFFF9)
+        self.assertEqual(page5['target_gear'], 0xF9)
+        self.assertNotIn('c10_liftoff_hold_raw', page5)
+        self.assertNotIn('cd4_axle_ratio_adaptation_raw', page5)
 
         page6 = _decode_haldex_state(bytes.fromhex('d641010002000300'))
         self.assertEqual(page6['c3a_slip_energy_raw'], 1)
@@ -126,6 +130,30 @@ class DataLoggerTests(unittest.TestCase):
         self.assertEqual(decoded['model_yaw_raw'], 18)
         self.assertAlmostEqual(decoded['model_yaw_deg_s'], 18 / 17.87, places=3)
         self.assertNotIn('yaw_model_or_b1a', decoded)
+
+    def test_compact_67a_commands_are_identified(self):
+        expected = {
+            '5aa5000000000000': (0, 'Stock'),
+            'a55a112233445566': (1, 'Performance'),
+            '3cc3ffffffffffff': (2, 'Competition'),
+        }
+        for payload, (mode, name) in expected.items():
+            with self.subTest(payload=payload):
+                decoded = _decode_haldex_mode_command(bytes.fromhex(payload))
+                self.assertEqual(decoded['requested_haldex_mode'], mode)
+                self.assertEqual(decoded['requested_haldex_mode_name'], name)
+                self.assertEqual(decoded['haldex_command_valid'], 1)
+                self.assertEqual(decoded['haldex_command_extension'], 0)
+
+        extension = _decode_haldex_mode_command(bytes.fromhex('c33c010203040506'))
+        self.assertEqual(extension['haldex_command_kind'], 'extension')
+        self.assertEqual(extension['haldex_command_valid'], 1)
+        self.assertNotIn('requested_haldex_mode', extension)
+
+        invalid = _decode_haldex_mode_command(bytes.fromhex('0000010203040506'))
+        self.assertEqual(invalid['haldex_command_kind'], 'unrecognized_failsafe_stock')
+        self.assertEqual(invalid['requested_haldex_mode'], 0)
+        self.assertEqual(invalid['haldex_command_valid'], 0)
 
     def test_haldex_profile_only_decodes_relevant_ican_ids(self):
         old_acan_ids = {0x4A0, 0x0C2, 0x1A0, 0x280, 0x288, 0x4A8, 0x428}

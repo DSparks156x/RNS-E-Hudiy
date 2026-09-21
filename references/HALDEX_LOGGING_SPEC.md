@@ -19,10 +19,26 @@ by `FUN_0464B0` and appears on current firmware's fixed `0x679` frame as a
 signed value at 17.87 counts/(deg/s). The logger treats this field as
 `model_yaw`, not the historical `B1A` telemetry variant.
 
-Current vehicle candidate 7116 uses fixed `0x679` plus tagged, multiplexed
+Current vehicle candidate 7316 uses fixed `0x679` plus tagged, multiplexed
 `0x6DA`. The executable format authority is
 `HaldexRE/phase2_can_telemetry_mux.py`; do not decode `0x6DA` as the older four
 little-endian words without first validating its `0xD0 | page` header.
+
+Mode commands on `0x67A` use a compact two-byte namespace. Send five identical
+frames 20 ms apart; bytes 2-7 are zero for Hudiy mode commands and ignored by
+Haldex:
+
+| Bytes 0-1 | Meaning |
+| --- | --- |
+| `5A A5` | Stock, row 0 |
+| `A5 5A` | Performance, row 1 |
+| `3C C3` | Competition, row 2 |
+| `C3 3C` | External-device namespace; preserve current row |
+
+An unrecognized header fails immediately to Stock. The pre-7316 packet format
+also began `5A A5`, so an old sender silently selects Stock regardless of its
+legacy mode byte. Log the transmitted header and confirm the applied mode from
+`0x6DA`.
 
 ---
 
@@ -56,10 +72,10 @@ The eight-frame page schedule is `0, 1, 2, 3, 4, 5, 6, 1`. Page 1 arrives at
 | 2 | B26 lateral feed-forward (s16) | BC4 curvature | BB6 computed axle slip (s16) |
 | 3 | wheel VL | wheel VR | wheel HL |
 | 4 | wheel HR | measured lateral acceleration (s16) | throttle low byte, BLS high byte |
-| 5 | A7E hold timer | C10 lift-off hold | CD4 axle-ratio adaptation (s16) |
+| 5 | A7E hold timer | C12 high-gear factor | target-gear word (gear in low byte) |
 | 6 | C3A slip energy | C26 energy ceiling | AFE fault/derate ceiling |
 
-Wheel speeds use 0.01 km/h/count. Pages 3 and 4 occur on consecutive 20 ms
+Wheel speeds use 0.005 km/h/count. Pages 3 and 4 occur on consecutive 20 ms
 ticks, so the reconstructed four-wheel sample is deliberately non-atomic.
 Preserve each raw page and its hardware timestamp.
 

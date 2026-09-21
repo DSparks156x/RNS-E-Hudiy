@@ -3,6 +3,8 @@ from .base import BaseApp
 
 class PhoneApp(BaseApp):
 
+    CALL_STATES = {'INCOMING', 'ALERTING', 'DIALING', 'ACTIVE'}
+
     def __init__(self, config=None):
         super().__init__(config)
         self.state = "IDLE"
@@ -39,6 +41,15 @@ class PhoneApp(BaseApp):
             self.battery = data.get('battery', 0)
             self.signal = data.get('signal', 0)
             self.conn_state = data.get('connection_state', 'DISCONNECTED')
+
+    @property
+    def has_phone(self):
+        """Whether the phone page has meaningful content to display."""
+        return self.state in self.CALL_STATES or self.conn_state == 'CONNECTED'
+
+    @property
+    def has_active_call(self):
+        return self.state in self.CALL_STATES
 
     def handle_input(self, action):
         if action in ['hold_up', 'hold_down']: return 'BACK'
@@ -81,7 +92,7 @@ class PhoneApp(BaseApp):
         flag_inv = flag | 0x80
         
         # Determine status text
-        if self.state in ['INCOMING', 'ACTIVE', 'ALERTING', 'DIALING']:
+        if self.state in self.CALL_STATES:
             status_text = self.state.capitalize()
             if status_text in ['Incoming', 'Active']:
                 status_text += ' Call'

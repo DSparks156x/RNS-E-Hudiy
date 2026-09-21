@@ -33,6 +33,12 @@ HALDEX_STATE_ID = 0x6DA
 HALDEX_YAW_ID = 0x679
 HALDEX_MODE_COMMAND_ID = 0x67A
 MODE_NAMES = {0: "Stock", 1: "Performance", 2: "Competition"}
+HALDEX_MODE_HEADERS = {
+    b"\x5A\xA5": 0,
+    b"\xA5\x5A": 1,
+    b"\x3C\xC3": 2,
+}
+HALDEX_EXTENSION_HEADER = b"\xC3\x3C"
 
 # Gateway/navigation messages actually present in PQ35_46_ICAN.dbc.
 ICAN_BRAKES_TRANSMISSION_ID = 0x359
@@ -142,6 +148,35 @@ def _decode_haldex_yaw(data: bytes) -> Dict[str, Any]:
     }
 
 
+def _decode_haldex_mode_command(data: bytes) -> Dict[str, Any]:
+    if len(data) != 8:
+        return {}
+    header = data[:2]
+    decoded: Dict[str, Any] = {
+        "haldex_command_header": header.hex().upper(),
+        "haldex_command_valid": int(
+            header in HALDEX_MODE_HEADERS or header == HALDEX_EXTENSION_HEADER),
+        "haldex_command_extension": int(header == HALDEX_EXTENSION_HEADER),
+    }
+    if header == HALDEX_EXTENSION_HEADER:
+        decoded["haldex_command_kind"] = "extension"
+    elif header in HALDEX_MODE_HEADERS:
+        mode = HALDEX_MODE_HEADERS[header]
+        decoded.update({
+            "haldex_command_kind": "mode",
+            "requested_haldex_mode": mode,
+            "requested_haldex_mode_name": MODE_NAMES[mode],
+        })
+    else:
+        # 7316 fails an unrecognized header immediately to row 0.
+        decoded.update({
+            "haldex_command_kind": "unrecognized_failsafe_stock",
+            "requested_haldex_mode": 0,
+            "requested_haldex_mode_name": MODE_NAMES[0],
+        })
+    return decoded
+
+
 def _decode_haldex_state(data: bytes) -> Dict[str, Any]:
     if len(data) != 8 or data[0] & 0xF8 != 0xD0:
         return {}
@@ -187,13 +222,13 @@ def _decode_haldex_state(data: bytes) -> Dict[str, Any]:
         })
     elif page == 3:
         decoded.update({
-            "wheel_vl_kmh": round(words[0] * 0.01, 2),
-            "wheel_vr_kmh": round(words[1] * 0.01, 2),
-            "wheel_hl_kmh": round(words[2] * 0.01, 2),
+            "wheel_vl_kmh": round(words[0] * 0.005, 3),
+            "wheel_vr_kmh": round(words[1] * 0.005, 3),
+            "wheel_hl_kmh": round(words[2] * 0.005, 3),
         })
     elif page == 4:
         decoded.update({
-            "wheel_hr_kmh": round(words[0] * 0.01, 2),
+            "wheel_hr_kmh": round(words[0] * 0.005, 3),
             "lat_accel_measured_raw": signed(words[1]),
             "haldex_throttle_raw": words[2] & 0xFF,
             "haldex_bls_raw": (words[2] >> 8) & 0xFF,
@@ -201,8 +236,9 @@ def _decode_haldex_state(data: bytes) -> Dict[str, Any]:
     elif page == 5:
         decoded.update({
             "hold_a7e_timer": words[0],
-            "c10_liftoff_hold_raw": words[1],
-            "cd4_axle_ratio_adaptation_raw": signed(words[2]),
+            "c12_high_gear_factor_raw": words[1],
+            "target_gear_word_raw": words[2],
+            "target_gear": words[2] & 0xFF,
         })
     elif page == 6:
         decoded.update({
@@ -259,6 +295,9 @@ HALDEX_CAN_IDS = frozenset({
 })
 
 HALDEX_SIGNAL_COLUMNS = (
+    "haldex_command_header", "haldex_command_kind", "haldex_command_valid",
+    "haldex_command_extension", "requested_haldex_mode",
+    "requested_haldex_mode_name",
     "haldex_page", "haldex_page_rate_hz", "haldex_mode", "haldex_mode_name",
     "haldex_selector_b1cc", "haldex_force_zero_a78", "haldex_token_ok",
     "haldex_abs_braking",
@@ -271,7 +310,8 @@ HALDEX_SIGNAL_COLUMNS = (
     "bb6_computed_axle_slip_raw",
     "wheel_vl_kmh", "wheel_vr_kmh", "wheel_hl_kmh", "wheel_hr_kmh",
     "lat_accel_measured_raw", "haldex_throttle_raw", "haldex_bls_raw",
-    "hold_a7e_timer", "c10_liftoff_hold_raw", "cd4_axle_ratio_adaptation_raw",
+    "hold_a7e_timer", "c12_high_gear_factor_raw", "target_gear_word_raw",
+    "target_gear",
     "c3a_slip_energy_raw", "c26_energy_ceiling_raw", "afe_fault_ceiling_raw",
     "vehicle_speed_kmh", "gateway_vehicle_speed_kmh", "vehicle_speed_from_abs",
     "front_axle_path_pulses", "path_pulse_status", "path_pulse_error",
@@ -302,6 +342,7 @@ def _haldex_profile(groups: Sequence[MeasuringGroup]) -> LogProfile:
         can_decoders={
             HALDEX_YAW_ID: _decode_haldex_yaw,
             HALDEX_STATE_ID: _decode_haldex_state,
+            HALDEX_MODE_COMMAND_ID: _decode_haldex_mode_command,
             ICAN_BRAKES_TRANSMISSION_ID: _decode_ican_brakes_transmission,
             ICAN_GATEWAY_SPEED_ID: _decode_ican_gateway_speed,
             ICAN_ENGINE_ID: _decode_ican_engine,

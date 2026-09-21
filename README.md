@@ -77,6 +77,23 @@ added with their own ID, label, directory, allowed extensions, size limit, and v
 name as support is added. Set `file_portal.upload_pin` to require a PIN for uploads;
 downloads remain available to devices on the Pi network.
 
+### Collecting Android Auto / CarPlay API behavior
+
+Hudiy API diagnostics are captured automatically. No terminal commands are needed:
+
+1. Connect Android Auto or CarPlay and use it normally: play/pause/change media,
+   start and cancel a route, pass a few maneuvers, and place or receive a call.
+2. Open `/files` in DataView from a phone or computer connected to the Pi.
+3. Open **Hudiy API captures** and download `hudiy-api-events.log`. If the test
+   was especially long, download `hudiy-api-events-previous.log` too.
+4. Send the downloaded file unchanged. Each line records the provider, callback,
+   raw protobuf fields and presence information, a bounded wire-data preview/hash,
+   and the normalized data published to the rest of this project.
+
+The capture retains at most two bounded files (8 MB each by default). It can contain
+street names, media metadata, contact names, and phone numbers, so treat it as private.
+Configure it under `diagnostics.hudiy_api_capture`.
+
 ---
 
 ## Updating

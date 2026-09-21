@@ -28,21 +28,28 @@ class FilePortalTests(unittest.TestCase):
         self.logs = os.path.join(root, "logs")
         self.service_logs = os.path.join(root, "service")
         self.runtime_logs = os.path.join(root, "runtime")
+        self.api_logs = os.path.join(root, "hudiy-api")
         os.makedirs(self.firmware)
         os.makedirs(self.logs)
         os.makedirs(os.path.join(self.service_logs, "2026-09-17"))
         os.makedirs(self.runtime_logs)
+        os.makedirs(self.api_logs)
         with open(os.path.join(self.logs, "drive.csv"), "wb") as handle:
             handle.write(b"timestamp,rpm\n")
         with open(os.path.join(self.service_logs, "2026-09-17", "tp2_worker.log"), "wb") as handle:
             handle.write(b"worker output")
         with open(os.path.join(self.runtime_logs, "can_handler.log"), "wb") as handle:
             handle.write(b"live output")
+        with open(os.path.join(self.api_logs, "hudiy-api-events.log"), "wb") as handle:
+            handle.write(b'{"event":"capture_started"}\n')
 
         config = {
             "data_logger": {"log_directory": self.logs},
             "features": {"log_saver": {"log_directory": self.service_logs}},
             "haldex": {"firmware_dir": self.firmware},
+            "diagnostics": {"hudiy_api_capture": {
+                "path": os.path.join(self.api_logs, "hudiy-api-events.log")
+            }},
             "file_portal": {
                 "upload_pin": "2468",
                 "runtime_log_directory": self.runtime_logs,
@@ -72,6 +79,7 @@ class FilePortalTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in collections["drive_logs"]["files"]], ["drive.csv"])
         self.assertEqual([item["name"] for item in collections["service_logs"]["files"]], ["tp2_worker.log"])
         self.assertEqual([item["name"] for item in collections["runtime_logs"]["files"]], ["can_handler.log"])
+        self.assertEqual([item["name"] for item in collections["hudiy_api"]["files"]], ["hudiy-api-events.log"])
         self.assertTrue(response.get_json()["pin_required"])
         self.assertEqual(response.get_json()["all_logs_archive_url"], "/api/files/archive/all_logs")
 
