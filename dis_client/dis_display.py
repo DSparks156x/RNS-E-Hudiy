@@ -353,7 +353,7 @@ class DisplayEngine:
             if target_name == 'app_nav' and not self.is_nav_available():
                 continue
             
-            # Sub-Check: Skip Phone if it has no connected phone or live call
+            # Sub-Check: Phone exists in rotation only during a live call
             if target_name == 'app_phone' and not self.is_phone_available():
                 continue
                 
@@ -513,7 +513,7 @@ class DisplayEngine:
         return bool(self.nav_active and self.apps['app_nav'].has_route)
 
     def is_phone_available(self):
-        """Phone exists only with a connection or live call."""
+        """Phone exists only while call activity is present."""
         phone_app = self.apps.get('app_phone')
         return bool(phone_app and phone_app.has_phone)
 

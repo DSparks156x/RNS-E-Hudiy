@@ -1046,11 +1046,23 @@ def handle_start_haldex_readout(data):
     global _flasher_running, _flasher_thread
     try:
         from flasher.readout import HaldexReadout, validate_selection
-        if not isinstance(data, dict) or set(data) - {'start_addr', 'end_addr'}:
-            raise ValueError('Only readout sector bounds are accepted')
-        start_addr = data.get('start_addr', 0x18000)
-        end_addr = data.get('end_addr', 0x4ffff)
-        validate_selection(start_addr, end_addr)
+        from flasher.controllers.pq_eps.protocol import validate_eps_range
+        if not isinstance(data, dict) or set(data) - {'start_addr', 'end_addr', 'module'}:
+            raise ValueError('Only module and readout bounds are accepted')
+        module = data.get('module', 'haldex-gen4')
+        if module in (None, 'haldex-gen4', 'haldex', 'awd'):
+            reader_class = HaldexReadout
+            start_addr = data.get('start_addr', 0x18000)
+            end_addr = data.get('end_addr', 0x4ffff)
+            validate_selection(start_addr, end_addr)
+        elif module in ('pq-eps', 'eps', 'steering'):
+            from flasher.readout import PQEPSReadout
+            reader_class = PQEPSReadout
+            start_addr = data.get('start_addr', 0x5e000)
+            end_addr = data.get('end_addr', 0x5efff)
+            validate_eps_range(start_addr, end_addr - start_addr + 1)
+        else:
+            raise ValueError('Unknown readout module')
     except Exception as error:
         emit('haldex_readout_error', {'message': str(error), 'recovery_required': False, 'stopped': not _flasher_running})
         return
@@ -1075,7 +1087,7 @@ def handle_start_haldex_readout(data):
         result = {'recovery_required': False, 'stopped': True}
         try:
             operation_log = FlashOperationLog()
-            reader = HaldexReadout(channel=_cfg.get('interfaces', {}).get('can', {}).get('diagnostic', 'can0'),
+            reader = reader_class(channel=_cfg.get('interfaces', {}).get('can', {}).get('diagnostic', 'can0'),
                                   progress_cb=progress, log_cb=operation_log.write)
             with _flasher_lock:
                 _active_flasher = reader
@@ -1088,7 +1100,7 @@ def handle_start_haldex_readout(data):
             result.update(reader.readout(_readout_root, start_addr=start_addr, end_addr=end_addr))
             event = 'haldex_readout_complete'
         except Exception as error:
-            logger.exception('Haldex readout stopped')
+            logger.exception('%s readout stopped', module)
             result.update(getattr(reader, 'last_result', {}) if reader else {})
             result['message'] = str(error)
         finally:
@@ -1126,7 +1138,8 @@ def handle_start_haldex_readout(data):
             socketio.emit(event, result)
 
     _flasher_thread = threading.Thread(target=readout_worker, daemon=True)
-    socketio.emit('haldex_readout_started', {'start_addr': start_addr, 'end_addr': end_addr})
+    socketio.emit('haldex_readout_started', {
+        'module': module, 'start_addr': start_addr, 'end_addr': end_addr})
     try:
         _flasher_thread.start()
     except Exception as error:

@@ -44,8 +44,8 @@ class PhoneApp(BaseApp):
 
     @property
     def has_phone(self):
-        """Whether the phone page has meaningful content to display."""
-        return self.state in self.CALL_STATES or self.conn_state == 'CONNECTED'
+        """Whether the phone page has a live call to display."""
+        return self.has_active_call
 
     @property
     def has_active_call(self):

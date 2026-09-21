@@ -130,10 +130,10 @@ class PhoneAvailabilityTests(unittest.TestCase):
         app = PhoneApp({})
         self.assertFalse(app.has_phone)
 
-    def test_connected_idle_phone_has_page_content(self):
+    def test_connected_idle_phone_has_no_page_content(self):
         app = PhoneApp({})
         app.update_hudiy(b"HUDIY_PHONE", {"connection_state": "CONNECTED"})
-        self.assertTrue(app.has_phone)
+        self.assertFalse(app.has_phone)
 
     def test_dialing_call_is_active_content(self):
         app = PhoneApp({})

@@ -63,7 +63,7 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
     const [cancelArmed, setCancelArmed] = useState(false);
     const [recoveryRequired, setRecoveryRequired] = useState(false);
     const [sectorRange, setSectorRange] = useState(
-        initialModule === 'pq-eps' ? '40960:393215' : '98304:327679');
+        initialModule === 'pq-eps' ? '385024:389119' : '98304:327679');
     const sectorChosen = useRef(false);
 
     // Hold-to-flash button state
@@ -94,7 +94,9 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
             setEcuInfo(info);
             setLoadingInfo(false);
             if (module === 'pq-eps' && !sectorChosen.current) {
-                setSectorRange('40960:393215');
+                const revision = Number(info.sw_version?.trim());
+                setSectorRange(info.connected && Number.isInteger(revision) && revision >= 3000
+                    ? '385024:389119' : '40960:393215');
             } else if (!sectorChosen.current) {
                 setSectorRange(info.connected && !info.in_bootloader && info.sw_version?.trim()
                     && info.sw_version.trim() !== '3016' ? '196608:262143' : '98304:327679');
@@ -231,6 +233,10 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
 
     const startHold = () => {
         if (isFlashing || loadingInfo || !selectedTune || holdTimerRef.current) return;
+        if (module === 'pq-eps' && sectorRange !== '40960:393215') {
+            const revision = Number(ecuInfo?.sw_version?.trim());
+            if (!ecuInfo?.connected || !Number.isInteger(revision) || revision < 3000) return;
+        }
         setFlashResult(null);
         holdStartRef.current = Date.now();
         setHoldProgress(0);
@@ -277,7 +283,7 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
     };
 
     const executeReadout = () => {
-        if (module !== 'haldex-gen4' || !socket?.connected || isFlashing || loadingInfo || holdTimerRef.current) return;
+        if (!socket?.connected || isFlashing || loadingInfo || holdTimerRef.current) return;
         setIsFlashing(true);
         setIsReadout(true);
         setFlashResult(null);
@@ -286,7 +292,7 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
         setCancelArmed(false);
         setProgress({ stage: 'STARTING', percent: 0, detail: 'Preparing Controller firmware readout...', speed: 0, eta_sec: 0 });
         const [start_addr, end_addr] = sectorRange.split(':').map(Number);
-        socket.emit('start_haldex_readout', { start_addr, end_addr });
+        socket.emit('start_haldex_readout', { module, start_addr, end_addr });
     };
 
     const handleCancel = () => {
@@ -338,7 +344,7 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
                                 setFlashResult(null);
                                 setReadout(null);
                                 sectorChosen.current = false;
-                                setSectorRange(next === 'pq-eps' ? '40960:393215' : '98304:327679');
+                                setSectorRange(next === 'pq-eps' ? '385024:389119' : '98304:327679');
                             }}
                             style={{ ...styles.select, width: '145px', padding: '4px 6px', backgroundColor: theme.surfaceVariant || '#252525', color: theme.onSurface || '#eee' }}
                         >
@@ -428,7 +434,7 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
                         </select>
                         <div style={{ fontSize: '0.75rem', lineHeight: 1.4 }}>
                             {module === 'pq-eps'
-                                ? 'Full 384 KiB images may flash any listed region. Standalone 4 KiB files are accepted only for the 0x5E steer dataset and must pass CRC-16/XMODEM validation. EPS readout is unavailable over KWP.'
+                                ? 'Block 0x5E is the default. Partial-region flash is approved only after the live rack reports software revision 3000 or newer; older or unknown revisions require full 0x0A000–0x5FFFF. Standalone 4 KiB files remain limited to 0x5E and must pass CRC-16/XMODEM validation. EPS readout is experimental.'
                                 : '320 KiB images are automatically patched and checksums repaired. Query Controller to choose the default: Calibration for non-3016 application firmware; Full for 3016 or unknown. Flash and readout use the selected sectors.'}
                         </div>
                         {ecuInfo?.error && <div role="alert">{ecuInfo.error}</div>}
@@ -531,11 +537,11 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
 
                         {/* Action Buttons */}
                         <div style={styles.actionRow}>
-                            {!isFlashing && module === 'haldex-gen4' && <button
+                            {!isFlashing && <button
                                 onClick={executeReadout}
                                 disabled={loadingInfo || holdProgress > 0 || !socket?.connected}
                                 style={{ ...styles.btn, backgroundColor: theme.primaryContainer || '#2c3e50', color: theme.onPrimaryContainer || '#fff', width: '100%', marginBottom: '6px' }}
-                            >Read Controller firmware</button>}
+                            >{module === 'pq-eps' ? 'Try EPS firmware readout' : 'Read Controller firmware'}</button>}
                             {isFlashing && isReadout ? (
                                 <button
                                     key="cancel-readout"
@@ -558,13 +564,13 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
                                     onMouseLeave={stopHold}
                                     onTouchStart={startHold}
                                     onTouchEnd={stopHold}
-                                    disabled={!selectedTune || loadingInfo || !socket?.connected}
+                                    disabled={!selectedTune || loadingInfo || !socket?.connected || (module === 'pq-eps' && sectorRange !== '40960:393215' && (!ecuInfo?.connected || !Number.isInteger(Number(ecuInfo.sw_version?.trim())) || Number(ecuInfo.sw_version?.trim()) < 3000))}
                                     style={{
                                         ...styles.btn,
                                         ...styles.holdBtn,
-                                        backgroundColor: !selectedTune ? '#444' : '#d32f2f',
+                                        backgroundColor: !selectedTune || (module === 'pq-eps' && sectorRange !== '40960:393215' && (!ecuInfo?.connected || !Number.isInteger(Number(ecuInfo.sw_version?.trim())) || Number(ecuInfo.sw_version?.trim()) < 3000)) ? '#444' : '#d32f2f',
                                         color: '#fff',
-                                        cursor: !selectedTune ? 'not-allowed' : 'pointer',
+                                        cursor: !selectedTune || (module === 'pq-eps' && sectorRange !== '40960:393215' && (!ecuInfo?.connected || !Number.isInteger(Number(ecuInfo.sw_version?.trim())) || Number(ecuInfo.sw_version?.trim()) < 3000)) ? 'not-allowed' : 'pointer',
                                         width: '100%'
                                     }}
                                 >
@@ -576,7 +582,9 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
                                         }}
                                     />
                                     <span style={{ position: 'relative', zIndex: 2 }}>
-                                        {holdProgress > 0 ? `Hold to Confirm (${Math.round(holdProgress)}%)` : 'Hold to Flash'}
+                                        {holdProgress > 0 ? `Hold to Confirm (${Math.round(holdProgress)}%)`
+                                            : module === 'pq-eps' && sectorRange !== '40960:393215' && (!ecuInfo?.connected || !Number.isInteger(Number(ecuInfo.sw_version?.trim())) || Number(ecuInfo.sw_version?.trim()) < 3000)
+                                                ? 'Query revision 3000+ or select Full' : 'Hold to Flash'}
                                     </span>
                                 </button>
                             )}

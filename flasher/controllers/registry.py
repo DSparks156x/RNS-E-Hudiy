@@ -49,7 +49,7 @@ FAMILIES = (
         module_aliases=("eps", "steering", "pq-eps"),
         protocol_module="flasher.controllers.pq_eps.protocol",
         patches_module="flasher.controllers.pq_eps.patches",
-        operations=frozenset({"identify", "flash"}),
+        operations=frozenset({"identify", "readout", "flash"}),
     ),
 )
 

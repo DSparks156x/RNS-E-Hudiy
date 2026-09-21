@@ -368,6 +368,7 @@ class ReadoutBackendTests(unittest.TestCase):
             def start(self): self.target()
         self.module = types.ModuleType('flasher.readout')
         self.module.HaldexReadout = Mock(return_value=self.reader)
+        self.module.PQEPSReadout = Mock(return_value=self.reader)
         def validate(start, end):
             if type(start) is not int or type(end) is not int or start != 0x18000 or end != 0x4ffff:
                 raise ValueError('Invalid sectors')
@@ -403,6 +404,15 @@ class ReadoutBackendTests(unittest.TestCase):
         self.assertEqual(self.events[-1][0], 'haldex_readout_complete')
         self.assertEqual(self.events[-1][1]['download_url'], '/haldex/readouts/'+'a'*32+'/image')
         self.assertFalse(self.events[-1][1]['recovery_required'])
+
+    def test_eps_readout_uses_eps_reader_and_selected_range(self):
+        self.setup_handler()
+        self.run_handler({'module': 'pq-eps', 'start_addr': 0x5d000,
+                          'end_addr': 0x5dfff})
+        self.module.PQEPSReadout.assert_called_once()
+        self.reader.readout.assert_called_once_with(
+            'readouts', start_addr=0x5d000, end_addr=0x5dfff)
+        self.assertEqual(self.events[-1][0], 'haldex_readout_complete')
 
     def test_failure_keeps_report_without_download_or_destructive_recovery(self):
         self.setup_handler(failure=True)

@@ -70,19 +70,35 @@ class PQEPSImageTests(unittest.TestCase):
         self.assertEqual(
             profile.checksum_payload(0x5E000, 0x5EFFF, metadata),
             bytes.fromhex("05e00005efff1234"))
-        self.assertEqual(profile.commit_services, (0x20,))
+        self.assertEqual(profile.commit_services, (0x82,))
         self.assertEqual(profile.programming_session, 0x85)
+
+    def test_partial_flash_requires_live_revision_3000_or_newer(self):
+        profile = eps.make_eps_profile(
+            kwp_factory=lambda *args: None, prepare_image_fn=eps.prepare_image,
+            device_factory=lambda channel: None, transport_factory=lambda *args, **kwargs: None,
+            identify=lambda kwp, tp: {})
+        partial = {"selection": "steer-dataset"}
+        profile.validate_controller(
+            {"software_part_number": "8J0909144", "sw_version": "3000"}, partial)
+        for revision in ("2999", "", "3A01"):
+            with self.subTest(revision=revision), self.assertRaisesRegex(
+                    RuntimeError, "does not approve partial-region"):
+                profile.validate_controller(
+                    {"software_part_number": "8J0909144", "sw_version": revision}, partial)
+        profile.validate_controller(
+            {"software_part_number": "8J0909144", "sw_version": "2301"},
+            {"selection": "firmware"})
 
 
 class PQEPSDispatchTests(unittest.TestCase):
-    def test_registry_enables_flash_and_disables_readout(self):
+    def test_registry_enables_flash_and_experimental_readout(self):
         family = registry.get_family("pq-eps")
         self.assertTrue(family.supports("flash"))
         self.assertTrue(family.supports("identify"))
-        self.assertFalse(family.supports("readout"))
+        self.assertTrue(family.supports("readout"))
         self.assertIs(registry.family_for_module("eps", operation="flash"), family)
-        with self.assertRaisesRegex(ValueError, "does not support readout"):
-            registry.family_for_module("eps", operation="readout")
+        self.assertIs(registry.family_for_module("eps", operation="readout"), family)
 
     def test_cli_dry_run_validates_without_adapter_access(self):
         image = bytearray(eps.EPS_IMAGE_SIZE)
@@ -102,11 +118,16 @@ class PQEPSDispatchTests(unittest.TestCase):
         self.assertIn('"selection": "steer-dataset"', output.getvalue())
         self.assertIn("No CAN traffic sent.", output.getvalue())
 
-    def test_cli_rejects_eps_readout_before_adapter_open(self):
-        with patch.object(runner, "open_adapter") as opened, contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit):
-                runner.main(["--module", "eps", "--readout"])
+    def test_cli_eps_readout_dry_run_never_opens_adapter(self):
+        output = io.StringIO()
+        with patch.object(runner, "open_adapter") as opened, contextlib.redirect_stdout(output):
+            result = runner.main([
+                "--module", "eps", "--readout", "--dry-run",
+                "--start", "0x5d000", "--end", "0x5dfff"])
+        self.assertEqual(result, 0)
         opened.assert_not_called()
+        self.assertIn('"firmware_writes": false', output.getvalue())
+        self.assertIn('"method": "auto"', output.getvalue())
 
 
 if __name__ == "__main__":
