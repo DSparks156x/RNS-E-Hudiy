@@ -82,10 +82,6 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
         const onTunesList = (data: TuneFile[]) => {
             setTunes(data || []);
             setLoadingTunes(false);
-            if (module === 'pq-eps' && data?.[0]?.size_bytes === 4096) {
-                sectorChosen.current = true;
-                setSectorRange('385024:389119');
-            }
             setSelectedTune(previous => data?.some(t => t.artifact_id === previous)
                 ? previous : (data?.[0]?.artifact_id || ''));
         };
@@ -126,9 +122,11 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
             setIsReadout(false);
             onOperationStarted('Preparing to flash...');
         };
-        const onReadoutStarted = () => {
+        const onReadoutStarted = (res: any) => {
             setIsReadout(true);
-            onOperationStarted('Preparing Controller firmware readout...');
+            onOperationStarted(res?.readout_kind === 'eeprom'
+                ? 'Preparing EPS EEPROM readout...'
+                : 'Preparing Controller firmware readout...');
         };
 
         const onFlashComplete = (res: any) => {
@@ -170,7 +168,9 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
             setRecoveryRequired(previous => previous || Boolean(res.recovery_required));
             setReadout(success ? { filename: res.filename, download_url: res.download_url, report_url: res.report_url } : null);
             setFlashResult({ success, readout: true, message: success
-                ? `Readout saved (${res.size.toLocaleString()} bytes). Selected sectors captured; unread addresses padded with FF. No firmware was written.`
+                ? res.readout_kind === 'eeprom'
+                    ? `EPS EEPROM saved (${res.size.toLocaleString()} bytes). No firmware was written.`
+                    : `Readout saved (${res.size.toLocaleString()} bytes). Selected sectors captured; unread addresses padded with FF. No firmware was written.`
                 : 'Readout failed. No complete download is available.' });
             if (success) setProgress(previous => ({ ...previous, percent: 100 }));
         };
@@ -290,9 +290,15 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
         setReadout(null);
         setCancelRequested(false);
         setCancelArmed(false);
-        setProgress({ stage: 'STARTING', percent: 0, detail: 'Preparing Controller firmware readout...', speed: 0, eta_sec: 0 });
-        const [start_addr, end_addr] = sectorRange.split(':').map(Number);
-        socket.emit('start_haldex_readout', { module, start_addr, end_addr });
+        setProgress({ stage: 'STARTING', percent: 0,
+            detail: module === 'pq-eps' ? 'Preparing EPS EEPROM readout...' : 'Preparing Controller firmware readout...',
+            speed: 0, eta_sec: 0 });
+        if (module === 'pq-eps') {
+            socket.emit('start_haldex_readout', { module, readout_kind: 'eeprom' });
+        } else {
+            const [start_addr, end_addr] = sectorRange.split(':').map(Number);
+            socket.emit('start_haldex_readout', { module, readout_kind: 'firmware', start_addr, end_addr });
+        }
     };
 
     const handleCancel = () => {
@@ -434,7 +440,7 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
                         </select>
                         <div style={{ fontSize: '0.75rem', lineHeight: 1.4 }}>
                             {module === 'pq-eps'
-                                ? 'Block 0x5E is the default. Partial-region flash is approved only after the live rack reports software revision 3000 or newer; older or unknown revisions require full 0x0A000–0x5FFFF. Standalone 4 KiB files remain limited to 0x5E and must pass CRC-16/XMODEM validation. EPS readout is experimental.'
+                                ? 'Block 0x5E is the default. EPS inputs must be complete 384 KiB CPU-linear images. Partial-region flash is approved only after the live rack reports software revision 3000 or newer; older or unknown revisions require full 0x0A000–0x5FFFF.'
                                 : '320 KiB images are automatically patched and checksums repaired. Query Controller to choose the default: Calibration for non-3016 application firmware; Full for 3016 or unknown. Flash and readout use the selected sectors.'}
                         </div>
                         {ecuInfo?.error && <div role="alert">{ecuInfo.error}</div>}
@@ -541,7 +547,7 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
                                 onClick={executeReadout}
                                 disabled={loadingInfo || holdProgress > 0 || !socket?.connected}
                                 style={{ ...styles.btn, backgroundColor: theme.primaryContainer || '#2c3e50', color: theme.onPrimaryContainer || '#fff', width: '100%', marginBottom: '6px' }}
-                            >{module === 'pq-eps' ? 'Try EPS firmware readout' : 'Read Controller firmware'}</button>}
+                            >{module === 'pq-eps' ? 'Read EPS EEPROM (1 KiB)' : 'Read Controller firmware'}</button>}
                             {isFlashing && isReadout ? (
                                 <button
                                     key="cancel-readout"

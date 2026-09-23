@@ -369,6 +369,7 @@ class ReadoutBackendTests(unittest.TestCase):
         self.module = types.ModuleType('flasher.readout')
         self.module.HaldexReadout = Mock(return_value=self.reader)
         self.module.PQEPSReadout = Mock(return_value=self.reader)
+        self.module.PQEPSEepromReadout = Mock(return_value=self.reader)
         def validate(start, end):
             if type(start) is not int or type(end) is not int or start != 0x18000 or end != 0x4ffff:
                 raise ValueError('Invalid sectors')
@@ -413,6 +414,24 @@ class ReadoutBackendTests(unittest.TestCase):
         self.reader.readout.assert_called_once_with(
             'readouts', start_addr=0x5d000, end_addr=0x5dfff)
         self.assertEqual(self.events[-1][0], 'haldex_readout_complete')
+
+    def test_eps_eeprom_readout_uses_fixed_size_reader_without_client_bounds(self):
+        self.setup_handler()
+        self.reader.readout.return_value.update(
+            readout_kind='eeprom', size=1024, filename='eps_eeprom.bin')
+        self.run_handler({'module': 'pq-eps', 'readout_kind': 'eeprom'})
+        self.module.PQEPSEepromReadout.assert_called_once()
+        self.reader.readout.assert_called_once_with('readouts')
+        self.assertEqual(self.events[-1][0], 'haldex_readout_complete')
+        self.assertEqual(self.events[-1][1]['readout_kind'], 'eeprom')
+
+    def test_eps_eeprom_readout_rejects_client_bounds(self):
+        self.setup_handler()
+        self.run_handler({'module': 'pq-eps', 'readout_kind': 'eeprom',
+                          'start_addr': 0, 'end_addr': 0x3ff})
+        self.module.PQEPSEepromReadout.assert_not_called()
+        self.owner.acquire.assert_not_called()
+        self.assertEqual(self.events[-1][0], 'haldex_readout_error')
 
     def test_failure_keeps_report_without_download_or_destructive_recovery(self):
         self.setup_handler(failure=True)
@@ -509,7 +528,7 @@ class InstalledLayoutTests(unittest.TestCase):
             self.assertEqual((home / 'tools' / 'keep.txt').read_text(), 'user tool')
             # Isolated process, unrelated cwd: repository import fallbacks cannot hide missing files.
             check = ('import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); '
-                     'import flasher; from flasher.controllers.haldex_gen4 import HaldexFlasher; from flasher.controllers.pq_eps import PQEPSFlasher; from flasher.engine import PQFlasher; from flasher.readout import HaldexReadout; from flasher.traffic import transmission_guard; '
+                     'import flasher; from flasher.controllers.haldex_gen4 import HaldexFlasher; from flasher.controllers.pq_eps.protocol import PQEPSFlasher; from flasher.engine import PQFlasher; from flasher.readout import HaldexReadout; from flasher.traffic import transmission_guard; '
                      'assert Path(flasher.__file__).resolve().is_relative_to(Path(sys.argv[1]).resolve()); '
                      'print(flasher.__file__)')
             subprocess.run([sys.executable, '-I', '-B', '-c', check, str(home)],

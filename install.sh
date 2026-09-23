@@ -278,7 +278,7 @@ install_folder "hudiy_dataview" || exit 1
 install_folder "flasher" || exit 1
 
 # Verify deployed package and dependency without constructing a CAN device.
-(cd / && python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import can; from flasher.vag_protocols import TP2Transport, KWPClient; from flasher.controllers.haldex_gen4 import HaldexFlasher; from flasher.controllers.pq_eps import PQEPSFlasher; from flasher.readout import HaldexReadout, PQEPSReadout; from flasher.traffic import transmission_guard, flashing_mode_enabled; print("Installed shared protocol, Haldex, and PQ EPS imports OK")' "$REAL_HOME") || {
+(cd / && python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import can; from flasher.vag_protocols import TP2Transport, KWPClient; from flasher.controllers.haldex_gen4 import HaldexFlasher; from flasher.controllers.pq_eps.protocol import PQEPSFlasher; from flasher.readout import HaldexReadout, PQEPSReadout; from flasher.traffic import transmission_guard, flashing_mode_enabled; print("Installed shared protocol, Haldex, and PQ EPS imports OK")' "$REAL_HOME") || {
     echo "ERROR: Installed shared protocols, controller flashers, or python3-can is unavailable."
     exit 1
 }

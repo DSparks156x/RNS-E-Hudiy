@@ -37,7 +37,7 @@ try:
     if _package_root not in sys.path:
         sys.path.insert(0, _package_root)
     from flasher.controllers.haldex_gen4 import HaldexFlasher
-    from flasher.controllers.pq_eps import PQEPSFlasher
+    from flasher.controllers.pq_eps.protocol import PQEPSFlasher
     from flasher.traffic import flashing_operation, set_flashing_mode
 
     with open(os.path.join(_base_dir, 'config.json')) as _f:
@@ -66,7 +66,7 @@ except Exception as _e:
         if _package_root not in sys.path:
             sys.path.insert(0, _package_root)
         from flasher.controllers.haldex_gen4 import HaldexFlasher
-        from flasher.controllers.pq_eps import PQEPSFlasher
+        from flasher.controllers.pq_eps.protocol import PQEPSFlasher
         from flasher.traffic import flashing_operation, set_flashing_mode
     except Exception:
         HaldexFlasher = None
@@ -672,13 +672,7 @@ def _validated_artifacts(module='haldex-gen4'):
     for directory in get_tunes_dirs():
         for name, path in firmware_paths(directory):
             try:
-                try:
-                    prepared = flasher_class.prepare_image(path)
-                except ValueError:
-                    if flasher_class is not PQEPSFlasher:
-                        raise
-                    prepared = flasher_class.prepare_image(
-                        path, start_addr=0x5e000, end_addr=0x5efff)
+                prepared = flasher_class.prepare_image(path)
                 with open(path, 'rb') as source:
                     artifact_id = hashlib.sha256(source.read()).hexdigest()
                 metadata = prepared['metadata']
@@ -1047,20 +1041,35 @@ def handle_start_haldex_readout(data):
     try:
         from flasher.readout import HaldexReadout, validate_selection
         from flasher.controllers.pq_eps.protocol import validate_eps_range
-        if not isinstance(data, dict) or set(data) - {'start_addr', 'end_addr', 'module'}:
-            raise ValueError('Only module and readout bounds are accepted')
+        if not isinstance(data, dict) or set(data) - {'start_addr', 'end_addr', 'module', 'readout_kind'}:
+            raise ValueError('Only module, readout kind and readout bounds are accepted')
         module = data.get('module', 'haldex-gen4')
+        readout_kind = data.get('readout_kind', 'firmware')
         if module in (None, 'haldex-gen4', 'haldex', 'awd'):
+            if readout_kind != 'firmware':
+                raise ValueError('Haldex only supports firmware readout')
             reader_class = HaldexReadout
             start_addr = data.get('start_addr', 0x18000)
             end_addr = data.get('end_addr', 0x4ffff)
             validate_selection(start_addr, end_addr)
+            readout_kwargs = {'start_addr': start_addr, 'end_addr': end_addr}
         elif module in ('pq-eps', 'eps', 'steering'):
-            from flasher.readout import PQEPSReadout
-            reader_class = PQEPSReadout
-            start_addr = data.get('start_addr', 0x5e000)
-            end_addr = data.get('end_addr', 0x5efff)
-            validate_eps_range(start_addr, end_addr - start_addr + 1)
+            if readout_kind == 'eeprom':
+                if 'start_addr' in data or 'end_addr' in data:
+                    raise ValueError('EPS EEPROM readout has a fixed 1 KiB range')
+                from flasher.readout import PQEPSEepromReadout
+                reader_class = PQEPSEepromReadout
+                start_addr = end_addr = None
+                readout_kwargs = {}
+            elif readout_kind == 'firmware':
+                from flasher.readout import PQEPSReadout
+                reader_class = PQEPSReadout
+                start_addr = data.get('start_addr', 0x5e000)
+                end_addr = data.get('end_addr', 0x5efff)
+                validate_eps_range(start_addr, end_addr - start_addr + 1)
+                readout_kwargs = {'start_addr': start_addr, 'end_addr': end_addr}
+            else:
+                raise ValueError('Unknown EPS readout kind')
         else:
             raise ValueError('Unknown readout module')
     except Exception as error:
@@ -1097,7 +1106,7 @@ def handle_start_haldex_readout(data):
             traffic_entered = True
             owner.acquire()
             set_flashing_mode(True)
-            result.update(reader.readout(_readout_root, start_addr=start_addr, end_addr=end_addr))
+            result.update(reader.readout(_readout_root, **readout_kwargs))
             event = 'haldex_readout_complete'
         except Exception as error:
             logger.exception('%s readout stopped', module)
@@ -1139,7 +1148,8 @@ def handle_start_haldex_readout(data):
 
     _flasher_thread = threading.Thread(target=readout_worker, daemon=True)
     socketio.emit('haldex_readout_started', {
-        'module': module, 'start_addr': start_addr, 'end_addr': end_addr})
+        'module': module, 'readout_kind': readout_kind,
+        'start_addr': start_addr, 'end_addr': end_addr})
     try:
         _flasher_thread.start()
     except Exception as error:

@@ -20,6 +20,12 @@ Consumers import this package directly. Higher-level applications such as
 `tp2/tp2_protocol.py` may compose these primitives, but no forwarding protocol
 module is maintained.
 
+The current controller bindings use this same RNS-E-Hudiy-derived stack for
+both Haldex and PQ EPS programming. EPS programming is policy-gated by
+`controllers/pq_eps`: OBD ranges are restricted to `0x00A000..0x05FFFF`, while
+the shared transport supplies negotiated TP2 timing, segmentation, KWP pending
+handling, and reconnect behavior.
+
 ## DDP compatibility profile
 
 The currently known-good cluster behavior is deliberately preserved:

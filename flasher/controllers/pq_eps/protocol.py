@@ -1,8 +1,8 @@
-"""PQ35 EPS identification, experimental readout, and KWP flashing policy."""
-import binascii
+"""PQ EPS conventional KWP readout and programming policy."""
 import hashlib
 import json
 import struct
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -13,38 +13,26 @@ from ...engine import (
 from ...socketcan_device import SocketCANDevice
 from ...vag_protocols.kwp import KWPClient, KWPProfile
 from ...vag_protocols.tp2 import TP20Transport
+from .patches import (
+    DEFAULT_END, DEFAULT_START, FLASH_START, prepare_image, validate_selection,
+)
 
 EPS_MODULE_ADDR = 0x09
 EPS_IMAGE_SIZE = 0x60000
-EPS_FLASH_START = 0x0A000
-EPS_FLASH_END = 0x5FFFF
-EPS_CONFIG_START = 0x5D000
-EPS_DATASET_START = 0x5E000
-EPS_BLOCK_SIZE = 0x1000
+SESSION_DIAGNOSTIC = 0x89
+SESSION_ENGINEERING = 0x86
+READ_REQUEST_SEED = 0x03
+READ_SEND_KEY = 0x04
+READ_KEY_ADD = 0x1596
+MAX_READ_MEMORY_BLOCK = 0xF0
 SESSION_PROGRAMMING = 0x85
 RC_ERASE = 0xC4
 RC_CHECKSUM = 0xC5
 CHUNK_SIZE = 240
-SESSION_DIAGNOSTIC = 0x89
-SESSION_ENGINEERING = 0x86
-READ_KEY_ADD = 0x9CE8
-MAX_READ_MEMORY_BLOCK = 0xF0
-
-FLASH_REGIONS = {
-    "firmware": (EPS_FLASH_START, EPS_FLASH_END),
-    "configuration": (EPS_CONFIG_START, EPS_CONFIG_START + EPS_BLOCK_SIZE - 1),
-    "steer-dataset": (EPS_DATASET_START, EPS_DATASET_START + EPS_BLOCK_SIZE - 1),
-}
-
-
-def a3(value: int) -> bytes:
-    if not 0 <= value <= 0xFFFFFF:
-        raise ValueError("EPS flash addresses must fit in 24 bits")
-    return value.to_bytes(3, "big")
 
 
 def programming_key(seed: bytes):
-    """PQ35 EPS 27 01/02 programming seed/key algorithm."""
+    """Known PQ EPS 27 01/02 seed/key algorithm."""
     if len(seed) != 4:
         raise RuntimeError(f"Expected four-byte security seed, got {len(seed)}")
     if not any(seed):
@@ -61,6 +49,30 @@ def programming_key(seed: bytes):
 
 EPS_PROGRAMMING_SECURITY = SecurityAccess(
     0x01, 0x02, programming_key, "pq-eps-programming")
+PQEPSProtocolError = PQReadError
+
+
+def a3(value: int) -> bytes:
+    return struct.pack(">I", value)[1:]
+
+
+EPS_FLASH_KWP_PROFILE = KWPProfile(
+    exact_routine_responses={RC_ERASE: b"\x71\xC4\x01", RC_CHECKSUM: b"\x71\xC5"},
+    reject_unprofiled_routines=True,
+    single_byte_positive_services=frozenset({0x36, 0x37, 0x82}),
+    exact_response_lengths={0x33: 3},
+)
+
+
+class EPSKWPClient(KWPClient):
+    def __init__(self, transport, **kwargs):
+        kwargs.setdefault("profile", EPS_FLASH_KWP_PROFILE)
+        super().__init__(transport, **kwargs)
+
+    def security_seed(self, subfunction: int, *, length=4) -> bytes:
+        return super().security_seed(subfunction, length=length)
+
+    sa_seed = security_seed
 
 
 def validate_eps_range(start: int, length: int):
@@ -68,179 +80,105 @@ def validate_eps_range(start: int, length: int):
         raise ValueError("PQ EPS range must be within 0x000000..0x05FFFF")
 
 
-EPS_READ_KWP_PROFILE = KWPProfile(
-    exact_session_responses={SESSION_DIAGNOSTIC: b"\x50\x89", SESSION_ENGINEERING: b"\x50\x86"},
-)
+def read_memory_request(address: int, length: int) -> bytes:
+    validate_eps_range(address, length)
+    if length > 0xFF:
+        raise ValueError("KWP ReadMemoryByAddress length must fit in one byte")
+    return b"\x23" + address.to_bytes(3, "big") + bytes([length])
+
+
+def eps_upload_request(address: int, length: int) -> bytes:
+    validate_eps_range(address, length)
+    return b"\x35" + address.to_bytes(3, "big") + b"\x00" + length.to_bytes(3, "big")
+
+
+def additive_key(seed: bytes, constant: int = READ_KEY_ADD) -> bytes:
+    result = add32(constant)(seed)
+    return b"" if result is None else result
 
 
 def make_eps_read_profile(key_add=READ_KEY_ADD):
     return PQReadProfile(
-        name="pq-eps", module=EPS_MODULE_ADDR, image_size=EPS_IMAGE_SIZE,
-        validate_range=validate_eps_range, initial_session=SESSION_DIAGNOSTIC,
+        name="pq-eps",
+        module=EPS_MODULE_ADDR,
+        image_size=EPS_IMAGE_SIZE,
+        validate_range=validate_eps_range,
+        initial_session=SESSION_DIAGNOSTIC,
         privileged_session=SESSION_ENGINEERING,
-        security=SecurityAccess(0x03, 0x04, add32(key_add), "pq-eps-read"),
-        methods=("read-memory", "upload"), upload_block_max=0x1000,
-        strict_upload_blocks=False, mark_upload_before_request=False,
+        security=SecurityAccess(READ_REQUEST_SEED, READ_SEND_KEY, add32(key_add), "pq-eps-read"),
+        methods=("read-memory", "upload"),
+        upload_block_max=0x1000,
+        strict_upload_blocks=False,
+        mark_upload_before_request=False,
         leave_requests=(bytes([0x10, SESSION_DIAGNOSTIC]),),
     )
 
 
-class PQEPSReader(PQMemoryReader):
-    """Experimental conventional-KWP EPS reader; contains no mutating services."""
+@dataclass(frozen=True)
+class ProbeResult:
+    method: str
+    session: int
+    security_unlocked: bool
+    sample_address: int
+    sample_hex: str
 
+
+class PQEPSReader(PQMemoryReader):
     def __init__(self, transport, *, key_add=READ_KEY_ADD, record=lambda event: None):
-        super().__init__(
-            transport, make_eps_read_profile(key_add), record=record,
-            kwp_factory=lambda tp, **kwargs: KWPClient(
-                tp, profile=EPS_READ_KWP_PROFILE, debug=False),
-        )
+        super().__init__(transport, make_eps_read_profile(key_add), record=record)
+
+    def unlock_engineering(self):
+        self.enter(ensure_diagnostic=False)
+
+    def probe(self, addresses, *, requested="auto") -> ProbeResult:
+        return ProbeResult(**super().probe(addresses, requested=requested))
 
 
 def capture_eps(reader: PQEPSReader, output: Path, start: int, length: int, method: str,
-                *, chunk: int, record=lambda event: None,
-                progress=lambda done, total: None):
-    return capture_sparse(
-        reader, output, start, length, method, chunk=chunk,
-        image_size=EPS_IMAGE_SIZE, validate_range=validate_eps_range,
-        record=record, progress=progress)
+            *, chunk: int, record=lambda event: None, progress=lambda done, total: None):
+    return capture_sparse(reader, output, start, length, method, chunk=chunk,
+                          image_size=EPS_IMAGE_SIZE, validate_range=validate_eps_range,
+                          record=record, progress=progress)
 
 
-def crc16_xmodem(data: bytes) -> int:
-    return binascii.crc_hqx(bytes(data), 0)
+# --- EPS flash target ---
 
 
-def validate_dataset(data: bytes) -> dict:
-    if len(data) != EPS_BLOCK_SIZE:
-        raise ValueError("A standalone steering dataset must be exactly 4096 bytes")
-    if data in (b"\x00" * EPS_BLOCK_SIZE, b"\xFF" * EPS_BLOCK_SIZE):
-        raise ValueError("Steering dataset is blank")
-    pointers = [struct.unpack_from("<I", data, offset)[0]
-                for offset in range(0, 32, 4)]
-    if (not all(EPS_DATASET_START <= pointer < EPS_DATASET_START + EPS_BLOCK_SIZE
-                for pointer in pointers)
-            or pointers != sorted(pointers)):
-        raise ValueError(
-            "Steering dataset does not contain the expected 0x5E-relative pointer table")
-    stored = int.from_bytes(data[-2:], "big")
-    calculated = crc16_xmodem(data[:-2])
-    if stored != calculated:
-        raise ValueError(
-            f"Steering dataset CRC-16/XMODEM mismatch: stored 0x{stored:04X}, "
-            f"calculated 0x{calculated:04X}")
-    return {
-        "algorithm": "CRC-16/XMODEM",
-        "stored": stored,
-        "calculated": calculated,
-        "valid": True,
-        "pointer_table_entries_checked": len(pointers),
-    }
-
-
-def region_name(start_addr: int, end_addr: int) -> str:
-    for name, bounds in FLASH_REGIONS.items():
-        if bounds == (start_addr, end_addr):
-            return name
-    choices = ", ".join(
-        f"{name}=0x{start:05X}..0x{end:05X}"
-        for name, (start, end) in FLASH_REGIONS.items())
-    raise ValueError(f"Select one complete EPS flash region: {choices}")
-
-
-def firmware_revision_number(info: dict) -> Optional[int]:
-    """Return the numeric four-character VAG software revision, if trustworthy."""
-    value = str(info.get("sw_version", info.get("firmware_revision", ""))).strip()
-    return int(value) if len(value) == 4 and value.isdigit() else None
-
-
-def validate_partial_flash_revision(info: dict, metadata: dict) -> None:
-    """Fail closed before programming when an older rack cannot flash one block."""
-    if metadata.get("selection") == "firmware":
-        return
-    revision = firmware_revision_number(info)
-    if revision is None or revision < 3000:
-        displayed = info.get("sw_version", info.get("firmware_revision", "unknown"))
-        raise RuntimeError(
-            f"EPS software revision {displayed!r} does not approve partial-region "
-            "flashing; select full firmware 0x0A000..0x05FFFF")
-
-
-def prepare_image(source, start_addr=EPS_FLASH_START, end_addr=EPS_FLASH_END,
-                  file_off=None, simulator_mode=False):
-    if simulator_mode:
-        raise ValueError("PQ EPS does not support simulator-mode patching")
-    if type(start_addr) is not int or type(end_addr) is not int:
-        raise ValueError("Addresses must be integers")
-    selected = region_name(start_addr, end_addr)
-    raw = Path(source).read_bytes() if isinstance(source, (str, Path)) else bytes(source)
-
-    dataset_validation = None
-    if len(raw) == EPS_IMAGE_SIZE:
-        image = raw
-        region = image[start_addr:end_addr + 1]
-        source_kind = "full-firmware"
-        source_offset = start_addr
-        if selected == "steer-dataset":
-            dataset_validation = validate_dataset(region)
-    elif len(raw) == EPS_BLOCK_SIZE:
-        if selected != "steer-dataset":
-            raise ValueError(
-                "A 4096-byte input is only accepted for the 0x5E steer-dataset block")
-        if file_off not in (None, EPS_DATASET_START):
-            raise ValueError("Standalone dataset source offset must be 0x5E000")
-        region = raw
-        image = None
-        source_kind = "steer-dataset"
-        source_offset = 0
-        dataset_validation = validate_dataset(region)
-    else:
-        raise ValueError(
-            "PQ EPS input must be a 393216-byte full firmware image or a "
-            "4096-byte steer dataset")
-
-    if not region or len(region) != end_addr - start_addr + 1:
-        raise ValueError("Input does not contain the complete selected EPS region")
-    metadata = {
-        "original_sha256": hashlib.sha256(raw).hexdigest(),
-        "prepared_sha256": hashlib.sha256(region).hexdigest(),
-        "patches": [],
-        "patch_policy": "no mutation; exact source bytes are transferred",
-        "start_addr": start_addr,
-        "end_addr": end_addr,
-        "size": len(region),
-        "checksum": sum(region) & 0xFFFF,
-        "selection": selected,
-        "selection_policy": "one validated complete EPS flash region",
-        "source_kind": source_kind,
-        "source_size": len(raw),
-        "source_offset": source_offset,
-        "dataset_validation": dataset_validation,
-        "simulator_mode": False,
-        "bench_only": False,
-    }
-    return {"image": image, "region": region, "metadata": metadata}
-
-
-def make_eps_profile(*, kwp_factory, prepare_image_fn, device_factory,
-                     transport_factory, identify):
+def make_eps_flash_profile(*, kwp_factory, image_preparer, device_factory,
+                           transport_factory, identify):
     def validate_controller(info, metadata):
-        if not info.get("software_part_number", info.get("part_number", "")).strip():
-            raise RuntimeError("EPS identification returned an empty part number")
-        validate_partial_flash_revision(info, metadata)
+        part = info.get("software_part_number", info.get("part_number", "")).upper()
+        if not part.startswith(("1K0909144", "8J0909144")):
+            raise RuntimeError(
+                f"Identification {part or '<empty>'} is not a recognized PQ EPS family")
+        full_flash = (metadata.get("start_addr"), metadata.get("end_addr")) == (
+            FLASH_START, EPS_IMAGE_SIZE - 1)
+        revision_text = str(
+            info.get("sw_version", info.get("firmware_revision", ""))).strip()
+        revision = (int(revision_text)
+                    if len(revision_text) == 4 and revision_text.isdigit() else None)
+        if not full_flash and (revision is None or revision < 3000):
+            raise RuntimeError(
+                f"EPS software revision {revision_text or 'unknown'!r} does not approve "
+                "partial-region flashing; select full firmware 0x0A000..0x05FFFF")
 
     def validate_application(info):
-        if (not info.get("software_part_number", info.get("part_number", "")).strip()
+        if (not info.get("sw_version", "").strip()
+                or not info.get("part_number", "").strip()
                 or info.get("flash_status") not in (0, 1)):
-            raise RuntimeError("Fresh EPS application boot was not verified")
+            raise RuntimeError("Fresh expected EPS application boot was not verified")
 
     return PQFlashProfile(
         name="pq-eps",
         module=EPS_MODULE_ADDR,
         kwp_factory=kwp_factory,
-        prepare_image=prepare_image_fn,
+        prepare_image=image_preparer,
         device_factory=device_factory,
         transport_factory=transport_factory,
         identify=identify,
         validate_controller=validate_controller,
+        # The EPS loader reconnects on the same logical TP2 module/channel IDs;
+        # unlike Haldex there is no address change to use as a channel gate.
         is_application_channel=lambda tp: True,
         initial_session=None,
         programming_session=SESSION_PROGRAMMING,
@@ -259,24 +197,25 @@ def make_eps_profile(*, kwp_factory, prepare_image_fn, device_factory,
 
 
 class PQEPSFlasher(PQFlasher):
+    """PQ EPS binding backed by the controller-neutral PQ lifecycle."""
+
     def __init__(self, channel: str = "can0", module: int = EPS_MODULE_ADDR,
                  device: Optional[Any] = None,
                  device_factory: Optional[Callable[[], Any]] = None,
                  progress_cb: Optional[Callable[..., None]] = None,
                  log_cb: Optional[Callable[[str], None]] = None,
                  debug: bool = False):
-        profile = make_eps_profile(
-            kwp_factory=lambda tp, log, debug:
-                KWPClient(tp, log_fn=log, debug=debug),
-            prepare_image_fn=lambda *args, **kwargs: prepare_image(*args, **kwargs),
+        profile = make_eps_flash_profile(
+            kwp_factory=lambda tp, log, debug: EPSKWPClient(
+                tp, log_fn=log, debug=debug),
+            image_preparer=lambda *args, **kwargs: prepare_image(*args, **kwargs),
             device_factory=lambda selected_channel: SocketCANDevice(channel=selected_channel),
             transport_factory=lambda *args, **kwargs: TP20Transport(*args, **kwargs),
             identify=lambda kwp, tp: self._ident(kwp, tp),
         )
-        super().__init__(
-            profile, channel=channel, module=module, device=device,
-            device_factory=device_factory, progress_cb=progress_cb,
-            log_cb=log_cb, debug=debug)
+        super().__init__(profile, channel=channel, module=module, device=device,
+                         device_factory=device_factory, progress_cb=progress_cb,
+                         log_cb=log_cb, debug=debug)
 
     prepare_image = staticmethod(prepare_image)
 
@@ -287,32 +226,44 @@ class PQEPSFlasher(PQFlasher):
         result.update(connected=True, in_bootloader=False)
         return result
 
-    def flash_binary(self, binary_data_or_path, start_addr=EPS_FLASH_START,
-                     end_addr=EPS_FLASH_END, file_off=None, dry_run=False,
+    def flash_binary(self, binary_data_or_path, start_addr=DEFAULT_START,
+                     end_addr=DEFAULT_END, file_off=None, dry_run=False,
                      simulator_mode=False, recovery=False):
         return super().flash_binary(
             binary_data_or_path, start_addr, end_addr, file_off=file_off,
             dry_run=dry_run, simulator_mode=simulator_mode, recovery=recovery)
 
 
+# --- Command-line controller interface ---
+
+
 def add_cli_arguments(parser):
     parser.add_argument(
         "--readout-method", choices=("auto", "read-memory", "upload"), default="auto",
-        help="Experimental conventional KWP read service")
+        help="Conventional KWP read service")
     parser.add_argument(
         "--eps-sa-add", type=lambda value: int(value, 0), default=READ_KEY_ADD,
         help=f"27 03/04 additive constant (default 0x{READ_KEY_ADD:04X})")
 
 
 def apply_defaults(args):
+    if args.read_eeprom:
+        return
     flash = not args.readout and not args.ident_only
-    args.start = (EPS_CONFIG_START if flash else 0) if args.start is None else args.start
-    args.end = ((EPS_CONFIG_START + EPS_BLOCK_SIZE - 1) if flash
-                else EPS_IMAGE_SIZE - 1) if args.end is None else args.end
+    args.start = (DEFAULT_START if flash else 0) if args.start is None else args.start
+    args.end = (DEFAULT_END if flash else EPS_IMAGE_SIZE - 1) if args.end is None else args.end
     args.out = args.out or "data/raw/readout/pq-eps"
 
 
 def validate_cli(parser, args):
+    if args.read_eeprom:
+        if not args.out:
+            parser.error("--read-eeprom requires --out FILE")
+        if (args.input or args.recovery or args.start is not None or args.end is not None
+                or args.reference or args.readout_passes != 1
+                or args.readout_window != 0x10000 or args.readout_method != "auto"):
+            parser.error("--read-eeprom cannot be combined with flash or CPU-readout options")
+        return
     if args.ident_only:
         if args.input or args.dry_run:
             parser.error("--ident-only cannot be combined with flash or dry-run options")
@@ -327,13 +278,31 @@ def validate_cli(parser, args):
         validate_eps_range(args.start, args.end - args.start + 1)
         return
     if not args.input:
-        parser.error("--input is required unless --ident-only is selected")
-    if args.reference:
-        parser.error("--reference currently applies only to Haldex readout")
-    try:
-        region_name(args.start, args.end)
-    except ValueError as exc:
-        parser.error(str(exc))
+        parser.error("--input is required unless --readout or --ident-only is selected")
+    validate_selection(args.start, args.end)
+
+
+def run_flash(args, runtime):
+    prepared = prepare_image(args.input, args.start, args.end)
+    if args.dry_run:
+        print(json.dumps(dict(prepared["metadata"], status="validated", dry_run=True,
+                              recovery_mode=args.recovery), indent=2, sort_keys=True))
+        print("No CAN traffic sent.")
+        return 0
+    print(json.dumps(dict(prepared["metadata"], recovery_mode=args.recovery),
+                     indent=2, sort_keys=True))
+    if not args.yes and input("Type YES to erase and flash the selected EPS range: ") != "YES":
+        print("Cancelled before adapter access.")
+        return 1
+    device = runtime.open_adapter(args)
+    flasher = PQEPSFlasher(
+        device=device, module=args.module,
+        device_factory=lambda: runtime.open_adapter(args),
+        progress_cb=runtime.progress, debug=args.verbose,
+    )
+    result = flasher.flash_prepared(prepared, recovery=args.recovery)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
 
 
 def run_readout(args, runtime):
@@ -363,18 +332,19 @@ def run_readout(args, runtime):
         report["controller"] = reader.identification()
         args.family.validate_identification(report["controller"])
         candidates = []
-        for address in (args.start, 0xA000, 0x5D000, 0x5E000):
+        for address in (args.start, 0xA000, 0x5E000):
             if args.start <= address <= args.end - 15 and address not in candidates:
                 candidates.append(address)
         probe = reader.probe(candidates, requested=args.readout_method)
-        report["probe"] = probe
-        chunk = (MAX_READ_MEMORY_BLOCK if probe["method"] == "read-memory"
+        report["probe"] = probe.__dict__
+        chunk = (MAX_READ_MEMORY_BLOCK if probe.method == "read-memory"
                  else min(args.readout_window, 0xFFFFFF))
         report["capture"] = capture_eps(
-            reader, output, args.start, length, probe["method"], chunk=chunk,
+            reader, output, args.start, length, probe.method, chunk=chunk,
             record=events.append,
             progress=lambda done, total: runtime.progress(
-                "EPS READ", 100 * done / total, f"{done}/{total} bytes"))
+                "EPS READ", 100 * done / total, f"{done}/{total} bytes"),
+        )
         report["status"] = (
             "captured_complete" if report["capture"]["unreadable_bytes"] == 0
             else "captured_partial")
@@ -402,27 +372,67 @@ def run_readout(args, runtime):
     return 0 if report["status"] in ("captured_complete", "captured_partial") else 1
 
 
-def run_flash(args, runtime):
-    prepared = prepare_image(args.input, args.start, args.end)
+def run_eeprom(args, runtime):
+    """Capture the full 1 KiB EPS serial EEPROM via read-only KWP upload."""
+    output = Path(args.out)
+    if output.exists():
+        raise ValueError(f"Refusing to overwrite {output}")
+    plan = {
+        "operation": "read_eeprom", "controller_family": args.family.name,
+        "adapter": args.adapter, "module": args.module,
+        "eeprom_offset": 0, "length": 0x400,
+        "kwp_upload_request": "35 00 00 00 00 00 04 00",
+        "security_level": "27 03/04", "security_constant": args.eps_sa_add,
+        "output": str(output), "hardware_access": not args.dry_run,
+        "firmware_writes": False,
+    }
     if args.dry_run:
-        print(json.dumps(
-            dict(prepared["metadata"], status="validated", dry_run=True,
-                 recovery_mode=args.recovery), indent=2, sort_keys=True))
-        print("No CAN traffic sent.")
+        print(json.dumps(plan, indent=2, sort_keys=True))
         return 0
-    print(json.dumps(
-        dict(prepared["metadata"], recovery_mode=args.recovery),
-        indent=2, sort_keys=True))
-    selection = prepared["metadata"]["selection"]
-    if not args.yes and input(
-            f"Type YES to erase and flash EPS {selection}: ") != "YES":
-        print("Cancelled before adapter access.")
+
+    device = tp = reader = None
+    cleanup_errors = []
+    data = identity = None
+    read_error = None
+    try:
+        device = runtime.open_adapter(args)
+        tp = TP20Transport(device, module=args.module, timeout=2.0, debug=args.verbose)
+        reader = PQEPSReader(tp, key_add=args.eps_sa_add)
+        identity = reader.identification()
+        args.family.validate_identification(identity)
+        reader.diagnostic_session()
+        reader.enter(ensure_diagnostic=False)
+        data = reader.read_upload(0, 0x400)
+        if len(data) != 0x400:
+            raise PQReadError(f"Expected 1024 EEPROM bytes, got {len(data)}")
+    except Exception as exc:
+        read_error = f"{type(exc).__name__}: {exc}"
+    finally:
+        if reader is not None:
+            cleanup_errors.extend(reader.leave())
+        if tp is not None:
+            try:
+                tp.disconnect()
+            except Exception as exc:
+                cleanup_errors.append(f"disconnect: {exc}")
+        if device is not None:
+            try:
+                device.close()
+            except Exception as exc:
+                cleanup_errors.append(f"adapter close: {exc}")
+
+    if read_error is not None:
+        print(json.dumps(dict(plan, status="requires_attention", error=read_error,
+                              cleanup_errors=cleanup_errors), indent=2, sort_keys=True))
         return 1
-    device = runtime.open_adapter(args)
-    flasher = PQEPSFlasher(
-        device=device, module=args.module,
-        device_factory=lambda: runtime.open_adapter(args),
-        progress_cb=runtime.progress, debug=args.verbose)
-    result = flasher.flash_prepared(prepared, recovery=args.recovery)
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("xb") as stream:
+        stream.write(data)
+    result = dict(plan, controller=identity, status="captured_complete",
+                  sha256=hashlib.sha256(data).hexdigest().upper(),
+                  cleanup_errors=cleanup_errors)
+    if cleanup_errors:
+        result["status"] = "requires_attention"
     print(json.dumps(result, indent=2, sort_keys=True))
-    return 0
+    return 0 if not cleanup_errors else 1

@@ -49,7 +49,8 @@ FAMILIES = (
         module_aliases=("eps", "steering", "pq-eps"),
         protocol_module="flasher.controllers.pq_eps.protocol",
         patches_module="flasher.controllers.pq_eps.patches",
-        operations=frozenset({"identify", "readout", "flash"}),
+        operations=frozenset({"identify", "readout", "eeprom", "flash"}),
+        part_prefixes=("1K0909144", "8J0909144"),
     ),
 )
 

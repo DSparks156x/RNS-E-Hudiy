@@ -1,5 +1,5 @@
-"""PQ35 electric power steering controller family."""
+"""PQ electric power steering controller family."""
 
-from .protocol import PQEPSFlasher
+from .protocol import PQEPSReader
 
-__all__ = ["PQEPSFlasher"]
+__all__ = ["PQEPSReader"]

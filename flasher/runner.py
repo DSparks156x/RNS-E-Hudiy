@@ -147,6 +147,8 @@ def build_parser(family=None):
     parser.add_argument("--yes", action="store_true", help="Skip the destructive YES prompt")
     parser.add_argument("--ident-only", action="store_true")
     parser.add_argument("--readout", action="store_true")
+    parser.add_argument("--read-eeprom", action="store_true",
+                        help="Read the complete 1 KiB serial EEPROM (EPS only)")
     parser.add_argument("--out")
     parser.add_argument("--reference")
     parser.add_argument("--readout-passes", type=int, choices=(1, 2), default=1)
@@ -178,6 +180,8 @@ def _family_from_argv(argv):
 def _operation(args):
     if args.ident_only:
         return "identify"
+    if args.read_eeprom:
+        return "eeprom"
     if args.readout:
         return "readout"
     return "flash"
@@ -231,8 +235,8 @@ def main(argv=None):
     family = _family_from_argv(argv)
     parser = build_parser(family)
     args = parser.parse_args(argv)
-    if args.ident_only and args.readout:
-        parser.error("--readout cannot be combined with --ident-only")
+    if sum((args.ident_only, args.readout, args.read_eeprom)) > 1:
+        parser.error("--ident-only, --readout and --read-eeprom cannot be combined")
     operation = _operation(args)
     try:
         args.family = family_for_module(args.module, operation=operation)

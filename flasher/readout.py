@@ -1,5 +1,6 @@
 """Hudiy progress, naming and persistence around the shared application reader."""
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -268,8 +269,8 @@ class PQEPSReadout:
                 candidates = [address for address in (start_addr, 0xA000, 0x5D000, 0x5E000)
                               if start_addr <= address <= end_addr - 15]
                 probe = self.reader.probe(list(dict.fromkeys(candidates)), requested='auto')
-                report['probe'] = probe
-                method = probe['method']
+                report['probe'] = probe.__dict__
+                method = probe.method
                 chunk = MAX_READ_MEMORY_BLOCK if method == 'read-memory' else 0x1000
                 transfer_started = time.monotonic()
 
@@ -321,4 +322,100 @@ class PQEPSReadout:
         detail = ('EPS readout saved with unreadable ranges padded FF' if report['partial']
                   else 'EPS readout saved')
         self.progress_cb('READOUT_COMPLETE', 100, detail, 0, 0)
+        return report
+
+
+class PQEPSEepromReadout(PQEPSReadout):
+    """Read and persist the complete 1 KiB EPS serial EEPROM."""
+
+    def readout(self, output_root):
+        self._cancel()
+        started = datetime.now(timezone.utc)
+        directory = Path(output_root) / uuid.uuid4().hex
+        directory.mkdir(parents=True, exist_ok=False)
+        report = self.last_result = {
+            'capture_id': directory.name, 'status': 'incomplete',
+            'started_utc': started.isoformat(), 'firmware_writes': False,
+            'controller': 'pq-eps', 'readout_kind': 'eeprom',
+            'eeprom_offset': 0, 'requested_length': 0x400,
+            'size': 0x400, 'kwp_upload_request': '35 00 00 00 00 00 04 00',
+            'recovery_required': False, 'cleanup_errors': [],
+        }
+        report_path = directory / 'report.json'
+
+        def persist():
+            temporary = directory / 'report.tmp'
+            with temporary.open('w', encoding='utf-8') as handle:
+                json.dump(report, handle, indent=2)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, report_path)
+
+        persist()
+        failure = None
+        with (directory / 'diagnostic.jsonl').open('x', encoding='utf-8', buffering=1) as log:
+            def record(event):
+                if event.get('event') == 'request':
+                    self._cancel()
+                log.write(json.dumps({'monotonic': time.monotonic(), **event}) + '\n')
+                self.log_cb(json.dumps(event))
+
+            try:
+                self.progress_cb('EPS_EEPROM_READING', 0,
+                                 'Connecting to read the 1 KiB EPS EEPROM', 0, 0)
+                self.device = SocketCANDevice(channel=self.channel)
+                self.device.can_clear()
+                self.transport = TP20Transport(
+                    self.device, module=0x09, timeout=2.0, debug=True,
+                    log_fn=lambda message: record({'event': 'tp20', 'message': message}))
+                self.transport.keepalive_after_response = True
+                self.reader = PQEPSReader(self.transport, record=record)
+                report['identification'] = info = self.reader.identification()
+                part = info.get('software_part_number', info.get('part_number', '')).upper()
+                if not part.startswith(('1K0909144', '8J0909144')):
+                    raise ProtocolError(f'Unexpected EPS identification: {part or "<empty>"}')
+                self.reader.diagnostic_session()
+                self.reader.enter(ensure_diagnostic=False)
+                self._cancel()
+                data = self.reader.read_upload(0, 0x400)
+                if len(data) != 0x400:
+                    raise ProtocolError(f'Expected 1024 EEPROM bytes, got {len(data)}')
+                filename = (f"{re.sub(r'[^A-Za-z0-9_-]+', '_', part).strip('_')[:48]}_"
+                            f"eps_eeprom_{started.strftime('%Y%m%dT%H%M%S%fZ')}.bin")
+                temporary = directory / 'eeprom.tmp'
+                with temporary.open('xb') as handle:
+                    handle.write(data)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(temporary, directory / filename)
+                report.update(filename=filename, sha256=hashlib.sha256(data).hexdigest().upper())
+            except Exception as exc:
+                failure = exc
+                report.update(status='cancelled' if isinstance(exc, ReadoutCancelled) else 'failed',
+                              error=str(exc))
+                record({'event': 'failure', 'error': str(exc)})
+            finally:
+                self._cleaning = True
+                if self.reader is not None:
+                    try:
+                        report['cleanup_errors'].extend(self.reader.leave())
+                    except Exception as exc:
+                        report['cleanup_errors'].append(str(exc))
+                try:
+                    self.close()
+                except Exception as exc:
+                    report['cleanup_errors'].append('device close: ' + str(exc))
+                self._cleaning = False
+                if report['cleanup_errors']:
+                    report['status'] = 'requires_attention'
+                    failure = failure or ProtocolError('; '.join(report['cleanup_errors']))
+                elif failure is None:
+                    report['status'] = 'ok'
+                report['finished_utc'] = datetime.now(timezone.utc).isoformat()
+                persist()
+                log.flush()
+                os.fsync(log.fileno())
+        if failure is not None:
+            raise failure
+        self.progress_cb('READOUT_COMPLETE', 100, 'EPS EEPROM saved (1024 bytes)', 0, 0)
         return report
