@@ -240,7 +240,13 @@ class PQEPSFlasher(PQFlasher):
                          device_factory=device_factory, progress_cb=progress_cb,
                          log_cb=log_cb, debug=debug)
 
-    prepare_image = staticmethod(prepare_image)
+    @staticmethod
+    def prepare_image(source, start_addr=DEFAULT_START, end_addr=DEFAULT_END,
+                      file_off=None, simulator_mode=False):
+        """Expose the common UI/controller keyword contract for EPS images."""
+        return prepare_image(
+            source, start_addr, end_addr, file_off=file_off,
+            simulator_mode=simulator_mode)
 
     @staticmethod
     def _ident(kwp, tp):

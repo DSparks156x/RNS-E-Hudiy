@@ -468,8 +468,9 @@ class PQEPSCLITests(unittest.TestCase):
 
     def test_eps_block_image_is_accepted_only_as_steer_dataset(self):
         dataset = bytes(range(256)) * 16
-        prepared = eps_images.prepare_image(
-            dataset, eps_images.DATASET_START, eps_images.DATASET_END)
+        prepared = pq_eps.PQEPSFlasher.prepare_image(
+            dataset, start_addr=eps_images.DATASET_START,
+            end_addr=eps_images.DATASET_END)
         self.assertEqual(prepared["region"], dataset)
         self.assertEqual(prepared["metadata"]["source_kind"],
                          "4 KiB steer dataset block (0x5E)")
@@ -478,6 +479,16 @@ class PQEPSCLITests(unittest.TestCase):
             with self.subTest(start=start), self.assertRaisesRegex(
                     ValueError, "only be flashed.*0x5E"):
                 eps_images.prepare_image(dataset, start, end)
+
+    def test_eps_controller_api_accepts_full_image_region_keywords(self):
+        image = bytes(eps_images.IMAGE_SIZE)
+        prepared = pq_eps.PQEPSFlasher.prepare_image(
+            image, start_addr=eps_images.DATASET_START,
+            end_addr=eps_images.DATASET_END)
+        self.assertEqual(len(prepared["region"]), eps_images.DATASET_SIZE)
+        self.assertEqual((prepared["metadata"]["start_addr"],
+                          prepared["metadata"]["end_addr"]),
+                         (eps_images.DATASET_START, eps_images.DATASET_END))
 
     def test_tt3001_loader_partition_check_rejects_local_only_range(self):
         image = bytes(eps_images.IMAGE_SIZE)
