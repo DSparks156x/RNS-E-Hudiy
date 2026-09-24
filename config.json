@@ -38,6 +38,9 @@
     "persistence_file": "/home/pi/.hudiy/haldex_mode.json",
     "firmware_dir": "~/haldexfw"
   },
+  "eps": {
+    "firmware_dir": "~/epsfw"
+  },
   "data_logger": {
     "default_profile": "haldex",
     "log_directory": "~/logs",
@@ -62,6 +65,17 @@
           ".bin"
         ],
         "validator": "haldex",
+        "max_size_mb": 4
+      },
+      {
+        "id": "pq-eps",
+        "label": "PQ EPS",
+        "description": "Validated full images or 4 KiB 0x5E steering datasets",
+        "directory": "~/epsfw",
+        "extensions": [
+          ".bin"
+        ],
+        "validator": "pq-eps",
         "max_size_mb": 4
       }
     ]

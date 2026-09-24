@@ -67,10 +67,32 @@ def _configured_targets(config: Mapping) -> list[Collection]:
             "validator": "haldex",
             "max_size_mb": 4,
         }]
+    else:
+        configured = list(configured)
+
+    # Existing installs preserve configured arrays during updates. Add the EPS
+    # built-in when the newly merged top-level EPS configuration is present.
+    configured_ids = {
+        str(entry.get("id", "")).lower() for entry in configured
+        if isinstance(entry, Mapping)
+    }
+    eps = config.get("eps", {}) if isinstance(config, Mapping) else {}
+    if isinstance(eps, Mapping) and eps.get("firmware_dir") and "pq-eps" not in configured_ids:
+        configured.append({
+            "id": "pq-eps",
+            "label": "PQ EPS",
+            "description": "Validated full images or 4 KiB 0x5E steering datasets",
+            "directory": eps["firmware_dir"],
+            "extensions": [".bin"],
+            "validator": "pq-eps",
+            "max_size_mb": 4,
+        })
 
     targets = []
     for entry in configured:
         if not isinstance(entry, Mapping):
+            continue
+        if entry.get("enabled") is False:
             continue
         target_id = str(entry.get("id", "")).lower()
         directory = entry.get("directory")
@@ -104,6 +126,7 @@ def build_collections(config: Mapping) -> list[Collection]:
         "log_directory", log_root))
     runtime_root = _expanded(portal.get("runtime_log_directory", "/var/log/rnse_control"))
     firmware_root = _expanded(config.get("haldex", {}).get("firmware_dir", "~/haldexfw"))
+    eps_firmware_root = _expanded(config.get("eps", {}).get("firmware_dir", "~/epsfw"))
     diagnostics = config.get("diagnostics", {})
     capture_settings = diagnostics.get("hudiy_api_capture", {}) if isinstance(diagnostics, Mapping) else {}
     if not isinstance(capture_settings, Mapping):
@@ -129,9 +152,13 @@ def build_collections(config: Mapping) -> list[Collection]:
         Collection("flash_logs", "Flashing operation logs",
                    "Detailed reports from controller read and write operations",
                    _expanded("~/.hudiy/flash_logs"), (".log",), "logs", True),
-        Collection("readouts", "Controller readouts",
-                   "Firmware images and reports read from vehicle controllers",
+        Collection("readouts", "Haldex readouts",
+                   "Haldex firmware images and capture reports",
                    os.path.join(firmware_root, "readouts"), (".bin", ".json"),
+                   "readouts", True),
+        Collection("eps_readouts", "PQ EPS readouts",
+                   "EPS firmware, EEPROM images, and capture reports",
+                   os.path.join(eps_firmware_root, "readouts"), (".bin", ".json"),
                    "readouts", True),
     ]
     return collections

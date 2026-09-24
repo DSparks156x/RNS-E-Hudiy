@@ -532,8 +532,8 @@ fi
 mount -a
 
 # Keep firmware user-visible.
-mkdir -p "${REAL_HOME}/haldexfw/readouts"
-chown -R ${REAL_USER}:${REAL_USER} "${REAL_HOME}/haldexfw"
+mkdir -p "${REAL_HOME}/haldexfw/readouts" "${REAL_HOME}/epsfw/readouts"
+chown -R ${REAL_USER}:${REAL_USER} "${REAL_HOME}/haldexfw" "${REAL_HOME}/epsfw"
 
 # ------------------------------------------------------------------------------
 # 7. Install Systemd Services (Networkd Method)

@@ -83,25 +83,25 @@ logger = logging.getLogger(__name__)
 data_logger = DataLogger(_cfg)
 
 
-def _validate_vehicle_portal_upload(path):
-    errors = []
-    for flasher in (HaldexFlasher, PQEPSFlasher):
-        if flasher is None:
-            continue
-        try:
-            return flasher.prepare_image(path)
-        except Exception as error:
-            errors.append(str(error))
-            if flasher is PQEPSFlasher:
-                try:
-                    return flasher.prepare_image(
-                        path, start_addr=0x5e000, end_addr=0x5efff)
-                except Exception as dataset_error:
-                    errors.append(str(dataset_error))
-    raise ValueError('File is not a supported Haldex or PQ EPS image: ' + '; '.join(errors))
+def _validate_haldex_portal_upload(path):
+    if HaldexFlasher is None:
+        raise RuntimeError('Haldex firmware validation is unavailable')
+    return HaldexFlasher.prepare_image(path)
 
 
-register_file_portal(app, _cfg, validators={'haldex': _validate_vehicle_portal_upload})
+def _validate_eps_portal_upload(path):
+    if PQEPSFlasher is None:
+        raise RuntimeError('PQ EPS firmware validation is unavailable')
+    if os.path.getsize(path) == 0x1000:
+        return PQEPSFlasher.prepare_image(
+            path, start_addr=0x5e000, end_addr=0x5efff)
+    return PQEPSFlasher.prepare_image(path)
+
+
+register_file_portal(app, _cfg, validators={
+    'haldex': _validate_haldex_portal_upload,
+    'pq-eps': _validate_eps_portal_upload,
+})
 
 # Cache Busting
 @app.after_request
@@ -613,20 +613,25 @@ def handle_add_logger_marker(data):
         socketio.emit('logger_marker_added', {"note": note, "timestamp": time.time()})
 
 # --- Haldex Flashing Handlers ---
-def get_firmware_dir():
+def get_firmware_dir(module='haldex-gen4'):
+    is_eps = module in ('pq-eps', 'eps', 'steering')
+    section = 'eps' if is_eps else 'haldex'
+    fallback = '~/epsfw' if is_eps else '~/haldexfw'
     return os.path.abspath(os.path.expanduser(
-        _cfg.get('haldex', {}).get('firmware_dir') or '~/haldexfw'))
+        _cfg.get(section, {}).get('firmware_dir') or fallback))
 
 
-def get_tunes_dirs():
+def get_tunes_dirs(module='haldex-gen4'):
     # Keep existing tune locations readable during upgrades; create only the new root.
-    root = get_firmware_dir()
+    root = get_firmware_dir(module)
     os.makedirs(root, exist_ok=True)
     legacy = _cfg.get('haldex', {}).get('tunes_dir')
-    dirs = [root] + ([os.path.expanduser(legacy)] if legacy else []) + [
-        os.path.expanduser('~/tunes'),
-        os.path.join(_base_dir, 'tunes'),
-        os.path.join(_base_dir, 'flasher', 'tunes')]
+    dirs = [root]
+    if module not in ('pq-eps', 'eps', 'steering'):
+        dirs += ([os.path.expanduser(legacy)] if legacy else []) + [
+            os.path.expanduser('~/tunes'),
+            os.path.join(_base_dir, 'tunes'),
+            os.path.join(_base_dir, 'flasher', 'tunes')]
     return list(dict.fromkeys(os.path.abspath(d) for d in dirs if os.path.isdir(d)))
 
 
@@ -669,10 +674,14 @@ def _validated_artifacts(module='haldex-gen4'):
         flasher_class = _flasher_for_module(module)
     except (RuntimeError, ValueError):
         return artifacts
-    for directory in get_tunes_dirs():
+    for directory in get_tunes_dirs(module):
         for name, path in firmware_paths(directory):
             try:
-                prepared = flasher_class.prepare_image(path)
+                if flasher_class is PQEPSFlasher and os.path.getsize(path) == 0x1000:
+                    prepared = flasher_class.prepare_image(
+                        path, start_addr=0x5e000, end_addr=0x5efff)
+                else:
+                    prepared = flasher_class.prepare_image(path)
                 with open(path, 'rb') as source:
                     artifact_id = hashlib.sha256(source.read()).hexdigest()
                 metadata = prepared['metadata']
@@ -701,14 +710,20 @@ _flasher_thread = None
 _diagnostic_lock = threading.Lock()
 _recovery_file = os.path.expanduser('~/.hudiy/haldex_recovery_required.json')
 _readout_root = os.path.join(get_firmware_dir(), 'readouts')
+_eps_readout_root = os.path.join(get_firmware_dir('pq-eps'), 'readouts')
 
 
 def _readout_download(capture_id, report=False):
     # Only server-generated capture IDs and basenames from our report are allowed.
     if len(capture_id) != 32 or any(c not in '0123456789abcdef' for c in capture_id):
         abort(404)
-    directory = os.path.realpath(os.path.join(_readout_root, capture_id))
-    if os.path.dirname(directory) != os.path.realpath(_readout_root):
+    directory = None
+    for root in (_readout_root, _eps_readout_root):
+        candidate = os.path.realpath(os.path.join(root, capture_id))
+        if os.path.dirname(candidate) == os.path.realpath(root) and os.path.isdir(candidate):
+            directory = candidate
+            break
+    if directory is None:
         abort(404)
     report_path = os.path.join(directory, 'report.json')
     try:
@@ -1106,7 +1121,9 @@ def handle_start_haldex_readout(data):
             traffic_entered = True
             owner.acquire()
             set_flashing_mode(True)
-            result.update(reader.readout(_readout_root, **readout_kwargs))
+            readout_root = (_eps_readout_root if module in ('pq-eps', 'eps', 'steering')
+                            else _readout_root)
+            result.update(reader.readout(readout_root, **readout_kwargs))
             event = 'haldex_readout_complete'
         except Exception as error:
             logger.exception('%s readout stopped', module)

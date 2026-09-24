@@ -71,11 +71,14 @@ To edit the configuration, use the built-in Config Editor tool:
 
 Main configuration variables and descriptive guides are defined in the editor's schema.
 
-The `file_portal.firmware_targets` list controls upload destinations. Haldex is the
-default target and uses the existing image validator. Additional controllers can be
-added with their own ID, label, directory, allowed extensions, size limit, and validator
-name as support is added. Set `file_portal.upload_pin` to require a PIN for uploads;
-downloads remain available to devices on the Pi network.
+The `file_portal.firmware_targets` list controls upload destinations. Haldex images are
+validated and stored in `~/haldexfw`; PQ EPS images are independently validated and
+stored in `~/epsfw`. EPS accepts either a complete 384 KiB CPU-linear image or an exact
+4 KiB `0x5E000–0x5EFFF` steering dataset. Haldex and EPS readouts are kept separately in
+their respective `readouts` directories. Additional controllers can define their own ID,
+label, directory, allowed extensions, size limit, and validator as support is added. Set
+`file_portal.upload_pin` to require a PIN for uploads; downloads remain available to
+devices on the Pi network.
 
 ### Collecting Android Auto / CarPlay API behavior
 

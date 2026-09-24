@@ -16,7 +16,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 if Flask is not None:
-    from hudiy_dataview.file_portal import register_file_portal  # noqa: E402
+    from hudiy_dataview.file_portal import build_collections, register_file_portal  # noqa: E402
 
 
 @unittest.skipIf(Flask is None, "Flask is installed by the Pi installer")
@@ -82,6 +82,21 @@ class FilePortalTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in collections["hudiy_api"]["files"]], ["hudiy-api-events.log"])
         self.assertTrue(response.get_json()["pin_required"])
         self.assertEqual(response.get_json()["all_logs_archive_url"], "/api/files/archive/all_logs")
+
+    def test_eps_configuration_adds_a_separate_firmware_target(self):
+        eps_directory = os.path.join(self.temporary.name, "eps")
+        config = {
+            "haldex": {"firmware_dir": self.firmware},
+            "eps": {"firmware_dir": eps_directory},
+            "file_portal": {"firmware_targets": [{
+                "id": "haldex", "directory": self.firmware,
+                "extensions": [".bin"], "validator": "haldex",
+            }]},
+        }
+        collections = {item.id: item for item in build_collections(config)}
+        self.assertEqual(collections["firmware_haldex"].directory, self.firmware)
+        self.assertEqual(collections["firmware_pq-eps"].directory, eps_directory)
+        self.assertEqual(collections["firmware_pq-eps"].validator, "pq-eps")
 
     def test_upload_requires_pin_validates_and_does_not_overwrite(self):
         denied = self.client.post("/api/files/upload/firmware_engine", data={

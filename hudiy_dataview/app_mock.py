@@ -60,7 +60,10 @@ socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins='*',
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] (DataView) %(message)s')
 logger = logging.getLogger(__name__)
 
-register_file_portal(app, _cfg, validators={'haldex': lambda path: None})
+register_file_portal(app, _cfg, validators={
+    'haldex': lambda path: None,
+    'pq-eps': lambda path: None,
+})
 
 # Cache Busting
 @app.after_request

@@ -29,6 +29,56 @@ def definitions(path, names, namespace):
     return namespace
 
 
+class FirmwareTargetIsolationTests(unittest.TestCase):
+    def test_portal_validators_do_not_accept_the_other_controller_format(self):
+        class Haldex:
+            calls = []
+
+            @staticmethod
+            def prepare_image(path):
+                Haldex.calls.append(path)
+                return {'target': 'haldex'}
+
+        class EPS:
+            calls = []
+
+            @staticmethod
+            def prepare_image(path):
+                EPS.calls.append(path)
+                return {'target': 'eps'}
+
+        ns = definitions('hudiy_dataview/app.py',
+                         {'_validate_haldex_portal_upload', '_validate_eps_portal_upload'}, {
+            'HaldexFlasher': Haldex, 'PQEPSFlasher': EPS,
+            'RuntimeError': RuntimeError, 'os': os,
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            eps_path = os.path.join(directory, 'eps.bin')
+            Path(eps_path).write_bytes(bytes(0x60000))
+            self.assertEqual(ns['_validate_haldex_portal_upload']('haldex.bin')['target'], 'haldex')
+            self.assertEqual(ns['_validate_eps_portal_upload'](eps_path)['target'], 'eps')
+            self.assertEqual(Haldex.calls, ['haldex.bin'])
+            self.assertEqual(EPS.calls, [eps_path])
+
+    def test_eps_directory_is_strictly_separate_from_haldex(self):
+        with tempfile.TemporaryDirectory() as directory:
+            haldex = os.path.join(directory, 'haldex')
+            eps = os.path.join(directory, 'eps')
+            os.makedirs(haldex)
+            ns = definitions('hudiy_dataview/app.py',
+                             {'get_firmware_dir', 'get_tunes_dirs'}, {
+                'os': os,
+                '_cfg': {
+                    'haldex': {'firmware_dir': haldex},
+                    'eps': {'firmware_dir': eps},
+                },
+                '_base_dir': directory,
+            })
+            eps_dirs = ns['get_tunes_dirs']('pq-eps')
+            self.assertEqual(eps_dirs, [os.path.abspath(eps)])
+            self.assertNotIn(os.path.abspath(eps), ns['get_tunes_dirs']('haldex-gen4'))
+
+
 class HaldexTelemetryMuxTests(unittest.TestCase):
     def setUp(self):
         self.ns = definitions('rns-e_can/haldex_manager.py',
@@ -375,7 +425,8 @@ class ReadoutBackendTests(unittest.TestCase):
                 raise ValueError('Invalid sectors')
         self.module.validate_selection = validate
         self.ns = definitions('hudiy_dataview/app.py', {'handle_start_haldex_readout'}, {
-            '_flasher_running': False, '_flasher_lock': threading.Lock(), '_cfg': {}, '_readout_root': 'readouts',
+            '_flasher_running': False, '_flasher_lock': threading.Lock(), '_cfg': {},
+            '_readout_root': 'haldex-readouts', '_eps_readout_root': 'eps-readouts',
             'emit': lambda *args: self.events.append(args), 'socketio': types.SimpleNamespace(emit=lambda *args: self.events.append(args)),
             'threading': types.SimpleNamespace(Thread=InlineThread), 'DiagnosticOwnership': lambda: self.owner,
             'FlashOperationLog': Mock(), 'flashing_operation': lambda: self.traffic, 'set_flashing_mode': Mock(),
@@ -412,7 +463,7 @@ class ReadoutBackendTests(unittest.TestCase):
                           'end_addr': 0x5dfff})
         self.module.PQEPSReadout.assert_called_once()
         self.reader.readout.assert_called_once_with(
-            'readouts', start_addr=0x5d000, end_addr=0x5dfff)
+            'eps-readouts', start_addr=0x5d000, end_addr=0x5dfff)
         self.assertEqual(self.events[-1][0], 'haldex_readout_complete')
 
     def test_eps_eeprom_readout_uses_fixed_size_reader_without_client_bounds(self):
@@ -421,7 +472,7 @@ class ReadoutBackendTests(unittest.TestCase):
             readout_kind='eeprom', size=1024, filename='eps_eeprom.bin')
         self.run_handler({'module': 'pq-eps', 'readout_kind': 'eeprom'})
         self.module.PQEPSEepromReadout.assert_called_once()
-        self.reader.readout.assert_called_once_with('readouts')
+        self.reader.readout.assert_called_once_with('eps-readouts')
         self.assertEqual(self.events[-1][0], 'haldex_readout_complete')
         self.assertEqual(self.events[-1][1]['readout_kind'], 'eeprom')
 
@@ -463,13 +514,16 @@ class ReadoutBackendTests(unittest.TestCase):
         class Missing(Exception): pass
         def abort(code): raise Missing(code)
         with tempfile.TemporaryDirectory() as root:
+            eps_root = os.path.join(root, 'eps')
+            os.makedirs(eps_root)
             capture = Path(root) / ('a'*32)
             capture.mkdir()
             report = capture / 'report.json'
             report.write_text(json.dumps({'status': 'ok', 'filename': 'part_fw_date.bin'}))
             (capture / 'part_fw_date.bin').write_bytes(b'data')
             ns = definitions('hudiy_dataview/app.py', {'_readout_download'}, {
-                '_readout_root': root, 'os': os, 'json': json, 'abort': abort,
+                '_readout_root': root, '_eps_readout_root': eps_root,
+                'os': os, 'json': json, 'abort': abort,
                 'send_file': lambda path, **kw: (path, kw)})
             self.assertEqual(ns['_readout_download']('a'*32)[1]['download_name'], 'part_fw_date.bin')
             for identifier in ('../x', 'A'*32, 'b'*32):

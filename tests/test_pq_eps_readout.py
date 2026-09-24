@@ -273,6 +273,24 @@ class PQEPSCLITests(unittest.TestCase):
         self.assertEqual(prepared["metadata"]["checksum"], sum(range(16)))
         self.assertEqual(prepared["image"], bytes(image))
 
+    def test_eps_flash_accepts_exact_0x5e_steer_dataset(self):
+        dataset = bytes((index & 0xFF) for index in range(0x1000))
+        prepared = eps_images.prepare_image(
+            dataset, eps_images.STEER_DATASET_START, eps_images.STEER_DATASET_END)
+        self.assertEqual(prepared["image"], dataset)
+        self.assertEqual(prepared["region"], dataset)
+        self.assertEqual(prepared["metadata"]["source_kind"],
+                         "4 KiB 0x5E steering dataset")
+        self.assertEqual(prepared["metadata"]["checksum"], sum(dataset) & 0xFFFF)
+
+    def test_eps_dataset_rejects_any_other_region_or_size(self):
+        with self.assertRaisesRegex(ValueError, "only for 0x05E000"):
+            eps_images.prepare_image(bytes(0x1000), 0x5D000, 0x5DFFF)
+        with self.assertRaisesRegex(ValueError, "384 KiB.*or 4 KiB"):
+            eps_images.prepare_image(
+                bytes(0x800), eps_images.STEER_DATASET_START,
+                eps_images.STEER_DATASET_END)
+
     def test_eps_flash_rejects_cpu_space_below_obd_programming_window(self):
         with self.assertRaisesRegex(ValueError, "0x00A000"):
             eps_images.prepare_image(bytes(eps_images.IMAGE_SIZE), 0, 0x0FFF)
