@@ -84,6 +84,7 @@ class PQFlashProfile:
     checksum_payload: Callable[[int, int, dict], bytes]
     validate_fresh_application: Callable[[dict], None]
     commit_services: Tuple[int, ...] = (0x20, 0x82)
+    programming_reconnect_delay: float = 0.0
 
 
 def parse_vag_flash_date(raw: bytes) -> Optional[str]:
@@ -574,6 +575,10 @@ class PQFlasher:
                 kwp.session(self.profile.programming_session)
             except (TimeoutError, ConnectionError) as exc:
                 self.log(f"Programming transition ambiguous: {exc}; verifying programming connection")
+            if self.profile.programming_reconnect_delay:
+                self.log(
+                    f"Waiting {self.profile.programming_reconnect_delay:g}s for programming handoff")
+                time.sleep(self.profile.programming_reconnect_delay)
             tp = self.reconnect_tp(15, heartbeat=True)
             kwp = self._new_kwp(tp)
             self.profile.verify_programming_channel(tp)

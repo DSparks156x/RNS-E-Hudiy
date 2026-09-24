@@ -21,6 +21,7 @@ interface EcuFlashInfo {
     flash_date?: string | null;
     last_tool_id?: number | null;
     system_desc?: string | null;
+    dataset_version?: string | null;
     error?: string;
 }
 
@@ -409,6 +410,10 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
                                 <span style={styles.cellLabel}>Last Flash Date</span>
                                 <span style={styles.cellValue}>{ecuInfo?.last_flash_date || ecuInfo?.flash_date || '—'}</span>
                             </div>
+                            {module === 'pq-eps' && <div style={styles.tableRow}>
+                                <span style={styles.cellLabel}>Steer Dataset</span>
+                                <span style={styles.cellValue}>{ecuInfo?.dataset_version || '—'}</span>
+                            </div>}
                             <div style={styles.tableRow}>
                                 <span style={styles.cellLabel}>Active State</span>
                                 <span style={{ ...styles.cellValue, color: ecuInfo?.in_bootloader ? '#ffb74d' : '#81c784' }}>
@@ -418,7 +423,7 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
                         </div>
 
                         <label style={styles.checkLabel}>{module === 'pq-eps' ? 'Flash region' : 'Sectors'}</label>
-                        <select value={sectorRange} disabled={isFlashing}
+                        <select value={sectorRange} disabled={isFlashing || selectedTuneObj?.size_bytes === 4096}
                             onChange={e => { sectorChosen.current = true; setSectorRange(e.target.value); }}
                             style={{ ...styles.select, backgroundColor: theme.surfaceVariant || '#252525', color: theme.onSurface || '#eee' }}>
                             {module === 'pq-eps' ? <>
@@ -440,7 +445,7 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
                         </select>
                         <div style={{ fontSize: '0.75rem', lineHeight: 1.4 }}>
                             {module === 'pq-eps'
-                                ? 'Block 0x5E is the default. EPS inputs must be complete 384 KiB CPU-linear images. Partial-region flash is approved only after the live rack reports software revision 3000 or newer; older or unknown revisions require full 0x0A000–0x5FFFF.'
+                                ? 'A 4 KiB input is locked to steer dataset block 0x5E. A 384 KiB CPU-linear image can flash the full firmware, configuration 0x5D, or steer dataset 0x5E. Partial-region flash is approved only after the live rack reports software revision 3000 or newer; older or unknown revisions require full 0x0A000–0x5FFFF.'
                                 : '320 KiB images are automatically patched and checksums repaired. Query Controller to choose the default: Calibration for non-3016 application firmware; Full for 3016 or unknown. Flash and readout use the selected sectors.'}
                         </div>
                         {ecuInfo?.error && <div role="alert">{ecuInfo.error}</div>}

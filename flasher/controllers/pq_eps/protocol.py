@@ -1,7 +1,9 @@
 """PQ EPS conventional KWP readout and programming policy."""
 import hashlib
 import json
+import re
 import struct
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -14,7 +16,8 @@ from ...socketcan_device import SocketCANDevice
 from ...vag_protocols.kwp import KWPClient, KWPProfile
 from ...vag_protocols.tp2 import TP20Transport
 from .patches import (
-    DEFAULT_END, DEFAULT_START, FLASH_START, prepare_image, validate_selection,
+    DATASET_END, DATASET_SIZE, DATASET_START, DEFAULT_END, DEFAULT_START,
+    FLASH_START, prepare_image, validate_selection,
 )
 
 EPS_MODULE_ADDR = 0x09
@@ -29,6 +32,16 @@ SESSION_PROGRAMMING = 0x85
 RC_ERASE = 0xC4
 RC_CHECKSUM = 0xC5
 CHUNK_SIZE = 240
+
+
+def decorate_identification(info: dict) -> dict:
+    """Add EPS application/loader state and the Kl. dataset identifier."""
+    result = dict(info)
+    description = str(result.get("system_desc", "")).strip()
+    dataset = re.search(r"\bKl\.\s*(\d+)\b", description, re.IGNORECASE)
+    result["dataset_version"] = dataset.group(1) if dataset else None
+    result["in_bootloader"] = "EPS_ZFLS BB" in description.upper()
+    return result
 
 
 def programming_key(seed: bytes):
@@ -168,6 +181,15 @@ def make_eps_flash_profile(*, kwp_factory, image_preparer, device_factory,
                 or info.get("flash_status") not in (0, 1)):
             raise RuntimeError("Fresh expected EPS application boot was not verified")
 
+    def verify_programming_channel(tp):
+        kwp = EPSKWPClient(tp)
+        info = decorate_identification(parse_vag_identification(
+            kwp.read_ecu_ident(0x9B), kwp.read_ecu_ident(0x9C)))
+        description = str(info.get("system_desc", "")).strip()
+        if not info["in_bootloader"]:
+            raise RuntimeError(
+                f"EPS did not enter its resident loader; identified {description or '<empty>'!r}")
+
     return PQFlashProfile(
         name="pq-eps",
         module=EPS_MODULE_ADDR,
@@ -184,7 +206,7 @@ def make_eps_flash_profile(*, kwp_factory, image_preparer, device_factory,
         programming_session=SESSION_PROGRAMMING,
         pre_programming_security=None,
         programming_security=EPS_PROGRAMMING_SECURITY,
-        verify_programming_channel=lambda tp: None,
+        verify_programming_channel=verify_programming_channel,
         chunk_size=CHUNK_SIZE,
         erase_routine=RC_ERASE,
         checksum_routine=RC_CHECKSUM,
@@ -193,6 +215,7 @@ def make_eps_flash_profile(*, kwp_factory, image_preparer, device_factory,
             a3(start) + a3(end) + struct.pack(">H", metadata["checksum"]),
         validate_fresh_application=validate_application,
         commit_services=(0x82,),
+        programming_reconnect_delay=1.0,
     )
 
 
@@ -221,9 +244,9 @@ class PQEPSFlasher(PQFlasher):
 
     @staticmethod
     def _ident(kwp, tp):
-        result = parse_vag_identification(
-            kwp.read_ecu_ident(0x9B), kwp.read_ecu_ident(0x9C))
-        result.update(connected=True, in_bootloader=False)
+        result = decorate_identification(parse_vag_identification(
+            kwp.read_ecu_ident(0x9B), kwp.read_ecu_ident(0x9C)))
+        result["connected"] = True
         return result
 
     def flash_binary(self, binary_data_or_path, start_addr=DEFAULT_START,
@@ -247,15 +270,76 @@ def add_cli_arguments(parser):
 
 
 def apply_defaults(args):
-    if args.read_eeprom:
+    if (args.read_eeprom or args.read_eps_faults or args.read_eps_motion
+            or args.read_eps_assist or args.read_eps_supply or args.read_eps_can_config):
         return
     flash = not args.readout and not args.ident_only
+    if (flash and args.input and args.start is None and args.end is None
+            and Path(args.input).is_file()
+            and Path(args.input).stat().st_size == DATASET_SIZE):
+        args.start, args.end = DATASET_START, DATASET_END
     args.start = (DEFAULT_START if flash else 0) if args.start is None else args.start
     args.end = (DEFAULT_END if flash else EPS_IMAGE_SIZE - 1) if args.end is None else args.end
     args.out = args.out or "data/raw/readout/pq-eps"
 
 
 def validate_cli(parser, args):
+    if args.read_eps_can_config:
+        if not args.out:
+            parser.error("--read-eps-can-config requires --out FILE")
+        if not 1 <= args.can_config_samples <= 200:
+            parser.error("--can-config-samples must be 1..200")
+        if not 50 <= args.can_config_interval_ms <= 1000:
+            parser.error("--can-config-interval-ms must be 50..1000")
+        if (args.input or args.recovery or args.start is not None or args.end is not None
+                or args.reference or args.readout_passes != 1
+                or args.readout_window != 0x10000 or args.readout_method != "auto"):
+            parser.error("--read-eps-can-config cannot be combined with flash or CPU-readout options")
+        return
+    if args.read_eps_supply:
+        if not args.out:
+            parser.error("--read-eps-supply requires --out FILE")
+        if not 1 <= args.supply_samples <= 200:
+            parser.error("--supply-samples must be 1..200")
+        if not 50 <= args.supply_interval_ms <= 1000:
+            parser.error("--supply-interval-ms must be 50..1000")
+        if (args.input or args.recovery or args.start is not None or args.end is not None
+                or args.reference or args.readout_passes != 1
+                or args.readout_window != 0x10000 or args.readout_method != "auto"):
+            parser.error("--read-eps-supply cannot be combined with flash or CPU-readout options")
+        return
+    if args.read_eps_assist:
+        if not args.out:
+            parser.error("--read-eps-assist requires --out FILE")
+        if not 1 <= args.assist_samples <= 200:
+            parser.error("--assist-samples must be 1..200")
+        if not 50 <= args.assist_interval_ms <= 1000:
+            parser.error("--assist-interval-ms must be 50..1000")
+        if (args.input or args.recovery or args.start is not None or args.end is not None
+                or args.reference or args.readout_passes != 1
+                or args.readout_window != 0x10000 or args.readout_method != "auto"):
+            parser.error("--read-eps-assist cannot be combined with flash or CPU-readout options")
+        return
+    if args.read_eps_motion:
+        if not args.out:
+            parser.error("--read-eps-motion requires --out FILE")
+        if not 1 <= args.motion_samples <= 200:
+            parser.error("--motion-samples must be 1..200")
+        if not 50 <= args.motion_interval_ms <= 1000:
+            parser.error("--motion-interval-ms must be 50..1000")
+        if (args.input or args.recovery or args.start is not None or args.end is not None
+                or args.reference or args.readout_passes != 1
+                or args.readout_window != 0x10000 or args.readout_method != "auto"):
+            parser.error("--read-eps-motion cannot be combined with flash or CPU-readout options")
+        return
+    if args.read_eps_faults:
+        if not args.out:
+            parser.error("--read-eps-faults requires --out FILE")
+        if (args.input or args.recovery or args.start is not None or args.end is not None
+                or args.reference or args.readout_passes != 1
+                or args.readout_window != 0x10000 or args.readout_method != "auto"):
+            parser.error("--read-eps-faults cannot be combined with flash or CPU-readout options")
+        return
     if args.read_eeprom:
         if not args.out:
             parser.error("--read-eeprom requires --out FILE")
@@ -436,3 +520,432 @@ def run_eeprom(args, runtime):
         result["status"] = "requires_attention"
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if not cleanup_errors else 1
+
+
+EPS_FAULT_GROUPS = tuple(range(0x32, 0x46))
+EPS_FAULT_HEADERS = frozenset((0x32, 0x36, 0x3A, 0x3E, 0x42))
+
+
+def run_faults(args, runtime):
+    """Save all five EPS fault slots and their three snapshot pages via SID 21."""
+    output = Path(args.out)
+    if output.exists():
+        raise ValueError(f"Refusing to overwrite {output}")
+    report = {
+        "operation": "read_eps_faults", "controller_family": args.family.name,
+        "adapter": args.adapter, "module": args.module,
+        "service": "21", "groups": [f"{group:02X}" for group in EPS_FAULT_GROUPS],
+        "hardware_access": not args.dry_run, "firmware_writes": False,
+        "output": str(output),
+    }
+    if args.dry_run:
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    device = tp = None
+    responses = {}
+    errors = []
+    cleanup_errors = []
+    try:
+        device = runtime.open_adapter(args)
+        tp = TP20Transport(device, module=args.module, timeout=2.0, debug=args.verbose)
+        kwp = EPSKWPClient(tp)
+        identity = parse_vag_identification(
+            kwp.read_ecu_ident(0x9B), kwp.read_ecu_ident(0x9C))
+        args.family.validate_identification(identity)
+        report["controller"] = identity
+        for group in EPS_FAULT_GROUPS:
+            try:
+                payload = kwp.read_local_identifier(group)
+                if len(payload) < 2 or payload[1] != group:
+                    raise PQReadError(f"SID 21 group {group:02X} response echo mismatch")
+                responses[f"{group:02X}"] = payload.hex(" ").upper()
+                if (group in EPS_FAULT_HEADERS and len(payload) == 14
+                        and payload[2] == 0x4B and payload[5] == 0x4B
+                        and payload[8] == 0xA1 and payload[11] == 0x6B):
+                    report.setdefault("headers", {})[f"{group:02X}"] = {
+                        "internal_id": int.from_bytes(payload[3:5], "big"),
+                        "subcode": int.from_bytes(payload[6:8], "big"),
+                        "flags": int.from_bytes(payload[9:11], "big"),
+                        "occurrences": payload[12],
+                    }
+            except Exception as exc:
+                errors.append(f"21 {group:02X}: {type(exc).__name__}: {exc}")
+    except Exception as exc:
+        errors.append(f"session: {type(exc).__name__}: {exc}")
+    finally:
+        if tp is not None:
+            try:
+                tp.disconnect()
+            except Exception as exc:
+                cleanup_errors.append(f"disconnect: {exc}")
+        if device is not None:
+            try:
+                device.close()
+            except Exception as exc:
+                cleanup_errors.append(f"adapter close: {exc}")
+
+    report.update(responses=responses, errors=errors, cleanup_errors=cleanup_errors,
+                  status="captured_complete" if not errors and not cleanup_errors
+                  else "captured_partial" if responses else "requires_attention")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("x", encoding="utf-8") as stream:
+        json.dump(report, stream, indent=2, sort_keys=True)
+        stream.write("\n")
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report["status"] == "captured_complete" else 1
+
+
+def decode_eps_motion_response(payload: bytes) -> int:
+    """Extract TT 3001 SID 21 01 field 3 (signed gp-0x665E)."""
+    if len(payload) != 14 or payload[:2] != b"\x61\x01" or payload[8] != 0x74:
+        raise PQReadError("Unexpected TT 3001 21 01 motion-rate field layout")
+    return int.from_bytes(payload[9:11], "big", signed=True)
+
+
+def decode_eps_post_slew_selector(payload: bytes) -> int:
+    """Extract TT 3001 SID 21 01 field 1 raw gp-0x65C7 byte."""
+    if len(payload) != 14 or payload[:4] != b"\x61\x01\x1A\x46":
+        raise PQReadError("Unexpected TT 3001 21 01 cap-selector field layout")
+    return payload[4]
+
+
+def run_motion(args, runtime):
+    """Read the stock motion-rate group on a stationary EPS; never enter programming."""
+    output = Path(args.out)
+    if output.exists():
+        raise ValueError(f"Refusing to overwrite {output}")
+    report = {
+        "operation": "read_eps_motion", "controller_family": args.family.name,
+        "adapter": args.adapter, "module": args.module,
+        "request": "21 01", "sample_count": args.motion_samples,
+        "minimum_interval_ms": args.motion_interval_ms,
+        "hardware_access": not args.dry_run, "firmware_writes": False,
+        "output": str(output),
+        "limiter_branch_rate_magnitude": 3650,
+        "post_slew_cap_source_ram": "0x03FF2B39",
+        "post_slew_minimum_cap_selector_max": 38,
+        "limitation": "Stationary sampling only; host timestamps and KWP latency can miss brief motion-rate or cap-selector changes.",
+    }
+    if args.dry_run:
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    device = tp = None
+    samples = []
+    errors = []
+    cleanup_errors = []
+    try:
+        device = runtime.open_adapter(args)
+        tp = TP20Transport(device, module=args.module, timeout=2.0, debug=args.verbose)
+        kwp = EPSKWPClient(tp)
+        identity = parse_vag_identification(
+            kwp.read_ecu_ident(0x9B), kwp.read_ecu_ident(0x9C))
+        args.family.validate_identification(identity)
+        report["controller"] = identity
+        for index in range(args.motion_samples):
+            started_mono_ns = time.monotonic_ns()
+            started_ns = time.time_ns()
+            try:
+                payload = kwp.read_local_identifier(0x01)
+                rate = decode_eps_motion_response(payload)
+                cap_selector = decode_eps_post_slew_selector(payload)
+                samples.append({"index": index, "host_time_ns": started_ns,
+                                "response": payload.hex(" ").upper(),
+                                "signed_rate": rate, "rate_magnitude": abs(rate),
+                                "at_or_above_branch": abs(rate) >= 3650,
+                                "post_slew_cap_selector": cap_selector,
+                                "at_min_post_slew_cap_knot": cap_selector <= 38})
+            except Exception as exc:
+                errors.append(f"sample {index}: {type(exc).__name__}: {exc}")
+            if index + 1 < args.motion_samples:
+                elapsed_ms = (time.monotonic_ns() - started_mono_ns) / 1_000_000
+                time.sleep(max(0, args.motion_interval_ms - elapsed_ms) / 1000)
+    except Exception as exc:
+        errors.append(f"session: {type(exc).__name__}: {exc}")
+    finally:
+        if tp is not None:
+            try:
+                tp.disconnect()
+            except Exception as exc:
+                cleanup_errors.append(f"disconnect: {exc}")
+        if device is not None:
+            try:
+                device.close()
+            except Exception as exc:
+                cleanup_errors.append(f"adapter close: {exc}")
+
+    report.update(samples=samples, errors=errors, cleanup_errors=cleanup_errors,
+                  status="captured_complete" if len(samples) == args.motion_samples
+                  and not errors and not cleanup_errors else
+                  "captured_partial" if samples else "requires_attention")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("x", encoding="utf-8") as stream:
+        json.dump(report, stream, indent=2, sort_keys=True)
+        stream.write("\n")
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report["status"] == "captured_complete" else 1
+
+
+def run_assist(args, runtime):
+    """Read stock group 05 assist stages on a stationary EPS, without security access."""
+    output = Path(args.out)
+    if output.exists():
+        raise ValueError(f"Refusing to overwrite {output}")
+    report = {
+        "operation": "read_eps_assist", "controller_family": args.family.name,
+        "adapter": args.adapter, "module": args.module,
+        "request": "21 05", "sample_count": args.assist_samples,
+        "minimum_interval_ms": args.assist_interval_ms,
+        "hardware_access": not args.dry_run, "firmware_writes": False,
+        "output": str(output),
+        "fields": ["speed-selected assist map output", "protected motor request",
+                   "pre-limiter final assist", "published driver torque"],
+        "limitation": "Stationary sampling only; stock values are compressed formatter fields and KWP can miss fast transients.",
+    }
+    if args.dry_run:
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    device = tp = None
+    samples = []
+    errors = []
+    cleanup_errors = []
+    try:
+        device = runtime.open_adapter(args)
+        tp = TP20Transport(device, module=args.module, timeout=2.0, debug=args.verbose)
+        kwp = EPSKWPClient(tp)
+        identity = parse_vag_identification(
+            kwp.read_ecu_ident(0x9B), kwp.read_ecu_ident(0x9C))
+        args.family.validate_identification(identity)
+        report["controller"] = identity
+        for index in range(args.assist_samples):
+            started_mono_ns = time.monotonic_ns()
+            started_ns = time.time_ns()
+            try:
+                payload = kwp.read_local_identifier(0x05)
+                ended_ns = time.time_ns()
+                round_trip_ns = time.monotonic_ns() - started_mono_ns
+                layout_valid = (len(payload) == 14 and payload[:2] == b"\x61\x05"
+                                and [payload[pos] for pos in (2, 5, 8, 11)]
+                                == [0x5D, 0x5D, 0x5D, 0x5E])
+                samples.append({"index": index, "host_time_ns": started_ns,
+                                "host_end_time_ns": ended_ns,
+                                "request_round_trip_ms": round(round_trip_ns / 1_000_000, 3),
+                                "response": payload.hex(" ").upper(),
+                                "layout_valid": layout_valid,
+                                "field_triples": [payload[pos:pos + 3].hex(" ").upper()
+                                                  for pos in (2, 5, 8, 11)]
+                                if layout_valid else []})
+                if not layout_valid:
+                    errors.append(f"sample {index}: unexpected TT 3001 21 05 assist-field layout")
+            except Exception as exc:
+                errors.append(f"sample {index}: {type(exc).__name__}: {exc}")
+            if index + 1 < args.assist_samples:
+                elapsed_ms = (time.monotonic_ns() - started_mono_ns) / 1_000_000
+                time.sleep(max(0, args.assist_interval_ms - elapsed_ms) / 1000)
+    except Exception as exc:
+        errors.append(f"session: {type(exc).__name__}: {exc}")
+    finally:
+        if tp is not None:
+            try:
+                tp.disconnect()
+            except Exception as exc:
+                cleanup_errors.append(f"disconnect: {exc}")
+        if device is not None:
+            try:
+                device.close()
+            except Exception as exc:
+                cleanup_errors.append(f"adapter close: {exc}")
+
+    report.update(samples=samples, errors=errors, cleanup_errors=cleanup_errors,
+                  status="captured_complete" if len(samples) == args.assist_samples
+                  and not errors and not cleanup_errors else
+                  "captured_partial" if samples else "requires_attention")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("x", encoding="utf-8") as stream:
+        json.dump(report, stream, indent=2, sort_keys=True)
+        stream.write("\n")
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report["status"] == "captured_complete" else 1
+
+
+def run_supply(args, runtime):
+    """Read TT 3001 group 02 while stationary, without security access."""
+    output = Path(args.out)
+    if output.exists():
+        raise ValueError(f"Refusing to overwrite {output}")
+    report = {
+        "operation": "read_eps_supply", "controller_family": args.family.name,
+        "adapter": args.adapter, "module": args.module,
+        "request": "21 02", "sample_count": args.supply_samples,
+        "minimum_interval_ms": args.supply_interval_ms,
+        "hardware_access": not args.dry_run, "firmware_writes": False,
+        "output": str(output),
+        "source_ram_address": "0x03FF2BAA",
+        "encoding": "byte 4 = (u16(raw supply proxy) >> 3) & 0xFF",
+        "normal_adc_producer_range": [19, 1703],
+        "limitation": "Stationary sampling only; field is an eight-count raw supply-proxy interval, not a calibrated voltage or held rate factor.",
+    }
+    if args.dry_run:
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    device = tp = None
+    samples = []
+    errors = []
+    cleanup_errors = []
+    try:
+        device = runtime.open_adapter(args)
+        tp = TP20Transport(device, module=args.module, timeout=2.0, debug=args.verbose)
+        kwp = EPSKWPClient(tp)
+        identity = parse_vag_identification(
+            kwp.read_ecu_ident(0x9B), kwp.read_ecu_ident(0x9C))
+        args.family.validate_identification(identity)
+        report["controller"] = identity
+        for index in range(args.supply_samples):
+            started_mono_ns = time.monotonic_ns()
+            started_ns = time.time_ns()
+            try:
+                payload = kwp.read_local_identifier(0x02)
+                ended_ns = time.time_ns()
+                round_trip_ns = time.monotonic_ns() - started_mono_ns
+                layout_valid = (len(payload) >= 5 and
+                                payload[:4] == b"\x61\x02\x06\x7D")
+                sample = {
+                    "index": index, "host_time_ns": started_ns,
+                    "host_end_time_ns": ended_ns,
+                    "request_round_trip_ms": round(round_trip_ns / 1_000_000, 3),
+                    "response": payload.hex(" ").upper(),
+                    "layout_valid": layout_valid,
+                }
+                if layout_valid:
+                    encoded = payload[4]
+                    sample.update(encoded_byte=encoded,
+                                  raw_count_interval_mod_2048=[encoded * 8, encoded * 8 + 7])
+                else:
+                    errors.append(f"sample {index}: unexpected TT 3001 21 02 supply-field layout")
+                samples.append(sample)
+            except Exception as exc:
+                errors.append(f"sample {index}: {type(exc).__name__}: {exc}")
+            if index + 1 < args.supply_samples:
+                elapsed_ms = (time.monotonic_ns() - started_mono_ns) / 1_000_000
+                time.sleep(max(0, args.supply_interval_ms - elapsed_ms) / 1000)
+    except Exception as exc:
+        errors.append(f"session: {type(exc).__name__}: {exc}")
+    finally:
+        if tp is not None:
+            try:
+                tp.disconnect()
+            except Exception as exc:
+                cleanup_errors.append(f"disconnect: {exc}")
+        if device is not None:
+            try:
+                device.close()
+            except Exception as exc:
+                cleanup_errors.append(f"adapter close: {exc}")
+
+    report.update(samples=samples, errors=errors, cleanup_errors=cleanup_errors,
+                  status="captured_complete" if len(samples) == args.supply_samples
+                  and not errors and not cleanup_errors else
+                  "captured_partial" if samples else "requires_attention")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("x", encoding="utf-8") as stream:
+        json.dump(report, stream, indent=2, sort_keys=True)
+        stream.write("\n")
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report["status"] == "captured_complete" else 1
+
+
+def decode_eps_can_config_response(payload: bytes) -> dict:
+    """Decode stock TT3001 21 08 field 1; retain the full raw response."""
+    if len(payload) < 5 or payload[:3] != b"\x61\x08\x6B":
+        raise ValueError("unexpected TT 3001 21 08 first-field layout")
+    secondary_word = int.from_bytes(payload[3:5], "big")
+    secondary_byte = secondary_word & 0xFF
+    return {
+        "secondary_config_word": secondary_word,
+        "secondary_config_byte": secondary_byte,
+        "secondary_bit0_set": bool(secondary_byte & 1),
+        "secondary_telemetry_gate_open_if_selected": not bool(secondary_byte & 1),
+    }
+
+
+def run_can_config(args, runtime):
+    """Read stock group 08 on a stationary EPS; no programming or security."""
+    output = Path(args.out)
+    if output.exists():
+        raise ValueError(f"Refusing to overwrite {output}")
+    report = {
+        "operation": "read_eps_can_config", "controller_family": args.family.name,
+        "adapter": args.adapter, "module": args.module,
+        "request": "21 08", "sample_count": args.can_config_samples,
+        "minimum_interval_ms": args.can_config_interval_ms,
+        "hardware_access": not args.dry_run, "firmware_writes": False,
+        "output": str(output),
+        "source_ram_address": "0x03FF3238",
+        "limitation": "Stationary read only. Field 1 exposes the secondary word, not the primary-branch selectors, page, CAN readiness or actual 0x6D0/1 transmission.",
+    }
+    if args.dry_run:
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    device = tp = None
+    samples, errors, cleanup_errors = [], [], []
+    try:
+        device = runtime.open_adapter(args)
+        tp = TP20Transport(device, module=args.module, timeout=2.0, debug=args.verbose)
+        kwp = EPSKWPClient(tp)
+        identity = parse_vag_identification(
+            kwp.read_ecu_ident(0x9B), kwp.read_ecu_ident(0x9C))
+        args.family.validate_identification(identity)
+        report["controller"] = identity
+        for index in range(args.can_config_samples):
+            started_mono_ns = time.monotonic_ns()
+            started_ns = time.time_ns()
+            try:
+                payload = kwp.read_local_identifier(0x08)
+                ended_ns = time.time_ns()
+                sample = {
+                    "index": index, "host_time_ns": started_ns,
+                    "host_end_time_ns": ended_ns,
+                    "request_round_trip_ms": round(
+                        (time.monotonic_ns() - started_mono_ns) / 1_000_000, 3),
+                    "response": payload.hex(" ").upper(),
+                }
+                try:
+                    sample.update(decode_eps_can_config_response(payload))
+                    sample["layout_valid"] = True
+                except ValueError as exc:
+                    sample["layout_valid"] = False
+                    errors.append(f"sample {index}: {exc}")
+                samples.append(sample)
+            except Exception as exc:
+                errors.append(f"sample {index}: {type(exc).__name__}: {exc}")
+            if index + 1 < args.can_config_samples:
+                elapsed_ms = (time.monotonic_ns() - started_mono_ns) / 1_000_000
+                time.sleep(max(0, args.can_config_interval_ms - elapsed_ms) / 1000)
+    except Exception as exc:
+        errors.append(f"session: {type(exc).__name__}: {exc}")
+    finally:
+        if tp is not None:
+            try:
+                tp.disconnect()
+            except Exception as exc:
+                cleanup_errors.append(f"disconnect: {exc}")
+        if device is not None:
+            try:
+                device.close()
+            except Exception as exc:
+                cleanup_errors.append(f"adapter close: {exc}")
+
+    report.update(samples=samples, errors=errors, cleanup_errors=cleanup_errors,
+                  status="captured_complete" if len(samples) == args.can_config_samples
+                  and not errors and not cleanup_errors else
+                  "captured_partial" if samples else "requires_attention")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("x", encoding="utf-8") as stream:
+        json.dump(report, stream, indent=2, sort_keys=True)
+        stream.write("\n")
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report["status"] == "captured_complete" else 1

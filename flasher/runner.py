@@ -149,6 +149,32 @@ def build_parser(family=None):
     parser.add_argument("--readout", action="store_true")
     parser.add_argument("--read-eeprom", action="store_true",
                         help="Read the complete 1 KiB serial EEPROM (EPS only)")
+    parser.add_argument("--read-eps-faults", action="store_true",
+                        help="Capture read-only EPS KWP fault headers and snapshots")
+    parser.add_argument("--read-eps-motion", action="store_true",
+                        help="Sample the stock EPS steering-motion rate while stationary")
+    parser.add_argument("--read-eps-assist", action="store_true",
+                        help="Sample stock EPS assist stages via KWP 21 05 while stationary")
+    parser.add_argument("--read-eps-supply", action="store_true",
+                        help="Sample TT 3001 EPS raw supply proxy via KWP 21 02 while stationary")
+    parser.add_argument("--read-eps-can-config", action="store_true",
+                        help="Read TT 3001 secondary CAN configuration via KWP 21 08 while stationary")
+    parser.add_argument("--motion-samples", type=int, default=1,
+                        help="Number of stationary EPS motion samples (default 1, maximum 200)")
+    parser.add_argument("--motion-interval-ms", type=int, default=100,
+                        help="Minimum interval between EPS motion samples (default 100 ms)")
+    parser.add_argument("--assist-samples", type=int, default=1,
+                        help="Number of stationary EPS assist samples (default 1, maximum 200)")
+    parser.add_argument("--assist-interval-ms", type=int, default=100,
+                        help="Minimum interval between EPS assist samples (default 100 ms)")
+    parser.add_argument("--supply-samples", type=int, default=1,
+                        help="Number of stationary EPS supply samples (default 1, maximum 200)")
+    parser.add_argument("--supply-interval-ms", type=int, default=100,
+                        help="Minimum interval between EPS supply samples (default 100 ms)")
+    parser.add_argument("--can-config-samples", type=int, default=1,
+                        help="Number of stationary EPS CAN-config samples (default 1, maximum 200)")
+    parser.add_argument("--can-config-interval-ms", type=int, default=100,
+                        help="Minimum interval between EPS CAN-config samples (default 100 ms)")
     parser.add_argument("--out")
     parser.add_argument("--reference")
     parser.add_argument("--readout-passes", type=int, choices=(1, 2), default=1)
@@ -182,6 +208,16 @@ def _operation(args):
         return "identify"
     if args.read_eeprom:
         return "eeprom"
+    if args.read_eps_faults:
+        return "faults"
+    if args.read_eps_motion:
+        return "motion"
+    if args.read_eps_assist:
+        return "assist"
+    if args.read_eps_supply:
+        return "supply"
+    if args.read_eps_can_config:
+        return "can_config"
     if args.readout:
         return "readout"
     return "flash"
@@ -215,6 +251,9 @@ def run_ident(args, runtime):
         kwp = KWPClient(tp, debug=args.verbose, log_fn=protocol_log)
         result = parse_vag_identification(
             kwp.read_ecu_ident(0x9B), kwp.read_ecu_ident(0x9C))
+        decorate = getattr(args.family.protocol(), "decorate_identification", None)
+        if decorate is not None:
+            result = decorate(result)
         args.family.validate_identification(result)
         result.update(connected=True, module=args.module,
                       controller_family=args.family.name)
@@ -235,9 +274,19 @@ def main(argv=None):
     family = _family_from_argv(argv)
     parser = build_parser(family)
     args = parser.parse_args(argv)
-    if sum((args.ident_only, args.readout, args.read_eeprom)) > 1:
-        parser.error("--ident-only, --readout and --read-eeprom cannot be combined")
+    if sum((args.ident_only, args.readout, args.read_eeprom, args.read_eps_faults,
+            args.read_eps_motion, args.read_eps_assist, args.read_eps_supply,
+            args.read_eps_can_config)) > 1:
+        parser.error("Identify, readout, EEPROM, fault, motion, assist, supply and CAN-config operations cannot be combined")
     operation = _operation(args)
+    if operation != "motion" and (args.motion_samples != 1 or args.motion_interval_ms != 100):
+        parser.error("--motion-samples and --motion-interval-ms require --read-eps-motion")
+    if operation != "assist" and (args.assist_samples != 1 or args.assist_interval_ms != 100):
+        parser.error("--assist-samples and --assist-interval-ms require --read-eps-assist")
+    if operation != "supply" and (args.supply_samples != 1 or args.supply_interval_ms != 100):
+        parser.error("--supply-samples and --supply-interval-ms require --read-eps-supply")
+    if operation != "can_config" and (args.can_config_samples != 1 or args.can_config_interval_ms != 100):
+        parser.error("--can-config-samples and --can-config-interval-ms require --read-eps-can-config")
     try:
         args.family = family_for_module(args.module, operation=operation)
         if args.recovery and operation != "flash":

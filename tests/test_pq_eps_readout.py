@@ -1,5 +1,6 @@
 """Offline tests for the PQ EPS KWP readout and flash paths."""
 import contextlib
+import hashlib
 import io
 import json
 import tempfile
@@ -7,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from flasher import runner
+from flasher import engine, runner
 from flasher.controllers.pq_eps import protocol as pq_eps
 from flasher.controllers.pq_eps import patches as eps_images
 from flasher.vag_protocols.kwp import KWPNegativeResponse
@@ -43,7 +44,7 @@ class SimulatedFlashTransport:
     def recv(self):
         request = self.pending
         if request == b"\x1A\x9B":
-            return b"\x5A\x9B" + b"8J0909144J  3104" + bytes(10) + b"EPS_ZFLS"
+            return b"\x5A\x9B" + b"8J0909144J  3104" + bytes(10) + b"EPS_ZFLS BB"
         if request == b"\x1A\x9C":
             return b"\x5A\x9C\x00\x12\x03" + bytes(15)
         if request == b"\x10\x85":
@@ -78,14 +79,42 @@ class PQEPSProtocolTests(unittest.TestCase):
     def test_identification_exposes_software_identity_and_flash_status(self):
         transport = ScriptedTransport([
             (b"\x1A\x9B", b"\x5A\x9B" +
-             b"1K0909144E  2501" + bytes(10) + b"EPS_ZFLS Kl. 184    "),
+             b"1K0909144E  2501" + bytes(10) + b"EPS_ZFLS Kl. 236    "),
             (b"\x1A\x9C", b"\x5A\x9C\x00\x12\x03" + bytes(15)),
         ])
-        info = pq_eps.PQEPSReader(transport).identification()
+        info = pq_eps.decorate_identification(
+            pq_eps.PQEPSReader(transport).identification())
         self.assertEqual(info["software_part_number"], "1K0909144E")
         self.assertEqual(info["firmware_revision"], "2501")
         self.assertEqual(info["flash_status"], 0)
         self.assertIn("EPS_ZFLS", info["system_desc"])
+        self.assertEqual(info["dataset_version"], "236")
+        self.assertFalse(info["in_bootloader"])
+
+    def test_loader_identification_has_no_application_dataset(self):
+        info = pq_eps.decorate_identification({"system_desc": "EPS_ZFLS BB"})
+        self.assertTrue(info["in_bootloader"])
+        self.assertIsNone(info["dataset_version"])
+
+    def test_ident_command_reports_dataset_and_application_state(self):
+        transport = ScriptedTransport([
+            (b"\x1A\x9B", b"\x5A\x9B" +
+             b"1K0909144E  2501" + bytes(10) + b"EPS_ZFLS Kl. 236    "),
+            (b"\x1A\x9C", b"\x5A\x9C\x00\x12\x03" + bytes(15)),
+        ])
+        transport.disconnect = Mock()
+        device = Mock()
+        stdout = io.StringIO()
+        with patch.object(runner, "open_adapter", return_value=device), \
+                patch("flasher.vag_protocols.tp2.TP20Transport",
+                      return_value=transport), contextlib.redirect_stdout(stdout):
+            result = runner.main(["--module", "eps", "--ident-only"])
+        report = json.loads(stdout.getvalue())
+        self.assertEqual(result, 0)
+        self.assertEqual(report["dataset_version"], "236")
+        self.assertFalse(report["in_bootloader"])
+        transport.disconnect.assert_called_once_with()
+        device.close.assert_called_once_with()
 
     def test_additive_read_key_and_engineering_session(self):
         transport = ScriptedTransport([
@@ -152,7 +181,8 @@ class PQEPSProtocolTests(unittest.TestCase):
         replacement = Mock()
         prepared = eps_images.prepare_image(bytes(eps_images.IMAGE_SIZE),
                                              0x5D000, 0x5D00F)
-        with patch.object(pq_eps, "TP20Transport", SimulatedFlashTransport):
+        with patch.object(pq_eps, "TP20Transport", SimulatedFlashTransport), \
+                patch.object(engine.time, "sleep") as sleep:
             flasher = pq_eps.PQEPSFlasher(
                 device=device, device_factory=lambda: replacement)
             result = flasher.flash_prepared(prepared)
@@ -167,9 +197,155 @@ class PQEPSProtocolTests(unittest.TestCase):
         self.assertEqual([request for request in requests if request[:1] == b"\x36"],
                          [b"\x36" + bytes(16)])
         self.assertIn(b"\x82", requests)
+        sleep.assert_any_call(1.0)
+
+    def test_programming_channel_rejects_application_personality(self):
+        transport = ScriptedTransport([
+            (b"\x1A\x9B", b"\x5A\x9B" +
+             b"8J0909144J  3001" + bytes(10) + b"EPS_ZFLS"),
+            (b"\x1A\x9C", b"\x5A\x9C\x00\x12\x03" + bytes(15)),
+        ])
+        flasher = pq_eps.PQEPSFlasher(device=Mock())
+        with self.assertRaisesRegex(RuntimeError, "did not enter its resident loader"):
+            flasher.profile.verify_programming_channel(transport)
+        self.assertNotIn(b"\x27\x01", transport.requests)
 
 
 class PQEPSCLITests(unittest.TestCase):
+    def test_stationary_assist_capture_preserves_raw_group05_without_security(self):
+        pairs = [
+            (b"\x1A\x9B", b"\x5A\x9B" +
+             b"8J0909144J  3001" + bytes(10) + b"EPS_ZFLS"),
+            (b"\x1A\x9C", b"\x5A\x9C\x00\x12\x03" + bytes(15)),
+            (b"\x21\x05", bytes.fromhex(
+                "61 05 5D 10 81 5D 20 82 5D 30 84 5E 40 88")),
+            (b"\x21\x05", bytes.fromhex(
+                "61 05 5D 11 81 5D 22 82 5D 33 84 5E 44 88")),
+        ]
+        transport = ScriptedTransport(pairs)
+        transport.disconnect = Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "assist.json"
+            with patch.object(pq_eps, "TP20Transport", return_value=transport), \
+                    patch.object(pq_eps.time, "sleep"), \
+                    patch.object(runner, "open_adapter", return_value=Mock()), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                result = runner.main(["--module", "eps", "--read-eps-assist",
+                                      "--assist-samples", "2", "--out", str(output)])
+            record = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(result, 0)
+            self.assertEqual(record["status"], "captured_complete")
+            self.assertEqual(record["samples"][0]["field_triples"],
+                             ["5D 10 81", "5D 20 82", "5D 30 84", "5E 40 88"])
+            self.assertEqual([request[0] for request in transport.requests],
+                             [0x1A, 0x1A, 0x21, 0x21])
+
+    def test_stationary_assist_capture_retains_unexpected_layout(self):
+        pairs = [
+            (b"\x1A\x9B", b"\x5A\x9B" +
+             b"8J0909144J  3001" + bytes(10) + b"EPS_ZFLS"),
+            (b"\x1A\x9C", b"\x5A\x9C\x00\x12\x03" + bytes(15)),
+            (b"\x21\x05", bytes.fromhex("61 05 00 11 22")),
+        ]
+        transport = ScriptedTransport(pairs)
+        transport.disconnect = Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "assist_unexpected.json"
+            with patch.object(pq_eps, "TP20Transport", return_value=transport), \
+                    patch.object(runner, "open_adapter", return_value=Mock()), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                result = runner.main(["--module", "eps", "--read-eps-assist",
+                                      "--out", str(output)])
+            record = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(result, 1)
+            self.assertEqual(record["status"], "captured_partial")
+            self.assertEqual(record["samples"][0]["response"], "61 05 00 11 22")
+            self.assertFalse(record["samples"][0]["layout_valid"])
+            self.assertTrue(record["errors"])
+
+    def test_stationary_motion_capture_decodes_threshold_without_security(self):
+        pairs = [
+            (b"\x1A\x9B", b"\x5A\x9B" +
+             b"8J0909144J  3001" + bytes(10) + b"EPS_ZFLS"),
+            (b"\x1A\x9C", b"\x5A\x9C\x00\x12\x03" + bytes(15)),
+            (b"\x21\x01", bytes.fromhex("61 01 1A 46 26 25 00 00 74 0E 41 25 00 00")),
+            (b"\x21\x01", bytes.fromhex("61 01 1A 46 2A 25 00 00 74 F1 BE 25 00 00")),
+        ]
+        transport = ScriptedTransport(pairs)
+        transport.disconnect = Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "motion.json"
+            with patch.object(pq_eps, "TP20Transport", return_value=transport), \
+                    patch.object(pq_eps.time, "sleep"), \
+                    patch.object(runner, "open_adapter", return_value=Mock()), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                result = runner.main(["--module", "eps", "--read-eps-motion",
+                                      "--motion-samples", "2", "--out", str(output)])
+            record = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(result, 0)
+            self.assertEqual([row["signed_rate"] for row in record["samples"]],
+                             [3649, -3650])
+            self.assertEqual([row["at_or_above_branch"] for row in record["samples"]],
+                             [False, True])
+            self.assertEqual([row["post_slew_cap_selector"] for row in record["samples"]],
+                             [38, 42])
+            self.assertEqual([row["at_min_post_slew_cap_knot"] for row in record["samples"]],
+                             [True, False])
+            self.assertEqual([request[0] for request in transport.requests],
+                             [0x1A, 0x1A, 0x21, 0x21])
+
+    def test_fault_capture_reads_all_pages_without_security_or_mutating_services(self):
+        header = bytes.fromhex("61 32 4B 00 43 4B 3C 6A A1 00 00 6B 0E 00")
+        pairs = [
+            (b"\x1A\x9B", b"\x5A\x9B" +
+             b"8J0909144J  3001" + bytes(10) + b"EPS_ZFLS"),
+            (b"\x1A\x9C", b"\x5A\x9C\x00\x12\x03" + bytes(15)),
+            *[(bytes((0x21, group)), header if group == 0x32
+               else bytes((0x61, group, 0x00))) for group in range(0x32, 0x46)],
+        ]
+        transport = ScriptedTransport(pairs)
+        transport.disconnect = Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "faults.json"
+            with patch.object(pq_eps, "TP20Transport", return_value=transport), \
+                    patch.object(runner, "open_adapter", return_value=Mock()), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                result = runner.main(["--module", "eps", "--read-eps-faults",
+                                      "--out", str(output)])
+            self.assertEqual(result, 0)
+            record = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(record["headers"]["32"]["internal_id"], 0x43)
+            self.assertEqual(record["headers"]["32"]["subcode"], 0x3C6A)
+            self.assertEqual(len(record["responses"]), 20)
+            self.assertFalse(transport.pairs)
+            self.assertEqual([request[0] for request in transport.requests],
+                             [0x1A, 0x1A] + [0x21] * 20)
+
+    def test_fault_capture_preserves_other_pages_after_one_negative_response(self):
+        pairs = [
+            (b"\x1A\x9B", b"\x5A\x9B" +
+             b"8J0909144J  3001" + bytes(10) + b"EPS_ZFLS"),
+            (b"\x1A\x9C", b"\x5A\x9C\x00\x12\x03" + bytes(15)),
+            *[(bytes((0x21, group)), bytes.fromhex("7F 21 31") if group == 0x34
+               else bytes((0x61, group, 0x00))) for group in range(0x32, 0x46)],
+        ]
+        transport = ScriptedTransport(pairs)
+        transport.disconnect = Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "faults_partial.json"
+            with patch.object(pq_eps, "TP20Transport", return_value=transport), \
+                    patch.object(runner, "open_adapter", return_value=Mock()), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                result = runner.main(["--module", "eps", "--read-eps-faults",
+                                      "--out", str(output)])
+            record = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(result, 1)
+            self.assertEqual(record["status"], "captured_partial")
+            self.assertEqual(len(record["responses"]), 19)
+            self.assertIn("45", record["responses"])
+            self.assertIn("21 34", record["errors"][0])
+            self.assertFalse(transport.pairs)
+
     def test_full_eeprom_read_uses_secured_upload_and_saves_all_bytes(self):
         blocks = [bytes([index]) * 8 for index in range(128)]
         pairs = [
@@ -265,6 +441,23 @@ class PQEPSCLITests(unittest.TestCase):
                 self.assertEqual((report["start_addr"], report["end_addr"]),
                                  (0x5D000, 0x5DFFF))
 
+    def test_eps_flash_dry_run_maps_4k_input_to_steer_dataset(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "dataset.bin"
+            source.write_bytes(bytes(range(256)) * 16)
+            out = io.StringIO()
+            with patch.object(runner, "open_adapter") as opened, \
+                    contextlib.redirect_stdout(out):
+                result = runner.main([
+                    "--module", "eps", "--input", str(source), "--dry-run"])
+            self.assertEqual(result, 0)
+            opened.assert_not_called()
+            report = json.loads(out.getvalue().split("\nNo CAN traffic sent.")[0])
+            self.assertEqual((report["start_addr"], report["end_addr"]),
+                             (0x5E000, 0x5EFFF))
+            self.assertEqual(report["source_kind"],
+                             "4 KiB steer dataset block (0x5E)")
+
     def test_eps_flash_preparation_uses_unmodified_range_and_c5_sum(self):
         image = bytearray(eps_images.IMAGE_SIZE)
         image[0x5D000:0x5D010] = bytes(range(16))
@@ -273,23 +466,28 @@ class PQEPSCLITests(unittest.TestCase):
         self.assertEqual(prepared["metadata"]["checksum"], sum(range(16)))
         self.assertEqual(prepared["image"], bytes(image))
 
-    def test_eps_flash_accepts_exact_0x5e_steer_dataset(self):
-        dataset = bytes((index & 0xFF) for index in range(0x1000))
+    def test_eps_block_image_is_accepted_only_as_steer_dataset(self):
+        dataset = bytes(range(256)) * 16
         prepared = eps_images.prepare_image(
-            dataset, eps_images.STEER_DATASET_START, eps_images.STEER_DATASET_END)
-        self.assertEqual(prepared["image"], dataset)
+            dataset, eps_images.DATASET_START, eps_images.DATASET_END)
         self.assertEqual(prepared["region"], dataset)
         self.assertEqual(prepared["metadata"]["source_kind"],
-                         "4 KiB 0x5E steering dataset")
+                         "4 KiB steer dataset block (0x5E)")
         self.assertEqual(prepared["metadata"]["checksum"], sum(dataset) & 0xFFFF)
+        for start, end in ((0x5D000, 0x5DFFF), (0x0A000, 0x5FFFF)):
+            with self.subTest(start=start), self.assertRaisesRegex(
+                    ValueError, "only be flashed.*0x5E"):
+                eps_images.prepare_image(dataset, start, end)
 
-    def test_eps_dataset_rejects_any_other_region_or_size(self):
-        with self.assertRaisesRegex(ValueError, "only for 0x05E000"):
-            eps_images.prepare_image(bytes(0x1000), 0x5D000, 0x5DFFF)
-        with self.assertRaisesRegex(ValueError, "384 KiB.*or 4 KiB"):
-            eps_images.prepare_image(
-                bytes(0x800), eps_images.STEER_DATASET_START,
-                eps_images.STEER_DATASET_END)
+    def test_tt3001_loader_partition_check_rejects_local_only_range(self):
+        image = bytes(eps_images.IMAGE_SIZE)
+        low_bank_hash = hashlib.sha256(image[:eps_images.FLASH_START]).hexdigest().upper()
+        with patch.object(eps_images, "TT3001_LOADER_SHA256", low_bank_hash):
+            accepted = eps_images.prepare_image(image, 0xA000, 0x5DFFF)
+            self.assertEqual(accepted["metadata"]["selection_policy"],
+                             "exact TT 3001 resident-loader partition")
+            with self.assertRaisesRegex(ValueError, "exact partition bounds"):
+                eps_images.prepare_image(image, 0x28000, 0x5DFFF)
 
     def test_eps_flash_rejects_cpu_space_below_obd_programming_window(self):
         with self.assertRaisesRegex(ValueError, "0x00A000"):
