@@ -1,0 +1,147 @@
+{
+  "schema_version": 2,
+  "source_export_sha256": "f9d89ac74838f2e4ebfa9d94dac4ad0e3a8defaca69fc664c8e4de3ad4905974",
+  "layout": {
+    "image_size": [
+      544,
+      544
+    ],
+    "columns": 16,
+    "rows": 16,
+    "margin": 16,
+    "pitch": 32,
+    "tile_size": [
+      25,
+      29
+    ],
+    "glyph_origin_in_tile": [
+      0,
+      0
+    ],
+    "native_cell_size": [
+      12,
+      14
+    ],
+    "native_pixel_scale": 2
+  },
+  "palette": {
+    "background": [
+      40,
+      40,
+      40
+    ],
+    "labels": [
+      255,
+      255,
+      255
+    ],
+    "unused_width": [
+      120,
+      120,
+      120
+    ]
+  },
+  "native_pixel_scale": 2,
+  "inspection_chart_zoom": 4,
+  "inspection_native_pixel_scale": 8,
+  "code_order": "row-major raw code; high nibble is row, low nibble is column",
+  "annotations": "Gray columns after measured advance are unused width (fixed/proportional). Graphics blank cells remain black. Amber X means unknown. Native12x14 cell preserves captured origin/bearings, crops only verified-empty capture padding. Pixels use exact nearest-neighbor2x; no per-pixel mesh or advance guide.",
+  "fonts": {
+    "fixed": {
+      "native_chart": "NativeWhiteFixedFont.png",
+      "inspection_chart": "NativeWhiteFixedFont4x.png",
+      "legacy_reference": "FixedFont.png",
+      "legacy_sha256": "f8c7ed2a1c4f7fe1f574879b54858d1f71bef6822683cf0edae9ce48587a2667",
+      "counts": {
+        "verified": 244,
+        "observed_blank": 9,
+        "ambiguous": 3,
+        "missing": 0
+      },
+      "maximum_measured_advance_px": 12.0,
+      "maximum_ink_extent_px": [
+        12,
+        14
+      ],
+      "source_capture_sizes": [
+        [
+          8,
+          20
+        ],
+        [
+          10,
+          20
+        ],
+        [
+          12,
+          20
+        ]
+      ],
+      "display_crop": "Native origin0,0 to12,14. Removed capture rows14..19 are verified empty; no baseline or bearing shift."
+    },
+    "proportional": {
+      "native_chart": "NativeWhiteProportionalFont.png",
+      "inspection_chart": "NativeWhiteProportionalFont4x.png",
+      "legacy_reference": "proportionalFont.png",
+      "legacy_sha256": "86211f3ff5e5acccbf3bb264b2df460196b481dfcb8c1c7c58866993e584adf7",
+      "counts": {
+        "verified": 245,
+        "observed_blank": 9,
+        "ambiguous": 2,
+        "missing": 0
+      },
+      "maximum_measured_advance_px": 12.0,
+      "maximum_ink_extent_px": [
+        12,
+        14
+      ],
+      "source_capture_sizes": [
+        [
+          4,
+          20
+        ],
+        [
+          6,
+          20
+        ],
+        [
+          8,
+          20
+        ],
+        [
+          10,
+          20
+        ],
+        [
+          12,
+          20
+        ]
+      ],
+      "display_crop": "Native origin0,0 to12,14. Removed capture rows14..19 are verified empty; no baseline or bearing shift."
+    },
+    "graphics": {
+      "native_chart": "NativeWhiteGraphicsFont.png",
+      "inspection_chart": "NativeWhiteGraphicsFont4x.png",
+      "legacy_reference": "GraphicsFont.png",
+      "legacy_sha256": "e6fc365854382c14d7d0f9945d73974b9049f61fc136409f2fea111433fbbac4",
+      "counts": {
+        "verified": 116,
+        "observed_blank": 139,
+        "ambiguous": 1,
+        "missing": 0
+      },
+      "maximum_measured_advance_px": 12.0,
+      "maximum_ink_extent_px": [
+        12,
+        14
+      ],
+      "source_capture_sizes": [
+        [
+          12,
+          20
+        ]
+      ],
+      "display_crop": "Native origin0,0 to12,14. Removed capture rows14..19 are verified empty; no baseline or bearing shift."
+    }
+  }
+}

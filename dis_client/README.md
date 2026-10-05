@@ -20,3 +20,32 @@ ddp_protocol.py and dis_service.py are compatible with all cluster versions in t
 To use dis_display.py with color DIS, add to config.json  "dis_type": "color"
 The dis_display.py in COLOR_DIS_BETA is at the moment only compatible with color DIS clusters.
 ```
+
+
+## Measured text layout
+
+`display.font_resolution` selects `native` (default, captured white-cluster
+advances) or `legacy` (the red-cluster reference tables). This setting is
+independent of high-resolution navigation icons and cover art. Legacy tables
+are available, but have not been verified on red hardware in this session.
+
+`font_metrics.py` measures the actual encoded AUDSCII bytes in physical pixels.
+Both profiles use that unit, while graphics coordinates remain logical pixels
+(two physical pixels per coordinate). Measured advances include trailing
+spacing. Unknown native advances conservatively reserve the maximum 12-pixel
+cell; an unknown bitmap can still have a verified advance.
+
+Media title/artist/album scrolling fits each whole-character window within 128
+physical pixels. Navigation streets use their measured viewport, reserve the
+approach bar and margins, and center fitting text within that viewport. Distance
+values choose a complete rounded representation that fits the 38/44-pixel slot.
+Dictionary text updates clear the bounded line before drawing, including
+same-character-count changes from wide to narrow text. Scrolling resets when
+the text, available width, font, profile, or looping mode changes.
+
+The generated metrics asset is reproducible from the same capture export and
+legacy font tables as the emulator:
+
+```sh
+python tools/import_native_fonts.py --source /path/to/native_fonts.json
+```

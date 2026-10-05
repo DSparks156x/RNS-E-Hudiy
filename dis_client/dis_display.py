@@ -234,6 +234,10 @@ class DisplayEngine:
         # Load Phone Config
         phone_cfg = self.cfg.get('display', {}).get('phone', {})
         self.phone_claim_on_phone = phone_cfg.get('claim_on_phone', False)
+        self.context_claim_only = bool(self.nav_claim_on_nav or self.phone_claim_on_phone)
+        self.start_inactive = bool(self.start_inactive or self.context_claim_only)
+        self.boot_inactive_hold = self.start_inactive
+        self.user_paused = self.start_inactive
 
         # --- Advanced Nav Auto-Switching ---
         self.nav_auto_triggered = False
@@ -243,6 +247,7 @@ class DisplayEngine:
         self.phone_auto_overlay = False
         self.pre_phone_app_name = None
         self.frame_seq_counter = 0
+        self._pending_ui_frame = None
 
         # --- Easter Egg & Sequencing State ---
         self.egg_active = False
@@ -475,22 +480,32 @@ class DisplayEngine:
                 is_phone_page = False
 
         nav_should_claim = bool(
-            self.nav_claim_on_nav and is_nav_page and nav_available
+            self.nav_claim_on_nav and nav_available
         )
         phone_should_claim = bool(
             self.phone_claim_on_phone
-            and self.phone_auto_overlay
             and phone_available
         )
         should_claim = nav_should_claim or phone_should_claim
+        # A contextual claim must present its context, not the startup media page.
+        if nav_should_claim and not phone_should_claim and not is_nav_page and (self.user_paused or self.boot_inactive_hold):
+            self._leave_empty_context_page('app_nav')
+        if getattr(self, 'context_claim_only', False) and not should_claim:
+            if not self.user_paused:
+                if self._send_draw({'command': 'pause'}):
+                    self.user_paused = True
+                    self.content_auto_claimed = False
+            return
 
         if getattr(self, 'boot_inactive_hold', False):
             if should_claim:
                 logger.info("Available navigation/phone content is claiming the center display.")
-                self.boot_inactive_hold = False
-                self.user_paused = False
-                self.content_auto_claimed = True
-                self._send_draw({'command': 'resume'})
+                if self._send_draw({'command': 'resume'}):
+                    self.boot_inactive_hold = False
+                    self.user_paused = False
+                    self.content_auto_claimed = True
+                else:
+                    return
             else:
                 return
 
@@ -499,9 +514,9 @@ class DisplayEngine:
 
         if should_claim and self.user_paused:
             logger.info("Available navigation/phone content is claiming the center display.")
-            self._send_draw({'command': 'resume'})
-            self.user_paused = False
-            self.content_auto_claimed = True
+            if self._send_draw({'command': 'resume'}):
+                self.user_paused = False
+                self.content_auto_claimed = True
         elif self.content_auto_claimed and not should_claim:
             logger.info("Claiming content ended: releasing the center display.")
             self._send_draw({'command': 'pause'})
@@ -564,12 +579,89 @@ class DisplayEngine:
             logger.error(f"Draw socket error: {e}")
             return False
 
+    def draw_native_bitmap(self, source, *, render_order='planes', band_rows=12, delta=False, update_rect=None):
+        """Queue one full128x96 packed/Pillow mode1 snapshot with normal feedback.
+
+        This opt-in path requires the white cluster center. No resizing or
+        conversion is implicit. Returns False while unavailable or a previous
+        UI frame is awaiting feedback; it never adds another drawing queue.
+        """
+        from native_bitmap import packed_bitmap, validate_render_options, validate_update_rect
+        validate_render_options(render_order, band_rows)
+        if not isinstance(delta, bool) or (delta and render_order != 'tiles'):
+            raise ValueError('Native delta is a boolean option for completed tiles only')
+        update_rect = validate_update_rect(update_rect, render_order, delta)
+        data = packed_bitmap(source)  # Validate before sequence or cache changes.
+        if (not getattr(self, 'service_ready', True)
+                or getattr(self, 'user_paused', False)
+                or getattr(self, '_pending_ui_frame', None) is not None):
+            return False
+        self.frame_seq_counter = (self.frame_seq_counter + 1) % 1000000 or 1
+        seq = self.frame_seq_counter
+        command = dict(command='draw_native_bitmap', x=0, y=0, w=128, h=96,
+                       data_hex=data.hex(), render_order=render_order, band_rows=band_rows)
+        if delta:
+            command['delta'] = True
+        if update_rect is not None:
+            command['update_rect'] = update_rect
+        if self._send_draw(dict(command='frame', commands=[command], seq=seq)):
+            import time
+            self._pending_ui_frame_started = time.monotonic()
+            self._pending_ui_frame = (seq, self.current_app)
+            self.current_app.on_frame_sent(seq)
+            return True
+        # No atomic frame was queued; reuse the existing commit backpressure
+        # contract instead of waiting for feedback that cannot arrive.
+        self._pending_ui_frame = None
+        reset = getattr(self.current_app, 'on_display_reset', None)
+        if reset:
+            reset()
+        self.last_sent = {}
+        self.last_sent_flags = {}
+        return False
+
+    def _commit_ui_frame(self):
+        self.frame_seq_counter = (self.frame_seq_counter + 1) % 1000000 or 1
+        if self._send_draw({'command': 'commit', 'seq': self.frame_seq_counter}):
+            import time
+            self._pending_ui_frame_started = time.monotonic()
+            self._pending_ui_frame = (self.frame_seq_counter, self.current_app)
+            self.current_app.on_frame_sent(self.frame_seq_counter)
+            return True
+        # No commit was queued, so waiting for its ACK would deadlock an app.
+        # Discard cached presentation and restore a full image on retry.
+        self._pending_ui_frame = None
+        reset = getattr(self.current_app, 'on_display_reset', None)
+        if reset:
+            reset()
+        self.last_sent = {}
+        self.last_sent_flags = {}
+        return False
+
+    def _handle_ui_frame_result(self, seq, success):
+        pending = getattr(self, '_pending_ui_frame', None)
+        if pending is None or pending[0] != seq or pending[1] is not self.current_app:
+            return False
+        self._pending_ui_frame = None
+        if success:
+            self.current_app.on_frame_acked(seq)
+        else:
+            failed = getattr(self.current_app, 'on_frame_failed', None)
+            if failed:
+                failed(seq)
+            self.force_redraw(send_clear=True)
+        return True
+
     def force_redraw(self, send_clear=False):
+        self._pending_ui_frame = None
+        reset = getattr(self.current_app, 'on_display_reset', None)
+        if reset:
+            reset()
         self.last_sent = {}
         self.last_sent_flags = {}
         if hasattr(self.current_app, 'prev_road_img'):
             self.current_app.prev_road_img = None
-        if send_clear:
+        if send_clear and not self.user_paused and not self.boot_inactive_hold:
             self._send_draw({'command': 'clear'})
             self._send_draw({'command': 'commit'})
         self.publish_status()
@@ -701,7 +793,7 @@ class DisplayEngine:
                                         self.has_entered_paused_state = True
                                         
                                     # Detect cluster-triggered wakeup (user cycled to tab)
-                                    if state == "READY" and self.boot_inactive_hold and self.has_entered_paused_state:
+                                    if state == "READY" and self.boot_inactive_hold and self.has_entered_paused_state and not self.context_claim_only:
                                         logger.info("Cluster-triggered wakeup/re-init detected. Clearing boot inactive hold.")
                                         self.boot_inactive_hold = False
                                         self.user_paused = False
@@ -722,12 +814,18 @@ class DisplayEngine:
                                         self.publish_status()
                                 except Exception as split_err:
                                     logger.error(f"Failed to parse DIS_STATE message '{msg}': {split_err}")
+                            elif msg.startswith("DRAW_NACK"):
+                                try:
+                                    seq = int(msg.split()[1])
+                                    self._handle_ui_frame_result(seq, False)
+                                except (ValueError, IndexError) as exc:
+                                    logger.error("Failed to parse DRAW_NACK: %s", exc)
                             elif msg.startswith("DRAW_ACK"):
                                 try:
                                     parts = msg.split(" ")
                                     if len(parts) >= 2:
                                         seq = int(parts[1])
-                                        self.current_app.on_frame_acked(seq)
+                                        self._handle_ui_frame_result(seq, True)
                                 except Exception as e:
                                     logger.error(f"Failed to parse DRAW_ACK: {e}")
                     except zmq.Again: pass
@@ -976,161 +1074,145 @@ class DisplayEngine:
                     self.process_input(f"hold_{name}")
                 elif (now - b['s'] > 5.0): b['p'] = False
 
-    def _draw(self):
-        if not getattr(self, 'service_ready', True) or getattr(self, 'user_paused', False):
-            return
+    def _queue_ui_frame(self, commands):
+        """Queue one complete view atomically; never overwrite an in-flight seq."""
+        if getattr(self, '_pending_ui_frame', None) is not None:
+            return False
+        self.frame_seq_counter = (self.frame_seq_counter + 1) % 1000000 or 1
+        seq = self.frame_seq_counter
+        if not self._send_draw(dict(command='frame', seq=seq, commands=commands)):
+            self.force_redraw(send_clear=False)
+            return False
+        import time
+        self._pending_ui_frame_started = time.monotonic()
+        self._pending_ui_frame = (seq, self.current_app)
+        self.current_app.on_frame_sent(seq)
+        return True
 
+    def _ui_frame_waiting(self):
+        """Recover from lost PUB feedback with a fresh view after a bounded wait."""
+        if getattr(self, '_pending_ui_frame', None) is None:
+            return False
+        import time
+        started = getattr(self, '_pending_ui_frame_started', None)
+        if started is None:
+            self._pending_ui_frame_started = time.monotonic()
+            return True
+        timeout = getattr(self, 'cfg', {}).get('display', {}).get('center_display', {}).get('frame_feedback_timeout_s', 30)
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 10 <= timeout <= 120:
+            timeout = 30
+        if time.monotonic()-started < timeout:
+            return True
+        logger.warning('DIS frame feedback timed out; rebuilding the current view')
+        self.force_redraw(send_clear=False)
+        return False
+
+    def _draw(self):
+        if (not getattr(self, 'service_ready', True) or getattr(self, 'user_paused', False)
+                or self._ui_frame_waiting()):
+            return
         view = self.current_app.get_view()
-        
         if isinstance(view, list):
             current_type = view[0].get('type') if view else None
             prev_type = self.last_sent.get('last_type')
-            
-            full_redraw = (current_type != prev_type)
+            full_redraw = current_type != prev_type
+            payloads = []
             if full_redraw:
-                if view and view[0].get('clear_on_update', True) and prev_type:
-                    self._send_draw({'command': 'clear_payload'})
-                else:    
-                    self._send_draw({'command': 'clear'})
-                
-                self.last_sent['groups'] = {}
-                self.last_sent['last_type'] = current_type
-
-            # Grouping Logic for smart delta updates
+                clear = 'clear_payload' if view and view[0].get('clear_on_update', True) and prev_type else 'clear'
+                payloads.append(dict(command=clear))
             groups_current = {}
             for item in view:
-                if not isinstance(item, dict): # Safety check: ensure item is a dictionary
-                    logger.warning(f"Skipping non-dictionary item in view: {item}")
+                if not isinstance(item, dict) or 'type' in item:
                     continue
-                if 'type' in item: continue
-                # Unique random ID if not provided so it's guaranteed to render
-                # Hash the item contents instead of memory id() so identical dictionaries deduplicate
-                g = item.get('group') or str(sorted((k, v) for k, v in item.items() if k != 'group'))
-                if g not in groups_current:
-                    groups_current[g] = []
-                groups_current[g].append(item)
-                
-            last_groups = self.last_sent.get('groups') or {}
-            
-            changed = False
-            changed = False
-            for g, items in groups_current.items():
-                items_str = str(items)
-                if full_redraw or last_groups.get(g) != items_str:
-                    all_sent = True
-                    for item in items:
-                        success = False
-                        cmd = item.get('cmd')
-                        if cmd == 'draw_bitmap':
-                            icon_key = item.get('icon', '')
-                            from icons import BITMAPS
-                            bmp = BITMAPS.get(icon_key.upper())
-                            payload = {'command': 'draw_bitmap', 'icon_name': icon_key, 'x': item.get('x', 0), 'y': item.get('y', 0)}
-                            if 'mode_flag' in item:
-                                payload['mode_flag'] = item['mode_flag']
-                            if bmp:
-                                payload.update({'w': bmp['w'], 'h': bmp['h'], 'data': bmp['data']})
-                            success = self._send_draw(payload)
-                        elif cmd == 'draw_text':
-                            success = self._send_draw({'command': 'draw_text', 'text': item.get('text', ''), 'x': item.get('x', 0), 'y': item.get('y', 0), 'flags': item.get('flags', 0x06)})
-                        elif cmd == 'draw_line':
-                            success = self._send_draw({'command': 'draw_line', 'x': item.get('x', 0), 'y': item.get('y', 0), 'length': item.get('length', 0), 'vertical': item.get('vertical', True)})
-                        elif cmd == 'clear_area':
-                            success = self._send_draw({'command': 'clear_area', 'x': item.get('x', 0), 'y': item.get('y', 0), 'w': item.get('w', 0), 'h': item.get('h', 0)})
-                        elif cmd == 'draw_raw_bitmap':
-                            success = self._send_draw({
-                                'command': 'draw_raw_bitmap',
-                                'data_hex': item.get('data_hex', ''),
-                                'w': item.get('w', 64),
-                                'h': item.get('h', 48),
-                                'x': item.get('x', 0),
-                                'y': item.get('y', 0),
-                                'mode_flag': item.get('mode_flag', 0x02)
-                            })
-                        
-                        if not success:
-                            all_sent = False
-                    
-                    if all_sent:
-                        changed = True
-                        last_groups[g] = items_str
-            
-            if changed:
-                self.frame_seq_counter = (self.frame_seq_counter + 1) % 1000000
-                if self.frame_seq_counter == 0: self.frame_seq_counter = 1
-                self._send_draw({'command': 'commit', 'seq': self.frame_seq_counter})
-                self.current_app.on_frame_sent(self.frame_seq_counter)
-                
-            # Prune last_groups to prevent memory leak of one-off delta groups
-            self.last_sent['groups'] = {g: v for g, v in last_groups.items() if g in groups_current}
-            for k in self.Y: self.last_sent[k] = None
+                group = item.get('group') or str(sorted((k, v) for k, v in item.items() if k != 'group'))
+                groups_current.setdefault(group, []).append(item)
+            last_groups = {} if full_redraw else dict(self.last_sent.get('groups') or {})
+            # A full native image erases all overlays. Resend them even if their
+            # signatures stayed identical when only the maneuver icon changed.
+            from native_bitmap import validate_update_rect
+            def preserves_overlays(item):
+                if item.get('preserves_overlays') is not True:
+                    return False
+                try:
+                    return validate_update_rect(item.get('update_rect'),
+                        item.get('render_order', 'tiles'), item.get('delta', False)) is not None
+                except (ValueError, TypeError):
+                    return False
+            replaces_center = any(any(item.get('cmd') == 'native_bitmap' and not preserves_overlays(item) for item in items)
+                and (full_redraw or last_groups.get(group) != str(items))
+                for group, items in groups_current.items())
+            for group, items in groups_current.items():
+                if not (full_redraw or replaces_center or last_groups.get(group) != str(items)):
+                    continue
+                for item in items:
+                    cmd = item.get('cmd')
+                    if cmd == 'native_bitmap':
+                        payload = dict(command='draw_native_bitmap', x=0, y=0, w=128, h=96,
+                            data_hex=item.get('data_hex', ''), render_order=item.get('render_order', 'tiles'),
+                            band_rows=item.get('band_rows', 12))
+                        if item.get('delta', False):
+                            payload['delta'] = True
+                        if item.get('update_rect') is not None:
+                            payload['update_rect'] = item['update_rect']
+                    elif cmd == 'draw_bitmap':
+                        payload = dict(command=cmd, icon_name=item.get('icon', ''),
+                            x=item.get('x', 0), y=item.get('y', 0))
+                        if 'mode_flag' in item:
+                            payload['mode_flag'] = item['mode_flag']
+                    elif cmd in ('draw_text', 'draw_line', 'clear_area', 'draw_raw_bitmap'):
+                        payload = {key: value for key, value in item.items() if key not in ('cmd', 'group', 'type')}
+                        payload['command'] = cmd
+                    else:
+                        logger.warning('Unsupported app drawing command: %s', cmd)
+                        self.force_redraw(send_clear=False)
+                        return
+                    payloads.append(payload)
+                last_groups[group] = str(items)
+            if payloads and not self._queue_ui_frame(payloads):
+                return
+            self.last_sent['groups'] = {group: value for group, value in last_groups.items() if group in groups_current}
+            self.last_sent['last_type'] = current_type
+            for key in self.Y:
+                self.last_sent[key] = None
             return
 
-        if self.last_sent.get('groups') is not None:
-             self._send_draw({'command': 'clear'})
-             self._send_draw({'command': 'commit'})
-             self.last_sent['groups'] = None
-             self.last_sent['last_type'] = None
-             self.last_sent['custom_sig'] = None
-             for k in self.Y: self.last_sent[k] = None
-
-        changed = False
-        for k, (txt, flag) in view.items():
-            if k == 'type' or k not in self.Y: continue
-            
-            # Ensure text is stringy
-            txt = str(txt)
-            
-            prev_txt = self.last_sent.get(k)
-            prev_flag = self.last_sent_flags.get(k, 0)
-            
-            if prev_txt != txt or prev_flag != flag:
-                padded_txt = txt
-                
-                # Check for inversion transition
-                if (prev_flag & 0x80) and not (flag & 0x80):
-                    # We must fully clear the line. Use a standard safe width like 15 chars.
-                    target_len = max(len(prev_txt) if prev_txt else 0, 15)
-                else:
-                    # Normal case, check if shrinking
-                    target_len = len(prev_txt) if prev_txt else len(txt)
-                
-                # If the string shrank or we need a full clear
-                if len(txt) < target_len:
-                    blanks_needed = target_len - len(txt)
-                    blank_char = chr(0x1F)
-                    
-                    # Pad Right: Only use simple padding for left-aligned text
-                    # Centered text (0x20) is wiped via hardware clear_area and 
-                    # must NOT be padded as blanks shift the visual center point.
-                    if not (flag & 0x20):
-                        padded_txt = txt + (blank_char * blanks_needed)
-                
-                # --- PRE-CLEAR FOR CENTERED TEXT ---
-                # If centering is enabled in config and this text is centered (0x20),
-                # send a full blank line (0x1F chars) first to wipe ghosting.
-                # Crucial: Wipe is LEFT-ALIGNED (0x06) to cover the full width reliably.
-                center_enabled = self.cfg.get('display', {}).get('text_centering', False)
-                if center_enabled and (flag & 0x20):
-                    blank_char = chr(0x1F)
-                    y_pos = self.Y[k]
-                    # Safety Clip: Ensure clear_area doesn't exceed screen height (48 or 88)
-                    # Height 9 is standard for line wipes.
-                    h = 9
-                    max_h = 88 if self.nav_active else 48 # full height vs central
-                    if (y_pos + h) > max_h:
-                        h = max_h - y_pos
-                    
-                    if h > 0:
-                        self._send_draw({'command':'clear_area', 'x': 0, 'y': y_pos, 'w': 64, 'h': h})
-
-                if self._send_draw({'command':'draw_text', 'text':padded_txt, 'y':self.Y[k], 'flags':flag}):
-                    self.last_sent[k] = txt # Store original raw text for comparison
-                    self.last_sent_flags[k] = flag
-                    changed = True
-        
-        if changed: 
-            self._send_draw({'command':'commit'})
+        from font_metrics import fit_text, font_profile
+        profile = font_profile(self.cfg)
+        custom_transition = self.last_sent.get('groups') is not None
+        profile_changed = self.last_sent.get('_text_profile') != profile
+        payloads = [dict(command='clear')] if custom_transition else []
+        next_text, next_flags = {}, {}
+        max_height = 88 if getattr(self, 'nav_active', False) else 48
+        for key, y_pos in self.Y.items():
+            if key not in view:
+                # An omitted line must not retain content from the prior view.
+                if not custom_transition and self.last_sent.get(key) not in (None, ''):
+                    height = min(9, max_height - y_pos)
+                    if height > 0:
+                        payloads.append(dict(command='clear_area', x=0, y=y_pos, w=64, h=height))
+                next_text[key], next_flags[key] = None, 0
+                continue
+            text, flags = view[key]
+            text = fit_text(str(text), 128, flags, profile)
+            next_text[key], next_flags[key] = text, flags
+            if (custom_transition or profile_changed or self.last_sent.get(key) != text
+                    or self.last_sent_flags.get(key, 0) != flags):
+                # Proportional text can shrink even when its character count is
+                # unchanged. Clear the bounded line rather than adding spaces.
+                height = min(9, max_height - y_pos)
+                if height > 0:
+                    payloads.append(dict(command='clear_area', x=0, y=y_pos, w=64, h=height))
+                    if text:
+                        payloads.append(dict(command='draw_text', text=text, y=y_pos, flags=flags))
+        if payloads and not self._queue_ui_frame(payloads):
+            return
+        self.last_sent.update(next_text)
+        self.last_sent_flags.update(next_flags)
+        self.last_sent['_text_profile'] = profile
+        if custom_transition:
+            self.last_sent['groups'] = None
+            self.last_sent['last_type'] = None
+            self.last_sent['custom_sig'] = None
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

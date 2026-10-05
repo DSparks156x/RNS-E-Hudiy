@@ -1,0 +1,371 @@
+{
+  "source_package": "com.google.android.apps.maps",
+  "source_version": "26.39.04.984891338",
+  "source_apk_sha256": "49613958fe36070acaf707b2e309ce969440a382fa1a84392559f4f11ae61b81",
+  "android_decode": "apktool3.0.1, decoded XML pathData unchanged",
+  "raster_policy": {
+    "size": 72,
+    "phase": [
+      0,
+      0
+    ],
+    "coverage_oversample": 8,
+    "threshold": 128,
+    "normalization": "complete source viewport uniformly contained",
+    "context": "source alpha<.99 separately normalized, x+y even checker, active wins"
+  },
+  "icons": {
+    "DEPART": {
+      "svg": "maneuver_depart.svg",
+      "svg_sha256": "2a195b4aeb69611797097d102fffe8984577ac515b38e7083416ac7e8c6f55ba",
+      "decoded_resource": "res/drawable/maneuver_depart.xml",
+      "decoded_resource_sha256": "f10404b8f349fb26cbd75e39c8a21886a955ff2d3df916d69c16759af7783a8e",
+      "native72_mask_sha256": "ee2c08298f58b0dc58096430e2f0a39ee4a36f2c6e618362d8173acd344b9ace",
+      "source_type": "android_xml"
+    },
+    "DESTINATION": {
+      "svg": "maneuver_destination.svg",
+      "svg_sha256": "a609befeef0e80950271a3152b472fa24d0f04955633e5d75f0d7b2291443ad3",
+      "decoded_resource": "res/drawable/maneuver_destination.xml",
+      "decoded_resource_sha256": "df50853fdc245a64218b0ac8af57456f09d34e397b0674b2a028158e494d6e89",
+      "native72_mask_sha256": "490ec5fbc13ba03a9ab1c2d26f9e024a918da10ff7b148a5d1e74827334a20a1",
+      "source_type": "android_xml"
+    },
+    "DESTINATION_LEFT": {
+      "svg": "maneuver_destination_left.svg",
+      "svg_sha256": "c4729200c671fe9c969fcda3c035cc5c646973d43d88d42b79f60f27a57a8c5f",
+      "decoded_resource": "res/drawable/maneuver_destination_left.xml",
+      "decoded_resource_sha256": "ba0ff1812593aa864968a238d56d279deea81a000ab048f17a3178fa823c8a05",
+      "native72_mask_sha256": "7128782d8d478f14ec20604e53db3865c0f6f095d338bf41f798e52a3e2ef6f9",
+      "source_type": "android_xml"
+    },
+    "DESTINATION_RIGHT": {
+      "svg": "maneuver_destination_right.svg",
+      "svg_sha256": "abbccb70a7037a1e48841c70f2088e6859669ca96f8c8c57f1c504d277cc227a",
+      "decoded_resource": "res/drawable/maneuver_destination_right.xml",
+      "decoded_resource_sha256": "971af3b0d924f920c7ca03096e1f660b686662fcf4a86447d57c9ce424cd0083",
+      "native72_mask_sha256": "57dd725b291fc91b4b662f7dc2ac6a4109e64b59903e26abf92fa280aa8d6443",
+      "source_type": "android_xml"
+    },
+    "FERRY_BOAT": {
+      "svg": "da_turn_ferry.svg",
+      "svg_sha256": "5c71b2621dcc6c378f801b632b36ceb3b2d445d75ff2f8e31da86a38bf07f1fa",
+      "decoded_resource": "res/raw/da_turn_ferry.svg",
+      "decoded_resource_sha256": "923e78a149fb0b8df8e403635d45cfc2c404719cbce141b35639ce27e3d12a1b",
+      "native72_mask_sha256": "8299bea9e6cd048ebae47d25dc872834cfca60c297db31098049dd6d3edf5b64",
+      "source_type": "raw_svg"
+    },
+    "FERRY_TRAIN": {
+      "svg": "ferry_train.svg",
+      "svg_sha256": "3b749409055041a019b15ce0b806f70d650a5a009ebc590803a3ca5414ea9c0d",
+      "decoded_resource": "res/raw/ferry_train.svg",
+      "decoded_resource_sha256": "bcd831be839aec09b73de3e03b9c593d144a5fc8f5dba592030c4e65a17b0aea",
+      "native72_mask_sha256": "23181a6e2ff447394131fc4fe113c2734f7884c25645e2004813635f1afbc111",
+      "source_type": "raw_svg"
+    },
+    "FORK_LEFT": {
+      "svg": "maneuver_fork_left.svg",
+      "svg_sha256": "31b7bf4235fdb5b9d85ed1e4cb4c68aeb3991cd6cede35e3bbc214952299aad6",
+      "decoded_resource": "res/drawable/maneuver_fork_left.xml",
+      "decoded_resource_sha256": "be5dcfc56149b6dc63acfc8e9f8a098d8153bf8315daa3c5f998e81fb13f4450",
+      "native72_mask_sha256": "a9b2139b7b8b30d21b669c2ffae662a0684a40c5f238a3513f66a0b62d9aac07",
+      "source_type": "android_xml"
+    },
+    "FORK_RIGHT": {
+      "svg": "maneuver_fork_right.svg",
+      "svg_sha256": "54ea3371e58f2ee102df3ecf9e3be635952b22bd73e32449841abc2184efb8aa",
+      "decoded_resource": "res/drawable/maneuver_fork_right.xml",
+      "decoded_resource_sha256": "a745f9eebe02aa8e62e6f5faffb5a5e2dcbdd107247907fe0a7258c81f1e1cb7",
+      "native72_mask_sha256": "ec2824163234b0934b21ab96d94d0078b92c8e11365aefeab0a9ff6860aeb52f",
+      "source_type": "android_xml"
+    },
+    "MERGE": {
+      "svg": "maneuver_merge.svg",
+      "svg_sha256": "d229d55a5bf459f80a4f4f701ed3025c90e649c88cee4e7d57c848aabeeb6c2f",
+      "decoded_resource": "res/drawable/maneuver_merge.xml",
+      "decoded_resource_sha256": "25e1b28001f513e62ef91539d4ba9a4f98223445b458e53c426b0508f04e13ef",
+      "native72_mask_sha256": "99a9668a7a9dff355824019f662bc6ba4271c18e6665863714333ba9a0255d24",
+      "source_type": "android_xml"
+    },
+    "MERGE_LEFT": {
+      "svg": "maneuver_merge_left.svg",
+      "svg_sha256": "d229d55a5bf459f80a4f4f701ed3025c90e649c88cee4e7d57c848aabeeb6c2f",
+      "decoded_resource": "res/drawable/maneuver_merge_left.xml",
+      "decoded_resource_sha256": "25e1b28001f513e62ef91539d4ba9a4f98223445b458e53c426b0508f04e13ef",
+      "native72_mask_sha256": "99a9668a7a9dff355824019f662bc6ba4271c18e6665863714333ba9a0255d24",
+      "source_type": "android_xml"
+    },
+    "MERGE_RIGHT": {
+      "svg": "maneuver_merge_right.svg",
+      "svg_sha256": "d229d55a5bf459f80a4f4f701ed3025c90e649c88cee4e7d57c848aabeeb6c2f",
+      "decoded_resource": "res/drawable/maneuver_merge_right.xml",
+      "decoded_resource_sha256": "25e1b28001f513e62ef91539d4ba9a4f98223445b458e53c426b0508f04e13ef",
+      "native72_mask_sha256": "99a9668a7a9dff355824019f662bc6ba4271c18e6665863714333ba9a0255d24",
+      "source_type": "android_xml"
+    },
+    "RAMP_OFF_LEFT": {
+      "svg": "maneuver_off_ramp_normal_left.svg",
+      "svg_sha256": "3c0f2a8966387d55a9bc998b760aee9ca3d8a5eaaf5a41fd2fb89e5819982c63",
+      "decoded_resource": "res/drawable/maneuver_off_ramp_normal_left.xml",
+      "decoded_resource_sha256": "0aa38628f24ea948af04b495db0f0f5efc1a40e0ed9f7bcd17571e5eec305e37",
+      "native72_mask_sha256": "6614ce0c67a36ac54a4a13a0587813f03a1778dc72cc1673ce4e09fae49f040d",
+      "source_type": "android_xml"
+    },
+    "RAMP_OFF_RIGHT": {
+      "svg": "maneuver_off_ramp_normal_right.svg",
+      "svg_sha256": "1ea1d7fe9ec0ebc727da930b91f968c2b340173463bc8d6473b29948dad06f3d",
+      "decoded_resource": "res/drawable/maneuver_off_ramp_normal_right.xml",
+      "decoded_resource_sha256": "713106b88873e6d04f54ecbdf74356384676b11ee32cc6c221c3591884350a4d",
+      "native72_mask_sha256": "56669ffd916ef90ac640ae5f834e71f520e6f10f7707b5670ce048dc430eb289",
+      "source_type": "android_xml"
+    },
+    "RAMP_ON_LEFT": {
+      "svg": "maneuver_on_ramp_normal_left.svg",
+      "svg_sha256": "d70fff0bb4d3c5990e3773ad81e866d8fed4f5f5f622c7035ce39716e2b87119",
+      "decoded_resource": "res/drawable/maneuver_on_ramp_normal_left.xml",
+      "decoded_resource_sha256": "8c45cf52b57e14a0ff6c71c98117b4055493f0bd0e170a232d9a70f5cd5dfeba",
+      "native72_mask_sha256": "9a0bce7f46a4935976f105e5e565a996aed1f69824da94be8d4791654b07ba9f",
+      "source_type": "android_xml"
+    },
+    "RAMP_ON_RIGHT": {
+      "svg": "maneuver_on_ramp_normal_right.svg",
+      "svg_sha256": "829dbd1dc4a40942a796eccc202132e6be320199a56b9aaf7f01eef0352a66f1",
+      "decoded_resource": "res/drawable/maneuver_on_ramp_normal_right.xml",
+      "decoded_resource_sha256": "e1633bb7ead8f97079a1e0d9541f71c278e1456186222364cd001306f15450e9",
+      "native72_mask_sha256": "8b5224b876dd4c89b62d6a6760b8e9c718d977a791f3eed68944651621a6684c",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_CLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_cw.svg",
+      "svg_sha256": "009cf8eb243cf9dd57c36baec1df8e8ef5d9b653ac402e33ea08e9bae47eec58",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_cw.xml",
+      "decoded_resource_sha256": "65d7f912e6dcb3253bd176a532eb3b25008a1f71625b3b4b4951d4037eff95c0",
+      "native72_mask_sha256": "97dcab5055aa318d8b30b716c899fb575f408f919b7c79872f6fdaf43b46caf1",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_COUNTERCLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_ccw.svg",
+      "svg_sha256": "141f8e9047837fbdc12903c1db05e397efdccef7d523bac49d3504f0a6698b17",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_ccw.xml",
+      "decoded_resource_sha256": "668c80ceb382270329ab7da74be99e8d3ddc71ddc1be564da37ef937fa6807c8",
+      "native72_mask_sha256": "bbeae57989e5986f07e3b318c0100d3cfad83cad2bd6ae119a82e2fb3d406f15",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_EXIT_CLOCKWISE": {
+      "svg": "maneuver_roundabout_exit_cw.svg",
+      "svg_sha256": "1145e0bca6f333103c02f26aa64cb934b9fe052aa1cba1f1ad9de50c63d2f62a",
+      "decoded_resource": "res/drawable/maneuver_roundabout_exit_cw.xml",
+      "decoded_resource_sha256": "3669dec815f73023a69a01e4bb5bf2ebbdeb675fe8f4aa586b0bac76f65464c5",
+      "native72_mask_sha256": "4ace39002b13da2bb3c2a2b92138659e423f201553205e00ab1516807fab18f3",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_EXIT_COUNTERCLOCKWISE": {
+      "svg": "maneuver_roundabout_exit_ccw.svg",
+      "svg_sha256": "d951616516ca11bfd8de88c99bd97280a51a68f773cbc61f3b15af5d53f7b556",
+      "decoded_resource": "res/drawable/maneuver_roundabout_exit_ccw.xml",
+      "decoded_resource_sha256": "3936e6ab47a626b3dd4a7e7f95cf83eff3b012009c1843af2cee117c07e8b3e3",
+      "native72_mask_sha256": "ead27cf96650fd93553ebab74d177358901beb4e00d73bec88438ddd4fcd298e",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_LEFT_CLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_cw_normal_left.svg",
+      "svg_sha256": "489ec9637a48f03dfe4b0706b488014f4b5dc841d7c3009dccd76f5e028c7770",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_cw_normal_left.xml",
+      "decoded_resource_sha256": "bc3051fa0fcc9998ab9ab72cc7182315e3bcabc8acb1bec56378113d68c6275e",
+      "native72_mask_sha256": "99b0caadfd0b578555ef7224aef566aab42183c0d98dd41ef9b6693358856c87",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_LEFT_COUNTERCLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_ccw_normal_left.svg",
+      "svg_sha256": "6c9bec4c608252ba193f43ade1aaeffb65a5666062e308676114bc9f2f449b37",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_ccw_normal_left.xml",
+      "decoded_resource_sha256": "358bbe9e836c216385ff7ab14c43a369eb1e36fed73156162a129690dea25ec7",
+      "native72_mask_sha256": "26063e7f8928b19458de4fc78effb28884e1256da739c6f9acac3d93fbf45544",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_RIGHT_CLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_cw_normal_right.svg",
+      "svg_sha256": "1a001c678734f656e1a79d62c4f4e83350a85ca94e755468de1a93a8c23d2bbf",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_cw_normal_right.xml",
+      "decoded_resource_sha256": "c0b4e65795690a231643d5c6a572b404b9fc4e6561d81d444300daace061fc06",
+      "native72_mask_sha256": "b4c65f5bdd72b76582fddc41b4fdc0f061e1106744c9e70a8e8c1afe2a474aeb",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_RIGHT_COUNTERCLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_ccw_normal_right.svg",
+      "svg_sha256": "4c397abd61efde01d3b153df08a99c6de9fab632e883db9ba210686b14bd5b53",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_ccw_normal_right.xml",
+      "decoded_resource_sha256": "733bdb87c6537e47969d13194bbb1915c71ce7c9c3e942bf64467df2a02fbf28",
+      "native72_mask_sha256": "37d76bd27c9640e1b2325af3465a35b541a5dcfc95a753861d5373954a27f2b9",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_SHARP_LEFT_CLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_cw_sharp_left.svg",
+      "svg_sha256": "ab610b17a51be5cb87c0ecbf7e64e8f0999abecf04c1d119f03983f08764839f",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_cw_sharp_left.xml",
+      "decoded_resource_sha256": "e6febc6acb9e2ccb53a69f629b82ff9ecc536a938e71cd26697d0f88d502c635",
+      "native72_mask_sha256": "30d2bdce54bfcd0023835f514e3f04fe335d7901b139f6c66bae31be6eebfcb0",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_SHARP_LEFT_COUNTERCLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_ccw_sharp_left.svg",
+      "svg_sha256": "0cf99d78fc3faa22dc08911cda61df711e48ee45ee9c72b48d2c9188aaf9033d",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_ccw_sharp_left.xml",
+      "decoded_resource_sha256": "3605eae8c5ab57cc930f26a087ff423a6fddcc4f09c800a13803b5fa4f9d2905",
+      "native72_mask_sha256": "20d94975170bed41a9e062bcf312b6149f95ee018291f1be3a84327044ebb578",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_SHARP_RIGHT_CLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_cw_sharp_right.svg",
+      "svg_sha256": "0d3304d87c3c47b31185c884a558b35f9cf0d843e018107aae3a19a730b70b88",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_cw_sharp_right.xml",
+      "decoded_resource_sha256": "4ffef6991ea272715142f31fe00da079fc3c7033ad8ea7fd95b35d54000cc31e",
+      "native72_mask_sha256": "2f6fb6baebdc1996896e6f45cd7e5887718faf0a97c14e0114c027406f48b2a5",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_SHARP_RIGHT_COUNTERCLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_ccw_sharp_right.svg",
+      "svg_sha256": "ca1e03f2ddbe96dc1aa2dddaadf968f7424f36b3479e7adf89b0305282bdbc53",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_ccw_sharp_right.xml",
+      "decoded_resource_sha256": "ac6db36a2445321542b235e315248eae9ec4ea832f1affc33807c790ede0dd68",
+      "native72_mask_sha256": "eac18648a35920c69ae968ba09ca422a6e33627ae8b4cf53220f234e061b212a",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_SLIGHT_LEFT_CLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_cw_slight_left.svg",
+      "svg_sha256": "56929207b8b15b0f64be32a346db80fd33715008cd1d203affba4fdcdbc3137e",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_cw_slight_left.xml",
+      "decoded_resource_sha256": "56d94c0168561bcd3d901b9d747291a22cc48bfbf7850d66427693f8d90ff6f5",
+      "native72_mask_sha256": "1e2569178289d1682a2e6b4484d64b27eba64bf630f5b4ab9a1325d37c1ef8c1",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_SLIGHT_LEFT_COUNTERCLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_ccw_slight_left.svg",
+      "svg_sha256": "90e8d3ce6bee6f9797b7044de994504bc2513d277cd5455c885e4a95778e52b0",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_ccw_slight_left.xml",
+      "decoded_resource_sha256": "6ba009670620a4967a6209a4beaf3ba62eddb91d7cade9a65ede58938879d725",
+      "native72_mask_sha256": "cb6696b22a69ce6c12e73a926815971ede34e6024e79bd797cc3fbd13e38d349",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_SLIGHT_RIGHT_CLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_cw_slight_right.svg",
+      "svg_sha256": "e23ab8d11adb56599a06d158f19f38adb1782ccb87facd356d663ce6db38a760",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_cw_slight_right.xml",
+      "decoded_resource_sha256": "642ce048cbc4fe01a7b1a9daf216b88006943ad7ecfb206471259ee5b3d1ee56",
+      "native72_mask_sha256": "d3d4b56dd46197f69fce3d75fcccb850533d1d487ee17e57c0eceb10e3333ed0",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_SLIGHT_RIGHT_COUNTERCLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_ccw_slight_right.svg",
+      "svg_sha256": "0eada52ed7892d6e6013ba400eb10d1b290cce066f40702d50ade2f89cdb755f",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_ccw_slight_right.xml",
+      "decoded_resource_sha256": "348ac2b7f4464e8a7f95de7cea367141ae379fee88e361895e146b130cc96c5a",
+      "native72_mask_sha256": "505f160aff99ebfde856f0feb094a3991a0b55db787ff31307a452f342f5371d",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_STRAIGHT_CLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_cw_straight.svg",
+      "svg_sha256": "6479f4b7c1f37817529874ff42d6dfbe8405baec83bf6668351a854d85f2aaea",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_cw_straight.xml",
+      "decoded_resource_sha256": "c2768483f123f169bb0897eb4121a2d92eab0a31ba2e23ef34800f66c8cab1de",
+      "native72_mask_sha256": "4fd2c568b003a3337d6f28b2d61c2c08b024bd5bbc1744db795ebf3cbd0a8cd1",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_STRAIGHT_COUNTERCLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_ccw_straight.svg",
+      "svg_sha256": "342a389057bb272de5ed9824e444d06b861497671e2c5290c3442f71a3697447",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_ccw_straight.xml",
+      "decoded_resource_sha256": "9a712069e1a9c46d25b9b771dff93febf103be9ff5c1884dbece3ba4406220a2",
+      "native72_mask_sha256": "c82c45a2784886b1716bf580bf024d29ef78e8065c4e4d1e5fb361381f7f7dd1",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_U_TURN_CLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_cw_u_turn.svg",
+      "svg_sha256": "7f54270c1ead9116b60adfb10efde88b3624cf92d804d71a9fc7c264df614be0",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_cw_u_turn.xml",
+      "decoded_resource_sha256": "77a899d71093e224549a7ee59f1c31f009c637466f2d4afd8dc5675e64943ed7",
+      "native72_mask_sha256": "bde73b3318f6e459f90a8c6b10792a2a9bb6789230939d7d27f4e1f49058bb6c",
+      "source_type": "android_xml"
+    },
+    "ROUNDABOUT_U_TURN_COUNTERCLOCKWISE": {
+      "svg": "maneuver_roundabout_enter_and_exit_ccw_u_turn.svg",
+      "svg_sha256": "1bd8ce193de45ad40da334d0a983680e6db166a4b0008c3a3d202643a164f88f",
+      "decoded_resource": "res/drawable/maneuver_roundabout_enter_and_exit_ccw_u_turn.xml",
+      "decoded_resource_sha256": "b67f3c035804fd4455d5a038b7902227f9bbeef95f1ea3f56d01bbb1ef776124",
+      "native72_mask_sha256": "73582a402610a61ff7a0fd3af5ad65512a13e60e9286aec49d0e9e7e7ac92036",
+      "source_type": "android_xml"
+    },
+    "STRAIGHT": {
+      "svg": "maneuver_straight.svg",
+      "svg_sha256": "be6367230bf148504c6cdd0b92f9907ef932991a4b37baf41065f7e0ff26d4a2",
+      "decoded_resource": "res/drawable/maneuver_straight.xml",
+      "decoded_resource_sha256": "158243b82fc6767b03c3b8246c0018259792645126b38bd7bdd8f724c130a13a",
+      "native72_mask_sha256": "71b483dd77840e56292ad4e559e8b5a9654049c60568ea2ecbee461af43b870f",
+      "source_type": "android_xml"
+    },
+    "TURN_LEFT": {
+      "svg": "maneuver_turn_normal_left.svg",
+      "svg_sha256": "d70fff0bb4d3c5990e3773ad81e866d8fed4f5f5f622c7035ce39716e2b87119",
+      "decoded_resource": "res/drawable/maneuver_turn_normal_left.xml",
+      "decoded_resource_sha256": "8c45cf52b57e14a0ff6c71c98117b4055493f0bd0e170a232d9a70f5cd5dfeba",
+      "native72_mask_sha256": "9a0bce7f46a4935976f105e5e565a996aed1f69824da94be8d4791654b07ba9f",
+      "source_type": "android_xml"
+    },
+    "TURN_RIGHT": {
+      "svg": "maneuver_turn_normal_right.svg",
+      "svg_sha256": "829dbd1dc4a40942a796eccc202132e6be320199a56b9aaf7f01eef0352a66f1",
+      "decoded_resource": "res/drawable/maneuver_turn_normal_right.xml",
+      "decoded_resource_sha256": "e1633bb7ead8f97079a1e0d9541f71c278e1456186222364cd001306f15450e9",
+      "native72_mask_sha256": "8b5224b876dd4c89b62d6a6760b8e9c718d977a791f3eed68944651621a6684c",
+      "source_type": "android_xml"
+    },
+    "TURN_SHARP_LEFT": {
+      "svg": "maneuver_turn_sharp_left.svg",
+      "svg_sha256": "87cff56cb856385701ecbcb063c07b228a712b951d6418d9af33f606d00b0753",
+      "decoded_resource": "res/drawable/maneuver_turn_sharp_left.xml",
+      "decoded_resource_sha256": "d49ff8c43b22cb8c3df112920c3f7242a254517deb3a79b97ed6fb3904ec4ef9",
+      "native72_mask_sha256": "887a13985457e13e9aa80f7f5cc253854d5aa22a924d332522cf7472360e3057",
+      "source_type": "android_xml"
+    },
+    "TURN_SHARP_RIGHT": {
+      "svg": "maneuver_turn_sharp_right.svg",
+      "svg_sha256": "f2ad82707511fb62122c353ec2abcbc65c7b6711d7948ae40ebd49c64fe99a3a",
+      "decoded_resource": "res/drawable/maneuver_turn_sharp_right.xml",
+      "decoded_resource_sha256": "2ad15448c9059da74eb1e2467dddf18564be5a0b3c05dc310749659eadabd04d",
+      "native72_mask_sha256": "e7f72ca91bc66c782d5794cb40f35e34f396e1e4bcb75ed0b696ec6629232988",
+      "source_type": "android_xml"
+    },
+    "TURN_SLIGHT_LEFT": {
+      "svg": "maneuver_turn_slight_left.svg",
+      "svg_sha256": "c669a9678627454aa8df5f735b47b0e5fe09009cdafcbb77a5738d0f25c12468",
+      "decoded_resource": "res/drawable/maneuver_turn_slight_left.xml",
+      "decoded_resource_sha256": "02592cf50932eb21c547b81487b4ed0e0e4fed7000fcc9b96a6d407d9c2d973e",
+      "native72_mask_sha256": "de8e45ca4e6386c7a6a2b1a072a2cfac8cc976e2e37b1907ce20f2866c6a5e04",
+      "source_type": "android_xml"
+    },
+    "TURN_SLIGHT_RIGHT": {
+      "svg": "maneuver_turn_slight_right.svg",
+      "svg_sha256": "be5c88c339b74b1b12260bdd876aceb932f88a24f3225e898f18d42c2d0f49cb",
+      "decoded_resource": "res/drawable/maneuver_turn_slight_right.xml",
+      "decoded_resource_sha256": "26f015047f16ac4b39041f759289f28daab3f51fe2694b686431fed1da839686",
+      "native72_mask_sha256": "670dbd2bdbbeb8ebfc86fbe207553ef9d9bfa36802175d49b9b46352074d817d",
+      "source_type": "android_xml"
+    },
+    "TURN_U_TURN_CLOCKWISE": {
+      "svg": "maneuver_u_turn_right.svg",
+      "svg_sha256": "77732189c17fd315d8aa55cf1c1d9914ea7419066c1036a88b820985242ae2e8",
+      "decoded_resource": "res/drawable/maneuver_u_turn_right.xml",
+      "decoded_resource_sha256": "caa16091bdfb14f9a974b93871d5b2afcc89103fdfa42483ae84ff118ea3be38",
+      "native72_mask_sha256": "caacaaa1d66a1ab5003b890e094db40f5cdaeff6fb9c254c3b94a5f8ff01cbc8",
+      "source_type": "android_xml"
+    },
+    "TURN_U_TURN_COUNTERCLOCKWISE": {
+      "svg": "maneuver_u_turn_left.svg",
+      "svg_sha256": "6a9f46bb63d0ede919c8d986129581597c1df0d4d5a39c2838d15caa4319d297",
+      "decoded_resource": "res/drawable/maneuver_u_turn_left.xml",
+      "decoded_resource_sha256": "26a4963d79201b2b3d30a75151325d6f3e0bbd5d408b3c67abc73bb72a845d81",
+      "native72_mask_sha256": "fc67ce07ef877ff69eb022c9ae2a300d8eb5b6b724dc9bebe99e01afd463dd27",
+      "source_type": "android_xml"
+    }
+  }
+}

@@ -42,7 +42,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 try:
-    from icons import audscii_trans
+    from icons import audscii_trans, audscii_unicode, encode_audscii
 except Exception:
     sys.exit("ERROR: icons.py not found or failed to import.")
 
@@ -149,23 +149,19 @@ def _bool(val, default=False):
 def _normalize(text: str) -> str:
     if not text or _unidecode is None or all(ord(c) < 256 for c in text):
         return text
-    return "".join(c if ord(c) < 256 else _unidecode(c) for c in text)
+    return "".join(c if ord(c) < 256 or c in audscii_unicode else _unidecode(c) for c in text)
 
 
-_TRANS = bytes(audscii_trans)
 _BLANK = audscii_trans[32]
 _CONT_GAP = audscii_trans[31]
 
 
 def _encode_text(text: str) -> bytes:
-    return bytes(_TRANS[ord(c)] if ord(c) < 256 else _BLANK for c in text)
+    return encode_audscii(text)
 
 
 def _encode_continuous_text(text: str) -> bytes:
-    return bytes(
-        _CONT_GAP if c == " " else (_TRANS[ord(c)] if ord(c) < 256 else _BLANK)
-        for c in text
-    )
+    return encode_audscii(text.replace(" ", "\x1f"))
 
 
 # ---------------------------------------------------------------------------

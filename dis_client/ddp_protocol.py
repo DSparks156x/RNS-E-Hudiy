@@ -12,6 +12,7 @@ import logging
 import sys
 from pathlib import Path
 from dataclasses import dataclass
+from collections import deque
 
 # Shared gate for every application CAN transmitter (installed beside flasher/).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -48,15 +49,21 @@ class DDPHandshakeError(DDPError):
 class DDPTransportProfile:
     """Observed cluster limits, kept separate from generic TP2 semantics."""
     frame_gap_s: float = 0.002
-    max_message_bytes: int = 42
+    max_message_bytes: int = 42  # Legacy name: ACK-block byte budget.
     max_unacked_frames: int = 6
     white_post_message_delay_s: float = 0.020
+    receiver_not_ready_wait_s: float = 0.100
+    max_not_ready_retries: int = 5
+    max_ack_retries: int = 2
 
     def __post_init__(self):
-        if self.frame_gap_s < 0 or self.white_post_message_delay_s < 0:
+        if (self.frame_gap_s < 0 or self.white_post_message_delay_s < 0
+                or self.receiver_not_ready_wait_s < 0):
             raise ValueError("DDP pacing delays cannot be negative")
         if self.max_message_bytes < 1 or self.max_unacked_frames < 1:
             raise ValueError("DDP framing limits must be positive")
+        if self.max_not_ready_retries < 0 or self.max_ack_retries < 0:
+            raise ValueError("DDP retry limits cannot be negative")
 
 
 DEFAULT_DDP_TRANSPORT = DDPTransportProfile()
@@ -146,6 +153,7 @@ class DDPProtocol:
                 DEFAULT_DDP_TRANSPORT.white_post_message_delay_s)),
         )
         self.state = DDPState.DISCONNECTED
+        self.state_generation = 0
         self.dis_mode = DisMode.UNKNOWN
         self.i_am_opener = False
         self.last_ka_sent = 0.0
@@ -155,6 +163,8 @@ class DDPProtocol:
         # For _recv_specific to store stray packets
         self._last_received_ack = None
         self._last_received_data = None
+        self._data_inbox = deque()
+        self._last_screen_status = None
 
         self.channel = config.get('can_channel', 'can0')
         self.bitrate = config.get('can_bitrate', 100000)
@@ -220,6 +230,7 @@ class DDPProtocol:
         logger.info(f"State transition: {self.state.name} -> {new_state.name}")
         old_state = self.state
         self.state = new_state
+        self.state_generation = getattr(self, "state_generation", 0) + 1
 
         if new_state == DDPState.READY and old_state == DDPState.PAUSED:
             logger.info("Resuming from PAUSE.")
@@ -229,6 +240,8 @@ class DDPProtocol:
         
         # Reset context on disconnection
         if new_state == DDPState.DISCONNECTED:
+            self._data_inbox.clear()
+            self._last_screen_status = None
             self.dis_mode = DisMode.UNKNOWN
             self.i_am_opener = False
             self.send_seq_num = 0
@@ -245,6 +258,20 @@ class DDPProtocol:
     def payload_is(self, data: List[int], expected_payload: List[int]) -> bool:
         """Helper to check payload regardless of the sequence number (first byte)."""
         if not data or len(data) < 1: return False
+        if not expected_payload:
+            return False
+        # Capability/geometry fields vary with cluster and selected service.
+        # Recognize the observed command shape; retain its actual values.
+        if expected_payload[0] == 0x09 and len(expected_payload) == 7:
+            matches = len(data) == 8 and data[1] == 0x09
+            if matches:
+                self.capability_record = list(data[1:])
+            return matches
+        if expected_payload[0] == 0x30 and len(expected_payload) == 5:
+            matches = len(data) == 6 and data[1] == 0x30
+            if matches:
+                self.geometry_record = list(data[1:])
+            return matches
         return data[1:] == expected_payload
 
     # --- Low-Level CAN & DDP I/O ---
@@ -258,6 +285,8 @@ class DDPProtocol:
         return True
 
     def _reset_for_flashing(self):
+        if self.state != DDPState.DISCONNECTED:
+            self.state_generation = getattr(self, "state_generation", 0) + 1
         self.state = DDPState.DISCONNECTED
         self.dis_mode = DisMode.UNKNOWN
         self.i_am_opener = False
@@ -266,6 +295,8 @@ class DDPProtocol:
         self.screen_released_by_cluster = True
         self._last_received_ack = None
         self._last_received_data = None
+        self._data_inbox.clear()
+        self._last_screen_status = None
         if self.bus is not None:
             try:
                 self.bus.shutdown()
@@ -294,7 +325,9 @@ class DDPProtocol:
                         self._reset_for_flashing()
                         raise DDPCANError("Flashing Mode inhibits DIS transmissions")
                     self.bus.send(msg, timeout=0.5)
-                time.sleep(self._transport_settings().frame_gap_s)
+                frame_gap = self._transport_settings().frame_gap_s
+                if frame_gap > 0:
+                    time.sleep(frame_gap)
                 return # Success
             except Exception as e:
                 # 105 is 'No buffer space available' on SocketCAN
@@ -387,84 +420,149 @@ class DDPProtocol:
                 return True
             return False # Not handled, it's data for the caller
 
-        # --- Type 0x9_ (Break) ---
+        # --- Type 0x9_ (transport ACK, receiver not ready) ---
         if msg_type_prefix == 0x90:
-            logger.warning(f"Cluster sent Break {data[0]:02X} -> Block Rejected / Busy")
-            # If we are initializing, this is a fatal mismatch for this session
-            if self.state == DDPState.INITIALIZING:
-                logger.error(f"Handshake rejected by cluster ({data[0]:02X}). Resetting.")
-                self._set_state(DDPState.DISCONNECTED)
+            logger.debug("Receiver not-ready ACK %02X", data[0])
+            self._last_received_ack = data
             return True
 
         logger.warning(f"Unknown unhandled packet type {data[0]:02X}")
         return True # Treat as handled to avoid breaking loops
 
-    def _recv_specific(self, expected_data: List[int], timeout_ms: int) -> Optional[List[int]]:
-        """
-        Waits for a *specific* CAN packet (e.g., an ACK or KA packet).
-        Uses _handle_incoming_packet to filter out background noise.
-        """
-        start = time.time()
-        self._last_received_ack = None # Clear buffer
+    def _retain_data(self, data):
+        """ACK once and retain application packets arriving during any wait."""
+        opcode, sequence = classify_frame(data)
+        if opcode in (0, 1):
+            self.send_ack(sequence)
+        if len(data) == 3 and data[1] == 0x53:
+            self._last_screen_status = data[2]
+            if data[2] in (0x04, 0x08, 0x84, 0x88) and self.state == DDPState.READY:
+                self._set_state(DDPState.PAUSED)
+            elif data[1:] in (DDPMessages.STAT_FREE_HALF, DDPMessages.STAT_FREE_FULL):
+                # Match normal FREE dispatch before the ACK wait can allow
+                # more graphics. Initialization statuses remain asynchronous.
+                self.screen_released_by_cluster = True
+                if self.state in (DDPState.READY, DDPState.PAUSED):
+                    self._set_state(DDPState.PAUSED)
+        if data[1:] == DDPMessages.CMD_REINIT_REQ and self.state == DDPState.READY:
+            self._set_state(DDPState.PAUSED)
+        if len(self._data_inbox) >= 128:
+            self._set_state(DDPState.DISCONNECTED)
+            raise DDPHandshakeError("Application receive queue overflow")
+        self._data_inbox.append(data)
 
-        while time.time() - start < (timeout_ms / 1000.0):
-            data = self._recv(0.05) # Poll for 50ms
+    def _recv_specific(self, expected_data, timeout_ms):
+        deadline = time.monotonic() + timeout_ms / 1000.0
+        while time.monotonic() < deadline:
+            data = self._recv(min(0.05, max(0, deadline-time.monotonic())))
             if not data:
                 continue
-            
-            # First, check if it's the packet we are waiting for
             if data == expected_data:
-                logger.debug(f"<- Received expected {expected_data}")
                 return data
-            
-            # If not, let the central handler process it (handles ACKs, Pings, etc.)
-            self._handle_incoming_packet(data)
-
-            # If we went to DISCONNECTED state, abort
+            if (len(expected_data) == 1 and expected_data[0] >> 4 == 0xB
+                    and len(data) == 1 and data[0] >> 4 in (0x9, 0xB)):
+                # The sequence identifies the receiver's next required frame.
+                # The block sender validates it before accepting or replaying.
+                return data
+            if not self._handle_incoming_packet(data):
+                self._retain_data(data)
             if self.state == DDPState.DISCONNECTED:
-                logger.warning("Session closed while waiting for specific packet")
                 return None
-                    
-        logger.error(f"Timeout waiting for {expected_data}")
         return None
 
-    def _recv_and_ack_data(self, timeout_ms: int) -> Optional[List[int]]:
-        """
-        Waits for a data packet (0x0x, 0x1x, 0x2x), ACKs it if required,
-        and returns the full packet.
-        Uses _handle_incoming_packet to filter out background noise.
-        """
-        start = time.time()
-        self._last_received_data = None # Clear buffer
-
-        while time.time() - start < (timeout_ms / 1000.0):
-            data = self._recv(0.05) # Poll for 50ms
-            if not data:
-                continue
-
-            # Let the central handler process it first
-            is_background_packet = self._handle_incoming_packet(data)
-            
+    def _wait_receiver_delay(self, delay_s):
+        """Keep servicing status/session traffic during transport backpressure."""
+        deadline = time.perf_counter() + delay_s
+        while time.perf_counter() < deadline:
+            if self._flashing_inhibited():
+                return
+            remaining = deadline - time.perf_counter()
+            data = self._recv(min(.01, max(0, remaining)))
+            if data and not self._handle_incoming_packet(data):
+                self._retain_data(data)
             if self.state == DDPState.DISCONNECTED:
-                logger.warning("Session closed while waiting for data packet")
-                return None
+                return
 
-            if is_background_packet:
-                continue # It was an ACK or KA, keep waiting for data
+    def _send_acknowledged_block(self, block):
+        """Retain one block for sequence-directed TP2 retransmission.
 
-            # If it wasn't a background packet, it must be data.
-            opcode, msg_seq = classify_frame(data)
-            msg_type = opcode << 4
-            
-            if msg_type in [0x00, self.PKT_TYPE_DATA_END]:
-                self.send_ack(msg_seq)
-                return data
-            elif msg_type == self.PKT_TYPE_DATA_BODY:
-                return data
+        SAE J2819 sections 6.2.4--6.2.6: a matching 9n accepts data but imposes
+        T_Wait; an earlier n asks to replay from n. A missing ACK repeats only
+        the ACK-request frame. Neither condition changes screen ownership.
+        """
+        block = tuple(bytes(frame) for frame in block)
+        expected = list(build_ack(block[-1][0] & self.PKT_SEQ_MASK))
+        resend = block
+        initial_state = self.state
+        profile = self._transport_settings()
+        not_ready_count = ack_retry_count = block_retry_count = 0
+
+        def fail(reason):
+            # Unknown receive progress cannot safely start a different message.
+            self.close_session()
+            raise DDPAckTimeoutError(reason)
+
+        while True:
+            for frame in resend:
+                if self.state != initial_state:
+                    raise DDPAckTimeoutError("Session or display state changed during a block")
+                self.send_can(self.tx_id, list(frame))
+                self.send_seq_num = ((frame[0] & self.PKT_SEQ_MASK) + 1) & 0xF
+            reply = self._recv_specific(expected, 1000)
+            if self.state != initial_state:
+                raise DDPAckTimeoutError("Session or display state changed during ACK wait")
+            if not reply:
+                ack_retry_count += 1
+                if ack_retry_count > profile.max_ack_retries:
+                    fail(f"No ACK {expected[0]:02X} after bounded retries")
+                logger.warning("Missing ACK %02X; repeating its request frame", expected[0])
+                resend = (block[-1],)
+                continue
+            opcode, sequence = classify_frame(reply)
+            if opcode not in (0x9, 0xB) or len(reply) != 1:
+                fail("Malformed transport acknowledgment")
+            if opcode == 0x9:
+                not_ready_count += 1
+                if not_ready_count > profile.max_not_ready_retries:
+                    fail("Receiver remained not ready after bounded retries")
+                logger.info("Receiver not ready at sequence %X; waiting %.3fs",
+                            sequence, profile.receiver_not_ready_wait_s)
+                self._wait_receiver_delay(profile.receiver_not_ready_wait_s)
+                if self.state != initial_state:
+                    raise DDPAckTimeoutError("Session or display state changed during receiver wait")
+            if sequence == expected[0] & self.PKT_SEQ_MASK:
+                return
+            offset = next((i for i, frame in enumerate(block)
+                           if frame[0] & self.PKT_SEQ_MASK == sequence), None)
+            if offset is None:
+                fail("Receiver requested a sequence outside the pending block")
+            block_retry_count += 1
+            if block_retry_count > profile.max_not_ready_retries:
+                fail("Receiver repeatedly requested block retransmission")
+            logger.info("Retransmitting %d retained frames from sequence %X",
+                        len(block)-offset, sequence)
+            resend = block[offset:]
+
+    def _recv_and_ack_data(self, timeout_ms):
+        deadline = time.monotonic() + timeout_ms / 1000.0
+        while time.monotonic() < deadline:
+            if self._data_inbox:
+                data = self._data_inbox.popleft()
             else:
-                logger.warning(f"Received non-data packet {data} when expecting data")
-                
-        logger.error(f"Timeout waiting for a data packet")
+                data = self._recv(min(0.05, max(0, deadline-time.monotonic())))
+                if not data:
+                    continue
+                if self._handle_incoming_packet(data):
+                    if self.state == DDPState.DISCONNECTED:
+                        return None
+                    continue
+                self._retain_data(data)
+                data = self._data_inbox.popleft()
+            # Screen statuses are asynchronous during initialization. They do
+            # not replace its capability/geometry response or reset its deadline.
+            if self.state == DDPState.INITIALIZING and len(data) == 3 and data[1] == 0x53:
+                continue
+            return data
         return None
 
     def send_data_packet(self, data: List[int], is_multi_packet_frame_body: bool = False):
@@ -476,82 +574,53 @@ class DDPProtocol:
         opcode = 2 if is_multi_packet_frame_body else 1
         packet = list(build_data_frame(bytes(data), self.send_seq_num, opcode))
         
-        self.send_can(self.tx_id, packet)
-        
-        expected_ack_byte = build_ack(self.send_seq_num)[0]
-        self.send_seq_num = (self.send_seq_num + 1) % 16
-        
         if is_multi_packet_frame_body:
+            self.send_can(self.tx_id, packet)
+            self.send_seq_num = (self.send_seq_num + 1) % 16
             return # 0x2x packets are not ACKed
-        
-        # Wait for the specific ACK
-        if self._recv_specific([expected_ack_byte], 1000):
-            return
-        else:
-            logger.warning(f"Timeout waiting for ACK {expected_ack_byte:02X} after sending {packet[0]:02X}")
-            raise DDPAckTimeoutError(f"Timeout waiting for ACK {expected_ack_byte:02X}")
+        self._send_acknowledged_block([packet])
 
     # --- Public API Methods ---
 
     def send_ddp_frame(self, payload: List[int], pacing: bool = True) -> bool:
-        """
-        Sends a full DDP data payload.
-        CRITICAL: Splits large payloads into multiple 'Blocks' of max 42 bytes.
-        AND enforces an inter-block delay to allow the cluster to process buffer.
+        """Send one graphics message, ACKing continuation blocks as needed.
 
-        pacing: If False, suppresses the 20ms WHITE DIS inter-block delay.
-                Use pacing=False for consecutive bitmap chunk sends so the cluster
-                receives all row data without gaps. Re-enable for the final
-                reset-window command so the cluster has time to process before
-                the next logical draw command arrives.
+        The historical max_message_bytes setting is an ACK-block byte budget.
+        It must not insert a message end inside an application command. The
+        0x0 continuation frame requests an ACK; only the final frame uses 0x1.
         """
         if self.state != DDPState.READY:
             logger.warning("Attempted to send frame while not READY. Ignoring.")
             return False
         if not payload:
             return True
-        
-        # 1. Chunk the application payload into Protocol Blocks (Max 42 bytes)
-        profile = self._transport_settings()
-        payload_blocks = [payload[i:i + profile.max_message_bytes]
-                          for i in range(0, len(payload), profile.max_message_bytes)]
 
+        profile = self._transport_settings()
+        frames_per_block = min(15, profile.max_unacked_frames,
+                               max(1, profile.max_message_bytes // 7))
+        frames, _ = segment_message(
+            bytes(payload), self.send_seq_num,
+            block_size=frames_per_block, length_prefixed=False)
         try:
-            for block in payload_blocks:
-                # DDP is end-delimited rather than KWP length-prefixed, but its
-                # sequence/opcode rules are the shared TP2 rules.
-                frames, _ = segment_message(
-                    bytes(block), self.send_seq_num,
-                    block_size=profile.max_unacked_frames,
-                    length_prefixed=False)
-                for frame in frames:
-                    sequence = frame[0] & self.PKT_SEQ_MASK
-                    self.send_can(self.tx_id, list(frame))
-                    self.send_seq_num = (sequence + 1) % 16
-                    if frame[0] >> 4 in (0, 1):
-                        expected_ack = list(build_ack(sequence))
-                        if not self._recv_specific(expected_ack, 1000):
-                            raise DDPAckTimeoutError(
-                                f"Timeout waiting for ACK {expected_ack[0]:02X}")
-                
-                # 3. INTER-BLOCK PACING
-                # Critical for White DIS: Pause after ACK to let the cluster CPU catch up.
-                # This creates the "piece by piece" transmission style of RNS-E.
-                # pacing=False skips this to allow rapid streaming of related chunks
-                # (e.g. consecutive rows of a bitmap) without inter-chunk delays.
-                if pacing and self.dis_mode == DisMode.WHITE:
-                    time.sleep(profile.white_post_message_delay_s)
-            
+            block = []
+            for frame in frames:
+                if self.state != DDPState.READY:
+                    return False
+                block.append(frame)
+                if frame[0] >> 4 in (0, 1):
+                    self._send_acknowledged_block(block)
+                    block = []
+                    # Preserve the cluster's pacing at every acknowledged
+                    # block, including continuation blocks within a message.
+                    if pacing and self.dis_mode == DisMode.WHITE:
+                        time.sleep(profile.white_post_message_delay_s)
         except DDPAckTimeoutError as e:
             logger.error(f"DDP Frame ACK timeout: {e}. Session might be unstable.")
-            # Do NOT disconnect immediately on a data ACK timeout. 
-            # The cluster might still be alive and we can retry the frame.
             return False
         except DDPCANError as e:
             logger.error(f"CAN hardware error: {e}. Session closing.")
             self._set_state(DDPState.DISCONNECTED)
             return False
-            
         return True
 
     def _white_dis_passive_open(self) -> bool:
@@ -843,6 +912,7 @@ class DDPProtocol:
         logger.info(f"Starting DDP Step 2 Initialization for {self.dis_mode.name} DIS...")
         self._set_state(DDPState.INITIALIZING)
         self.send_seq_num = 0
+        self._last_screen_status = None
 
         if self.dis_mode == DisMode.UNKNOWN:
              logger.error("DIS mode is unknown. Cannot perform initialization.")
@@ -895,6 +965,8 @@ class DDPProtocol:
             
             logger.info(f"DDP Initialization COMPLETE")
             self._set_state(DDPState.READY)
+            if self._last_screen_status in (0x04, 0x08, 0x84, 0x88):
+                self._set_state(DDPState.PAUSED)
             self.last_ka_sent = time.time()
             return True
 
@@ -903,11 +975,9 @@ class DDPProtocol:
             if self.state == DDPState.DISCONNECTED:
                 logger.warning("Session was explicitly closed/disconnected. Aborting initialization.")
                 return False
-            logger.info("Cluster may already be initialized (e.g. background keep-alive refresh). Assuming READY.")
-            self.was_handshake_assumed = True
-            self._set_state(DDPState.READY)
-            self.last_ka_sent = time.time()
-            return True
+            self.was_handshake_assumed = False
+            self.close_session()
+            return False
         except DDPCANError as e:
             self.was_handshake_assumed = False
             logger.error(f"Handshake Hardware Error: {e}")
@@ -945,8 +1015,9 @@ class DDPProtocol:
         if self.state == DDPState.DISCONNECTED:
             return
 
-        # Non-blocking read
-        data = self._recv(0) 
+        # Retained packets were already acknowledged at receive time.
+        already_acked = bool(self._data_inbox)
+        data = self._data_inbox.popleft() if already_acked else self._recv(0)
         if not data:
             return
             
@@ -958,14 +1029,16 @@ class DDPProtocol:
             opcode, msg_seq = classify_frame(data)
             msg_type = opcode << 4
             payload = data[1:]
+            if len(payload) == 2 and payload[0] == 0x53:
+                self._last_screen_status = payload[1]
 
             # We must ALWAYS ACK data packets (Type 0x00 or 0x10) immediately,
             # regardless of whether we handle the content.
-            if msg_type in [0x00, self.PKT_TYPE_DATA_END]:
+            if not already_acked and msg_type in [0x00, self.PKT_TYPE_DATA_END]:
                 self.send_ack(msg_seq)
 
             # --- DETECT PAUSE (Cluster Claims Screen) ---
-            if payload in [DDPMessages.STAT_BUSY_WARN_HALF, DDPMessages.STAT_BUSY_WARN_FULL]:
+            if payload in [DDPMessages.STAT_BUSY_WARN_HALF, DDPMessages.STAT_BUSY_WARN_FULL, DDPMessages.STAT_BUSY_HALF, DDPMessages.STAT_BUSY_FULL]:
                 
                 if self.state != DDPState.PAUSED:
                     logger.warning(f"Cluster INTERRUPT (Status {payload}). Pausing...")
@@ -977,23 +1050,26 @@ class DDPProtocol:
             elif payload in [DDPMessages.STAT_FREE_HALF, DDPMessages.STAT_FREE_FULL]:
                 logger.info(f"Cluster Status FREE ({payload}). Waiting for Re-Init Request (2E)...")
                 self.screen_released_by_cluster = True
-                # Do not resume yet. Protocol dictates we wait for 0x2E.
+                self._set_state(DDPState.PAUSED)
+                # Wait for 0x2E before another ownership request.
 
             # --- HANDLE RE-INIT (Resume Sequence) ---
             elif payload == DDPMessages.CMD_REINIT_REQ:
                 logger.info("Received Re-Init Request (2E). Sending Confirm (2F).")
                 self.screen_released_by_cluster = True
                 
-                # 1. Reply with 2F (Confirmation)
-                pkt = list(build_data_frame(
-                    bytes(DDPMessages.CMD_REINIT_CONF), self.send_seq_num, 1))
-                self.send_can(self.tx_id, pkt)
-                self.send_seq_num = (self.send_seq_num + 1) % 16
-
-                # 2. Switch state directly to READY.
-                # CRITICAL FIX: Do NOT go to SESSION_ACTIVE. We are technically still
-                # initialized, we just need to claim the screen again.
-                self._set_state(DDPState.READY)
+                # Acknowledgment of 2F completes confirmation; it does not
+                # itself claim the display. The service will request ownership.
+                try:
+                    self.send_data_packet(DDPMessages.CMD_REINIT_CONF)
+                except DDPError:
+                    # The ACK wait may already have processed A8 or closed
+                    # an exhausted session. Preserve that reconnect state.
+                    if self.state != DDPState.DISCONNECTED:
+                        self._set_state(DDPState.PAUSED)
+                    return
+                if self._last_screen_status not in (0x04, 0x08, 0x84, 0x88):
+                    self._set_state(DDPState.READY)
 
             # --- HANDLE GRAPHICS ACKS (BENIGN) ---
             elif payload == DDPMessages.STAT_GRAPHIC_ACK_WHITE or payload == DDPMessages.STAT_GRAPHIC_ACK_RED:

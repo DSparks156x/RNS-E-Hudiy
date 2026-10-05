@@ -273,12 +273,15 @@ class EmulatorBridge:
 
     def send_image_file(self, path, is_new_track=False):
         try:
-            img = Image.open(path)
-            processed = dis_image.process_image(img)
-            bitmap = dis_image.image_to_bitmap(processed)
+            with open(path, 'rb') as source_file:
+                image_bytes = source_file.read()
+            with io.BytesIO(image_bytes) as source, Image.open(source) as img:
+                processed = dis_image.process_image(img)
+                bitmap = dis_image.image_to_bitmap(processed)
             
             cover_data = {
                 'bitmap_hex': bitmap.hex(),
+                'image_hex': image_bytes.hex(),
                 'is_new_track': is_new_track,
                 'timestamp': time.time()
             }
@@ -312,13 +315,17 @@ class EmulatorBridge:
                     while True:
                         try:
                             cmd = self.draw_socket.recv_json(flags=zmq.NOBLOCK)
-                            socketio.emit('dis_command', cmd)
-                            
-                            # Closed-loop feedback for frame flow control
-                            if cmd.get('command') == 'commit' and 'seq' in cmd:
-                                seq = cmd['seq']
-                                # Use NOBLOCK to ensure the bridge doesn't stall if the status channel is flooded
-                                self.status_pub.send_string(f"DRAW_ACK {seq}", flags=zmq.NOBLOCK)
+                            if cmd.get('command') == 'frame':
+                                commands = cmd.get('commands', [])
+                                for item in commands:
+                                    socketio.emit('dis_command', item)
+                                socketio.emit('dis_command', {'command': 'commit'})
+                                # This is bridge completion; browser presentation is asynchronous.
+                                self.status_pub.send_string(f"DRAW_ACK {cmd['seq']}", flags=zmq.NOBLOCK)
+                            else:
+                                socketio.emit('dis_command', cmd)
+                                if cmd.get('command') == 'commit' and 'seq' in cmd:
+                                    self.status_pub.send_string(f"DRAW_ACK {cmd['seq']}", flags=zmq.NOBLOCK)
                         except zmq.Again:
                             break
                         except Exception as e:

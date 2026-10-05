@@ -1,0 +1,2 @@
+# Only needed to regenerate/review native navigation assets.
+Pillow>=10

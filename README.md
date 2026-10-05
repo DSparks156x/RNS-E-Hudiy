@@ -80,6 +80,48 @@ label, directory, allowed extensions, size limit, and validator as support is ad
 `file_portal.upload_pin` to require a PIN for uploads; downloads remain available to
 devices on the Pi network.
 
+### Native white DIS graphics
+
+Native graphics are opt-in for white A3/TT DIS clusters. Merge these settings into
+`display.center_display` in your existing `config.json` to enable them:
+
+```json
+{
+  "navigation": {
+    "high_resolution": true
+  },
+  "coverart": {
+    "native_resolution": true,
+    "native_preset": "legacy",
+    "native_args": {},
+    "native_render_order": "tiles",
+    "native_delta": false
+  }
+}
+```
+
+Both resolution options default to `false`, preserving legacy graphics. Navigation
+uses the approved Maps SVG family as monochrome 72x72 icons and keeps distance,
+street, and approach-bar overlays. Curated sources and provenance are in
+`dis_client/nav_icons_sources/`; the development-only
+`tools/generate_native_nav_icons.py` reproduces the packed masks. The runtime
+does not need an SVG renderer.
+Roundabout direction follows `display.road_side` (`right` means counterclockwise).
+Cover art uses a full 128x96 canvas. The `legacy` preset applies your existing
+`coverart.args` at native resolution; `native_args` overrides individual controls.
+Other presets are `balanced` (ordered dither), `photo` (error diffusion), and `text`
+(threshold). Their overrides belong in `native_args` and do not inherit legacy args.
+
+`tiles` finishes small regions before moving on. `planes` draws a base followed by
+subpixel layers, and `bands` finishes horizontal strips. These orders produce the
+same target image but can look different while it is being drawn. `native_delta`
+requires `tiles`; leave it disabled to send each cover as a complete snapshot.
+Detailed or dithered images can take longer to settle on the LCD. A transport ACK
+does not measure when the LCD has finished updating.
+
+The Config Editor adds missing native options to older imports without changing
+existing preferences. Restart the DIS services after saving configuration changes.
+
 ### Collecting Android Auto / CarPlay API behavior
 
 Hudiy API diagnostics are captured automatically. No terminal commands are needed:

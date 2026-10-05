@@ -42,18 +42,23 @@ class MediaApp(BaseApp):
         lines = {}
         
         centering = self.config.get('display', {}).get('text_centering', False)
-        align = 'center' if centering else 'left'
-        flag = self.FLAG_ITEM_CENTERED if centering else self.FLAG_ITEM
-        
-        title_scroll = self._scroll_text(self.title, 'media_title', 16, align=align)
-        artist_scroll = self._scroll_text(self.artist, 'media_artist', 16, align=align)
-        album_scroll = self._scroll_text(self.album, 'media_album', 16, align=align)
+        def field_flags(text):
+            # Center a fitting field, but anchor overflowing scroll windows at
+            # the left edge so changing proportional widths cannot recenter it.
+            fits = self.text_width(text or '', self.FLAG_ITEM) <= 128
+            return self.FLAG_ITEM_CENTERED if centering and fits else self.FLAG_ITEM
 
-        lines['line1'] = (title_scroll, flag)
-        lines['line2'] = (artist_scroll, flag)
-        lines['line3'] = (album_scroll, flag)
-        
-        # Standard non scroll fields
-        lines['line4'] = (str(self.time_str)[:16], flag)
+        for key, field in (('line1', 'title'), ('line2', 'artist'), ('line3', 'album')):
+            text = getattr(self, field)
+            flag = field_flags(text)
+            align = 'center' if flag & 0x20 else 'left'
+            scroll = self._scroll_text(text, 'media_' + field, align=align,
+                max_width_px=128, font_flags=flag)
+            lines[key] = (scroll, flag)
+
+        # The time field is bounded without scrolling.
+        time_text = str(self.time_str)
+        flag = field_flags(time_text)
+        lines['line4'] = (self.fit_text(time_text, 128, flag), flag)
 
         return lines

@@ -222,31 +222,36 @@ class HudiyEventHandler(ClientEventHandler):
             # (last_coverart_hash is reset to None whenever is_new_track is True)
             if self.last_coverart_hash is None:
                 logger.info(f"Processing NEW Cover Art ({len(cover_art_bytes)} bytes, hash: {current_hash}).")
-                self.last_coverart_hash = current_hash
                 try:
-                    img = Image.open(io.BytesIO(cover_art_bytes))
-                    processed = dis_image.process_image(img, **self.coverart_args)
-                    bitmap = dis_image.image_to_bitmap(processed)
+                    with io.BytesIO(cover_art_bytes) as source, Image.open(source) as img:
+                        processed = dis_image.process_image(img, **self.coverart_args)
+                        bitmap = dis_image.image_to_bitmap(processed)
                     
                     cover_data = {
                         'bitmap_hex': bitmap.hex(),
+                        'image_hex': bytes(cover_art_bytes).hex(),
                         'is_new_track': is_new_track,
                         'timestamp': time.time()
                     }
-                    self.safe_pub.publish(b'HUDIY_COVERART', cover_data)
-                    logger.info(f"Published Cover Art to DIS | New Track: {is_new_track}")
+                    if self.safe_pub.publish(b'HUDIY_COVERART', cover_data):
+                        self.last_coverart_hash = current_hash
+                        logger.info(f"Queued Cover Art to DIS | New Track: {is_new_track}")
+                    else:
+                        logger.warning("Cover art publisher stopped; retaining hash for retry.")
                 except Exception as e:
                     logger.error(f"Failed to process cover art: {e}")
             elif self.last_coverart_hash != current_hash:
                 logger.info(f"Cover art hash CHANGED: {self.last_coverart_hash} -> {current_hash}. Republishing.")
-                self.last_coverart_hash = current_hash
                 # Reuse the publishing logic...
                 try:
-                    img = Image.open(io.BytesIO(cover_art_bytes))
-                    processed = dis_image.process_image(img, **self.coverart_args)
-                    bitmap = dis_image.image_to_bitmap(processed)
-                    cover_data = { 'bitmap_hex': bitmap.hex(), 'is_new_track': False, 'timestamp': time.time() }
-                    self.safe_pub.publish(b'HUDIY_COVERART', cover_data)
+                    with io.BytesIO(cover_art_bytes) as source, Image.open(source) as img:
+                        processed = dis_image.process_image(img, **self.coverart_args)
+                        bitmap = dis_image.image_to_bitmap(processed)
+                    cover_data = { 'bitmap_hex': bitmap.hex(), 'image_hex': bytes(cover_art_bytes).hex(), 'is_new_track': False, 'timestamp': time.time() }
+                    if self.safe_pub.publish(b'HUDIY_COVERART', cover_data):
+                        self.last_coverart_hash = current_hash
+                    else:
+                        logger.warning("Cover art publisher stopped; retaining hash for retry.")
                 except Exception as e:
                     logger.error(f"Failed to republish changed cover art: {e}")
             else:
@@ -523,8 +528,11 @@ class SafePublisher:
         self.thread.start()
 
     def publish(self, topic, data):
-        if self.running:
-            self.queue.put((topic, data))
+        """Return whether the worker queue accepted this publication."""
+        if not self.running:
+            return False
+        self.queue.put((topic, data))
+        return True
 
     def _worker(self):
         ctx = zmq.Context()

@@ -1,0 +1,130 @@
+Native 128x96 bitmap path (opt-in)
+
+Scope and evidence
+------------------
+The connected A3 white cluster has physically displayed all16 native2x2-cell
+patterns, complete native cow and apes, and plane/band alternatives. Compact
+completed-tile palettes also matched all16 patterns; larger3x2/9x3/17x3/24x3
+ROI comparisons looked matching. These observations concern the workspace
+compiler/bench strategy. Current production native dispatch was also run
+in the graphics-only bench harness for a Google-source nav view (1366 bytes,
+31 messages; transport ACK in0.258seconds). This checks actual service methods
+and frame dispatch, not the full daemon loop or delta recovery on hardware.
+Tile/delta recovery has regression coverage; no TT native benchmark or new
+processing-quality claim is established by these tests.
+
+Transport ACK is NOT LCD completion.39 is not an established whole-screen
+presentation barrier. Settled correct pixels and transport timing do not
+prove atomic scanout or measured LCD FPS. The cluster can expose intermediate
+whole-image passes; completed tiles are intended to keep a tile's base and
+corrections together, not to make a complete image appear atomically.
+
+Frontend and IPC
+----------------
+DisplayEngine.draw_native_bitmap(source, *, render_order='planes',
+                                band_rows=12, delta=False)
+accepts exactly1536 packed bytes (128x96, MSB-first,16 bytes per physical row),
+or a Pillow mode1 image of exactly128x96. Bit1 is foreground. This API does
+not resize, dither or threshold implicitly. It returns True when one existing
+IPC frame is queued; False while not ready, paused, awaiting previous-frame
+feedback, or queueing fails. Wait for the existing matching DRAW_ACK/DRAW_NACK
+before submitting another frame. Queueing success is not presentation.
+
+render_order choices:
+  planes: whole-image opaque base, vertical/horizontal/dot correction passes.
+          This remains the direct API default.
+  bands:  finish each row band before moving down. band_rows is integer1..48;
+          band_rows=12 is the physically compared profile.
+  tiles:  each <=105-byte application message contains a tile's narrow52 ROI,
+          opaque55 base and ALL63 corrections. Each63 immediately follows
+          its own in-bounds zero-mask55mode1 selector in the SAME message.
+          NativeV/H runs remain capped15; dot length is1. Tile height<=12.
+          The compiler restores full-center clipping in the final tile if
+          it fits, otherwise in a separate final52. It does not reset every
+          tile. band_rows does not select tile geometry.
+
+delta is a boolean option supported ONLY with render_order='tiles'. False
+draws the complete image. True asks the service to omit unchanged tiles when
+it has a trusted intact previous native snapshot; otherwise it draws a full
+opaque tiled keyframe automatically. Changed tiles may include unchanged
+neighbor pixels for merging, but always repaint a complete opaque tile plus
+its corrections. This is NOT XOR-only delta and does not retain state inside
+the compiler. There is no guaranteed wire/FPS win for arbitrary content.
+
+Example:
+  engine.draw_native_bitmap(image, render_order='tiles', delta=True)
+  engine.draw_native_bitmap(image, render_order='bands', band_rows=12)
+
+Service IPC, directly or as a child in an ordinary frame envelope:
+{"command":"draw_native_bitmap","x":0,"y":0,"w":128,"h":96,
+ "data_hex":"<1536-byte bitmap as3072 hex characters>",
+ "render_order":"tiles","delta":true}
+A direct command may carry seq; a frame envelope supplies its own seq.
+App view commands use cmd='native_bitmap' with data_hex/render_order/delta;
+DisplayEngine translates them to the same service command and feedback flow.
+Only the white cluster center (logical offset27,height48) is supported.
+Malformed images/other regions are rejected before drawing; a native frame
+cannot also change its region. The service preflights the complete image,
+sends through the existing guarded graphics transport, and reports one final
+matched frame result. Native105-byte packing is independent of ordinary
+bitmap settings. This API does not change CAN gaps, ACK limits or flashing
+exclusion controls.
+
+Retained pixels, recovery and overlays
+-------------------------------------
+The service chooses delta at SEND time, not preflight time. It checks the
+current DDP state generation against the previous native transfer's generation.
+Overlays/text/lines/ordinary graphics, clears, screen release/FREE, reset or
+reinitialization, and failed/partial graphics transfers invalidate the trusted
+native image. Final commit failure also invalidates it. A generation change
+during native transfer fails the frame; the next native update needs a full
+keyframe. Never infer an intact LCD from an old intended image after an
+interruption. Clients still use matching whole-frame ACK/NACK backpressure.
+
+Full native snapshots replace the center's old redraw cache. The cache keeps
+the ORIGINAL FULL image and render options, not individual XOR strokes or
+just changed tiles. Redraw clears/rebuilds that snapshot, then restores newer
+text/line overlays in their original order. Clearing for recovery invalidates
+the previous pixel assumption, so a cached delta request rebuilds a full
+opaque keyframe. Original image/options remain available for further redraws.
+
+Cover-art configuration and selected processing baseline
+-------------------------------------------------------
+Merge these options into display.center_display.coverart, retaining existing
+brief and args. Native rendering is disabled by default; direct API defaults
+and existing ordinary bitmap/text processing remain unchanged.
+
+  "native_resolution": true,
+  "native_preset": "legacy",
+  "native_args": {},
+  "native_render_order": "tiles",
+  "native_delta": false
+
+native_delta is opt-in and requires native_render_order='tiles'. Keep it false
+until the production service runtime is exercised on the intended hardware.
+Planes and bands remain available as native_render_order alternatives.
+
+The user preferred legacy128 to the new comparison presets. 'legacy' is now
+the native processing default: existing process_image at128x96 with EXACTLY
+the existing coverart.args (target_size excluded). native_args explicitly
+overrides those controls. Current comparison baseline uses contrast1.9,
+gamma2.2, black_floor45 and FS dithering; it is not replaced by a washed-gray
+pipeline. Tests and18-image previews verify byte-identical legacy128 output.
+balanced/photo/text remain explicit ordered/serpentine/threshold comparisons.
+Preview-only legacy-threshold/sharpen/contrast/gamma/edge-hybrid alternatives
+have not been promoted or established as a quality improvement.
+
+CoverArtApp decodes original HUDIY_COVERART.image_hex once per received source
+(4MiB encoded/8MP decoded bounds), stores the1536-byte native image, and does
+no processing inside get_view. It can also accept native_bitmap_hex. Existing
+bitmap_hex remains the legacy fallback if native art is absent/invalid. Empty
+art explicitly clears the previous cover before its placeholder text.
+
+Historical transport observations
+---------------------------------
+Whole-pass native cow transfers took about0.6seconds on the500kbps workspace
+bench profile; detailed apes required18-30KB and3-5seconds. Plane and12-row
+banded apes were manually verified, and the user attributed apparent odd
+pixel artifacts there to image processing. Those historical measurements
+are complete-image transport times, not independent LCD FPS or a benchmark
+of the new production completed-tile/delta service path.

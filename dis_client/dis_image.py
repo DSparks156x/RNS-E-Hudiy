@@ -9,6 +9,7 @@ Pipeline order:
   adaptive black floor → dither (Atkinson default)
 """
 import time
+import math
 from PIL import Image, ImageOps, ImageEnhance, ImageFilter, ImageChops, ImageMorph
 import numpy as np
 
@@ -455,6 +456,142 @@ def process_image(
     return gray.convert('1', dither=Image.FLOYDSTEINBERG)
 
 
+# Native cover-art processing is separate so explicit legacy process_image
+# calls and their defaults keep their existing output.
+NATIVE_IMAGE_PRESETS = {
+    'legacy': dict(contrast=1.4, sharpen=1.5, dither='fs', invert=False,
+                   no_enhance=False, bg_fill='black', grayscale_mode='smart',
+                   brightness=1.0, gamma=2.2, black_floor=45, boldness=0.0,
+                   diffusion=0.85),
+    'balanced': dict(dither='ordered', fit='contain', grayscale_mode='smart',
+                     contrast=1.05, brightness=1.0, gamma=1.0, sharpen=0.6,
+                     black_floor=8, threshold=128, invert=False),
+    'photo': dict(dither='serpentine', fit='contain', grayscale_mode='smart',
+                  contrast=1.05, brightness=1.0, gamma=1.0, sharpen=0.5,
+                  black_floor=4, threshold=128, invert=False),
+    'text': dict(dither='threshold', fit='contain', grayscale_mode='smart',
+                 contrast=1.0, brightness=1.0, gamma=1.0, sharpen=0.0,
+                 black_floor=0, threshold=128, invert=False),
+}
+
+
+def native_image_options(preset='legacy', **overrides):
+    """Validate native128x96 options; return a fresh preset/override mapping.
+
+    legacy(default): existing processing at128x96; accepts existing cover args.
+    balanced: fixed4x4 ordered texture, stable for repeat/static images.
+    photo: serpentine Floyd-Steinberg, more tonal detail and more pixel noise.
+    text: simple threshold, crisp high-contrast logos but fewer gray details.
+    Comparison presets balanced/photo/text omit CLAHE/autocontrast/dilation.
+    Legacy retains its established global autocontrast and explicit controls.
+    """
+    if not isinstance(preset, str) or preset not in NATIVE_IMAGE_PRESETS:
+        raise ValueError('Native image preset must be legacy, balanced, photo or text')
+    options = dict(NATIVE_IMAGE_PRESETS[preset])
+    unknown = set(overrides) - set(options)
+    if unknown:
+        raise ValueError('Unknown native image options: ' + ', '.join(sorted(unknown)))
+    options.update(overrides)
+    enum_options = (('dither', ('fs', 'atkinson', 'none')),
+                    ('bg_fill', ('black', 'white', 'edge', 'blur')),
+                    ('grayscale_mode', ('smart', 'weighted', 'max', 'balanced'))) if preset == 'legacy' else (
+                    ('dither', ('ordered', 'serpentine', 'threshold')),
+                    ('fit', ('contain', 'cover')),
+                    ('grayscale_mode', ('smart', 'weighted')))
+    for key, choices in enum_options:
+        if options[key] not in choices:
+            raise ValueError(f'Native {key} must be one of {choices}')
+    float_options = [('contrast', 0, 3), ('brightness', 0, 3),
+                     ('gamma', 0.25, 4), ('sharpen', 0, 2)]
+    if preset == 'legacy':
+        float_options += [('boldness', 0, 3), ('diffusion', 0, 1)]
+    for key, low, high in float_options:
+        value = options[key]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not low <= value <= high:
+            raise ValueError(f'Native {key} must be finite in {low}..{high}')
+    integer_options = (('black_floor', 255),) if preset == 'legacy' else (('black_floor', 127), ('threshold', 255))
+    for key, high in integer_options:
+        value = options[key]
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= high:
+            raise ValueError(f'Native {key} must be an integer in 0..{high}')
+    for key in ('invert', 'no_enhance') if preset == 'legacy' else ('invert',):
+        if not isinstance(options[key], bool):
+            raise ValueError(f'Native {key} must be a boolean')
+    return options
+
+
+def _native_dither(gray, method, threshold=128):
+    width, height = gray.size
+    if method == 'threshold':
+        return gray.point(lambda value: 255 if value >= threshold else 0).convert('1', dither=Image.Dither.NONE)
+    output = Image.new('1', gray.size)
+    destination = output.load()
+    if method == 'ordered':
+        matrix = ((0, 8, 2, 10), (12, 4, 14, 6), (3, 11, 1, 9), (15, 7, 13, 5))
+        source = gray.load()
+        for y in range(height):
+            for x in range(width):
+                # A fixed image-space phase avoids random temporal texture.
+                level = (matrix[y % 4][x % 4] + 0.5) * 16 + threshold - 128
+                value = source[x, y]
+                destination[x, y] = 255 if value == 255 or value > 0 and value >= level else 0
+        return output
+    flat = gray.tobytes()
+    pixels = [[float(value) for value in flat[y * width:(y + 1) * width]] for y in range(height)]
+    for y in range(height):
+        direction = 1 if y % 2 == 0 else -1
+        positions = range(width) if direction == 1 else range(width - 1, -1, -1)
+        for x in positions:
+            old = pixels[y][x]
+            new = 255 if old >= threshold else 0
+            destination[x, y] = new
+            error = old - new
+            for dx, dy, weight in ((direction, 0, 7 / 16), (-direction, 1, 3 / 16),
+                                   (0, 1, 5 / 16), (direction, 1, 1 / 16)):
+                px, py = x + dx, y + dy
+                if 0 <= px < width and py < height:
+                    pixels[py][px] += error * weight
+    return output
+
+
+def process_native_image(img: Image.Image, preset='legacy', **overrides) -> Image.Image:
+    """Deterministic native cover art; exact128x96 mode1/1536 packed bytes.
+
+    Default legacy calls existing process_image at128x96 with the SAME args.
+    No additional alpha, EXIF, tone or dither changes are introduced there.
+    For comparison presets, preserve aspect ratio: contain on a black canvas.
+    fit='cover' intentionally crops to fill; callers explicitly choose it.
+    Alpha is composited against black; source pixels/mode are not mutated.
+    Mild final-size sharpening replaces legacy gamma2.2/global stretching.
+    Optional threshold also controls ordered/diffusion brightness midpoint.
+    """
+    options = native_image_options(preset, **overrides)
+    if preset == 'legacy':
+        return process_image(img, target_size=(128, 96), **options)
+    source = ImageOps.exif_transpose(img).convert('RGBA')
+    if options['fit'] == 'cover':
+        source = ImageOps.fit(source, (128, 96), method=Image.Resampling.LANCZOS)
+    else:
+        source = ImageOps.contain(source, (128, 96), method=Image.Resampling.LANCZOS)
+    canvas = Image.new('RGBA', (128, 96), (0, 0, 0, 255))
+    canvas.alpha_composite(source, ((128 - source.width) // 2, (96 - source.height) // 2))
+    rgb = canvas.convert('RGB')
+    if options['invert']:
+        rgb = ImageOps.invert(rgb)
+    gray = smart_grayscale(rgb) if options['grayscale_mode'] == 'smart' else rgb.convert('L')
+    if options['gamma'] != 1:
+        gray = gray.point([round((value / 255) ** options['gamma'] * 255) for value in range(256)])
+    if options['brightness'] != 1:
+        gray = ImageEnhance.Brightness(gray).enhance(options['brightness'])
+    if options['contrast'] != 1:
+        gray = ImageEnhance.Contrast(gray).enhance(options['contrast'])
+    if options['sharpen']:
+        gray = gray.filter(ImageFilter.UnsharpMask(radius=0.7, percent=round(options['sharpen'] * 100), threshold=3))
+    if options['black_floor']:
+        gray = gray.point(lambda value: 0 if value < options['black_floor'] else value)
+    return _native_dither(gray, options['dither'], options['threshold'])
+
+
 # ---------------------------------------------------------------------------
 #  Bitmap conversion (unchanged)
 # ---------------------------------------------------------------------------
@@ -479,3 +616,69 @@ def image_to_bitmap(img: Image.Image) -> bytes:
             bitmap_bytes.append(byte_val)
             
     return bytes(bitmap_bytes)
+
+
+def extract_deltas_optimized(prev_img, curr_img):
+    """Cover changed bytes with rectangles that reduce CAN frames and ACKs.
+
+    Draws current pixels throughout each selected rectangle, so including a
+    few unchanged bytes/rows is safe. Application messages retain the existing
+    42-byte whole-command packing; this does not combine drawing windows on wire.
+    """
+    w, h = curr_img.size
+    if w % 8:
+        raise ValueError('Optimized bitmap width must be a multiple of eight')
+    if prev_img is not None and prev_img.size != curr_img.size:
+        raise ValueError('Delta image sizes must match')
+    width = w // 8
+    current = curr_img.convert('1').tobytes()
+    previous = prev_img.convert('1').tobytes() if prev_img is not None else None
+    dirty = []
+    for y in range(h):
+        changed = [x for x in range(width) if previous is None or
+                   current[y * width + x] != previous[y * width + x]]
+        if changed:
+            dirty.append((y, changed[0], changed[-1] + 1))
+    if not dirty:
+        return []
+
+    cost_cache = {}
+    def wire_cost(byte_width, height):
+        key = (byte_width, height)
+        if key in cost_cache:
+            return cost_cache[key]
+        # One window command, bitmap row commands, then the region reset.
+        # Count CAN data frames and one ACK per message using the current
+        # whole-command 42-byte packer. No assumed LCD or adapter timing.
+        used = frames = messages = 0
+        for size in [7] + [5 + byte_width] * height + [7]:
+            if used and used + size > 42:
+                frames += (used + 6) // 7
+                messages += 1
+                used = 0
+            used += size
+        cost_cache[key] = frames + (used + 6) // 7 + messages + 1
+        return cost_cache[key]
+
+    n = len(dirty)
+    costs = [float('inf')] * n + [0]
+    choices = [None] * n
+    for i in range(n - 1, -1, -1):
+        left, right = dirty[i][1:]
+        for j in range(i, n):
+            left = min(left, dirty[j][1])
+            right = max(right, dirty[j][2])
+            height = dirty[j][0] - dirty[i][0] + 1
+            cost = wire_cost(right - left, height) + costs[j + 1]
+            if cost <= costs[i]:
+                costs[i] = cost
+                choices[i] = (j, left, right, height)
+    blocks, i = [], 0
+    while i < n:
+        j, left, right, height = choices[i]
+        y = dirty[i][0]
+        data = b''.join(current[row * width + left:row * width + right]
+                        for row in range(y, y + height))
+        blocks.append({'x': left * 8, 'y': y, 'h': height, 'data': data})
+        i = j + 1
+    return blocks

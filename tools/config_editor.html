@@ -574,6 +574,7 @@
             "display.center_display.enabled": { help: "Enable or disable the cluster display service.", type: "boolean" },
             "display.center_display.mode": { label: "Default App", help: "Initial display mode.", type: "select", options: ["nav", "media", "phone", "car_info", "acceleration_test"] },
             "display.center_display.applist": { label: "Configured Applications", help: "Cycleable applications in order.", options: ["nav", "media", "phone", "car_info", "acceleration_test", "coverart"] },
+            "display.center_display.navigation.high_resolution": { label: "Native Navigation Icons", help: "Use crisp 72x72 icons on a 128x96 white DIS canvas. Disabled keeps legacy icons; distance and street text use the cluster font.", type: "boolean" },
             "display.center_display.navigation.auto_switch": { help: "Automatic switching to Nav app.", type: "boolean" },
             "display.center_display.navigation.auto_switch_approach_threshold": { help: "Auto switch distance (meters).", type: "number" },
             "display.center_display.navigation.auto_switch_return_threshold": { help: "Switch back distance (meters).", type: "number" },
@@ -581,6 +582,11 @@
             "display.center_display.navigation.claim_on_nav": { help: "Auto-claim center display when a route starts and release when it ends.", type: "boolean" },
             "display.center_display.coverart": { label: "Album Cover Art" },
             "display.center_display.coverart.brief": { help: "Show briefly on track start (5s).", type: "boolean" },
+            "display.center_display.coverart.native_resolution": { label: "Native Cover Art", help: "Render covers at 128x96 physical pixels on white DIS. Disabled keeps the 64x48 bitmap path.", type: "boolean" },
+            "display.center_display.coverart.native_preset": { label: "Native Image Preset", help: "legacy uses existing Processing Args at native resolution; balanced uses ordered dither; photo uses error diffusion; text uses a crisp threshold.", type: "select", options: ["legacy", "balanced", "photo", "text"] },
+            "display.center_display.coverart.native_args": { label: "Native Processing Overrides", type: "json", help: "JSON object of overrides for the selected native preset. Empty uses its defaults. With legacy, these override Processing Args. Dimensions stay 128x96." },
+            "display.center_display.coverart.native_render_order": { label: "Native Draw Order", help: "tiles completes small regions before moving on. planes draws the base then subpixel layers; bands completes horizontal strips. All produce the same target pixels.", type: "select", options: ["tiles", "planes", "bands"] },
+            "display.center_display.coverart.native_delta": { label: "Native Changed Tiles", help: "Send only changed tiles after an acknowledged image. Requires tiles draw order. Disabled sends a full snapshot for each cover.", type: "boolean" },
             "display.center_display.coverart.args": { label: "Processing Args", type: "json", help: "JSON object for dis_image.process_image overrides." },
             "display.center_display.acceleration_test": { label: "Acceleration Test" },
             "display.center_display.acceleration_test.auto_reset_on_stop": { label: "Auto Reset on Stop", help: "Resets acceleration timers when stopped for configured delay.", type: "boolean" },
@@ -630,6 +636,7 @@
             "display.units.boost": { help: "Boost Units.", type: "select", options: ["imperial", "metric", "car"] },
             "display.units.cartemp": { help: "Car Temperature units (oil/coolant).", type: "select", options: ["imperial", "metric", "car"] },
             "display.units.boost_mode": { help: "Absolute manifold pressure or manifold minus atmosphere", type: "select", options: ["absolute", "relative"] },
+            "display.font_resolution": { label: "Cluster Font Metrics", help: "native uses the captured white-cluster font advances; legacy uses the red-cluster reference advances. This controls text layout, independently of navigation/cover-art bitmap resolution.", type: "select", options: ["native", "legacy"] },
             "display.text_scrolling.continuous": { help: "Loop long text indefinitely.", type: "boolean" },
             "display.text_scrolling.continuous_gap": { help: "space between end and start of scroll text" },
             "display.text_scrolling.speed_ms": { help: "Delay between scroll steps (ms).", type: "number" },
@@ -773,13 +780,51 @@
             }
         };
 
+        // Missing keys in older imports receive compatibility defaults only.
+        const NATIVE_DISPLAY_DEFAULTS = {
+            "display.font_resolution": "native",
+            "display.center_display.navigation.high_resolution": false,
+            "display.center_display.coverart.native_resolution": false,
+            "display.center_display.coverart.native_preset": "legacy",
+            "display.center_display.coverart.native_args": {},
+            "display.center_display.coverart.native_render_order": "tiles",
+            "display.center_display.coverart.native_delta": false
+        };
+
+        function addNativeDisplayDefaults(config) {
+            for (const [path, value] of Object.entries(NATIVE_DISPLAY_DEFAULTS)) {
+                const parts = path.split('.');
+                let target = config;
+                for (const part of parts.slice(0, -1)) {
+                    if (!target || typeof target !== 'object' || Array.isArray(target)) break;
+                    if (!Object.prototype.hasOwnProperty.call(target, part)) target[part] = {};
+                    target = target[part];
+                }
+                if (target && typeof target === 'object' && !Array.isArray(target)) {
+                    const key = parts[parts.length - 1];
+                    if (!Object.prototype.hasOwnProperty.call(target, key)) {
+                        target[key] = JSON.parse(JSON.stringify(value));
+                    }
+                }
+            }
+            return config;
+        }
+
+        function parseObjectSetting(text) {
+            const value = JSON.parse(text);
+            if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+                throw new Error("Expected a JSON object");
+            }
+            return value;
+        }
+
         document.getElementById('file-input').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
-                    currentConfig = JSON.parse(e.target.result);
+                    currentConfig = addNativeDisplayDefaults(JSON.parse(e.target.result));
                     renderForm();
                     showToast("Configuration Loaded");
                 } catch (err) {
@@ -957,8 +1002,8 @@
             }
             const hideKeys = (path.includes('long_press') || path.includes('extended_press')) ? ['0,32', '0,64'] : [];
 
-            const fields = entries.filter(([k, v]) => (typeof v !== 'object' || v === null || Array.isArray(v)) && !bottomKeys.includes(k) && !hideKeys.includes(k));
-            const nested = entries.filter(([k, v]) => typeof v === 'object' && v !== null && !Array.isArray(v) && !bottomKeys.includes(k));
+            const fields = entries.filter(([k, v]) => (SCHEMA[`${path}.${k}`]?.type === 'json' || typeof v !== 'object' || v === null || Array.isArray(v)) && !bottomKeys.includes(k) && !hideKeys.includes(k));
+            const nested = entries.filter(([k, v]) => SCHEMA[`${path}.${k}`]?.type !== 'json' && typeof v === 'object' && v !== null && !Array.isArray(v) && !bottomKeys.includes(k));
             const bottomFields = entries.filter(([k, _]) => bottomKeys.includes(k));
 
             function renderNestedGroup(key, val, p) {
@@ -1255,13 +1300,18 @@
                 input.value = JSON.stringify(value || {}, null, 2);
                 input.onchange = (e) => {
                     try {
-                        const v = JSON.parse(e.target.value);
+                        const v = parseObjectSetting(e.target.value);
                         setValueByPath(path, v);
                         showToast(`Updated ${labelText}`);
                     } catch (err) {
                         alert("Invalid JSON: " + err.message);
                     }
                 };
+                // Preserve the object parser instead of replacing it with the
+                // generic text-input handler below.
+                group.appendChild(input);
+                container.appendChild(group);
+                return;
             } else {
                 input = document.createElement('input');
                 input.type = 'text';

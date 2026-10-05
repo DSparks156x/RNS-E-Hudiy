@@ -1,0 +1,6 @@
+{
+  "name": "native-nav-icon-renderer",
+  "private": true,
+  "description": "Development-only SVG renderer for approved native DIS navigation assets",
+  "devDependencies": { "sharp": "0.35.4" }
+}

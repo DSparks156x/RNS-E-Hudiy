@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 import logging
 import json
 import os
+from nav_icons import canvas_for_icon
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,11 @@ class NavApp(BaseApp):
         except Exception as e:
             logger.error(f"Failed to load config for road_side: {e}")
 
+        # The running service configuration takes precedence over the file.
+        configured_side = (self.config.get('display') or {}).get('road_side')
+        if configured_side in ('left', 'right'):
+            self.road_side = configured_side
+
     def on_enter(self):
         super().on_enter()
         try:
@@ -62,7 +68,7 @@ class NavApp(BaseApp):
             self.maneuver_side = data.get('maneuver_side', 3)
             self.maneuver_angle = data.get('maneuver_angle', 0)
             if 'distance' in data:
-                self.distance_label = data['distance']
+                self.distance_label = self._normalize_distance_label(data['distance'])
                 self._meters = self.parse_distance(self.distance_label)
             else:
                 # Maneuver details arrive before their matching distance. Do
@@ -71,7 +77,7 @@ class NavApp(BaseApp):
                 self._meters = -1.0
 
         elif topic == b'HUDIY_NAV_DISTANCE':
-            self.distance_label = data.get('label', '')
+            self.distance_label = self._normalize_distance_label(data.get('label', ''))
             self._meters = self.parse_distance(self.distance_label)
 
     def handle_input(self, action):
@@ -173,7 +179,16 @@ class NavApp(BaseApp):
     @property
     def has_route(self) -> bool:
         """Whether Hudiy has supplied actual maneuver data."""
-        return bool(self.description or self.distance_label)
+        return bool(self.description or self.distance_label) or self._meters >= 0
+
+    @staticmethod
+    def _normalize_distance_label(label: Any):
+        """Blank labels are absent; numeric zero remains a real distance."""
+        if label is None:
+            return ""
+        if isinstance(label, str):
+            return label.strip()
+        return label
 
     @staticmethod
     def parse_distance(label: Any) -> float:
@@ -187,7 +202,9 @@ class NavApp(BaseApp):
             
         try:
             s = str(label).lower().strip()
-            if not s or 'now' in s or 'arrived' in s:
+            if not s:
+                return -1.0
+            if s in ('now', 'arrived'):
                 return 0.0
             
             import re
@@ -237,6 +254,83 @@ class NavApp(BaseApp):
             return m.group(1), m.group(2)
         return s, ""
 
+    @staticmethod
+    def _format_distance_value(value, fractional=False, max_chars=4):
+        """Bound numbers to the bench-confirmed slot, in the displayed unit.
+
+        Keep small km/mi fractions; k/M/G/T multiply the unit shown below.
+        When a value cannot fit even compact notation, show a lower bound.
+        """
+        import math
+        if not math.isfinite(value) or value < 0:
+            return "?"
+        if fractional and value < 100:
+            number = f"{value:.1f}"
+            if len(number) <= max_chars:
+                return number
+        number = str(int(round(value)))
+        if len(number) <= max_chars:
+            return number
+
+        largest_suffix = ""
+        for scale, suffix in ((1000, 'k'), (1000000, 'M'),
+                              (1000000000, 'G'), (1000000000000, 'T')):
+            scaled = value / scale
+            if scaled < 1 and round(scaled, 1) < 1:
+                break
+            largest_suffix = suffix
+            if scaled < 10:
+                number = f"{scaled:.1f}" + suffix
+                if len(number) <= max_chars:
+                    return number
+            number = str(int(round(scaled))) + suffix
+            if len(number) <= max_chars:
+                return number
+        # Explicitly bounded saturation is preferable to clipping significant
+        # digits or accidentally displaying zero after scaling too far.
+        return '>' + '9' * (max_chars - 2) + largest_suffix
+
+    @staticmethod
+    def _bound_distance_label(text, max_chars=3):
+        """Unknown text uses a conservative three-wide-glyph slot."""
+        text = str(text).strip()
+        return text if len(text) <= max_chars else text[:max_chars - 1] + '.'
+
+    def _fit_distance_value(self, value, fractional, width_px):
+        """Choose complete rounded numbers; never clip significant digits."""
+        import math
+        if not math.isfinite(value) or value < 0:
+            return "?"
+
+        def fits(candidate):
+            return self.text_width(candidate, flags=0x06) <= width_px
+
+        if fractional and value < 100:
+            candidate = f"{value:.1f}"
+            if fits(candidate):
+                return candidate
+        candidate = str(int(round(value)))
+        if fits(candidate):
+            return candidate
+        for scale, suffix in ((1000, 'k'), (1000000, 'M'),
+                              (1000000000, 'G'), (1000000000000, 'T')):
+            scaled = value / scale
+            if scaled < 1 and round(scaled, 1) < 1:
+                break
+            if scaled < 10:
+                candidate = f"{scaled:.1f}" + suffix
+                if fits(candidate):
+                    return candidate
+            candidate = str(int(round(scaled))) + suffix
+            if fits(candidate):
+                return candidate
+        # State an explicit lower bound instead of clipping an enormous value.
+        for digits in range(8, 0, -1):
+            candidate = '>' + '9' * digits + 'T'
+            if fits(candidate):
+                return candidate
+        return "?"
+
     def _get_progress_height(self) -> int:
         """Convert distance string to bar height (0..48 px, configured m = full)"""
         val = self._meters
@@ -264,10 +358,10 @@ class NavApp(BaseApp):
 
     def get_view(self) -> List[Dict]:
         # If no route, show text fallback
-        if not self.description and not self.distance_label:
+        if not self.has_route:
             return [
                 {'type': 'nav_no_route', 'clear_on_update': True},
-                {'group': 'no_route_1', 'cmd': 'draw_text', 'text': "No Route".center(11), 'x': 0, 'y': 21, 'flags': 0x06},
+                {'group': 'no_route_1', 'cmd': 'draw_text', 'text': "No Route", 'x': max(0, (128 - self.text_width("No Route", flags=0x06)) // 4), 'y': 21, 'flags': 0x06},
                 {'group': 'no_route_2', 'cmd': 'draw_text', 'text': "" .ljust(16), 'x': 0, 'y': 31, 'flags': 0x06}
             ]
 
@@ -286,38 +380,63 @@ class NavApp(BaseApp):
         # Build graphical command list
         # The 'type' key is used by the engine for caching signatures
         # 'clear_on_update': False prevents the engine from sending 'clear_payload', avoid flicker
-        commands = [{'type': 'nav_graphic_v2', 'clear_on_update': False}]
+        display = self.config.get('display') or {}
+        center_display = display.get('center_display') or {}
+        navigation = center_display.get('navigation') or {}
+        native = navigation.get('high_resolution') is True
+        commands = [{
+            'type': 'nav_graphic_native' if native else 'nav_graphic_v2',
+            'clear_on_update': False,
+        }]
 
-        # 1. Big arrow — moved UP to Y=1, and RIGHT to X=4
-        commands.append({
-            'group': 'arrow',
-            'cmd': 'draw_bitmap',
-            'icon': icon_key,
-            'x': 4,
-            'y': 1   # Moved up to maximize vertical space
-        })
+        if native:
+            # Only replace the72x72 icon at physical(6,2); its reserved rectangle
+            # leaves distance/street/bar pixels intact on maneuver changes.
+            commands.append({
+                'group': 'icon',
+                'cmd': 'native_bitmap',
+                'update_rect': [6, 2, 72, 72],
+                'preserves_overlays': True,
+                'data_hex': canvas_for_icon(icon_key).hex(),
+                'render_order': 'tiles',
+            })
+        else:
+            commands.append({
+                'group': 'arrow',
+                'cmd': 'draw_bitmap',
+                'icon': icon_key,
+                'x': 4,
+                'y': 1,
+            })
 
         # 2. Distance (top-right) — only draw if we have real data
         speed_unit = self.get_effective_unit('speed', 'imperial')
         
-        # Determine value and unit strings based on configuration
+        # Logical x42 leaves44 physical pixels, or38 before the bar at x61.
+        distance_width = 38 if bar_h > 0 else 44
         if self._meters >= 0:
+            fractional = False
             if speed_unit == 'imperial':
                 if self._meters < 160.9: # 0.1 mile is 160.934 meters
-                    val_str = str(int(round(self._meters * 3.28084)))
+                    value = self._meters * 3.28084
                     unit_str = "ft"
                 else:
-                    val_str = f"{self._meters / 1609.344:.1f}"
+                    value = self._meters / 1609.344
                     unit_str = "mi"
+                    fractional = True
             else: # metric
                 if self._meters < 1000.0:
-                    val_str = str(int(round(self._meters)))
+                    value = self._meters
                     unit_str = "m"
                 else:
-                    val_str = f"{self._meters / 1000.0:.1f}"
+                    value = self._meters / 1000.0
                     unit_str = "km"
+                    fractional = True
+            val_str = self._fit_distance_value(value, fractional, distance_width)
         else:
             val_str, unit_str = self._split_distance(self.distance_label)
+            val_str = self.fit_text(val_str, distance_width, flags=0x06)
+            unit_str = self.fit_text(unit_str, distance_width, flags=0x06)
         
         # When bar_h == 0 (no bar), we can safely clear the entire remaining width (w=22, up to x=63).
         # This handles 4-digit distances that reach into the bar's empty coordinate space.
@@ -404,18 +523,18 @@ class NavApp(BaseApp):
                 street = street.lower().split(p.lower(), 1)[-1]
                 break
 
-        # Determine if it needs to scroll
-        scrolling = len(street) > 12
-        max_len = 12
-        
-        # Use 'center' alignment if it fits, 'left' if it scrolls
-        align_mode = 'center' if not scrolling else 'left'
-        street_display = self._scroll_text(street, 'nav_street', max_len, align=align_mode)
-        
-        # Set flags based on whether it is scrolling
-        street_flags = self.FLAG_ITEM if scrolling else self.FLAG_ITEM_CENTERED
-        # When left-aligned, start at x=2. When centered, start at x=0
-        street_x = 2 if scrolling else 0
+        # Reserve the bar and a one-logical-pixel left/right margin. Text
+        # advances are physical pixels; command coordinates remain logical.
+        street_right = 61 if bar_h > 0 else 64
+        street_width = (street_right - 2) * 2
+        scrolling = self.text_width(street, flags=0x06) > street_width
+        street_display = self._scroll_text(
+            street, 'nav_street', max_width_px=street_width, font_flags=0x06,
+            align='left')
+        street_flags = self.FLAG_ITEM
+        # Manual centering respects the viewport, unlike full-screen 0x20.
+        street_x = 1 if scrolling else 1 + max(
+            0, (street_width - self.text_width(street_display, flags=0x06)) // 4)
 
         street_commands = [
             # First clear the street name area surgically (x=0 to x=60)
@@ -425,7 +544,7 @@ class NavApp(BaseApp):
                 'cmd': 'clear_area',
                 'x': 0,
                 'y': 39,
-                'w': 61,
+                'w': street_right,
                 'h': 9
             },
             # Then draw the actual centered/scrolling text on top
@@ -454,16 +573,23 @@ class NavApp(BaseApp):
             bar_commands.append({'cmd': 'draw_line', 'x': 62, 'y': start_y, 'length': bar_h, 'vertical': True})
             bar_commands.append({'cmd': 'draw_line', 'x': 63, 'y': start_y, 'length': bar_h, 'vertical': True})
 
-        # Append bar commands to both dist_commands and street_commands groups, 
-        # so the bar is drawn AFTER either is updated.
+        # Each independently updated group restores its bar. An absent bar
+        # is cleared before text is allowed to use that space.
         for bc in bar_commands:
             bc_dist = bc.copy()
             bc_dist['group'] = 'dist'
-            dist_commands.append(bc_dist)
-            
             bc_street = bc.copy()
             bc_street['group'] = 'street'
-            street_commands.append(bc_street)
+            if bar_h > 0:
+                dist_commands.append(bc_dist)
+                street_commands.append(bc_street)
+            else:
+                # Groups update independently. Clear only each group's stripe
+                # so its full-width text cannot erase the other's right edge.
+                bc_dist.update(y=0, h=39)
+                bc_street.update(y=39, h=9)
+                dist_commands.insert(0, bc_dist)
+                street_commands.insert(0, bc_street)
 
         commands += dist_commands
         commands += street_commands

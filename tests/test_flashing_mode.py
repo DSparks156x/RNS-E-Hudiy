@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 from flasher import traffic
 from test_haldex_backend import definitions
 import ast
+from collections import deque
 from contextlib import contextmanager
 from enum import Enum, auto
 from types import SimpleNamespace
@@ -159,12 +160,20 @@ class SenderTests(unittest.TestCase):
         obj.bus = bus = Mock()
         obj.state = ns['DDPState'].READY
         obj._last_received_ack = [1]
+        # __new__ avoids opening CAN; initialize the real receive-queue state
+        # with stale session data so the inhibit path must discard it.
+        obj._data_inbox = deque([[0x13, 0x53, 0x05]])
+        obj._last_received_data = [0x14, 0x2E]
+        obj._last_screen_status = 0x05
         with self.assertRaises(ns['DDPCANError']):
             obj.send_can(0x6C0, [1])
         bus.send.assert_not_called()
         bus.shutdown.assert_called_once()
         self.assertIsNone(obj.bus)
         self.assertIsNone(obj._last_received_ack)
+        self.assertEqual(list(obj._data_inbox), [])
+        self.assertIsNone(obj._last_received_data)
+        self.assertIsNone(obj._last_screen_status)
         self.assertEqual(obj.state, ns['DDPState'].DISCONNECTED)
 
     def test_enabled_sender_holds_guard_during_bus_send(self):

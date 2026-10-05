@@ -100,7 +100,8 @@
         "auto_switch_approach_threshold": 500,
         "auto_switch_return_threshold": 1000,
         "approach_bar_max_distance": 300,
-        "claim_on_nav": false
+        "claim_on_nav": false,
+        "high_resolution": false
       },
       "coverart": {
         "brief": true,
@@ -117,7 +118,12 @@
           "black_floor": 45,
           "boldness": 0,
           "diffusion": 0.85
-        }
+        },
+        "native_resolution": false,
+        "native_preset": "legacy",
+        "native_args": {},
+        "native_render_order": "tiles",
+        "native_delta": false
       },
       "acceleration_test": {
         "auto_reset_on_stop": true,
@@ -145,6 +151,7 @@
       "end_delay_ms": 0,
       "line_offset_ms": 2000
     },
+    "font_resolution": "native",
     "text_centering": true,
     "top_display": {
       "applist": [

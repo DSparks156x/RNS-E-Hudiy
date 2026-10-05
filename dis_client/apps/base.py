@@ -1,4 +1,8 @@
 import time
+try:
+    from ..font_metrics import measure_text, fit_text as fit_font_text, font_profile
+except ImportError:
+    from font_metrics import measure_text, fit_text as fit_font_text, font_profile
 
 class BaseApp:
     # --- SHARED DISPLAY FLAGS ---
@@ -85,13 +89,22 @@ class BaseApp:
         """Called by DisplayEngine when a DRAW_ACK with seq is received from the renderer."""
         pass
 
-    def _scroll_text(self, text, key, max_len=14, speed_ms=None, align='left', start_pause_ms=None, end_pause_ms=None, continuous=None):
+    def text_width(self, text, flags=0x06):
+        """Physical-pixel advance using the configured cluster font profile."""
+        return measure_text(text,flags,font_profile(self.config))
+
+    def fit_text(self, text, width, flags=0x06):
+        return fit_font_text(text,width,flags,font_profile(self.config))
+
+    def _scroll_text(self, text, key, max_len=14, speed_ms=None, align='left', start_pause_ms=None, end_pause_ms=None, continuous=None, *, max_width_px=None, font_flags=0x06):
         """
         Returns a window of text that scrolls if longer than max_len.
         - Supports continuous looping.
         - Uses configurable defaults from config.json.
         """
-        if not text: return ""
+        if not text:
+            self._scroll_state.pop(key, None)
+            return ""
         text = str(text)
 
         # 1. Resolve configuration (Param > Config > Default)
@@ -100,6 +113,10 @@ class BaseApp:
         if start_pause_ms is None: start_pause_ms = scroll_cfg.get('start_delay_ms', 1000)
         if end_pause_ms is None: end_pause_ms = scroll_cfg.get('end_delay_ms', 250)
         if continuous is None: continuous = scroll_cfg.get('continuous', False)
+
+        if max_width_px is not None:
+            return self._scroll_text_pixels(text,key,max_width_px,font_flags,speed_ms,
+                                           align,start_pause_ms,end_pause_ms,continuous)
 
         if len(text) <= max_len:
             # If it fits, remove state so it resets if it grows later
@@ -112,8 +129,10 @@ class BaseApp:
         # 2. Setup scroll state
         now = time.monotonic() * 1000
         
-        if key not in self._scroll_state:
+        signature = (text, max_len, bool(continuous))
+        if self._scroll_state.get(key, {}).get('signature') != signature:
             self._scroll_state[key] = {
+                'signature': signature,
                 'offset': 0, 
                 'last_tick': now, 
                 'pause_until': now + start_pause_ms
@@ -141,8 +160,8 @@ class BaseApp:
                 spacer = chr(0x1F)
                 full_len = len(text) + len(spacer)
                 
-                # If we've scrolled exactly one full cycle (including spacer)
-                if state['offset'] == full_len:
+                # Recover even if an old offset has passed the cycle boundary.
+                if state['offset'] >= full_len:
                     state['offset'] = 0
                     state['pause_until'] = now + start_pause_ms
             else:
@@ -162,3 +181,44 @@ class BaseApp:
             return (display_text * 2)[offset : offset + max_len]
         
         return text[offset : offset + max_len]
+
+    def _scroll_text_pixels(self,text,key,width,flags,speed_ms,align,start_pause_ms,end_pause_ms,continuous):
+        """Advance by characters while fitting each window to measured pixels."""
+        if width<0:raise ValueError('Text width cannot be negative')
+        profile=font_profile(self.config)
+        total=measure_text(text,flags,profile)
+        if total<=width:
+            self._scroll_state.pop(key,None)
+            return text.strip() if align=='center' else text
+        now=time.monotonic()*1000
+        signature=(text,'pixels',width,flags&0x0C,profile,bool(continuous))
+        if self._scroll_state.get(key,{}).get('signature')!=signature:
+            self._scroll_state[key]={'signature':signature,'offset':0,'last_tick':now,
+                                     'pause_until':now+start_pause_ms}
+        state=self._scroll_state[key]
+        display_text=text+chr(0x1F) if continuous else text
+        if continuous:
+            terminal=len(display_text)
+        else:
+            # End at the first suffix that fits, not at a fixed character count.
+            terminal=0;remaining=total
+            while remaining>width and terminal<len(text):
+                remaining-=measure_text(text[terminal],flags,profile)
+                terminal+=1
+        if state['offset']<0 or (continuous and state['offset']>=terminal) or (not continuous and state['offset']>terminal):
+            state.update(offset=0,last_tick=now,pause_until=now+start_pause_ms)
+        if now>=state['pause_until'] and now-state['last_tick']>speed_ms:
+            state['last_tick']=now
+            if continuous:
+                state['offset']+=1
+                if state['offset']>=terminal:
+                    state.update(offset=0,pause_until=now+start_pause_ms)
+            elif state['offset']>=terminal:
+                state.update(offset=0,pause_until=now+start_pause_ms)
+            else:
+                state['offset']+=1
+                if state['offset']>=terminal:
+                    state['pause_until']=now+speed_ms+end_pause_ms
+        offset=state['offset']
+        candidate=(display_text*2)[offset:] if continuous else text[offset:]
+        return fit_font_text(candidate,width,flags,profile)
