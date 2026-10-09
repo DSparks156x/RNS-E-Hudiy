@@ -1,5 +1,9 @@
 # RNS-E Hudiy field guide
 
+Live guide: [rns-e-hudiy.netlify.app](https://rns-e-hudiy.netlify.app/). [Netlify deploy dashboard](https://app.netlify.com/projects/rns-e-hudiy/deploys).
+
+Production follows `codex/help-site`; branch deploys are disabled. Commits changing `help-site/` build and publish automatically. Runtime work on `testing` stays independent.
+
 Static React documentation for the current working-tree features. All routes use URL hashes, and Vite emits relative asset URLs, so the same build works at a Netlify domain or a GitHub Pages repository subpath. No application backend is required.
 
 ## Run and build
