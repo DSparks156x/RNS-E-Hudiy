@@ -1,0 +1,107 @@
+{
+  "capture": "Production React tab components and CSS in a capture-only tab shell; browser capture at 800x480",
+  "data": "Synthetic telemetry, saved samples, markers and controller state; no vehicle observations",
+  "catalog": "Snapshot of the actual vehicle_data.catalog.get_catalog() canonical values, units and provider metadata",
+  "fixture": "scripts/capture-dataview.jsx",
+  "fixture_server": "npm run dev -- --config scripts/capture-vite.config.js --port 5190",
+  "isolation": "Socket.IO aliased to an in-memory fixture; Data & Logs fetches intercepted in memory, all other fetches rejected. No backend/vehicle writes.",
+  "theme": "Sample Hudiy Material You palette injected as production CSS variables",
+  "assets": [
+    "dataview-engine.jpg",
+    "dataview-engine.gif",
+    "dataview-transmission.jpg",
+    "dataview-record.jpg",
+    "dataview-review.jpg",
+    "dataview-dis-editor.jpg",
+    "dataview-value-picker.jpg",
+    "dataview-awd.jpg",
+    "dataview-diagnostics.jpg",
+    "dataview-diagnostics-engine.jpg",
+    "dataview-controller.jpg",
+    "dataview-eps.jpg",
+    "dataview-exhaust.jpg"
+  ],
+  "scenes": {
+    "dataview-engine.jpg": {
+      "scene": "engine",
+      "caption": "Engine gauges with synthetic live telemetry."
+    },
+    "dataview-engine.gif": {
+      "scene": "engine",
+      "caption": "Engine gauges animated with synthetic live telemetry."
+    },
+    "dataview-transmission.jpg": {
+      "scene": "transmission",
+      "caption": "Transmission gauges and selector travel with synthetic telemetry."
+    },
+    "dataview-record.jpg": {
+      "scene": "data-record",
+      "caption": "A logging profile with selected values and live source status; start, mark and stop controls."
+    },
+    "dataview-review.jpg": {
+      "scene": "data-review",
+      "caption": "A synthetic saved recording; unit-separated graphs, selectable traces, cursor inspection, zoom, markers and CSV export controls."
+    },
+    "dataview-dis-editor.jpg": {
+      "scene": "data-dis",
+      "caption": "Eight slots arranged as four left/right rows, a linked logging profile and Apply control."
+    },
+    "dataview-value-picker.jpg": {
+      "scene": "data-picker",
+      "caption": "Production catalog picker with actual canonical labels, units, system/group organization and provider policies."
+    },
+    "dataview-awd.jpg": {
+      "scene": "awd",
+      "caption": "AWD gauges and production mode/logger controls with synthetic status; torque estimate remains labeled estimated."
+    },
+    "dataview-diagnostics.jpg": {
+      "scene": "diagnostics",
+      "caption": "Production Diagnostics module picker. Its addresses are internal TP2 destinations."
+    },
+    "dataview-diagnostics-engine.jpg": {
+      "scene": "diagnostics-engine",
+      "caption": "Production Engine Diagnostics view showing synthetic measuring groups 3, 20 and 115 in source-backed block order."
+    },
+    "dataview-controller.jpg": {
+      "scene": "diagnostics \u2192 AWD \u2192 Flash Controller",
+      "caption": "Production controller dialog with a synthetic controller identity and 320KiB sample firmware metadata; no flash or readout performed."
+    },
+    "dataview-eps.jpg": {
+      "scene": "diagnostics \u2192 Steering Assist \u2192 Flash Controller",
+      "caption": "Production EPS controller dialog with a synthetic revision 3001 controller and 4KiB sample dataset; no write or readout performed."
+    },
+    "dataview-exhaust.jpg": {
+      "scene": "diagnostics \u2192 Exhaust valve controller",
+      "caption": "Production exhaust controller panel with synthetic requested target, explicitly unconfirmed."
+    }
+  },
+  "limitations": [
+    "These captures demonstrate production UI behavior and layout, not vehicle compatibility or successful hardware operations.",
+    "Catalog verified flags describe supplied reference mappings, not independent ECU validation.",
+    "Measuring-block responses and empty DTC reports are synthetic; no actual module was queried. The fixture does not implement firmware transfer, CSV download, or file portal operations.",
+    "Original engine animation and engine/transmission stills were captured before the expanded scenes were added."
+  ],
+  "source_sha256": {
+    "hudiy_dataview/src/tabs/EngineTab.tsx": "a3746af9a04ddbb2c8f521bf7bd95952a91016607d7864e60ebb6502e95e9c39",
+    "hudiy_dataview/src/tabs/TransmissionTab.tsx": "d718bd0c36e16662719ce799cdf4cc77be926f4b2d33caba69217eaec9d8ccf1",
+    "hudiy_dataview/src/tabs/AWDTab.tsx": "a8e49d2610148f7a5d5fa5706c915b132e9cdfac7d2d4610a0a2d1364e3defb1",
+    "hudiy_dataview/src/tabs/DataLogsTab.tsx": "78ad8a9973075f8ffc1800b6d486ad660724c7b0551f05c1aa300ced067a8be2",
+    "hudiy_dataview/src/tabs/DiagnosticsTab.tsx": "6ebd318784c1435205c351c0c9db7b81600102ac5d640849934f34c963eecad0",
+    "hudiy_dataview/src/components/Gauge.tsx": "586b6034ea766d06663ee697a9beb034ddd3d9151ca5179af199e88f4b8cd396",
+    "hudiy_dataview/src/components/dataLogs/LogReview.tsx": "94dcfa7fee34c3a7b2d6c085a34229546d6b01f977cb9678faf38b8383b03ae2",
+    "hudiy_dataview/src/components/dataLogs/ValuePicker.tsx": "af4aa4d5cc4cd110a0f38a250633529198cb38b626fd9fe925704b8826c0a4a2",
+    "hudiy_dataview/src/components/dataLogs/model.ts": "1461a021550b54601d8e8d730e5bf984aeb57bd268c252aba4bf9c8b7391c5a2",
+    "hudiy_dataview/src/components/dataLogs/dataLogs.css": "ee9a8f749e5a3079e37a124aa6e2b2f304614e7bc0209d4b9b18fea27a8a6bab",
+    "hudiy_dataview/src/components/HaldexFlashModal.tsx": "1f68c5c7e949ad25d3e34a0889b75d4bf2d936ea89cfb036ea8639a3007bf07f",
+    "hudiy_dataview/src/components/ExhaustValvePanel.tsx": "7b3090c8deaa8ee6b377e5da934e9326281814d1cc1b3de648f364e7c425b104",
+    "hudiy_dataview/src/hooks/useDataLogs.ts": "2895f9c2467deaaf8c1b5f68ddd209adf1badcb9da7d81906eaca29064a29a41",
+    "hudiy_dataview/src/hooks/useHaldexAndLogger.ts": "de6d29b496d018a44e87848e3e229d68b5679e1b379d52ec563013ab6a982d55",
+    "hudiy_dataview/src/store/DataStore.ts": "b9228eb58f0d6dcb10e88c9eca644e6b6231b1e22607662cc3fffa0eb39dfbd8",
+    "hudiy_dataview/static/css/style_v3.css": "680e03142a7df5652b461aa525504253651c04b11647d408a12d602332573321",
+    "help-site/scripts/capture-dataview.jsx": "ff535b6495d0947fb7cd674bbb6167e3d0d3f91f550abc4ca6a83b2915573f82",
+    "help-site/scripts/capture-data-logs.js": "e4d70b4f7ca0522f0c77e443d44e7627f8d74e2ade271a36106e3af3fdf0fd67",
+    "help-site/scripts/capture-socket.js": "bae86954037bba1f7e27941f0ceac9abdee1928d77f023147bac045adf7c03fc",
+    "help-site/scripts/capture-vite.config.js": "d7ac9ae49ef0beedb62ae6ba67eed35357c4b15bf23c13da355a997496fed96d",
+    "help-site/scripts/capture-value-catalog.json": "704c3e46d1d92aff1a65f6b5cba31145a192515d2dd4c60ef3fb89d81bb900ab"
+  }
+}

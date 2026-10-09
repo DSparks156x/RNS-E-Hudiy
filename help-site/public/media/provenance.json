@@ -1,0 +1,2135 @@
+{
+  "display": "128x96 physical-pixel center DIS area, enlarged 4x nearest neighbor",
+  "preview_palette": {
+    "background_rgb": [
+      0,
+      0,
+      0
+    ],
+    "ink_rgb": [
+      255,
+      255,
+      255
+    ]
+  },
+  "production_config": {
+    "display": {
+      "text_centering": true,
+      "road_side": "right",
+      "center_display": {
+        "high_resolution": true,
+        "navigation": {
+          "icon_style": "bitmap",
+          "approach_bar_max_distance": 300
+        }
+      },
+      "units": {
+        "speed": "metric"
+      },
+      "text_scrolling": {
+        "speed_ms": 300,
+        "start_delay_ms": 1000,
+        "end_delay_ms": 500,
+        "continuous": false
+      }
+    }
+  },
+  "data": "Synthetic demonstration inputs; no road capture",
+  "font_painting": "Captured native glyph masks, opaque 18px cells, emulator coordinate rules",
+  "assets": [
+    {
+      "name": "dis-navigation",
+      "caption": "Custom bitmap navigation: left turn, distance and native approach bar. Sample route, metric units.",
+      "demo_inputs": {
+        "description": "Turn left onto Main St",
+        "distance": "250 m",
+        "maneuver_type": 4,
+        "maneuver_side": 1
+      },
+      "rendered_size_px": [
+        512,
+        384
+      ],
+      "display": "Native 128x96 center area enlarged 4x",
+      "source_frame_count": 1,
+      "encoded_frame_count": 1,
+      "source_frame_duration_ms": 500,
+      "source_files": [
+        "dis_client/apps/nav.py",
+        "dis_client/enhanced_navigation.py",
+        "dis_client/nav_icons.py"
+      ]
+    },
+    {
+      "name": "dis-navigation-approach",
+      "caption": "Sample route: approach a left turn, continue straight, then approach a right turn. The native bar appears within 300 m and fills as distance falls. This is a rendered sequence, not a road recording.",
+      "demo_inputs": [
+        {
+          "description": "Turn left onto Main St",
+          "distance": "300 m",
+          "maneuver_type": 4,
+          "maneuver_side": 1
+        },
+        {
+          "description": "Turn left onto Main St",
+          "distance": "250 m",
+          "maneuver_type": 4,
+          "maneuver_side": 1
+        },
+        {
+          "description": "Turn left onto Main St",
+          "distance": "200 m",
+          "maneuver_type": 4,
+          "maneuver_side": 1
+        },
+        {
+          "description": "Turn left onto Main St",
+          "distance": "150 m",
+          "maneuver_type": 4,
+          "maneuver_side": 1
+        },
+        {
+          "description": "Turn left onto Main St",
+          "distance": "100 m",
+          "maneuver_type": 4,
+          "maneuver_side": 1
+        },
+        {
+          "description": "Turn left onto Main St",
+          "distance": "60 m",
+          "maneuver_type": 4,
+          "maneuver_side": 1
+        },
+        {
+          "description": "Turn left onto Main St",
+          "distance": "30 m",
+          "maneuver_type": 4,
+          "maneuver_side": 1
+        },
+        {
+          "description": "Turn left onto Main St",
+          "distance": "10 m",
+          "maneuver_type": 4,
+          "maneuver_side": 1
+        },
+        {
+          "description": "Continue onto Oak Ave",
+          "distance": "800 m",
+          "maneuver_type": 14,
+          "maneuver_side": 3
+        },
+        {
+          "description": "Continue onto Oak Ave",
+          "distance": "700 m",
+          "maneuver_type": 14,
+          "maneuver_side": 3
+        },
+        {
+          "description": "Continue onto Oak Ave",
+          "distance": "600 m",
+          "maneuver_type": 14,
+          "maneuver_side": 3
+        },
+        {
+          "description": "Continue onto Oak Ave",
+          "distance": "500 m",
+          "maneuver_type": 14,
+          "maneuver_side": 3
+        },
+        {
+          "description": "Turn right onto Pine St",
+          "distance": "300 m",
+          "maneuver_type": 4,
+          "maneuver_side": 2
+        },
+        {
+          "description": "Turn right onto Pine St",
+          "distance": "250 m",
+          "maneuver_type": 4,
+          "maneuver_side": 2
+        },
+        {
+          "description": "Turn right onto Pine St",
+          "distance": "200 m",
+          "maneuver_type": 4,
+          "maneuver_side": 2
+        },
+        {
+          "description": "Turn right onto Pine St",
+          "distance": "150 m",
+          "maneuver_type": 4,
+          "maneuver_side": 2
+        },
+        {
+          "description": "Turn right onto Pine St",
+          "distance": "100 m",
+          "maneuver_type": 4,
+          "maneuver_side": 2
+        },
+        {
+          "description": "Turn right onto Pine St",
+          "distance": "60 m",
+          "maneuver_type": 4,
+          "maneuver_side": 2
+        },
+        {
+          "description": "Turn right onto Pine St",
+          "distance": "30 m",
+          "maneuver_type": 4,
+          "maneuver_side": 2
+        },
+        {
+          "description": "Turn right onto Pine St",
+          "distance": "10 m",
+          "maneuver_type": 4,
+          "maneuver_side": 2
+        }
+      ],
+      "rendered_size_px": [
+        512,
+        384
+      ],
+      "display": "Native 128x96 center area enlarged 4x",
+      "source_frame_count": 20,
+      "encoded_frame_count": 20,
+      "source_frame_duration_ms": 650,
+      "source_files": [
+        "dis_client/apps/nav.py",
+        "dis_client/enhanced_navigation.py",
+        "dis_client/nav_icons.py"
+      ]
+    },
+    {
+      "name": "dis-navigation-stock",
+      "caption": "Stock glyph navigation: production placement of captured OEM icon and bar glyphs. Sample left turn at 250 m; this renderer does not draw the bitmap style distance field.",
+      "demo_inputs": {
+        "description": "Turn left onto Main St",
+        "distance": "250 m",
+        "maneuver_type": 4,
+        "maneuver_side": 1
+      },
+      "rendered_size_px": [
+        512,
+        384
+      ],
+      "display": "Native 128x96 center area enlarged 4x",
+      "source_frame_count": 1,
+      "encoded_frame_count": 1,
+      "source_frame_duration_ms": 500,
+      "source_files": [
+        "dis_client/apps/nav.py",
+        "dis_client/enhanced_navigation.py"
+      ]
+    },
+    {
+      "name": "dis-media",
+      "caption": "Now playing: track, artist, album and playback time. All metadata is made-up demo content.",
+      "demo_inputs": {
+        "title": "Night Drive Along the Coast",
+        "artist": "Demo Artist",
+        "album": "After Hours",
+        "position": "1:24",
+        "duration": "4:08"
+      },
+      "rendered_size_px": [
+        512,
+        384
+      ],
+      "display": "Native 128x96 center area enlarged 4x",
+      "source_frame_count": 1,
+      "encoded_frame_count": 1,
+      "source_frame_duration_ms": 500,
+      "source_files": [
+        "dis_client/apps/media.py"
+      ]
+    },
+    {
+      "name": "dis-media-scroll",
+      "caption": "Measured text scrolling keeps a long sample track title inside the display. Short fields remain centered.",
+      "demo_inputs": {
+        "title": "Night Drive Along the Coast",
+        "artist": "Demo Artist",
+        "album": "After Hours",
+        "position": "1:24",
+        "duration": "4:08"
+      },
+      "rendered_size_px": [
+        512,
+        384
+      ],
+      "display": "Native 128x96 center area enlarged 4x",
+      "source_frame_count": 40,
+      "encoded_frame_count": 30,
+      "source_frame_duration_ms": 350,
+      "source_files": [
+        "dis_client/apps/media.py",
+        "dis_client/apps/base.py",
+        "dis_client/font_metrics.py"
+      ]
+    },
+    {
+      "name": "dis-cover-art",
+      "caption": "Original geometric demo artwork converted by the production cover-art pipeline. Native 128×96 resolution, balanced preset with ordered dithering.",
+      "demo_inputs": {
+        "artwork": "demo-cover-source.png",
+        "native_preset": "balanced"
+      },
+      "rendered_size_px": [
+        512,
+        384
+      ],
+      "display": "Native 128x96 center area enlarged 4x",
+      "source_frame_count": 1,
+      "encoded_frame_count": 1,
+      "source_frame_duration_ms": 500,
+      "source_files": [
+        "dis_client/apps/coverart.py",
+        "dis_client/dis_image.py"
+      ]
+    },
+    {
+      "name": "dis-phone",
+      "caption": "Sample incoming call with wheel control active. The wheel symbol indicates input ownership; Accept is selected.",
+      "demo_inputs": {
+        "state": "INCOMING",
+        "caller_name": "Alex",
+        "caller_id": "555-0100",
+        "connection_state": "CONNECTED"
+      },
+      "rendered_size_px": [
+        512,
+        384
+      ],
+      "display": "Native 128x96 center area enlarged 4x",
+      "source_frame_count": 1,
+      "encoded_frame_count": 1,
+      "source_frame_duration_ms": 500,
+      "source_files": [
+        "dis_client/apps/phone.py",
+        "dis_client/icons.py"
+      ]
+    },
+    {
+      "name": "dis-readings",
+      "caption": "Default Daily readings page: oil temperature, absolute boost, coolant, MAF, intake temperature, RPM, transmission and AWD oil temperature. Synthetic values; support depends on the vehicle and providers.",
+      "demo_inputs": [
+        {
+          "id": "engine.oil_temperature",
+          "value": 94,
+          "unit": "C",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.boost.actual_absolute",
+          "value": 1450,
+          "unit": "mbar",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.coolant_temperature",
+          "value": 89,
+          "unit": "C",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.maf",
+          "value": 36,
+          "unit": "g/s",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.intake_temperature",
+          "value": 27,
+          "unit": "C",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.rpm",
+          "value": 2400,
+          "unit": "rpm",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "transmission.fluid_temperature",
+          "value": 67,
+          "unit": "C",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "awd.oil_temperature",
+          "value": 54,
+          "unit": "C",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        }
+      ],
+      "rendered_size_px": [
+        512,
+        384
+      ],
+      "display": "Native 128x96 center area enlarged 4x",
+      "source_frame_count": 1,
+      "encoded_frame_count": 1,
+      "source_frame_duration_ms": 500,
+      "source_files": [
+        "dis_client/apps/readings.py",
+        "dis_client/readings_assets.py",
+        "vehicle_data/workspace.py",
+        "vehicle_data/catalog.py"
+      ]
+    },
+    {
+      "name": "dis-readings-controls",
+      "caption": "Readings controls: page selection, recording with Stop focused, Mark focused, then idle. Logger state is simulated; the script starts no recording.",
+      "demo_inputs": [
+        {
+          "id": "engine.oil_temperature",
+          "value": 94,
+          "unit": "C",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.boost.actual_absolute",
+          "value": 1450,
+          "unit": "mbar",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.coolant_temperature",
+          "value": 89,
+          "unit": "C",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.maf",
+          "value": 36,
+          "unit": "g/s",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.intake_temperature",
+          "value": 27,
+          "unit": "C",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.rpm",
+          "value": 2400,
+          "unit": "rpm",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "transmission.fluid_temperature",
+          "value": 67,
+          "unit": "C",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "awd.oil_temperature",
+          "value": 54,
+          "unit": "C",
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        }
+      ],
+      "rendered_size_px": [
+        512,
+        384
+      ],
+      "display": "Native 128x96 center area enlarged 4x",
+      "source_frame_count": 4,
+      "encoded_frame_count": 4,
+      "source_frame_duration_ms": 1400,
+      "source_files": [
+        "dis_client/apps/readings.py",
+        "dis_client/readings_assets.py"
+      ]
+    },
+    {
+      "name": "dis-acceleration",
+      "caption": "Acceleration page after a simulated run: 0–60 mph, 0–30 mph, 40–70 mph and current speed. Times are synthetic; the header reports tolerance from CAN sample intervals.",
+      "demo_inputs": {
+        "config": {
+          "text_centering": true,
+          "road_side": "right",
+          "center_display": {
+            "high_resolution": true,
+            "navigation": {
+              "icon_style": "bitmap",
+              "approach_bar_max_distance": 300
+            },
+            "acceleration_test": {
+              "line_1": "0-60",
+              "line_2": "0-30",
+              "line_3": "40-70",
+              "line_4": "speed",
+              "auto_reset_on_stop": true,
+              "auto_reset_delay": 0.25,
+              "tolerance_display": true
+            }
+          },
+          "units": {
+            "speed": "imperial"
+          },
+          "text_scrolling": {
+            "speed_ms": 300,
+            "start_delay_ms": 1000,
+            "end_delay_ms": 500,
+            "continuous": false
+          }
+        },
+        "CAN_351": [
+          {
+            "time_s": 0.0,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.05,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.1,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.15,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.2,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.25,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.3,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.35,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.4,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.45,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.5,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.55,
+            "data_hex": "00a100"
+          },
+          {
+            "time_s": 0.6,
+            "data_hex": "004201"
+          },
+          {
+            "time_s": 0.65,
+            "data_hex": "00e301"
+          },
+          {
+            "time_s": 0.7,
+            "data_hex": "008402"
+          },
+          {
+            "time_s": 0.75,
+            "data_hex": "002503"
+          },
+          {
+            "time_s": 0.8,
+            "data_hex": "00c603"
+          },
+          {
+            "time_s": 0.85,
+            "data_hex": "006704"
+          },
+          {
+            "time_s": 0.9,
+            "data_hex": "000705"
+          },
+          {
+            "time_s": 0.95,
+            "data_hex": "00a805"
+          },
+          {
+            "time_s": 1.0,
+            "data_hex": "004906"
+          },
+          {
+            "time_s": 1.05,
+            "data_hex": "00ea06"
+          },
+          {
+            "time_s": 1.1,
+            "data_hex": "008b07"
+          },
+          {
+            "time_s": 1.15,
+            "data_hex": "002c08"
+          },
+          {
+            "time_s": 1.2,
+            "data_hex": "00cd08"
+          },
+          {
+            "time_s": 1.25,
+            "data_hex": "006e09"
+          },
+          {
+            "time_s": 1.3,
+            "data_hex": "000f0a"
+          },
+          {
+            "time_s": 1.35,
+            "data_hex": "00b00a"
+          },
+          {
+            "time_s": 1.4,
+            "data_hex": "00510b"
+          },
+          {
+            "time_s": 1.45,
+            "data_hex": "00f20b"
+          },
+          {
+            "time_s": 1.5,
+            "data_hex": "00930c"
+          },
+          {
+            "time_s": 1.55,
+            "data_hex": "00340d"
+          },
+          {
+            "time_s": 1.6,
+            "data_hex": "00d50d"
+          },
+          {
+            "time_s": 1.65,
+            "data_hex": "00750e"
+          },
+          {
+            "time_s": 1.7,
+            "data_hex": "00160f"
+          },
+          {
+            "time_s": 1.75,
+            "data_hex": "00b70f"
+          },
+          {
+            "time_s": 1.8,
+            "data_hex": "005810"
+          },
+          {
+            "time_s": 1.85,
+            "data_hex": "00f910"
+          },
+          {
+            "time_s": 1.9,
+            "data_hex": "009a11"
+          },
+          {
+            "time_s": 1.95,
+            "data_hex": "003b12"
+          },
+          {
+            "time_s": 2.0,
+            "data_hex": "00dc12"
+          },
+          {
+            "time_s": 2.05,
+            "data_hex": "007d13"
+          },
+          {
+            "time_s": 2.1,
+            "data_hex": "001e14"
+          },
+          {
+            "time_s": 2.15,
+            "data_hex": "00bf14"
+          },
+          {
+            "time_s": 2.2,
+            "data_hex": "006015"
+          },
+          {
+            "time_s": 2.25,
+            "data_hex": "000116"
+          },
+          {
+            "time_s": 2.3,
+            "data_hex": "00a216"
+          },
+          {
+            "time_s": 2.35,
+            "data_hex": "004317"
+          },
+          {
+            "time_s": 2.4,
+            "data_hex": "00e417"
+          },
+          {
+            "time_s": 2.45,
+            "data_hex": "008418"
+          },
+          {
+            "time_s": 2.5,
+            "data_hex": "002519"
+          },
+          {
+            "time_s": 2.55,
+            "data_hex": "00c619"
+          },
+          {
+            "time_s": 2.6,
+            "data_hex": "00671a"
+          },
+          {
+            "time_s": 2.65,
+            "data_hex": "00081b"
+          },
+          {
+            "time_s": 2.7,
+            "data_hex": "00a91b"
+          },
+          {
+            "time_s": 2.75,
+            "data_hex": "004a1c"
+          },
+          {
+            "time_s": 2.8,
+            "data_hex": "00eb1c"
+          },
+          {
+            "time_s": 2.85,
+            "data_hex": "008c1d"
+          },
+          {
+            "time_s": 2.9,
+            "data_hex": "002d1e"
+          },
+          {
+            "time_s": 2.95,
+            "data_hex": "00ce1e"
+          },
+          {
+            "time_s": 3.0,
+            "data_hex": "006f1f"
+          },
+          {
+            "time_s": 3.05,
+            "data_hex": "001020"
+          },
+          {
+            "time_s": 3.1,
+            "data_hex": "00b120"
+          },
+          {
+            "time_s": 3.15,
+            "data_hex": "005221"
+          },
+          {
+            "time_s": 3.2,
+            "data_hex": "00f221"
+          },
+          {
+            "time_s": 3.25,
+            "data_hex": "009322"
+          },
+          {
+            "time_s": 3.3,
+            "data_hex": "003423"
+          },
+          {
+            "time_s": 3.35,
+            "data_hex": "00d523"
+          },
+          {
+            "time_s": 3.4,
+            "data_hex": "007624"
+          },
+          {
+            "time_s": 3.45,
+            "data_hex": "001725"
+          },
+          {
+            "time_s": 3.5,
+            "data_hex": "00b825"
+          },
+          {
+            "time_s": 3.55,
+            "data_hex": "005926"
+          },
+          {
+            "time_s": 3.6,
+            "data_hex": "00fa26"
+          },
+          {
+            "time_s": 3.65,
+            "data_hex": "009b27"
+          },
+          {
+            "time_s": 3.7,
+            "data_hex": "003c28"
+          },
+          {
+            "time_s": 3.75,
+            "data_hex": "00dd28"
+          },
+          {
+            "time_s": 3.8,
+            "data_hex": "007e29"
+          },
+          {
+            "time_s": 3.85,
+            "data_hex": "001f2a"
+          },
+          {
+            "time_s": 3.9,
+            "data_hex": "00c02a"
+          },
+          {
+            "time_s": 3.95,
+            "data_hex": "00602b"
+          },
+          {
+            "time_s": 4.0,
+            "data_hex": "00012c"
+          },
+          {
+            "time_s": 4.05,
+            "data_hex": "00a22c"
+          },
+          {
+            "time_s": 4.1,
+            "data_hex": "00432d"
+          },
+          {
+            "time_s": 4.15,
+            "data_hex": "00e42d"
+          },
+          {
+            "time_s": 4.2,
+            "data_hex": "00852e"
+          },
+          {
+            "time_s": 4.25,
+            "data_hex": "00262f"
+          },
+          {
+            "time_s": 4.3,
+            "data_hex": "00c72f"
+          },
+          {
+            "time_s": 4.35,
+            "data_hex": "006830"
+          },
+          {
+            "time_s": 4.4,
+            "data_hex": "000931"
+          },
+          {
+            "time_s": 4.45,
+            "data_hex": "00aa31"
+          },
+          {
+            "time_s": 4.5,
+            "data_hex": "004b32"
+          },
+          {
+            "time_s": 4.55,
+            "data_hex": "00ec32"
+          },
+          {
+            "time_s": 4.6,
+            "data_hex": "008d33"
+          },
+          {
+            "time_s": 4.65,
+            "data_hex": "002e34"
+          },
+          {
+            "time_s": 4.7,
+            "data_hex": "00ce34"
+          },
+          {
+            "time_s": 4.75,
+            "data_hex": "006f35"
+          },
+          {
+            "time_s": 4.8,
+            "data_hex": "001036"
+          },
+          {
+            "time_s": 4.85,
+            "data_hex": "00b136"
+          },
+          {
+            "time_s": 4.9,
+            "data_hex": "005237"
+          },
+          {
+            "time_s": 4.95,
+            "data_hex": "00f337"
+          },
+          {
+            "time_s": 5.0,
+            "data_hex": "009438"
+          },
+          {
+            "time_s": 5.05,
+            "data_hex": "003539"
+          },
+          {
+            "time_s": 5.1,
+            "data_hex": "00d639"
+          },
+          {
+            "time_s": 5.15,
+            "data_hex": "00773a"
+          },
+          {
+            "time_s": 5.2,
+            "data_hex": "00183b"
+          },
+          {
+            "time_s": 5.25,
+            "data_hex": "00b93b"
+          },
+          {
+            "time_s": 5.3,
+            "data_hex": "005a3c"
+          },
+          {
+            "time_s": 5.35,
+            "data_hex": "00fb3c"
+          },
+          {
+            "time_s": 5.4,
+            "data_hex": "009c3d"
+          },
+          {
+            "time_s": 5.45,
+            "data_hex": "003d3e"
+          },
+          {
+            "time_s": 5.5,
+            "data_hex": "00dd3e"
+          },
+          {
+            "time_s": 5.55,
+            "data_hex": "007e3f"
+          },
+          {
+            "time_s": 5.6,
+            "data_hex": "001f40"
+          },
+          {
+            "time_s": 5.65,
+            "data_hex": "00c040"
+          },
+          {
+            "time_s": 5.7,
+            "data_hex": "006141"
+          },
+          {
+            "time_s": 5.75,
+            "data_hex": "000242"
+          },
+          {
+            "time_s": 5.8,
+            "data_hex": "00a342"
+          },
+          {
+            "time_s": 5.85,
+            "data_hex": "004443"
+          },
+          {
+            "time_s": 5.9,
+            "data_hex": "00e543"
+          },
+          {
+            "time_s": 5.95,
+            "data_hex": "008644"
+          },
+          {
+            "time_s": 6.0,
+            "data_hex": "002745"
+          },
+          {
+            "time_s": 6.05,
+            "data_hex": "00c845"
+          },
+          {
+            "time_s": 6.1,
+            "data_hex": "006946"
+          },
+          {
+            "time_s": 6.15,
+            "data_hex": "000a47"
+          },
+          {
+            "time_s": 6.2,
+            "data_hex": "00ab47"
+          },
+          {
+            "time_s": 6.25,
+            "data_hex": "004b48"
+          },
+          {
+            "time_s": 6.3,
+            "data_hex": "00ec48"
+          },
+          {
+            "time_s": 6.35,
+            "data_hex": "008d49"
+          },
+          {
+            "time_s": 6.4,
+            "data_hex": "002e4a"
+          },
+          {
+            "time_s": 6.45,
+            "data_hex": "00cf4a"
+          },
+          {
+            "time_s": 6.5,
+            "data_hex": "00704b"
+          },
+          {
+            "time_s": 6.55,
+            "data_hex": "00114c"
+          },
+          {
+            "time_s": 6.6,
+            "data_hex": "00b24c"
+          },
+          {
+            "time_s": 6.65,
+            "data_hex": "00534d"
+          },
+          {
+            "time_s": 6.7,
+            "data_hex": "00f44d"
+          },
+          {
+            "time_s": 6.75,
+            "data_hex": "00954e"
+          },
+          {
+            "time_s": 6.8,
+            "data_hex": "00364f"
+          },
+          {
+            "time_s": 6.85,
+            "data_hex": "00d74f"
+          },
+          {
+            "time_s": 6.9,
+            "data_hex": "007850"
+          },
+          {
+            "time_s": 6.95,
+            "data_hex": "001951"
+          },
+          {
+            "time_s": 7.0,
+            "data_hex": "00b951"
+          },
+          {
+            "time_s": 7.05,
+            "data_hex": "005a52"
+          },
+          {
+            "time_s": 7.1,
+            "data_hex": "00fb52"
+          },
+          {
+            "time_s": 7.15,
+            "data_hex": "009c53"
+          },
+          {
+            "time_s": 7.2,
+            "data_hex": "003d54"
+          },
+          {
+            "time_s": 7.25,
+            "data_hex": "00de54"
+          },
+          {
+            "time_s": 7.3,
+            "data_hex": "007f55"
+          },
+          {
+            "time_s": 7.35,
+            "data_hex": "002056"
+          },
+          {
+            "time_s": 7.4,
+            "data_hex": "00c156"
+          },
+          {
+            "time_s": 7.45,
+            "data_hex": "006257"
+          },
+          {
+            "time_s": 7.5,
+            "data_hex": "000358"
+          },
+          {
+            "time_s": 7.55,
+            "data_hex": "00a458"
+          },
+          {
+            "time_s": 7.6,
+            "data_hex": "004559"
+          },
+          {
+            "time_s": 7.65,
+            "data_hex": "00e659"
+          },
+          {
+            "time_s": 7.7,
+            "data_hex": "00875a"
+          },
+          {
+            "time_s": 7.75,
+            "data_hex": "00275b"
+          },
+          {
+            "time_s": 7.8,
+            "data_hex": "00c85b"
+          },
+          {
+            "time_s": 7.85,
+            "data_hex": "00695c"
+          },
+          {
+            "time_s": 7.9,
+            "data_hex": "000a5d"
+          },
+          {
+            "time_s": 7.95,
+            "data_hex": "00ab5d"
+          },
+          {
+            "time_s": 8.0,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.05,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.1,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.15,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.2,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.25,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.3,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.35,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.4,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.45,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.5,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.55,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.6,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.65,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.7,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.75,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.8,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.85,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.9,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.95,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 9.0,
+            "data_hex": "004c5e"
+          }
+        ]
+      },
+      "rendered_size_px": [
+        512,
+        384
+      ],
+      "display": "Native 128x96 center area enlarged 4x",
+      "source_frame_count": 1,
+      "encoded_frame_count": 1,
+      "source_frame_duration_ms": 500,
+      "source_files": [
+        "dis_client/apps/acceleration_test.py",
+        "dis_client/apps/base.py"
+      ]
+    },
+    {
+      "name": "dis-acceleration-run",
+      "caption": "Acceleration page from Ready through Timing to Done. Completed rows briefly invert. Production timing logic receives a synthetic 20Hz speed stream; no vehicle run is shown.",
+      "demo_inputs": {
+        "config": {
+          "text_centering": true,
+          "road_side": "right",
+          "center_display": {
+            "high_resolution": true,
+            "navigation": {
+              "icon_style": "bitmap",
+              "approach_bar_max_distance": 300
+            },
+            "acceleration_test": {
+              "line_1": "0-60",
+              "line_2": "0-30",
+              "line_3": "40-70",
+              "line_4": "speed",
+              "auto_reset_on_stop": true,
+              "auto_reset_delay": 0.25,
+              "tolerance_display": true
+            }
+          },
+          "units": {
+            "speed": "imperial"
+          },
+          "text_scrolling": {
+            "speed_ms": 300,
+            "start_delay_ms": 1000,
+            "end_delay_ms": 500,
+            "continuous": false
+          }
+        },
+        "CAN_351": [
+          {
+            "time_s": 0.0,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.05,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.1,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.15,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.2,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.25,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.3,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.35,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.4,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.45,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.5,
+            "data_hex": "000000"
+          },
+          {
+            "time_s": 0.55,
+            "data_hex": "00a100"
+          },
+          {
+            "time_s": 0.6,
+            "data_hex": "004201"
+          },
+          {
+            "time_s": 0.65,
+            "data_hex": "00e301"
+          },
+          {
+            "time_s": 0.7,
+            "data_hex": "008402"
+          },
+          {
+            "time_s": 0.75,
+            "data_hex": "002503"
+          },
+          {
+            "time_s": 0.8,
+            "data_hex": "00c603"
+          },
+          {
+            "time_s": 0.85,
+            "data_hex": "006704"
+          },
+          {
+            "time_s": 0.9,
+            "data_hex": "000705"
+          },
+          {
+            "time_s": 0.95,
+            "data_hex": "00a805"
+          },
+          {
+            "time_s": 1.0,
+            "data_hex": "004906"
+          },
+          {
+            "time_s": 1.05,
+            "data_hex": "00ea06"
+          },
+          {
+            "time_s": 1.1,
+            "data_hex": "008b07"
+          },
+          {
+            "time_s": 1.15,
+            "data_hex": "002c08"
+          },
+          {
+            "time_s": 1.2,
+            "data_hex": "00cd08"
+          },
+          {
+            "time_s": 1.25,
+            "data_hex": "006e09"
+          },
+          {
+            "time_s": 1.3,
+            "data_hex": "000f0a"
+          },
+          {
+            "time_s": 1.35,
+            "data_hex": "00b00a"
+          },
+          {
+            "time_s": 1.4,
+            "data_hex": "00510b"
+          },
+          {
+            "time_s": 1.45,
+            "data_hex": "00f20b"
+          },
+          {
+            "time_s": 1.5,
+            "data_hex": "00930c"
+          },
+          {
+            "time_s": 1.55,
+            "data_hex": "00340d"
+          },
+          {
+            "time_s": 1.6,
+            "data_hex": "00d50d"
+          },
+          {
+            "time_s": 1.65,
+            "data_hex": "00750e"
+          },
+          {
+            "time_s": 1.7,
+            "data_hex": "00160f"
+          },
+          {
+            "time_s": 1.75,
+            "data_hex": "00b70f"
+          },
+          {
+            "time_s": 1.8,
+            "data_hex": "005810"
+          },
+          {
+            "time_s": 1.85,
+            "data_hex": "00f910"
+          },
+          {
+            "time_s": 1.9,
+            "data_hex": "009a11"
+          },
+          {
+            "time_s": 1.95,
+            "data_hex": "003b12"
+          },
+          {
+            "time_s": 2.0,
+            "data_hex": "00dc12"
+          },
+          {
+            "time_s": 2.05,
+            "data_hex": "007d13"
+          },
+          {
+            "time_s": 2.1,
+            "data_hex": "001e14"
+          },
+          {
+            "time_s": 2.15,
+            "data_hex": "00bf14"
+          },
+          {
+            "time_s": 2.2,
+            "data_hex": "006015"
+          },
+          {
+            "time_s": 2.25,
+            "data_hex": "000116"
+          },
+          {
+            "time_s": 2.3,
+            "data_hex": "00a216"
+          },
+          {
+            "time_s": 2.35,
+            "data_hex": "004317"
+          },
+          {
+            "time_s": 2.4,
+            "data_hex": "00e417"
+          },
+          {
+            "time_s": 2.45,
+            "data_hex": "008418"
+          },
+          {
+            "time_s": 2.5,
+            "data_hex": "002519"
+          },
+          {
+            "time_s": 2.55,
+            "data_hex": "00c619"
+          },
+          {
+            "time_s": 2.6,
+            "data_hex": "00671a"
+          },
+          {
+            "time_s": 2.65,
+            "data_hex": "00081b"
+          },
+          {
+            "time_s": 2.7,
+            "data_hex": "00a91b"
+          },
+          {
+            "time_s": 2.75,
+            "data_hex": "004a1c"
+          },
+          {
+            "time_s": 2.8,
+            "data_hex": "00eb1c"
+          },
+          {
+            "time_s": 2.85,
+            "data_hex": "008c1d"
+          },
+          {
+            "time_s": 2.9,
+            "data_hex": "002d1e"
+          },
+          {
+            "time_s": 2.95,
+            "data_hex": "00ce1e"
+          },
+          {
+            "time_s": 3.0,
+            "data_hex": "006f1f"
+          },
+          {
+            "time_s": 3.05,
+            "data_hex": "001020"
+          },
+          {
+            "time_s": 3.1,
+            "data_hex": "00b120"
+          },
+          {
+            "time_s": 3.15,
+            "data_hex": "005221"
+          },
+          {
+            "time_s": 3.2,
+            "data_hex": "00f221"
+          },
+          {
+            "time_s": 3.25,
+            "data_hex": "009322"
+          },
+          {
+            "time_s": 3.3,
+            "data_hex": "003423"
+          },
+          {
+            "time_s": 3.35,
+            "data_hex": "00d523"
+          },
+          {
+            "time_s": 3.4,
+            "data_hex": "007624"
+          },
+          {
+            "time_s": 3.45,
+            "data_hex": "001725"
+          },
+          {
+            "time_s": 3.5,
+            "data_hex": "00b825"
+          },
+          {
+            "time_s": 3.55,
+            "data_hex": "005926"
+          },
+          {
+            "time_s": 3.6,
+            "data_hex": "00fa26"
+          },
+          {
+            "time_s": 3.65,
+            "data_hex": "009b27"
+          },
+          {
+            "time_s": 3.7,
+            "data_hex": "003c28"
+          },
+          {
+            "time_s": 3.75,
+            "data_hex": "00dd28"
+          },
+          {
+            "time_s": 3.8,
+            "data_hex": "007e29"
+          },
+          {
+            "time_s": 3.85,
+            "data_hex": "001f2a"
+          },
+          {
+            "time_s": 3.9,
+            "data_hex": "00c02a"
+          },
+          {
+            "time_s": 3.95,
+            "data_hex": "00602b"
+          },
+          {
+            "time_s": 4.0,
+            "data_hex": "00012c"
+          },
+          {
+            "time_s": 4.05,
+            "data_hex": "00a22c"
+          },
+          {
+            "time_s": 4.1,
+            "data_hex": "00432d"
+          },
+          {
+            "time_s": 4.15,
+            "data_hex": "00e42d"
+          },
+          {
+            "time_s": 4.2,
+            "data_hex": "00852e"
+          },
+          {
+            "time_s": 4.25,
+            "data_hex": "00262f"
+          },
+          {
+            "time_s": 4.3,
+            "data_hex": "00c72f"
+          },
+          {
+            "time_s": 4.35,
+            "data_hex": "006830"
+          },
+          {
+            "time_s": 4.4,
+            "data_hex": "000931"
+          },
+          {
+            "time_s": 4.45,
+            "data_hex": "00aa31"
+          },
+          {
+            "time_s": 4.5,
+            "data_hex": "004b32"
+          },
+          {
+            "time_s": 4.55,
+            "data_hex": "00ec32"
+          },
+          {
+            "time_s": 4.6,
+            "data_hex": "008d33"
+          },
+          {
+            "time_s": 4.65,
+            "data_hex": "002e34"
+          },
+          {
+            "time_s": 4.7,
+            "data_hex": "00ce34"
+          },
+          {
+            "time_s": 4.75,
+            "data_hex": "006f35"
+          },
+          {
+            "time_s": 4.8,
+            "data_hex": "001036"
+          },
+          {
+            "time_s": 4.85,
+            "data_hex": "00b136"
+          },
+          {
+            "time_s": 4.9,
+            "data_hex": "005237"
+          },
+          {
+            "time_s": 4.95,
+            "data_hex": "00f337"
+          },
+          {
+            "time_s": 5.0,
+            "data_hex": "009438"
+          },
+          {
+            "time_s": 5.05,
+            "data_hex": "003539"
+          },
+          {
+            "time_s": 5.1,
+            "data_hex": "00d639"
+          },
+          {
+            "time_s": 5.15,
+            "data_hex": "00773a"
+          },
+          {
+            "time_s": 5.2,
+            "data_hex": "00183b"
+          },
+          {
+            "time_s": 5.25,
+            "data_hex": "00b93b"
+          },
+          {
+            "time_s": 5.3,
+            "data_hex": "005a3c"
+          },
+          {
+            "time_s": 5.35,
+            "data_hex": "00fb3c"
+          },
+          {
+            "time_s": 5.4,
+            "data_hex": "009c3d"
+          },
+          {
+            "time_s": 5.45,
+            "data_hex": "003d3e"
+          },
+          {
+            "time_s": 5.5,
+            "data_hex": "00dd3e"
+          },
+          {
+            "time_s": 5.55,
+            "data_hex": "007e3f"
+          },
+          {
+            "time_s": 5.6,
+            "data_hex": "001f40"
+          },
+          {
+            "time_s": 5.65,
+            "data_hex": "00c040"
+          },
+          {
+            "time_s": 5.7,
+            "data_hex": "006141"
+          },
+          {
+            "time_s": 5.75,
+            "data_hex": "000242"
+          },
+          {
+            "time_s": 5.8,
+            "data_hex": "00a342"
+          },
+          {
+            "time_s": 5.85,
+            "data_hex": "004443"
+          },
+          {
+            "time_s": 5.9,
+            "data_hex": "00e543"
+          },
+          {
+            "time_s": 5.95,
+            "data_hex": "008644"
+          },
+          {
+            "time_s": 6.0,
+            "data_hex": "002745"
+          },
+          {
+            "time_s": 6.05,
+            "data_hex": "00c845"
+          },
+          {
+            "time_s": 6.1,
+            "data_hex": "006946"
+          },
+          {
+            "time_s": 6.15,
+            "data_hex": "000a47"
+          },
+          {
+            "time_s": 6.2,
+            "data_hex": "00ab47"
+          },
+          {
+            "time_s": 6.25,
+            "data_hex": "004b48"
+          },
+          {
+            "time_s": 6.3,
+            "data_hex": "00ec48"
+          },
+          {
+            "time_s": 6.35,
+            "data_hex": "008d49"
+          },
+          {
+            "time_s": 6.4,
+            "data_hex": "002e4a"
+          },
+          {
+            "time_s": 6.45,
+            "data_hex": "00cf4a"
+          },
+          {
+            "time_s": 6.5,
+            "data_hex": "00704b"
+          },
+          {
+            "time_s": 6.55,
+            "data_hex": "00114c"
+          },
+          {
+            "time_s": 6.6,
+            "data_hex": "00b24c"
+          },
+          {
+            "time_s": 6.65,
+            "data_hex": "00534d"
+          },
+          {
+            "time_s": 6.7,
+            "data_hex": "00f44d"
+          },
+          {
+            "time_s": 6.75,
+            "data_hex": "00954e"
+          },
+          {
+            "time_s": 6.8,
+            "data_hex": "00364f"
+          },
+          {
+            "time_s": 6.85,
+            "data_hex": "00d74f"
+          },
+          {
+            "time_s": 6.9,
+            "data_hex": "007850"
+          },
+          {
+            "time_s": 6.95,
+            "data_hex": "001951"
+          },
+          {
+            "time_s": 7.0,
+            "data_hex": "00b951"
+          },
+          {
+            "time_s": 7.05,
+            "data_hex": "005a52"
+          },
+          {
+            "time_s": 7.1,
+            "data_hex": "00fb52"
+          },
+          {
+            "time_s": 7.15,
+            "data_hex": "009c53"
+          },
+          {
+            "time_s": 7.2,
+            "data_hex": "003d54"
+          },
+          {
+            "time_s": 7.25,
+            "data_hex": "00de54"
+          },
+          {
+            "time_s": 7.3,
+            "data_hex": "007f55"
+          },
+          {
+            "time_s": 7.35,
+            "data_hex": "002056"
+          },
+          {
+            "time_s": 7.4,
+            "data_hex": "00c156"
+          },
+          {
+            "time_s": 7.45,
+            "data_hex": "006257"
+          },
+          {
+            "time_s": 7.5,
+            "data_hex": "000358"
+          },
+          {
+            "time_s": 7.55,
+            "data_hex": "00a458"
+          },
+          {
+            "time_s": 7.6,
+            "data_hex": "004559"
+          },
+          {
+            "time_s": 7.65,
+            "data_hex": "00e659"
+          },
+          {
+            "time_s": 7.7,
+            "data_hex": "00875a"
+          },
+          {
+            "time_s": 7.75,
+            "data_hex": "00275b"
+          },
+          {
+            "time_s": 7.8,
+            "data_hex": "00c85b"
+          },
+          {
+            "time_s": 7.85,
+            "data_hex": "00695c"
+          },
+          {
+            "time_s": 7.9,
+            "data_hex": "000a5d"
+          },
+          {
+            "time_s": 7.95,
+            "data_hex": "00ab5d"
+          },
+          {
+            "time_s": 8.0,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.05,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.1,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.15,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.2,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.25,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.3,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.35,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.4,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.45,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.5,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.55,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.6,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.65,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.7,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.75,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.8,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.85,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.9,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 8.95,
+            "data_hex": "004c5e"
+          },
+          {
+            "time_s": 9.0,
+            "data_hex": "004c5e"
+          }
+        ]
+      },
+      "rendered_size_px": [
+        512,
+        384
+      ],
+      "display": "Native 128x96 center area enlarged 4x",
+      "source_frame_count": 37,
+      "encoded_frame_count": 32,
+      "source_frame_duration_ms": 250,
+      "source_files": [
+        "dis_client/apps/acceleration_test.py",
+        "dis_client/apps/base.py"
+      ]
+    },
+    {
+      "name": "dis-car-info-legacy",
+      "caption": "Low-resolution red-cluster Car Info: absolute boost, MAF, ignition timing, oil and coolant. The production five-line view uses the emulator legacy glyph table, enlarged 8x. Synthetic readings.",
+      "demo_inputs": [
+        {
+          "id": "engine.boost.actual_absolute",
+          "value": 1450,
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.maf",
+          "value": 36,
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.ignition_timing",
+          "value": 12.5,
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.oil_temperature",
+          "value": 94,
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        },
+        {
+          "id": "engine.coolant_temperature",
+          "value": 89,
+          "status": "ok",
+          "age_ms": 0,
+          "max_age_ms": 5000
+        }
+      ],
+      "rendered_size_px": [
+        512,
+        384
+      ],
+      "display": "Legacy 64x48 logical center area enlarged 8x",
+      "source_frame_count": 1,
+      "encoded_frame_count": 1,
+      "source_frame_duration_ms": 500,
+      "source_files": [
+        "dis_client/apps/car_info.py",
+        "dis_client/apps/base.py",
+        "dis_emulator/static/font_data.js",
+        "dis_emulator/templates/index.html"
+      ]
+    },
+    {
+      "name": "dis-top-media",
+      "caption": "Two-line top DIS with sample track and artist, each limited to eight fixed-width characters. The production scrollers advance independently, pause at the ends and restart. This image shows the top strip only.",
+      "demo_inputs": {
+        "media": {
+          "title": "Night Drive",
+          "artist": "Demo Artist",
+          "source_label": "CarPlay"
+        },
+        "line_modes": [
+          "title",
+          "artist"
+        ],
+        "scroller_width": 8,
+        "speed_ms": 300,
+        "start_delay_ms": 1000,
+        "end_delay_ms": 500,
+        "line_stagger_ms": 350
+      },
+      "rendered_size_px": [
+        512,
+        184
+      ],
+      "display": "64x23 logical top strip enlarged 8x; no center area",
+      "source_frame_count": 32,
+      "encoded_frame_count": 26,
+      "source_frame_duration_ms": 350,
+      "source_files": [
+        "dis_client/dis_top_display_service.py",
+        "dis_emulator/static/font_data.js",
+        "dis_emulator/templates/index.html"
+      ]
+    }
+  ],
+  "source_sha256": {
+    "dis_client/apps/acceleration_test.py": "11d0a1dd6bad114f3836e8043ea16af0f0c9081d1a1fcc9c22081d5e7898099d",
+    "dis_client/apps/base.py": "7135e350aab111de37f331d5abe5ea4089040c6610dc084a3b40bbb47a56d712",
+    "dis_client/apps/car_info.py": "e32338768dbe6e116c76b34ed2b3e7515e105279c3061555d8b03d32eadf5583",
+    "dis_client/apps/coverart.py": "e69a26b9bbd39a233a0b346a655282bf717e1af91664b0ff6de9448dbb1302b5",
+    "dis_client/apps/media.py": "f7f6a3ba43175f112a6329029a73f0b0a600e3cd53997c11d4f7867944d53cfc",
+    "dis_client/apps/nav.py": "f8f7806fcb23874e80d595d3d2fa75f9264d9e358317eea79d5de2f55aab452b",
+    "dis_client/apps/phone.py": "4c1fe6c8b0c38d49577bb5d274ba9620127dbc94cf69cf949b507d50a5d0e9c7",
+    "dis_client/apps/readings.py": "570fe304f7323c44b50516a78be447acbdd1df6355915127342f0b9d04966e02",
+    "dis_client/dis_image.py": "5339ffec7ce54f711c7969ac4b1c212d36ba29ef4afd5025258e74c95ba575f4",
+    "dis_client/dis_top_display_service.py": "702877733a3c2e79faf3e983aaec089fd0b38d3b7a6fe5ba1836e0a88f190349",
+    "dis_client/enhanced_navigation.py": "2711775925a5fff8c0f123eed51b1e5b6c734640c8d2b21544f307bd3e3b4555",
+    "dis_client/font_metrics.py": "f44185695210148d32c6274545423ce0852c6e9962a05eb5970f6e229a0b37dc",
+    "dis_client/icons.py": "832bb04ef13b050e8795b57e58d5718ea0d4200886df80c6331224531288115f",
+    "dis_client/nav_icons.py": "8e63ca14183cd98934c217fae4ea48f2bd2671de2f2c780918dd5f1c2afbceab",
+    "dis_client/readings_assets.py": "e94cde5035958d8729c1cb59946428b0c2eebaede1bfe84811440f5df8d638b2",
+    "dis_emulator/static/font_data.js": "f1f97467af06f33aaf50ef5ec77b56248127dfae3cd60b9ae7d33829d186db2a",
+    "dis_emulator/static/native_font_data.js": "633442a8e0fc2d06c5b8359aa4641f1db943f72effafec56d30352ca8996c68a",
+    "dis_emulator/templates/index.html": "3c8a1c9e3f541b8939a2e04f9cc7cb7ede5e891e619b29f74448a7c021e965ac",
+    "vehicle_data/catalog.py": "4d4641c5d9d22a2bdd20ee87705f0d0b85c50feed05167cb82de37c535c97752",
+    "vehicle_data/workspace.py": "1d49d6ef6468129c5ce3ec31306d0824c0611acf7a808130c3db58b6b3dea2c5"
+  }
+}

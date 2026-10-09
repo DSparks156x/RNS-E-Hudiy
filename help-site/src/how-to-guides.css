@@ -1,0 +1,8 @@
+.howto-command{background:#e9eedf;border:1px solid var(--line);border-radius:18px;margin:18px 0 22px;overflow:hidden}
+.howto-command>div{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:12px 18px;border-bottom:1px solid var(--line)}
+.howto-command>div>span{font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:#65765b}
+.howto-command button{font-size:12px;background:#f7f9f2;border-radius:20px;padding:7px 13px;color:#435b33}
+.howto-command button:hover{background:#dce7ce}
+.howto-command pre{margin:0;padding:18px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.75}
+.howto-command pre code{background:transparent;padding:0;color:#354b29}
+@media(max-width:700px){.howto-command>div{padding:11px 14px}.howto-command pre{padding:15px;font-size:12px}}

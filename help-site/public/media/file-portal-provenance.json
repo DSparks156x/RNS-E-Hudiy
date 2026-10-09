@@ -1,0 +1,29 @@
+{
+  "data": "Synthetic filenames, sizes, dates and in-memory file APIs; actual production FilePortal and FilesTab components with a sample Hudiy color scheme. No vehicle connection or controller operation.",
+  "viewport": [
+    1280,
+    720
+  ],
+  "capture": "scripts/CAPTURE-FILE-PORTAL.md",
+  "sources": {
+    "hudiy_dataview/src/FilePortal.tsx": "35d1f10f907b695831b5c7d521b7c2adb08817d405dbe7b65d3118be65aaf89b",
+    "hudiy_dataview/src/tabs/FilesTab.tsx": "d197a9ebe78e383985d9f86ad3be6c8ffa63ac7cf24ebef2f5f711f5815656c6",
+    "hudiy_dataview/src/filePortalModel.ts": "50f46168fe8304a36fb6d2bf1a75ad2520f8c23bd23aae6afd4937a230cda5ae",
+    "hudiy_dataview/src/portal.css": "9f49c7d3034fdff138ea80445017e30b0e9ccfcab3055b352cfd135a02ffeca1",
+    "help-site/scripts/capture-file-portal.jsx": "da832e915110fb2ed8df5b110c8281c0a29d97f1e705f4affef9ee3c0bf033a9"
+  },
+  "assets": {
+    "file-portal-overview.jpg": {
+      "scene": "recordings",
+      "sha256": "0405e7c9e68262633cef6289b7dd239a07ff39076baa8272fb1369523dcbbf3c"
+    },
+    "file-portal-debug.jpg": {
+      "scene": "debug",
+      "sha256": "90afc9ed6d2aebd6dd99284cb265c850e6284088a603aceb5e5fc76c3ccd8d21"
+    },
+    "file-portal-upload.jpg": {
+      "scene": "upload",
+      "sha256": "e7dc8ae44fc3ca7e157bb6990f85d2290a0a91de3cf2fd1a83d6bb696378b16e"
+    }
+  }
+}

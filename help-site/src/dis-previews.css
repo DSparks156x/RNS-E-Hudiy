@@ -1,0 +1,5 @@
+/* DIS output is monochrome. The guide palette belongs around it, not in it.
+   The threshold also maps red-cluster source ink to white, without changing
+   DataView or other screenshots. Keep the frame outside the complete image. */
+.demo-image.dis-preview>.dis-preview-frame{border:2px solid #000;background:#000}
+.demo-image.dis-preview .dis-preview-frame>img.pixel{display:block;width:100%;max-width:none;height:auto;aspect-ratio:auto;border-radius:0;background:#000;filter:grayscale(1) brightness(3) contrast(100);opacity:1;mix-blend-mode:normal;image-rendering:pixelated;box-shadow:none}

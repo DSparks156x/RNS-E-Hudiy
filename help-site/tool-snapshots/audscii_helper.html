@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AUDSCII Font Helper</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #38bdf8; /* DIS Blue */
+            --border: #334155;
+            --highlight: #facc15;
+            --ascii-white: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            margin-bottom: 0.5rem;
+            color: var(--accent);
+        }
+
+        p {
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            max-width: 600px;
+            text-align: center;
+        }
+
+        .legend {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 2rem;
+            background: var(--card-bg);
+            padding: 0.75rem 1.5rem;
+            border-radius: 99px;
+            border: 1px solid var(--border);
+            font-size: 0.85rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .dot.dis { background: var(--accent); }
+        .dot.ascii { background: var(--ascii-white); }
+
+        .controls {
+            margin-bottom: 2rem;
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            gap: 1rem;
+        }
+
+        input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+            color: white;
+            font-size: 1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 1rem;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .cell {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform 0.2s, border-color 0.2s;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .cell:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+        }
+
+        .cell.highlight {
+            border-color: var(--highlight);
+            box-shadow: 0 0 15px rgba(250, 204, 21, 0.3);
+        }
+
+        canvas {
+            image-rendering: pixelated;
+            margin-bottom: 0.5rem;
+            background: #000;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .id-val {
+            font-family: monospace;
+            font-weight: bold;
+            color: var(--accent);
+            font-size: 1.1rem;
+            margin: 0.25rem 0;
+        }
+
+        .info {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: var(--ascii-white);
+            text-align: center;
+        }
+
+        .char-label {
+            position: absolute;
+            top: 4px;
+            right: 8px;
+            font-weight: bold;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .idx-label {
+            position: absolute;
+            top: 6px;
+            left: 8px;
+            color: #475569;
+            font-size: 0.6rem;
+            font-family: monospace;
+        }
+
+        #status {
+            margin-top: 2rem;
+            color: #475569;
+            font-size: 0.8rem;
+        }
+        select {
+            padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--card-bg); color: var(--text-primary); font-size: 0.9rem;
+        }
+        .controls { flex-wrap: wrap; }
+        .metrics { color: var(--text-secondary); margin-top: 0.5rem; min-height: 2.5em; }
+        .metrics.unknown { color: #fbbf24; }
+    </style>
+</head>
+<body>
+
+    <h1>AUDSCII Helper</h1>
+    <p>Unicode character to Audi cluster byte mapping. Captured white-cluster proportional glyphs and advances use physical pixels; low-resolution/red-cluster font modes use the original shared tables. Raw view shows all 256 cluster glyph codes. Character mapping includes Latin-1 and supported Unicode aliases; raw view retains every glyph.</p>
+
+    <div class="legend">
+        <div class="legend-item">
+            <span class="dot ascii"></span>
+            <span>White = Character code point</span>
+        </div>
+        <div class="legend-item">
+            <span class="dot dis"></span>
+            <span>Blue = DIS Hex</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <select id="font-mode" aria-label="Font preview">
+            <option value="native-proportional" selected>Captured proportional</option>
+            <option value="native-fixed">Captured fixed</option>
+            <option value="native-graphics">Captured graphics</option>
+            <option value="legacy-proportional">Low-resolution / red: proportional</option>
+            <option value="legacy-fixed">Low-resolution / red: fixed</option>
+            <option value="legacy-graphics">Low-resolution / red: graphics</option>
+        </select>
+        <select id="glyph-view" aria-label="Glyph indexing">
+            <option value="ascii">Character mapping</option>
+            <option value="raw" selected>Raw DIS codes (all 256)</option>
+        </select>
+        <input type="text" id="search" placeholder="Type a character, code point (0x61), or DIS hex to find it...">
+    </div>
+
+    <div class="grid" id="main-grid"></div>
+
+    <div id="status" aria-live="polite"></div>
+    <script src="../dis_emulator/static/audscii_data.js"></script>
+    <script src="../dis_emulator/static/font_data.js"></script>
+    <script src="../dis_emulator/static/native_font_data.js"></script>
+    <script src="../dis_emulator/static/native_font.js"></script>
+    <script>
+        // Shared mapping includes Latin-1 plus explicitly supported Unicode.
+        const characterMappings = Array.from(AUDSCII_MAPPING.latin1, (_, codepoint) => {
+            const char = String.fromCodePoint(codepoint);
+            return { codepoint, char, targetId: AUDSCII_MAPPING.toCode(char) };
+        });
+        for (const char of Object.keys(AUDSCII_MAPPING.unicodeAliases)) {
+            const codepoint = char.codePointAt(0);
+            if (codepoint >= 256) characterMappings.push({ codepoint, char, targetId: AUDSCII_MAPPING.toCode(char) });
+        }
+
+        // Legacy tables are shared with the emulator through font_data.js.
+
+        const grid = document.getElementById('main-grid');
+        const searchInput = document.getElementById('search');
+        const fontMode = document.getElementById('font-mode');
+        const glyphView = document.getElementById('glyph-view');
+
+        function fontSelection() {
+            const native = fontMode.value.startsWith('native-');
+            const font = fontMode.value === 'legacy' ? 'proportional' : fontMode.value.replace(/^(native|legacy)-/, '');
+            const table = font === 'fixed' ? (typeof FONT_DATA_FIXED === 'undefined' ? null : FONT_DATA_FIXED)
+                : font === 'graphics' ? (typeof FONT_DATA_GRAPHICS === 'undefined' ? null : FONT_DATA_GRAPHICS)
+                : (typeof FONT_DATA_PROP === 'undefined' ? null : FONT_DATA_PROP);
+            return { native, font, table };
+        }
+
+        function capturedGlyph(id) {
+            return typeof NativeFont === 'undefined' ? null : NativeFont.getGlyph(fontSelection().font, id);
+        }
+
+        function describeGlyph(id) {
+            const selected = fontSelection();
+            if (!selected.native) {
+                const entry = selected.table?.[id.toString()];
+                return { label: entry ? `Low-resolution ${selected.font} · advance ${entry[0]} logical px` : 'Legacy entry unavailable', unknown: !entry };
+            }
+            const glyph = capturedGlyph(id);
+            if (!glyph) return { label: 'Capture unavailable · advance unknown', unknown: true };
+            const width = glyph.advance_px == null ? 'advance unknown' : `advance ${glyph.advance_px} physical px`;
+            const status = glyph.status === 'verified' ? 'Verified glyph'
+                : glyph.status === 'observed_blank' ? 'Observed blank'
+                : glyph.status === 'ambiguous' ? 'Unsupported/control or unresolved'
+                : 'Not captured';
+            return { label: `${status} · ${width}`, unknown: glyph.status !== 'verified' && glyph.status !== 'observed_blank' };
+        }
+
+        function aliasesFor(id) {
+            return characterMappings.filter(entry => entry.targetId === id && (id !== 0x20 || entry.codepoint === 32));
+        }
+
+        function hex(code) { return '0x' + code.toString(16).toUpperCase().padStart(2, '0'); }
+        function aliasLabel(entry) { return `${getPrintable(entry.codepoint)} (${hex(entry.codepoint)})`; }
+
+        function renderGrid(filter = '') {
+            grid.innerHTML = '';
+            const lowerFilter = filter.toLowerCase();
+            const raw = glyphView.value === 'raw';
+            const entries = raw ? Array.from({length: 256}, (_, codepoint) => ({codepoint, targetId: codepoint})) : characterMappings;
+            for (const entry of entries) {
+                const i = entry.codepoint, targetId = entry.targetId;
+                if (!raw && targetId === 0x20 && i !== 32) continue;
+                const aliases = raw ? aliasesFor(i) : [];
+                const char = raw ? aliases.map(alias => alias.char).join('') : entry.char;
+                const characterHex = hex(i), disHex = hex(targetId);
+                const aliasHexes = aliases.map(alias => hex(alias.codepoint).toLowerCase());
+                if (filter && !char.includes(filter) && !i.toString().includes(filter)
+                    && !(!raw && characterHex.toLowerCase().includes(lowerFilter)) && !disHex.toLowerCase().includes(lowerFilter)
+                    && !aliasHexes.some(value => value.includes(lowerFilter))) continue;
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                if (filter && (char === filter || (!raw && characterHex.toLowerCase() === lowerFilter) || disHex.toLowerCase() === lowerFilter)) cell.classList.add('highlight');
+                const canvas = document.createElement('canvas');
+                drawGlyph(canvas, targetId);
+                const idxLabel = document.createElement('div');
+                idxLabel.className = 'idx-label'; idxLabel.innerText = i;
+                const charLabel = document.createElement('div');
+                charLabel.className = 'char-label'; charLabel.innerText = raw ? (aliases.length ? aliases.slice(0, 6).map(alias => getPrintable(alias.codepoint)).join(' ') : 'RAW') : getPrintable(i);
+                const idVal = document.createElement('div');
+                idVal.className = 'id-val'; idVal.innerText = disHex;
+                const info = document.createElement('div');
+                info.className = 'info';
+                info.innerText = raw ? (aliases.length ? `Characters: ${aliases.slice(0, 6).map(aliasLabel).join(' ')}${aliases.length > 6 ? ` +${aliases.length - 6}` : ''}` : 'No character mapping') : characterHex;
+                const description = describeGlyph(targetId);
+                const metrics = document.createElement('div');
+                metrics.className = 'info metrics' + (description.unknown ? ' unknown' : ''); metrics.innerText = description.label;
+                cell.title = `${raw ? `Raw ${disHex}; character aliases: ${aliases.map(aliasLabel).join(' ') || 'none'}` : `${characterHex} → ${disHex}`}: ${description.label}`;
+                for (const element of [idxLabel, charLabel, canvas, idVal, info, metrics]) cell.appendChild(element);
+                grid.appendChild(cell);
+            }
+            const selected = fontSelection();
+            document.getElementById('status').innerText = `${selected.native ? 'Captured' : 'Low-resolution / red'} ${selected.font} · Showing ${grid.children.length} ${raw ? 'raw codes' : 'mappings'}.`;
+        }
+
+        function getPrintable(i) {
+            if (i < 32 || i === 127) return '•';
+            if (i === 32) return 'SPC';
+            return String.fromCodePoint(i);
+        }
+
+        function drawGlyph(canvas, id) {
+            const selected = fontSelection();
+            const glyph = selected.native ? capturedGlyph(id) : null;
+            canvas.width = selected.native ? Math.max(16, glyph?.size?.[0] || 0, glyph?.advance_px || 0) : 6;
+            canvas.height = selected.native ? Math.max(20, glyph?.size?.[1] || 0) : 8;
+            canvas.style.width = `${canvas.width * 4}px`; canvas.style.height = `${canvas.height * 4}px`;
+            const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = false;
+            ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#38bdf8';
+            if (selected.native) {
+                if (glyph?.status === 'verified' && glyph.mask_hex != null) NativeFont.forEachPixel(glyph, (x, y) => ctx.fillRect(x, y, 1, 1));
+                else if (!glyph || glyph.status !== 'observed_blank') { ctx.strokeStyle = '#fbbf24'; ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2); }
+                return;
+            }
+            const data = selected.table?.[id.toString()];
+            if (!data) { ctx.strokeStyle = '#ef4444'; ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2); return; }
+            for (let row = 0; row < Math.min(data.length - 1, 7); row++) for (let col = 0; col < data[0]; col++)
+                if ((data[row + 1] >> (5 - col)) & 1) ctx.fillRect(col, row + 1, 1, 1);
+        }
+
+        function updateSearchHint() {
+            searchInput.placeholder = glyphView.value === 'raw' ? 'Raw glyph hex (0x4D), decimal code, or mapped character...' : 'Type a character, code point (0x61), or DIS hex to find it...';
+        }
+        searchInput.addEventListener('input', e => renderGrid(e.target.value));
+        fontMode.addEventListener('change', () => {
+            if (fontSelection().font === 'graphics') glyphView.value = 'raw';
+            updateSearchHint(); renderGrid(searchInput.value);
+        });
+        glyphView.addEventListener('change', () => { updateSearchHint(); renderGrid(searchInput.value); });
+        updateSearchHint(); renderGrid();
+    </script>
+</body>
+</html>

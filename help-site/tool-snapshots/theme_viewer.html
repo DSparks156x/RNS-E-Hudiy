@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Material Theme Palette Viewer</title>
+    <style>
+        :root {
+            --background: #fff8f7;
+            --onBackground: #231918;
+            --surface: #fff8f7;
+            --onSurface: #180f0e;
+            --surfaceVariant: #f5dddb;
+            --onSurfaceVariant: #413331;
+            --outline: #5f4f4d;
+            --outlineVariant: #7b6967;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 2rem;
+            background: var(--background);
+            color: var(--onBackground);
+            transition: background 0.3s, color 0.3s;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--outlineVariant);
+        }
+
+        .theme-switch {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 2px solid var(--outline);
+            background: var(--surface);
+            color: var(--onSurface);
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .theme-switch:hover {
+            background: var(--surfaceVariant);
+            color: var(--onSurfaceVariant);
+        }
+
+        .category-title {
+            grid-column: 1 / -1;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px dashed var(--outlineVariant);
+            color: var(--onSurface);
+            text-transform: capitalize;
+        }
+
+        .palette-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .color-card {
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--outlineVariant);
+            transition: transform 0.2s, box-shadow 0.2s;
+            background: var(--surface);
+        }
+
+        .color-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .color-swatch {
+            height: 120px;
+            width: 100%;
+            display: flex;
+            align-items: flex-end;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+
+        /* Compute contrast text color via CSS tricky mix-blend-mode or just let JS handle it, but JS is easier */
+        .color-hex {
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+            background: rgba(0, 0, 0, 0.4);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .color-details {
+            padding: 1rem;
+            flex: 1;
+            background: var(--surface);
+        }
+
+        .color-details h3 {
+            margin: 0 0 0.25rem 0;
+            font-size: 1rem;
+            word-break: break-all;
+            color: var(--onSurface);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>Material Theme Palette Viewer</h1>
+        <button class="theme-switch" id="themeToggle" onclick="toggleTheme()">Switch to Dark Theme</button>
+    </div>
+
+    <div class="palette-grid" id="grid">
+    </div>
+
+    <script>
+        const lightTheme = {
+            'primaryPaletteKeyColor': '#ad625c', 'secondaryPaletteKeyColor': '#926f6b', 'tertiaryPaletteKeyColor': '#8d7444', 'neutralPaletteKeyColor': '#827472', 'neutralVariantPaletteKeyColor': '#857371',
+            'background': '#fff8f7', 'onBackground': '#231918',
+            'surface': '#fff8f7', 'surfaceDim': '#d4c3c1', 'surfaceBright': '#fff8f7',
+            'surfaceContainerLowest': '#ffffff', 'surfaceContainerLow': '#fff0ef', 'surfaceContainer': '#f6e4e2', 'surfaceContainerHigh': '#ebd9d7', 'surfaceContainerHighest': '#dfcecc',
+            'onSurface': '#180f0e', 'surfaceVariant': '#f5dddb', 'onSurfaceVariant': '#413331',
+            'inverseSurface': '#392e2d', 'inverseOnSurface': '#ffedeb',
+            'outline': '#5f4f4d', 'outlineVariant': '#7b6967',
+            'shadow': '#000000', 'scrim': '#000000', 'surfaceTint': '#904a45',
+            'primary': '#5e2320', 'onPrimary': '#ffffff', 'primaryContainer': '#a15852', 'onPrimaryContainer': '#ffffff', 'inversePrimary': '#ffb3ac',
+            'secondary': '#4b2f2c', 'onSecondary': '#ffffff', 'secondaryContainer': '#876561', 'onSecondaryContainer': '#ffffff',
+            'tertiary': '#463309', 'onTertiary': '#ffffff', 'tertiaryContainer': '#826a3b', 'onTertiaryContainer': '#ffffff',
+            'error': '#740006', 'onError': '#ffffff', 'errorContainer': '#cf2c27', 'onErrorContainer': '#ffffff',
+            'primaryFixed': '#a15852', 'primaryFixedDim': '#84413c', 'onPrimaryFixed': '#ffffff', 'onPrimaryFixedVariant': '#ffffff',
+            'secondaryFixed': '#876561', 'secondaryFixedDim': '#6d4d4a', 'onSecondaryFixed': '#ffffff', 'onSecondaryFixedVariant': '#ffffff',
+            'tertiaryFixed': '#826a3b', 'tertiaryFixedDim': '#675126', 'onTertiaryFixed': '#ffffff', 'onTertiaryFixedVariant': '#ffffff'
+        };
+
+        const darkTheme = {
+            'primaryPaletteKeyColor': '#5a77ab', 'secondaryPaletteKeyColor': '#6e778a', 'tertiaryPaletteKeyColor': '#8a6e8f', 'neutralPaletteKeyColor': '#76777d', 'neutralVariantPaletteKeyColor': '#74777f',
+            'background': '#111318', 'onBackground': '#e2e2e9',
+            'surface': '#111318', 'surfaceDim': '#111318', 'surfaceBright': '#37393e',
+            'surfaceContainerLowest': '#0c0e13', 'surfaceContainerLow': '#191c20', 'surfaceContainer': '#1d2024', 'surfaceContainerHigh': '#282a2f', 'surfaceContainerHighest': '#33353a',
+            'onSurface': '#e2e2e9', 'surfaceVariant': '#44474e', 'onSurfaceVariant': '#c4c6d0',
+            'inverseSurface': '#e2e2e9', 'inverseOnSurface': '#2e3036',
+            'outline': '#8e9099', 'outlineVariant': '#44474e',
+            'shadow': '#000000', 'scrim': '#000000', 'surfaceTint': '#aac7ff',
+            'primary': '#aac7ff', 'onPrimary': '#0a305f', 'primaryContainer': '#284777', 'onPrimaryContainer': '#d6e3ff', 'inversePrimary': '#415f91',
+            'secondary': '#bec6dc', 'onSecondary': '#283141', 'secondaryContainer': '#3e4759', 'onSecondaryContainer': '#dae2f9',
+            'tertiary': '#ddbce0', 'onTertiary': '#3f2844', 'tertiaryContainer': '#573e5c', 'onTertiaryContainer': '#fad8fd',
+            'error': '#ffb4ab', 'onError': '#690005', 'errorContainer': '#93000a', 'onErrorContainer': '#ffdad6',
+            'primaryFixed': '#d6e3ff', 'primaryFixedDim': '#aac7ff', 'onPrimaryFixed': '#001b3e', 'onPrimaryFixedVariant': '#284777',
+            'secondaryFixed': '#dae2f9', 'secondaryFixedDim': '#bec6dc', 'onSecondaryFixed': '#131c2b', 'onSecondaryFixedVariant': '#3e4759',
+            'tertiaryFixed': '#fad8fd', 'tertiaryFixedDim': '#ddbce0', 'onTertiaryFixed': '#28132e', 'onTertiaryFixedVariant': '#573e5c'
+        };
+
+        let isDark = false;
+
+        // Optional: Group theming keys for a nicer layout
+        const categories = [
+            { name: "Primary", keys: ["primary", "onPrimary", "primaryContainer", "onPrimaryContainer", "inversePrimary", "primaryFixed", "primaryFixedDim", "onPrimaryFixed", "onPrimaryFixedVariant", "primaryPaletteKeyColor"] },
+            { name: "Secondary", keys: ["secondary", "onSecondary", "secondaryContainer", "onSecondaryContainer", "secondaryFixed", "secondaryFixedDim", "onSecondaryFixed", "onSecondaryFixedVariant", "secondaryPaletteKeyColor"] },
+            { name: "Tertiary", keys: ["tertiary", "onTertiary", "tertiaryContainer", "onTertiaryContainer", "tertiaryFixed", "tertiaryFixedDim", "onTertiaryFixed", "onTertiaryFixedVariant", "tertiaryPaletteKeyColor"] },
+            { name: "Error", keys: ["error", "onError", "errorContainer", "onErrorContainer"] },
+            { name: "Background & Surface", keys: ["background", "onBackground", "surface", "surfaceDim", "surfaceBright", "surfaceContainerLowest", "surfaceContainerLow", "surfaceContainer", "surfaceContainerHigh", "surfaceContainerHighest", "onSurface", "surfaceVariant", "onSurfaceVariant", "inverseSurface", "inverseOnSurface", "surfaceTint", "neutralPaletteKeyColor", "neutralVariantPaletteKeyColor"] },
+            { name: "Outline & Other", keys: ["outline", "outlineVariant", "shadow", "scrim"] }
+        ];
+
+        function applyCSSVariables(theme) {
+            const root = document.documentElement;
+            // Specifically update background/surface dynamically for the wrapper
+            root.style.setProperty('--background', theme.background);
+            root.style.setProperty('--onBackground', theme.onBackground);
+            root.style.setProperty('--surface', theme.surfaceContainer);
+            root.style.setProperty('--onSurface', theme.onSurface);
+            root.style.setProperty('--surfaceVariant', theme.surfaceVariant);
+            root.style.setProperty('--onSurfaceVariant', theme.onSurfaceVariant);
+            root.style.setProperty('--outline', theme.outline);
+            root.style.setProperty('--outlineVariant', theme.outlineVariant);
+        }
+
+        function renderGrid(theme) {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+
+            categories.forEach(category => {
+                // Add category title
+                const title = document.createElement('h2');
+                title.className = 'category-title';
+                title.textContent = category.name;
+                grid.appendChild(title);
+
+                category.keys.forEach(key => {
+                    if (theme[key] === undefined) return;
+
+                    const hex = theme[key];
+                    const card = document.createElement('div');
+                    card.className = 'color-card';
+
+                    // Swatch div
+                    const swatch = document.createElement('div');
+                    swatch.className = 'color-swatch';
+                    swatch.style.backgroundColor = hex;
+
+                    // Add hex label inside swatch for flair
+                    const hexLabel = document.createElement('div');
+                    hexLabel.className = 'color-hex';
+                    hexLabel.textContent = hex.toUpperCase();
+
+                    // For white/black text depending on contrast
+                    // Simple perceived brightness formula
+                    // Hex to RGB
+                    const c = hex.substring(1);      // strip #
+                    const rgb = parseInt(c, 16);   // convert rrggbb to decimal
+                    const r = (rgb >> 16) & 0xff;  // extract red
+                    const g = (rgb >> 8) & 0xff;  // extract green
+                    const b = (rgb >> 0) & 0xff;  // extract blue
+                    const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b; // per ITU-R BT.709
+
+                    if (luma > 128) {
+                        hexLabel.style.color = 'black';
+                        hexLabel.style.background = 'rgba(255, 255, 255, 0.5)';
+                    } else {
+                        hexLabel.style.color = 'white';
+                        hexLabel.style.background = 'rgba(0, 0, 0, 0.4)';
+                    }
+
+                    swatch.appendChild(hexLabel);
+
+                    // Info text
+                    const details = document.createElement('div');
+                    details.className = 'color-details';
+
+                    const nameNode = document.createElement('h3');
+                    nameNode.textContent = key;
+                    details.appendChild(nameNode);
+
+                    card.appendChild(swatch);
+                    card.appendChild(details);
+                    grid.appendChild(card);
+                });
+            });
+        }
+
+        function toggleTheme() {
+            isDark = !isDark;
+            const btn = document.getElementById('themeToggle');
+            btn.textContent = isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme';
+            const currentTheme = isDark ? darkTheme : lightTheme;
+
+            applyCSSVariables(currentTheme);
+            renderGrid(currentTheme);
+        }
+
+        // Initialize
+        applyCSSVariables(lightTheme);
+        renderGrid(lightTheme);
+    </script>
+</body>
+
+</html>

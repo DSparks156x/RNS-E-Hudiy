@@ -1,0 +1,46 @@
+{
+  "input_mappings": {
+    "mmi": {
+      "cooldown_period": 0.2,
+      "long_press_message_count": 5,
+      "extended_long_press_message_count": 30,
+      "scroll_commands": [
+        "0,32",
+        "0,64"
+      ],
+      "short_press": {
+        "1,0": "KEY_V",
+        "2,0": "KEY_N",
+        "64,0": "KEY_UP",
+        "128,0": "KEY_DOWN",
+        "0,16": "KEY_ENTER",
+        "0,32": "KEY_2",
+        "0,64": "KEY_1",
+        "0,2": "KEY_ESC",
+        "0,1": "KEY_H"
+      },
+      "long_press": {
+        "1,0": "KEY_LEFT",
+        "2,0": "KEY_RIGHT",
+        "64,0": null,
+        "128,0": "KEY_M",
+        "0,16": null,
+        "0,32": null,
+        "0,64": null,
+        "0,2": "KEY_0",
+        "0,1": null
+      },
+      "extended_press": {
+        "1,0": "python3 ~/rns-e_can/save_logs.py",
+        "2,0": "sudo shutdown -h now",
+        "64,0": null,
+        "128,0": null,
+        "0,16": "sudo reboot",
+        "0,32": null,
+        "0,64": null,
+        "0,2": null,
+        "0,1": null
+      }
+    }
+  }
+}
