@@ -10,6 +10,8 @@ Choose RNS-E integration or one of the five Hudiy config files. Search by settin
 name, JSON path or description, edit values, then save. The RNS-E descriptions
 come from the same source as `tools/config_editor.html`. Unknown settings stay
 in the document; structured values and Hudiy menu arrays can be edited as JSON.
+Manager edits the installed files directly. File uploads live in the network
+Files portal for use from your phone or computer.
 
 Save replaces the file, after basic structural validation. It creates a backup
 under `~/confbackup/YYYY-MM-DD/<number>/` and preserves file permissions. A stale
