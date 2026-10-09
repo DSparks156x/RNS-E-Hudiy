@@ -318,6 +318,7 @@ const SETTING_HELP = {
   'features.power_management.gpio_shutdown.delay_seconds': 'Seconds the GPIO must remain at its shutdown level before the Pi shuts down.',
   'features.power_management.connection_management.enabled': 'Automatically manage Hudiy Android Auto and Bluetooth connections using ignition, radio and wake events.',
   'features.tv_simulation.enabled': 'Transmit TV tuner presence frames so the RNS-E can select the TV source used by the video interface.',
+  'features.tv_simulation.payload': 'CAN data bytes sent for TV tuner presence. Enter 1–8 whole bytes as hexadecimal, compact or space-separated; saved as compact uppercase hex.',
   'input_mappings.mmi.scroll_commands': 'MMI byte pairs treated as immediate rotary events. These bypass press-duration handling; the matching short-press mapping chooses the keyboard key.',
   'input_mappings.mfsw.commands.release': 'Two-byte steering-wheel release pattern. Keep this as a JSON array of hex strings, matching the vehicle CAN payload.',
   'input_mappings.source.tv_mode_identifier': 'Hex source-state byte identifying TV mode. Source controls pause playback when leaving TV and resume when returning.',
@@ -342,6 +343,7 @@ for (const [path, help] of Object.entries(SETTING_HELP)) {
 SCHEMA.branch.detailedHelp = 'testing and main follow their branch directly.\n\nrelease, beta and other track names first select the latest version-sorted tag matching track-*. Without a matching tag, the installer tries that branch. If the selected reference does not exist, it falls back to main.\n\nThe source picker above reads config.json from the exact branch or reference you choose; it does not resolve update-track tags.';
 SCHEMA.config_restore_branch.detailedHelp = 'Reference from which a requested config reset downloads config.json. Use the branch or tag that contains the replacement config you want. The current installer keeps your existing config during normal updates.';
 Object.assign(SCHEMA, {
+  'features.tv_simulation.payload': {...SCHEMA['features.tv_simulation.payload'], label: 'TV presence payload', type: 'hex-payload'},
   'haldex.default_mode': {...SCHEMA['haldex.default_mode'], type: 'json-value'},
   ddp_bitmap_message_bytes: {...SCHEMA.ddp_bitmap_message_bytes, type: 'number', min: 13, max: 195, integer: true},
   'features.time_sync.data_format': {...SCHEMA['features.time_sync.data_format'], type: 'select', options: ['old_logic', 'new_logic']},
@@ -413,6 +415,10 @@ function metadataFor(path) {
             "data_logs.queue_size": 10000
         };
 
+        const TV_SIMULATION_DEFAULTS = {
+            "features.tv_simulation.payload": "0912302020202020"
+        };
+
         function addMissingDefaults(config, defaults) {
             for (const [path, value] of Object.entries(defaults)) {
                 const parts = path.split('.');
@@ -473,6 +479,7 @@ function metadataFor(path) {
 
         function addDataLogsDefaults(config) {
             addMissingDefaults(config, DATA_LOGS_DEFAULTS);
+            addMissingDefaults(config, TV_SIMULATION_DEFAULTS);
             // API diagnostics are always captured at the standard location.
             if (config?.diagnostics && typeof config.diagnostics === 'object') {
                 delete config.diagnostics.hudiy_api_capture;
@@ -1062,6 +1069,14 @@ function renderNode(path, value, container, shortKey) {
       const parsed = JSON.parse(text);
       if (key === 'haldex.default_mode' && parsed !== null && ![0,1,2].includes(parsed)) throw new Error('Use null, 0, 1 or 2.');
       return parsed;
+    };
+  } else if (meta.type === 'hex-payload') {
+    input=document.createElement('input');input.type='text';input.value=value ?? '';
+    parse=text => {
+      const trimmed=String(text).trim();
+      if (!/^(?:(?:[0-9a-fA-F]{2}){1,8}|[0-9a-fA-F]{2}(?:\s+[0-9a-fA-F]{2}){0,7})$/.test(trimmed)) throw new Error('Enter 1 to 8 whole hexadecimal bytes, compact or separated by spaces.');
+      const compact=trimmed.replace(/\s+/g,'');
+      return compact.toUpperCase();
     };
   } else if (typeof value === 'boolean') {
     input = document.createElement('select');

@@ -139,6 +139,20 @@ class StoreTests(TemporaryConfigCase):
             'enabled': False, 'day_brightness': None, 'night_brightness': None}}}
         self.store.save('rnse', disabled, result['revision'])
 
+    def test_tv_simulation_payload_validation_and_normalization(self):
+        revision = self.store.read('rnse')['revision']
+        for payload in ('', 'A', '0x01', 'GG', '001122334455667788', 'AA-BB',
+                        '0 9', 'AABB C', 'AA  BB CC DD EE FF 00 11 22', 12):
+            document = {**self.document, 'features': {'tv_simulation': {'payload': payload}}}
+            with self.subTest(payload=payload), self.assertRaises(ConfigError):
+                self.store.save('rnse', document, revision)
+        for payload, expected in (('aa', 'AA'), (' aa bb 0c ', 'AABB0C'),
+                                  ('0912302020202020', '0912302020202020')):
+            document = {**self.document, 'features': {'tv_simulation': {'payload': payload}}}
+            result = self.store.save('rnse', document, revision)
+            self.assertEqual(self.store.read('rnse')['document']['features']['tv_simulation']['payload'], expected)
+            revision = result['revision']
+
     def test_invalid_json_duplicate_nonfinite_size_and_depth(self):
         for content in (b'{broken', b'{"a":1,"a":2}', b'{"a":NaN}', b'{"a":Infinity}', b'\xff',
                         b' ' * (MAX_CONFIG_BYTES + 1)):

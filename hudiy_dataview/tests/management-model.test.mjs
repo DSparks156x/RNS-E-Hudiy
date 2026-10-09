@@ -4,7 +4,29 @@ import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
 const source = await readFile(new URL('../src/managementModel.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 } }).outputText;
-const { applyEdits, changedCount, displayValue, fieldsFor, filesPortalUrl, parseSetting, managementRequest } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+const { applyEdits, changedCount, displayValue, fieldsFor, filesPortalUrl, parseSetting, managementRequest, formatHexPayload } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+
+test('TV payloads display whole bytes and save compact uppercase hex without accepting malformed data', () => {
+  const meta = { type: 'hex-payload' };
+  assert.equal(displayValue('0912abcdef202020', meta), '09 12 AB CD EF 20 20 20');
+  assert.equal(parseSetting('09 12 ab cd ef 20 20 20', '', meta), '0912ABCDEF202020');
+  assert.equal(parseSetting('ff', '', meta), 'FF');
+  for (const invalid of ['', '0', '0 9', '091', '09 1234', 'GG', '0x09', '09-12', '00'.repeat(9)]) {
+    assert.throws(() => parseSetting(invalid, '', meta), /complete hex bytes/);
+    assert.equal(formatHexPayload(invalid), invalid, 'invalid input remains editable rather than truncated');
+  }
+});
+
+test('older TV configs expose the wire default and only persist it when edited', () => {
+  const original = { features: { tv_simulation: { enabled: true, custom: 'keep' } } };
+  const fields = fieldsFor(original, { schema: { 'features.tv_simulation.payload': { type: 'hex-payload' } } });
+  const payload = fields.find(field => field.path === 'features.tv_simulation.payload');
+  assert.equal(payload.value, '0912302020202020');
+  assert.deepEqual(applyEdits(original, fields, {}), original);
+  const next = applyEdits(original, fields, { [payload.id]: 'AB CD EF' });
+  assert.deepEqual(next.features.tv_simulation, { enabled: true, custom: 'keep', payload: 'ABCDEF' });
+  assert.equal(original.features.tv_simulation.payload, undefined);
+});
 
 test('editing installed settings preserves unknown keys, primitive types and original snapshot', () => {
   const original = { display: { enabled: true, speed: 80, label: 'daily', extra: ['custom', null] }, future: { untouched: 'retain' } };

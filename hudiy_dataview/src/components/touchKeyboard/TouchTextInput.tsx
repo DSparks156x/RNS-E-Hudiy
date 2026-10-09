@@ -8,6 +8,8 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> &
   onValueChange: (value: string) => void;
   capitalize?: boolean;
   touchOnly?: boolean;
+  keyboardLayout?: 'hex';
+  formatOnCommit?: (value: string) => string;
 };
 
 const letters = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'].map(row => [...row]);
@@ -20,8 +22,9 @@ function BackspaceIcon() {
   return <svg width="27" height="22" viewBox="0 0 27 22" aria-hidden="true"><path d="M9 3h15v16H9l-7-8zM12 7l8 8M20 7l-8 8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>;
 }
 
-function KeyboardDialog({ initial, title, maxLength, password, numeric, capitalize, onCancel, onDone }: {
+function KeyboardDialog({ initial, title, maxLength, password, numeric, capitalize, hex, onCancel, onDone }: {
   initial: string; title: string; maxLength?: number; password: boolean; numeric: boolean; capitalize: boolean;
+  hex: boolean;
   onCancel: () => void; onDone: (value: string) => void;
 }) {
   const [edit, setEdit] = useState<TextEdit>({ value: initial, start: initial.length, end: initial.length });
@@ -57,6 +60,7 @@ function KeyboardDialog({ initial, title, maxLength, password, numeric, capitali
     const text = !numbers && shift !== 'off' ? character.toUpperCase() : character;
     return <button type="button" className="osk-key" key={character} onClick={() => type(text)}>{text}</button>;
   };
+  const eraseKey = <button type="button" className="osk-key osk-wide" aria-label="Backspace" onPointerDown={beginErase} onPointerUp={stopRepeat} onPointerCancel={stopRepeat} onPointerLeave={stopRepeat} onClick={event => { if (event.detail === 0) erase(); }}><BackspaceIcon /></button>;
   return <div className="osk-shade" onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}>
     <div ref={dialog} className="osk-dialog" role="dialog" aria-modal="true" aria-label={`Keyboard: ${title}`} onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); onCancel(); }
@@ -69,7 +73,7 @@ function KeyboardDialog({ initial, title, maxLength, password, numeric, capitali
         }
       }
     }}>
-      <div className="osk-heading"><button type="button" className="osk-action" onClick={onCancel}>Cancel</button><div className="osk-title"><strong>{title}</strong><small>{maxLength !== undefined ? `${edit.value.length} / ${maxLength}` : 'Touch keyboard'}</small></div><button type="button" className="osk-action osk-done" onClick={() => onDone(value.current)}>Done</button></div>
+      <div className="osk-heading"><button type="button" className="osk-action" onClick={onCancel}>Cancel</button><div className="osk-title"><strong>{title}</strong><small>{hex ? 'Hex bytes · 0–9, A–F' : maxLength !== undefined ? `${edit.value.length} / ${maxLength}` : 'Touch keyboard'}</small></div><button type="button" className="osk-action osk-done" onClick={() => onDone(value.current)}>Done</button></div>
       <div className="osk-entry" onPointerDown={event => { if (event.target instanceof Element && event.target.closest('button')) event.preventDefault(); }}>
         <input ref={input} type={password ? 'password' : 'text'} aria-label="Keyboard text" inputMode="none" autoComplete="off" spellCheck={false} maxLength={maxLength} value={edit.value} onChange={event => {
           const element = event.target; value.current = element.value;
@@ -79,17 +83,17 @@ function KeyboardDialog({ initial, title, maxLength, password, numeric, capitali
         <button type="button" className="osk-action" disabled={!edit.value} onClick={() => apply({ value: '', start: 0, end: 0 })}>Clear</button>
       </div>
       <div className="osk-keys" onPointerDown={event => event.preventDefault()}>
-        <div className="osk-row">{rows[0].map(key)}</div>
+        {hex ? <><div className="osk-row">{[...'0123456789'].map(key)}</div><div className="osk-row">{[...'ABCDEF'].map(key)}{eraseKey}</div><div className="osk-row osk-bottom"><button type="button" className="osk-key osk-space" aria-label="Space" onClick={() => type(' ')}>byte space</button><button type="button" className="osk-key osk-cursor" aria-label="Move cursor left" onClick={() => apply(moveCaret(currentEdit(), -1))}>‹</button><button type="button" className="osk-key osk-cursor" aria-label="Move cursor right" onClick={() => apply(moveCaret(currentEdit(), 1))}>›</button></div></> : <><div className="osk-row">{rows[0].map(key)}</div>
         <div className="osk-row osk-middle">{rows[1].map(key)}</div>
         <div className="osk-row"><button type="button" className={`osk-key osk-wide ${(!numbers && shift !== 'off') || (numbers && symbolPage) ? 'active' : ''}`} aria-label={numbers ? 'More symbols' : 'Shift'} aria-pressed={numbers ? symbolPage === 1 : shift !== 'off'} onClick={() => numbers ? setSymbolPage(page => 1 - page) : setShift(previous => previous === 'off' ? 'once' : previous === 'once' ? 'locked' : 'off')}>{numbers ? (symbolPage ? '123' : '#+=') : shift === 'locked' ? 'CAPS' : '⇧'}</button>{rows[2].map(key)}<button type="button" className="osk-key osk-wide" aria-label="Backspace" onPointerDown={beginErase} onPointerUp={stopRepeat} onPointerCancel={stopRepeat} onPointerLeave={stopRepeat} onClick={event => { if (event.detail === 0) erase(); }}><BackspaceIcon /></button></div>
-        <div className="osk-row osk-bottom"><button type="button" className="osk-key osk-mode" aria-label={numbers ? 'Letters' : 'Numbers and symbols'} onClick={() => setNumbers(previous => !previous)}>{numbers ? 'ABC' : '?123'}</button><button type="button" className="osk-key osk-punctuation" onClick={() => type(',')}>,</button><button type="button" className="osk-key osk-space" aria-label="Space" onClick={() => type(' ')}>space</button><button type="button" className="osk-key osk-punctuation" onClick={() => type('.')}>.</button><button type="button" className="osk-key osk-cursor" aria-label="Move cursor left" onClick={() => apply(moveCaret(currentEdit(), -1))}>‹</button><button type="button" className="osk-key osk-cursor" aria-label="Move cursor right" onClick={() => apply(moveCaret(currentEdit(), 1))}>›</button></div>
+        <div className="osk-row osk-bottom"><button type="button" className="osk-key osk-mode" aria-label={numbers ? 'Letters' : 'Numbers and symbols'} onClick={() => setNumbers(previous => !previous)}>{numbers ? 'ABC' : '?123'}</button><button type="button" className="osk-key osk-punctuation" onClick={() => type(',')}>,</button><button type="button" className="osk-key osk-space" aria-label="Space" onClick={() => type(' ')}>space</button><button type="button" className="osk-key osk-punctuation" onClick={() => type('.')}>.</button><button type="button" className="osk-key osk-cursor" aria-label="Move cursor left" onClick={() => apply(moveCaret(currentEdit(), -1))}>‹</button><button type="button" className="osk-key osk-cursor" aria-label="Move cursor right" onClick={() => apply(moveCaret(currentEdit(), 1))}>›</button></div></>}
       </div>
     </div>
   </div>;
 }
 
 /** Explicit controlled text entry; existing diagnostic keypads stay independent. */
-export function TouchTextInput({ value, onValueChange, capitalize = false, touchOnly = false, ...props }: Props) {
+export function TouchTextInput({ value, onValueChange, capitalize = false, touchOnly = false, keyboardLayout, formatOnCommit, ...props }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [host, setHost] = useState<HTMLElement | null>(null);
   const skipFocus = useRef(false);
@@ -117,13 +121,13 @@ export function TouchTextInput({ value, onValueChange, capitalize = false, touch
     return () => { behind.inert = wasInert; };
   }, [host]);
   const title = props['aria-label'] || props.placeholder || 'Enter text';
-  return <><input {...props} ref={input} value={value} inputMode={useBuiltIn ? 'none' : props.inputMode} onChange={event => onValueChange(event.target.value)} onFocus={event => {
+  return <><input {...props} ref={input} value={value} inputMode={useBuiltIn ? 'none' : props.inputMode} onChange={event => onValueChange(event.target.value)} onBlur={event => { props.onBlur?.(event); if (formatOnCommit && !host) { const next = formatOnCommit(event.currentTarget.value); if (next !== event.currentTarget.value) onValueChange(next); } }} onFocus={event => {
     props.onFocus?.(event); if (!skipFocus.current) open(event.currentTarget);
   }} onPointerDown={event => {
     props.onPointerDown?.(event);
     const touch = event.pointerType === 'touch' || event.pointerType === 'pen';
     if (!props.disabled && !props.readOnly && (useBuiltIn || touch)) { event.preventDefault(); open(event.currentTarget, touch); }
   }} />{host && createPortal(<KeyboardDialog initial={value} title={title} maxLength={props.maxLength}
-    password={props.type === 'password'} numeric={props.inputMode === 'numeric' || props.inputMode === 'decimal'} capitalize={capitalize}
-    onCancel={close} onDone={next => { onValueChange(next); close(); }} />, host)}</>;
+    password={props.type === 'password'} numeric={props.inputMode === 'numeric' || props.inputMode === 'decimal'} capitalize={capitalize} hex={keyboardLayout === 'hex'}
+    onCancel={close} onDone={next => { onValueChange(formatOnCommit ? formatOnCommit(next) : next); close(); }} />, host)}</>;
 }

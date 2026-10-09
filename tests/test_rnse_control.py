@@ -337,14 +337,16 @@ class BaseServiceBrightnessTests(unittest.TestCase):
         tree = ast.parse(source.read_text())
         names = {'load_and_initialize_config', 'handle_rnse_light_status_message',
                  'handle_nav_nm_message', 'reconcile_rnse_brightness', 'listen_for_can_messages_task',
-                 'rnse_bridge_snapshot', 'process_rnse_bridge_request', 'observe_rnse_source'}
+                 'rnse_bridge_snapshot', 'process_rnse_bridge_request', 'observe_rnse_source',
+                 'normalize_tv_simulation_payload', 'send_periodic_messages_task'}
         nodes = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in names]
         namespace = dict(CONFIG={}, FEATURES={}, Dict=Dict, Any=Any,
                          RnseBrightnessController=RnseBrightnessController,
                          pytz=SimpleNamespace(timezone=lambda zone: zone),
                          json=json, logging=logging, logger=Mock(), send_can_message=Mock(return_value=True),
                          flashing_mode_enabled=Mock(return_value=False), AppState=SimpleNamespace,
-                         time=SimpleNamespace(time=lambda: 100), publish_power_status=Mock(),
+                         time=SimpleNamespace(time=lambda: 100), publish_power_status=Mock(), re=__import__('re'),
+                         DEFAULT_TV_SIMULATION_PAYLOAD='0912302020202020',
                          asyncio=asyncio, zmq=SimpleNamespace(SUB=1), RUNNING=True)
         exec(compile(ast.Module(body=nodes, type_ignores=[]), str(source), 'exec'), namespace)
         return namespace
@@ -386,6 +388,41 @@ class BaseServiceBrightnessTests(unittest.TestCase):
             handler(payload)
         self.assertIsNone(namespace['CONFIG']['rnse_brightness'].mode)
         namespace['send_can_message'].assert_not_called()
+
+    def test_tv_payload_defaults_normalizes_and_only_sends_valid_configured_bytes(self):
+        namespace = self.namespace()
+        config = self.fixture(enabled=False)
+        config['features']['tv_simulation'] = {'enabled': True, 'payload': 'aa BB 0c'}
+        config['can_ids']['tv_presence'] = '0x602'
+        self.assertTrue(self.load(namespace, config))
+        self.assertEqual(namespace['FEATURES']['tv_simulation']['payload'], 'AABB0C')
+
+        # Run one periodic iteration with a controlled sleep boundary.
+        async def run_sender_once():
+            async def stop_after_send(_delay):
+                namespace['RUNNING'] = False
+            namespace['asyncio'] = SimpleNamespace(sleep=stop_after_send, CancelledError=asyncio.CancelledError)
+            namespace['reconcile_rnse_brightness'] = Mock()
+            await namespace['send_periodic_messages_task'](SimpleNamespace(
+                can_listen_only=False, desired_listen_only=False,
+                listen_only_transition_in_progress=False))
+        asyncio.run(run_sender_once())
+        namespace['send_can_message'].assert_called_once_with(0x602, 'AABB0C')
+
+        legacy = self.fixture(enabled=False)
+        legacy['features']['tv_simulation'] = {'enabled': True}
+        legacy['can_ids']['tv_presence'] = '0x602'
+        self.assertTrue(self.load(namespace, legacy))
+        self.assertEqual(namespace['FEATURES']['tv_simulation']['payload'], '0912302020202020')
+
+        prior_features = namespace['FEATURES']
+        legacy['features']['tv_simulation']['payload'] = '0 9'
+        self.assertFalse(self.load(namespace, legacy))
+        self.assertIs(namespace['FEATURES'], prior_features)
+        self.assertEqual(namespace['FEATURES']['tv_simulation']['payload'], '0912302020202020')
+        namespace['RUNNING'] = True
+        asyncio.run(run_sender_once())
+        namespace['send_can_message'].assert_called_with(0x602, '0912302020202020')
 
     def test_reload_replaces_policy_and_disabling_stops_observation(self):
         namespace = self.namespace()

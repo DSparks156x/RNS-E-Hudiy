@@ -14,6 +14,7 @@ import time
 import logging
 import signal
 import sys
+import re
 from pathlib import Path
 from datetime import datetime
 import pytz
@@ -57,6 +58,21 @@ def setup_logging():
     return logging.getLogger(__name__)
 
 logger = setup_logging()
+
+DEFAULT_TV_SIMULATION_PAYLOAD = '0912302020202020'
+
+def normalize_tv_simulation_payload(payload: str) -> str:
+    """Validate a classic CAN data payload and return compact uppercase hex."""
+    if not isinstance(payload, str):
+        raise ValueError('features.tv_simulation.payload must be hexadecimal text')
+    normalized_input = payload.strip()
+    compact_pattern = r'(?:[0-9a-fA-F]{2}){1,8}'
+    spaced_pattern = r'[0-9a-fA-F]{2}(?:\s+[0-9a-fA-F]{2}){0,7}'
+    if not (re.fullmatch(compact_pattern, normalized_input)
+            or re.fullmatch(spaced_pattern, normalized_input)):
+        raise ValueError('features.tv_simulation.payload must contain 1 to 8 whole hexadecimal bytes')
+    compact = re.sub(r'\s+', '', normalized_input)
+    return compact.upper()
 
 # --- Helper function for BCD conversion ---
 def hex_to_bcd(hex_str: str) -> int:
@@ -199,13 +215,21 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
 
     try:
         # Features & Power Management
-        FEATURES = cfg.setdefault('features', {})
+        candidate_features = cfg.setdefault('features', {})
+        if not isinstance(candidate_features, dict):
+            raise ValueError('features must be an object')
+        candidate_features.setdefault('tv_simulation', {'enabled': False})
+        tv_simulation = candidate_features['tv_simulation']
+        if not isinstance(tv_simulation, dict):
+            raise ValueError('features.tv_simulation must be an object')
+        tv_simulation['payload'] = normalize_tv_simulation_payload(
+            tv_simulation.get('payload', DEFAULT_TV_SIMULATION_PAYLOAD))
+        FEATURES = candidate_features
         CONFIG['car_time_zone'] = FEATURES.get('car_time_zone', 'UTC')
         debug_mode = FEATURES.get('debug_mode', False)
         pw_mgmt = FEATURES.get('power_management', {})
         
         # Initialize default sections if missing
-        FEATURES.setdefault('tv_simulation', {'enabled': False})
         FEATURES.setdefault('time_sync', {'enabled': False, 'data_format': 'new_logic'})
         
         pw_mgmt.setdefault('auto_shutdown', {'enabled': False, 'trigger': 'ignition_off'})
@@ -656,7 +680,8 @@ async def send_periodic_messages_task(state: AppState):
                 and not state.desired_listen_only
                 and not state.listen_only_transition_in_progress
             ):
-                send_can_message(CONFIG['can_ids']['tv_presence'], "0912302020202020")
+                send_can_message(CONFIG['can_ids']['tv_presence'],
+                                 FEATURES['tv_simulation']['payload'])
             reconcile_rnse_brightness(state)
             await asyncio.sleep(0.5)
         except asyncio.CancelledError:

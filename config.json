@@ -240,7 +240,8 @@
       }
     },
     "tv_simulation": {
-      "enabled": true
+      "enabled": true,
+      "payload": "0912302020202020"
     },
     "mmi_controls": true,
     "mfsw_controls": true,
@@ -266,7 +267,7 @@
     "door_status": "0x470",
     "gateway_nm_status": "0x42B",
     "nav_nm_status": "0x436",
-    "tv_presence": "0x602",
+    "tv_presence": "0x",
     "fis_line1": "0x363",
     "fis_line2": "0x365",
     "media_status": "0x6C1",

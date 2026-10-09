@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from pathlib import Path
 import stat
 import tempfile
@@ -109,6 +110,22 @@ def validate_document(target, document):
             value = document.get(section, {})
             if 'enabled' in value and type(value['enabled']) is not bool:
                 raise ConfigError(f'{section}.enabled must be boolean.')
+        features = document.get('features', {})
+        if 'tv_simulation' in features:
+            tv_simulation = features['tv_simulation']
+            if not isinstance(tv_simulation, dict):
+                raise ConfigError('features.tv_simulation must be an object.')
+            if 'payload' in tv_simulation:
+                payload = tv_simulation['payload']
+                if not isinstance(payload, str):
+                    raise ConfigError('features.tv_simulation.payload must contain 1 to 8 whole hexadecimal bytes.')
+                payload = payload.strip()
+                compact_pattern = r'(?:[0-9a-fA-F]{2}){1,8}'
+                spaced_pattern = r'[0-9a-fA-F]{2}(?:\s+[0-9a-fA-F]{2}){0,7}'
+                if not (re.fullmatch(compact_pattern, payload)
+                        or re.fullmatch(spaced_pattern, payload)):
+                    raise ConfigError('features.tv_simulation.payload must contain 1 to 8 whole hexadecimal bytes.')
+                tv_simulation['payload'] = re.sub(r'\s+', '', payload).upper()
         rnse = document.get('rnse', {})
         for section, maximum in (('auto_brightness', 10), ('auto_lcd_brightness', 100)):
             if section not in rnse:

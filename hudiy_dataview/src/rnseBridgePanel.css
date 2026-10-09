@@ -45,3 +45,22 @@
   .rnse-source-setting { padding: 8px; }
   .rnse-source-setting small { font-size: 11px; }
 }
+/* Preserve readable type and 44px targets in the fixed head-unit viewport. */
+@media (max-height: 540px) and (min-width: 600px) {
+  .rnse-bridge { gap: 0; padding: 0; }
+  .rnse-bridge-heading { font-size: 14px; }
+  .rnse-live-control { padding: 8px; }
+  .rnse-control-title { font-size: 15px; }
+  .rnse-control-title output { font-size: 14px; }
+  .rnse-live-control > small { display:block; font-size:12px; }
+  .rnse-live-note { font-size:13px; }
+  .rnse-auto-card { padding:8px; }
+  .rnse-auto-heading { margin-bottom:6px; }
+  .rnse-auto-heading h3 { font-size:16px; }
+  .rnse-config-value > label { font-size:14px; margin-bottom:4px; }
+  .rnse-config-value .manager-stepper button { min-width:44px; min-height:44px; }
+  .rnse-config-value .manager-stepper output { font-size:18px; min-width:20px; }
+  .rnse-config-value .manager-stepper output small { display:none; }
+  .rnse-source-setting small { font-size:12px; }
+}
+@media (max-height: 540px) and (min-width: 600px) { .rnse-config-value .manager-stepper output.rnse-cluster-value { font-size:14px; } }

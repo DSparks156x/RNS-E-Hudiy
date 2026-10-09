@@ -1,7 +1,7 @@
 import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TouchTextInput } from './components/touchKeyboard/TouchTextInput';
 import { HudiyColorScheme, useHudiyTheme } from './hooks/useHudiyTheme';
-import { applyEdits, changedCount, ConfigSnapshot, ConfigTarget, displayValue, fieldsFor, filesPortalUrl, ManagedService, managementRequest, Metadata, parseSetting, SaveResult, SettingField } from './managementModel';
+import { applyEdits, changedCount, ConfigSnapshot, ConfigTarget, displayValue, fieldsFor, filesPortalUrl, formatHexPayload, ManagedService, managementRequest, Metadata, parseSetting, SaveResult, SettingField } from './managementModel';
 import './management.css';
 import { VideoPanel } from './VideoPanel';
 import { RnseBridgePanel } from './RnseBridgePanel';
@@ -26,11 +26,11 @@ function SettingControl({ field, text, disabled, set }: { field: SettingField; t
   try { parseSetting(text, value, metadata); } catch (reason) { error = errorText(reason); }
   const complex = metadata.type?.startsWith('json') || value === null || typeof value === 'object';
   const options = metadata.type === 'select' && typeof value === 'string' ? Array.from(new Set([value, ...(metadata.options || []).filter((option): option is string => typeof option === 'string')])) : null;
-  return <div className={`manager-setting ${error ? 'has-error' : ''}`}>
+  return <div className={`manager-setting ${error ? 'has-error' : ''} ${metadata.type === 'hex-payload' ? 'manager-hex-setting' : ''}`}>
     <div className="manager-setting-label"><label htmlFor={`field-${path}`}>{metadata.label || tidy(path)}</label><p>{metadata.help || 'Setting from the installed configuration. The original JSON type and other settings are preserved.'}</p><code>{path}</code>{metadata.detailedHelp && <details><summary>More detail</summary><p>{metadata.detailedHelp}</p></details>}</div>
     <div className="manager-setting-value">{typeof value === 'boolean' && !complex ? <button id={`field-${path}`} type="button" className={`manager-switch ${text === 'true' ? 'on' : ''}`} role="switch" aria-checked={text === 'true'} aria-label={metadata.label || path} disabled={disabled} onClick={() => set(text === 'true' ? 'false' : 'true')}><span />{text === 'true' ? 'On' : 'Off'}</button>
       : options ? <select id={`field-${path}`} value={text} disabled={disabled} onChange={event => set(event.target.value)}>{options.map(option => <option key={option} value={option}>{option}</option>)}</select>
-        : <TouchTextInput id={`field-${path}`} value={text} disabled={disabled} onValueChange={set} aria-label={metadata.label || path} touchOnly spellCheck={false} inputMode={typeof value === 'number' ? 'decimal' : 'text'} className={complex ? 'manager-json-field' : ''} />}
+        : <TouchTextInput id={`field-${path}`} value={text} disabled={disabled} onValueChange={set} formatOnCommit={metadata.type === 'hex-payload' ? formatHexPayload : undefined} aria-label={metadata.label || path} touchOnly spellCheck={false} keyboardLayout={metadata.type === 'hex-payload' ? 'hex' : undefined} inputMode={typeof value === 'number' ? 'decimal' : 'text'} className={complex || metadata.type === 'hex-payload' ? 'manager-json-field' : ''} />}
       {complex && <small>JSON {Array.isArray(value) ? 'array' : value === null ? 'value' : 'object'}</small>}{error && <small className="manager-field-error" role="alert">{error}</small>}
     </div>
   </div>;
@@ -161,8 +161,7 @@ export function ManagementApp({ api = managementRequest, previewTheme }: Props =
   };
 
   return <div ref={managerRoot} className="container manager-container" data-theme={theme.darkThemeEnabled ? 'dark' : 'light'} style={themeVars as CSSProperties}>
-    <header className="manager-header"><div className="manager-brand"><Icon kind="settings" /><div><h1>RNS-E Manager</h1><span>Settings, services & recent logs</span></div></div>{pinRequired && <TouchTextInput className="manager-pin" type="password" value={pin} onValueChange={setPin} aria-label="Management PIN" placeholder="Management PIN" touchOnly />}</header>
-    <nav className="manager-tabs" aria-label="Manager panels">{(['settings', 'services', 'logs'] as const).map(id => <button key={id} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon kind={id} />{id[0].toUpperCase() + id.slice(1)}</button>)}<a href={filesPortalUrl(window.location)}><Icon kind="files" />Files</a></nav>
+    <nav className="manager-tabs" aria-label="Manager panels"><strong className="manager-nav-title">RNS-E Manager</strong>{(['settings', 'services', 'logs'] as const).map(id => <button key={id} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon kind={id} />{id[0].toUpperCase() + id.slice(1)}</button>)}<a href={filesPortalUrl(window.location)}><Icon kind="files" />Files</a>{pinRequired && <TouchTextInput className="manager-pin" type="password" value={pin} onValueChange={setPin} aria-label="Management PIN" placeholder="PIN" touchOnly />}</nav>
     {message && <div className={`manager-message ${message.error ? 'error' : ''}`} role={message.error ? 'alert' : 'status'}><span>{message.text}</span><button aria-label="Dismiss message" onClick={() => setMessage(null)}>×</button></div>}
     {tab === 'settings' && <>
       {!videoSelected && <div className="manager-settings-tools"><select aria-label="Configuration file" value={targetId} disabled={!!pending || !!dirty} onChange={event => { setTargetId(event.target.value); setSearch(''); setMessage(null); }}>{targets.length ? targets.map(target => <option key={target.id} value={target.id}>{target.label}{target.exists ? '' : ' (missing)'}</option>) : <option value="rnse">RNSE configuration</option>}</select><TouchTextInput value={search} onValueChange={setSearch} aria-label="Search settings" placeholder="Search settings" touchOnly /><button className="manager-icon-button" disabled={!!pending || !!dirty || loadingConfig} onClick={() => void loadConfig(targetId)} aria-label="Reload configuration"><Icon kind="refresh" /></button></div>}

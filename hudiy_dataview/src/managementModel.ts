@@ -17,7 +17,16 @@ function rnseDefaults(document: ConfigDocument): ConfigDocument {
   for (const group of ['auto_brightness', 'auto_lcd_brightness', 'source_label'] as const) {
     if (!(group in (document.rnse as ConfigDocument || {})) || object(rnse[group])) rnse[group] = { ...RNSE_DEFAULTS[group], ...(object(rnse[group]) ? rnse[group] : {}) };
   }
-  return { ...document, rnse };
+  const result = { ...document, rnse };
+  // Expose the existing wire default on older Pi configs; only an edit saves it.
+  if (!('features' in document) || object(document.features)) {
+    const features = { ...(document.features as ConfigDocument || {}) };
+    if (!('tv_simulation' in features) || object(features.tv_simulation)) {
+      features.tv_simulation = { payload: '0912302020202020', ...(features.tv_simulation as ConfigDocument || {}) };
+      return { ...result, features };
+    }
+  }
+  return result;
 }
 
 export function fieldsFor(document: ConfigDocument, metadata: Metadata, project = true): SettingField[] {
@@ -35,9 +44,22 @@ export function fieldsFor(document: ConfigDocument, metadata: Metadata, project 
   return fields.sort((a, b) => (a.metadata.order ?? Number.MAX_SAFE_INTEGER) - (b.metadata.order ?? Number.MAX_SAFE_INTEGER));
 }
 
-export function displayValue(value: JsonValue, metadata: SettingMetadata = {}): string { return typeof value === 'string' && !metadata.type?.startsWith('json') ? value : JSON.stringify(value); }
+export function normalizeHexPayload(text: string): string {
+  // Do not silently remove invalid characters or join incomplete byte tokens.
+  const trimmed = text.trim();
+  if (!/^(?:[0-9a-fA-F]{2}){1,8}$/.test(trimmed) && !/^[0-9a-fA-F]{2}(?:\s+[0-9a-fA-F]{2}){0,7}$/.test(trimmed)) throw new Error('Enter 1–8 complete hex bytes, for example 09 12 30 20 20 20 20 20.');
+  return trimmed.replace(/\s/g, '').toUpperCase();
+}
+export function formatHexPayload(text: string): string {
+  try { return normalizeHexPayload(text).match(/../g)!.join(' '); } catch { return text; }
+}
+export function displayValue(value: JsonValue, metadata: SettingMetadata = {}): string {
+  if (typeof value === 'string' && metadata.type === 'hex-payload') return formatHexPayload(value);
+  return typeof value === 'string' && !metadata.type?.startsWith('json') ? value : JSON.stringify(value);
+}
 export function parseSetting(text: string, original: JsonValue, metadata: SettingMetadata = {}): JsonValue {
   let value: JsonValue;
+  if (metadata.type === 'hex-payload') return normalizeHexPayload(text);
   if (metadata.type?.startsWith('json') || original === null || Array.isArray(original) || typeof original === 'object') {
     try { value = JSON.parse(text) as JsonValue; } catch { throw new Error('Enter valid JSON.'); }
     if ((metadata.type === 'json-array' || Array.isArray(original)) && !Array.isArray(value)) throw new Error('Enter a JSON array.');

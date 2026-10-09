@@ -482,7 +482,7 @@
       "type": "number",
       "min": 150,
       "max": 800,
-      "order": 182
+      "order": 183
     },
     "interfaces.zmq.input_control_stream": {
       "label": "DIS Wheel Events",
@@ -529,19 +529,19 @@
       "help": "Auto Pause/Resume when switching from/to tv source.",
       "type": "boolean",
       "label": "Source controls",
-      "order": 130
+      "order": 131
     },
     "features.debug_mode": {
       "help": "Enable detailed logging for troubleshooting.",
       "type": "boolean",
       "label": "Debug mode",
-      "order": 133
+      "order": 134
     },
     "features.car_time_zone": {
       "help": "IANA timezone used to interpret the local time sent by the car, for example America/Denver or Europe/London.",
       "type": "text",
       "label": "Car time zone",
-      "order": 132
+      "order": 133
     },
     "features.time_sync.threshold_minutes": {
       "help": "Absolute clock difference in minutes that triggers synchronization. 0.1 means six seconds.",
@@ -623,157 +623,157 @@
       "help": "Min time between distinct button events (sec).",
       "type": "number",
       "label": "Cooldown period",
-      "order": 151
+      "order": 152
     },
     "input_mappings.mmi.long_press_message_count": {
       "help": "Messages needed to trigger Long Press.",
       "type": "number",
       "label": "Long press message count",
-      "order": 152
+      "order": 153
     },
     "input_mappings.mmi.extended_long_press_message_count": {
       "help": "Messages needed to trigger Extended Press.",
       "type": "number",
       "label": "Extended long press message count",
-      "order": 153
+      "order": 154
     },
     "input_mappings.mmi.short_press.1,0": {
       "label": "Previous Track",
       "help": "Action for RNS-E short press (1,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 155
+      "order": 156
     },
     "input_mappings.mmi.short_press.2,0": {
       "label": "Next Track",
       "help": "Action for RNS-E short press (2,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 156
+      "order": 157
     },
     "input_mappings.mmi.short_press.0,16": {
       "label": "Knob Press",
       "help": "Action for RNS-E short press (0,16). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 159
+      "order": 160
     },
     "input_mappings.mmi.short_press.64,0": {
       "label": "Top Left Quad",
       "help": "Action for RNS-E short press (64,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 157
+      "order": 158
     },
     "input_mappings.mmi.short_press.128,0": {
       "label": "Bottom Left Quad",
       "help": "Action for RNS-E short press (128,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 158
+      "order": 159
     },
     "input_mappings.mmi.short_press.0,32": {
       "label": "Knob CCW",
       "help": "Action for RNS-E short press (0,32). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 160
+      "order": 161
     },
     "input_mappings.mmi.short_press.0,64": {
       "label": "Knob CW",
       "help": "Action for RNS-E short press (0,64). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 161
+      "order": 162
     },
     "input_mappings.mmi.short_press.0,2": {
       "label": "Return",
       "help": "Action for RNS-E short press (0,2). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 162
+      "order": 163
     },
     "input_mappings.mmi.short_press.0,1": {
       "label": "Setup",
       "help": "Action for RNS-E short press (0,1). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 163
+      "order": 164
     },
     "input_mappings.mmi.long_press.1,0": {
       "label": "Previous Track",
       "help": "Action for RNS-E long press (1,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 164
+      "order": 165
     },
     "input_mappings.mmi.long_press.2,0": {
       "label": "Next Track",
       "help": "Action for RNS-E long press (2,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 165
+      "order": 166
     },
     "input_mappings.mmi.long_press.0,16": {
       "label": "Knob Press",
       "help": "Action for RNS-E long press (0,16). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 168
+      "order": 169
     },
     "input_mappings.mmi.long_press.64,0": {
       "label": "Top Left Quad",
       "help": "Action for RNS-E long press (64,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 166
+      "order": 167
     },
     "input_mappings.mmi.long_press.128,0": {
       "label": "Bottom Left Quad",
       "help": "Action for RNS-E long press (128,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 167
+      "order": 168
     },
     "input_mappings.mmi.long_press.0,2": {
       "label": "Return",
       "help": "Action for RNS-E long press (0,2). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 171
+      "order": 172
     },
     "input_mappings.mmi.long_press.0,1": {
       "label": "Setup",
       "help": "Action for RNS-E long press (0,1). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
-      "order": 172
+      "order": 173
     },
     "input_mappings.mmi.extended_press.1,0": {
       "label": "Previous Track",
       "help": "Action for RNS-E extended press (1,0). Enter a shell command run on the Pi; features.system_actions must be enabled.",
       "type": "json-value",
-      "order": 173
+      "order": 174
     },
     "input_mappings.mmi.extended_press.2,0": {
       "label": "Next Track",
       "help": "Action for RNS-E extended press (2,0). Enter a shell command run on the Pi; features.system_actions must be enabled.",
       "type": "json-value",
-      "order": 174
+      "order": 175
     },
     "input_mappings.mmi.extended_press.0,16": {
       "label": "Knob Press",
       "help": "Action for RNS-E extended press (0,16). Enter a shell command run on the Pi; features.system_actions must be enabled.",
       "type": "json-value",
-      "order": 177
+      "order": 178
     },
     "input_mappings.mmi.extended_press.64,0": {
       "label": "Top Left Quad",
       "help": "Action for RNS-E extended press (64,0). Enter a shell command run on the Pi; features.system_actions must be enabled.",
       "type": "json-value",
-      "order": 175
+      "order": 176
     },
     "input_mappings.mmi.extended_press.128,0": {
       "label": "Bottom Left Quad",
       "help": "Action for RNS-E extended press (128,0). Enter a shell command run on the Pi; features.system_actions must be enabled.",
       "type": "json-value",
-      "order": 176
+      "order": 177
     },
     "input_mappings.mmi.extended_press.0,2": {
       "label": "Return",
       "help": "Action for RNS-E extended press (0,2). Enter a shell command run on the Pi; features.system_actions must be enabled.",
       "type": "json-value",
-      "order": 180
+      "order": 181
     },
     "input_mappings.mmi.extended_press.0,1": {
       "label": "Setup",
       "help": "Action for RNS-E extended press (0,1). Enter a shell command run on the Pi; features.system_actions must be enabled.",
       "type": "json-value",
-      "order": 181
+      "order": 182
     },
     "interfaces.can": {
       "label": "CAN interfaces"
@@ -837,19 +837,19 @@
     "features.log_saver.services": {
       "label": "Log Saver Services",
       "help": "List of systemd services to save logs for.",
-      "order": 134
+      "order": 135
     },
     "features.log_saver.minutes": {
       "label": "Log Duration (Minutes)",
       "help": "How far back to save logs in minutes.",
       "type": "number",
-      "order": 135
+      "order": 136
     },
     "features.log_saver.log_directory": {
       "label": "Log Directory",
       "help": "Path where logs will be saved. Supports relative ~/ paths.",
       "type": "text",
-      "order": 136
+      "order": 137
     },
     "file_portal": {
       "label": "File Portal"
@@ -1005,17 +1005,17 @@
     "features.mmi_controls": {
       "help": "Translate RNS-E buttons and knob events into the configured keyboard mappings.",
       "label": "Mmi controls",
-      "order": 128
+      "order": 129
     },
     "features.mfsw_controls": {
       "help": "Translate multifunction steering-wheel events into keyboard actions. DIS wheel ownership uses these events for phone and readings controls.",
       "label": "Mfsw controls",
-      "order": 129
+      "order": 130
     },
     "features.system_actions": {
       "help": "Allow MMI extended-press mappings to run system commands such as saving logs, rebooting or shutting down.",
       "label": "System actions",
-      "order": 131
+      "order": 132
     },
     "features.time_sync.enabled": {
       "help": "Set the Pi clock from the vehicle’s CAN time message when its drift exceeds the configured threshold.",
@@ -1087,30 +1087,36 @@
       "label": "Enabled",
       "order": 127
     },
+    "features.tv_simulation.payload": {
+      "help": "CAN data bytes sent for TV tuner presence. Enter 1–8 whole bytes as hexadecimal, compact or space-separated; saved as compact uppercase hex.",
+      "label": "TV presence payload",
+      "type": "hex-payload",
+      "order": 128
+    },
     "input_mappings.mmi.scroll_commands": {
       "help": "MMI byte pairs treated as immediate rotary events. These bypass press-duration handling; the matching short-press mapping chooses the keyboard key.",
       "label": "Scroll commands",
-      "order": 154
+      "order": 155
     },
     "input_mappings.mfsw.commands.release": {
       "help": "Two-byte steering-wheel release pattern. Keep this as a JSON array of hex strings, matching the vehicle CAN payload.",
       "label": "Release",
-      "order": 191
+      "order": 192
     },
     "input_mappings.source.tv_mode_identifier": {
       "help": "Hex source-state byte identifying TV mode. Source controls pause playback when leaving TV and resume when returning.",
       "label": "Tv mode identifier",
-      "order": 210
+      "order": 211
     },
     "input_mappings.source.play_key": {
       "help": "Keyboard key emitted on returning to the TV source when features.source_controls is enabled.",
       "label": "Play key",
-      "order": 211
+      "order": 212
     },
     "input_mappings.source.pause_key": {
       "help": "Keyboard key emitted on leaving the TV source when features.source_controls is enabled.",
       "label": "Pause key",
-      "order": 212
+      "order": 213
     },
     "interfaces.zmq.haldex_command": {
       "help": "Local ZeroMQ endpoint accepting Haldex and exhaust-control requests from DataView.",
@@ -1126,85 +1132,85 @@
       "help": "Vehicle light state used for Hudiy day/night mode. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Light status",
-      "order": 137
+      "order": 138
     },
     "can_ids.time_data": {
       "help": "Vehicle clock and date used for Pi clock synchronization. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Time data",
-      "order": 138
+      "order": 139
     },
     "can_ids.ignition_status": {
       "help": "Ignition and key state used by power and connection management. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Ignition status",
-      "order": 139
+      "order": 140
     },
     "can_ids.door_status": {
       "help": "Door state used for connection wake windows. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Door status",
-      "order": 140
+      "order": 141
     },
     "can_ids.gateway_nm_status": {
       "help": "Gateway network-management state used to detect bus sleep. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Gateway nm status",
-      "order": 141
+      "order": 142
     },
     "can_ids.nav_nm_status": {
       "help": "RNS-E network-management state used to track radio activity. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Nav nm status",
-      "order": 142
+      "order": 143
     },
     "can_ids.tv_presence": {
       "help": "TV tuner presence frames transmitted by TV simulation. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Tv presence",
-      "order": 143
+      "order": 144
     },
     "can_ids.fis_line1": {
       "help": "First factory top-DIS text line. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Fis line1",
-      "order": 144
+      "order": 145
     },
     "can_ids.fis_line2": {
       "help": "Second factory top-DIS text line. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Fis line2",
-      "order": 145
+      "order": 146
     },
     "can_ids.media_status": {
       "help": "Factory media source status. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Media status",
-      "order": 146
+      "order": 147
     },
     "can_ids.nav_status": {
       "help": "Factory navigation status. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Nav status",
-      "order": 147
+      "order": 148
     },
     "can_ids.mmi": {
       "help": "RNS-E button and rotary input frames. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Mmi",
-      "order": 148
+      "order": 149
     },
     "can_ids.mfsw": {
       "help": "Multifunction steering-wheel input frames. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Mfsw",
-      "order": 149
+      "order": 150
     },
     "can_ids.source": {
       "help": "Selected RNS-E source state. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Source",
-      "order": 150
+      "order": 151
     },
     "display.center_display.coverart.args.contrast": {
       "help": "Contrast multiplier; 1 leaves contrast unchanged."
@@ -1318,181 +1324,181 @@
       "help": "Action for RNS-E long press (0,32). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "0,32",
-      "order": 169
+      "order": 170
     },
     "input_mappings.mmi.long_press.0,64": {
       "help": "Action for RNS-E long press (0,64). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "0,64",
-      "order": 170
+      "order": 171
     },
     "input_mappings.mmi.extended_press.0,32": {
       "help": "Action for RNS-E extended press (0,32). Enter a shell command run on the Pi; features.system_actions must be enabled.",
       "type": "json-value",
       "label": "0,32",
-      "order": 178
+      "order": 179
     },
     "input_mappings.mmi.extended_press.0,64": {
       "help": "Action for RNS-E extended press (0,64). Enter a shell command run on the Pi; features.system_actions must be enabled.",
       "type": "json-value",
       "label": "0,64",
-      "order": 179
+      "order": 180
     },
     "input_mappings.mfsw.commands.scroll_up": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Scroll up",
-      "order": 183
+      "order": 184
     },
     "input_mappings.mfsw.commands.scroll_down": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Scroll down",
-      "order": 184
+      "order": 185
     },
     "input_mappings.mfsw.commands.mode_press": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Mode press",
-      "order": 185
+      "order": 186
     },
     "input_mappings.mfsw.commands.volume_scroll_up": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Volume scroll up",
-      "order": 186
+      "order": 187
     },
     "input_mappings.mfsw.commands.volume_scroll_down": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Volume scroll down",
-      "order": 187
+      "order": 188
     },
     "input_mappings.mfsw.commands.ptt_press": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Ptt press",
-      "order": 188
+      "order": 189
     },
     "input_mappings.mfsw.commands.scroll_click": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Scroll click",
-      "order": 189
+      "order": 190
     },
     "input_mappings.mfsw.commands.volume_scroll_click": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Volume scroll click",
-      "order": 190
+      "order": 191
     },
     "input_mappings.mfsw.short_press.scroll_up": {
       "help": "Action for steering wheel short press (scroll_up). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Scroll up",
-      "order": 192
+      "order": 193
     },
     "input_mappings.mfsw.short_press.scroll_down": {
       "help": "Action for steering wheel short press (scroll_down). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Scroll down",
-      "order": 193
+      "order": 194
     },
     "input_mappings.mfsw.short_press.mode": {
       "help": "Action for steering wheel short press (mode). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Mode",
-      "order": 194
+      "order": 195
     },
     "input_mappings.mfsw.short_press.ptt": {
       "help": "Action for steering wheel short press (ptt). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Ptt",
-      "order": 195
+      "order": 196
     },
     "input_mappings.mfsw.short_press.scroll_click": {
       "help": "Action for steering wheel short press (scroll_click). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Scroll click",
-      "order": 196
+      "order": 197
     },
     "input_mappings.mfsw.short_press.volume_scroll_up": {
       "help": "Action for steering wheel short press (volume_scroll_up). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Volume scroll up",
-      "order": 197
+      "order": 198
     },
     "input_mappings.mfsw.short_press.volume_scroll_down": {
       "help": "Action for steering wheel short press (volume_scroll_down). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Volume scroll down",
-      "order": 198
+      "order": 199
     },
     "input_mappings.mfsw.short_press.volume_scroll_click": {
       "help": "Action for steering wheel short press (volume_scroll_click). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Volume scroll click",
-      "order": 199
+      "order": 200
     },
     "input_mappings.mfsw.long_press.mode": {
       "help": "Action for steering wheel long press (mode). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Mode",
-      "order": 200
+      "order": 201
     },
     "input_mappings.mfsw.long_press.ptt": {
       "help": "Action for steering wheel long press (ptt). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Ptt",
-      "order": 201
+      "order": 202
     },
     "input_mappings.mfsw.long_press.scroll_click": {
       "help": "Action for steering wheel long press (scroll_click). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Scroll click",
-      "order": 202
+      "order": 203
     },
     "input_mappings.mfsw.long_press.volume_scroll_up": {
       "help": "Action for steering wheel long press (volume_scroll_up). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Volume scroll up",
-      "order": 203
+      "order": 204
     },
     "input_mappings.mfsw.long_press.volume_scroll_down": {
       "help": "Action for steering wheel long press (volume_scroll_down). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Volume scroll down",
-      "order": 204
+      "order": 205
     },
     "input_mappings.mfsw.long_press.volume_scroll_click": {
       "help": "Action for steering wheel long press (volume_scroll_click). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Volume scroll click",
-      "order": 205
+      "order": 206
     },
     "input_mappings.mfsw.phone_alt.short_press.mode": {
       "help": "Action for steering wheel short press (mode). Legacy phone override ignored by the current shared wheel router; preserved for older versions. Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Mode",
-      "order": 206
+      "order": 207
     },
     "input_mappings.mfsw.phone_alt.short_press.ptt": {
       "help": "Action for steering wheel short press (ptt). Legacy phone override ignored by the current shared wheel router; preserved for older versions. Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Ptt",
-      "order": 207
+      "order": 208
     },
     "input_mappings.mfsw.phone_alt.long_press.mode": {
       "help": "Action for steering wheel long press (mode). Legacy phone override ignored by the current shared wheel router; preserved for older versions. Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Mode",
-      "order": 208
+      "order": 209
     },
     "input_mappings.mfsw.phone_alt.long_press.ptt": {
       "help": "Action for steering wheel long press (ptt). Legacy phone override ignored by the current shared wheel router; preserved for older versions. Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Ptt",
-      "order": 209
+      "order": 210
     }
   },
   "sections": [

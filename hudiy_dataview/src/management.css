@@ -64,6 +64,9 @@
 .manager-container .manager-setting-value .manager-field-error { color:var(--error); }
 .manager-setting.has-error input { border-color:var(--error); }
 .manager-setting-value .manager-json-field { font-family:'Roboto Mono',monospace; font-size:11px; }
+.manager-setting.manager-hex-setting { grid-template-columns:minmax(0,1fr) 250px; }
+.manager-hex-setting .manager-setting-value input { font:14px 'Roboto Mono',monospace; }
+@media(max-width:599px) { .manager-setting.manager-hex-setting { grid-template-columns:1fr; } }
 .manager-container .manager-switch { display:flex; gap:9px; align-items:center; background:transparent; font-size:12px; padding:0 4px; }
 .manager-switch span { width:44px; height:26px; border-radius:20px; border:1px solid var(--outline); background:var(--surface-variant); position:relative; }
 .manager-switch span:after { content:''; display:block; width:18px; height:18px; border-radius:50%; background:var(--on-surface-variant); position:absolute; top:3px; left:3px; }
@@ -131,4 +134,33 @@
   .manager-panel-scroll,.manager-logs-panel { padding:12px 10px; }
   .manager-log-tools { flex-wrap:wrap; }
   .manager-log-tools select:first-child { flex-basis:100%; }
+}
+/* Keep the head-unit controls legible at its 800×400 viewport. */
+.manager-tabs { align-items:center; padding:4px 12px; gap:4px; }
+.manager-nav-title { flex:1; min-width:0; padding-left:8px; font-size:18px; font-weight:600; white-space:nowrap; }
+.manager-tabs button,.manager-tabs a { min-height:44px; font-size:14px; padding:0 12px; }
+.manager-tabs a { margin-left:0; }
+.manager-container .manager-pin { width:112px; min-height:44px; font-size:14px; }
+.manager-settings-tools { padding:6px 12px; gap:8px; }
+.manager-settings-tools select,.manager-settings-tools input { font-size:14px; }
+.manager-settings-workspace { padding:0 12px; gap:12px; grid-template-columns:136px minmax(0,1fr); }
+.manager-sections button,.manager-scroll-buttons button { font-size:14px; }
+.manager-rnse-panels { gap:6px; margin-bottom:6px; }
+.manager-rnse-panels button { padding:0 14px; font-size:14px; }
+.manager-setting label { font-size:16px; }
+.manager-setting p { font-size:14px; }
+.manager-setting code { font-size:12px; }
+.manager-setting details,.manager-setting-value small { font-size:12px; }
+.manager-setting-value input,.manager-setting-value select { font-size:16px; }
+.manager-container .manager-switch { font-size:14px; }
+.manager-savebar { padding:6px 12px; }
+.manager-savebar strong { font-size:14px; }
+.manager-savebar small { font-size:12px; }
+@media(max-width:599px) {
+  .manager-tabs { padding:4px 6px; gap:2px; overflow-x:auto; }
+  .manager-nav-title { flex:0 0 auto; font-size:15px; padding:0 4px; }
+  .manager-tabs button,.manager-tabs a { flex:0 0 auto; gap:4px; padding:0 7px; font-size:13px; }
+  .manager-tabs svg { display:none; }
+  .manager-container .manager-pin { flex:0 0 76px; width:76px; font-size:12px; padding:0 6px; }
+  .manager-settings-workspace { grid-template-columns:1fr; }
 }
