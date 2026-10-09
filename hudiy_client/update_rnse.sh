@@ -18,6 +18,15 @@ echo -e "${CYAN}${BOLD}====================================================${NC}
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# When invoked with sudo, HOME points at /root. Read the configuration from
+# the account that launched sudo, matching install.sh's REAL_HOME behavior.
+if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+else
+    USER_HOME="$HOME"
+fi
+USER_HOME="${USER_HOME:-$HOME}"
+
 # Let the API send responses and clean up Hudiy UI
 sleep 3
 
@@ -30,30 +39,37 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
-echo -e "${YELLOW}Waiting for Wi-Fi connection...${NC}"
-# Loop until we have internet connectivity (e.g. connected to Hotspot)
+echo -e "${YELLOW}Waiting for GitHub connection...${NC}"
+# ICMP may be blocked while HTTPS/Git traffic still works. Probe the same
+# public repository used by the update instead of relying on ping.
+CONFIG_FILE="$USER_HOME/config.json"
+REPO_PATH=$(python3 -c "import json, os; f='$CONFIG_FILE'; r=json.load(open(f)).get('repo', 'DSparks156x/RNS-E-Hudiy') if os.path.exists(f) else 'DSparks156x/RNS-E-Hudiy'; print(r.replace('https://github.com/', '').replace('.git', ''))" 2>/dev/null || echo "DSparks156x/RNS-E-Hudiy")
+REPO_URL="https://github.com/${REPO_PATH}.git"
 while true; do
-    if ping -q -c 1 -W 1 github.com >/dev/null; then
-        echo -e "${GREEN}Internet connection established.${NC}"
+    if git ls-remote "$REPO_URL" HEAD >/dev/null 2>&1; then
+        echo -e "${GREEN}GitHub connection established.${NC}"
         break
     else
-        echo -e "${YELLOW}Waiting for internet...${NC}"
+        echo -e "${YELLOW}Waiting for GitHub access...${NC}"
         sleep 5
     fi
 done
 
 echo -e "${CYAN}Pulling latest installer...${NC}"
-cd ~
+cd "$USER_HOME" || exit 1
 
 # --- Smart Branch/Tag Logic ---
-CONFIG_FILE="$HOME/config.json"
 # Detect Repo from config if available
-REPO_PATH=$(python3 -c "import json, os; f=os.path.expanduser('$CONFIG_FILE'); r=json.load(open(f)).get('repo', 'DSparks156x/RNS-E-Hudiy') if os.path.exists(f) else 'DSparks156x/RNS-E-Hudiy'; print(r.replace('https://github.com/', '').replace('.git', ''))" 2>/dev/null || echo "DSparks156x/RNS-E-Hudiy")
 REPO_URL="https://github.com/${REPO_PATH}.git"
 echo -e "   Using Repository: ${BLUE}$REPO_URL${NC}"
 
 # 1. Load config branch
-BRANCH=$(python3 -c "import json, os; f=os.path.expanduser('$CONFIG_FILE'); print(json.load(open(f)).get('branch', 'main')) if os.path.exists(f) else print('main')" 2>/dev/null || echo "main")
+BRANCH=$(python3 -c "import json, os; f='$CONFIG_FILE'; print(json.load(open(f)).get('branch', 'main') if os.path.exists(f) else 'main')" 2>/dev/null) || {
+    echo -e "${RED}Could not read branch from $CONFIG_FILE. Update cancelled.${NC}"
+    exit 1
+}
+BRANCH="${BRANCH:-main}"
+echo -e "   Configured Branch: ${BLUE}$BRANCH${NC}"
 
 # 2. Smart Tag Selection Logic
 # If branch is not 'main' or 'testing', look for latest tag matching 'branch-*'
@@ -73,12 +89,12 @@ else
     SELECTED_REF="$BRANCH"
 fi
 
-# Final Reachability Check - Fallback to main if branch/tag doesn't exist
+# Verify the selected reference. Never silently change a configured branch to
+# main, since that can install a different release channel than requested.
 if ! git ls-remote --exit-code --heads "$REPO_URL" "$SELECTED_REF" >/dev/null 2>&1 && \
    ! git ls-remote --exit-code --tags "$REPO_URL" "$SELECTED_REF" >/dev/null 2>&1; then
-    echo "   ⚠ Reference $SELECTED_REF not found on remote. Falling back to 'main'."
-    BRANCH="main"
-    SELECTED_REF="main"
+    echo -e "${RED}Reference $SELECTED_REF was not found on $REPO_URL. Update cancelled.${NC}"
+    exit 1
 fi
 
 echo -e "Selected Update Branch/Tag: ${GREEN}$SELECTED_REF${NC}"
