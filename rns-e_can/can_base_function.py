@@ -21,6 +21,7 @@ from typing import Optional, List, Dict, Any
 import asyncio
 import aiozmq
 from rnse_control import RnseBrightnessController
+from rnse_bridge_runtime import serve_commands, listen_projection
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from flasher.traffic import flashing_mode_enabled
 import subprocess
@@ -109,6 +110,7 @@ class AppState:
         
         # Physical wake signal state (from GPIO)
         self.wake_signal_active: bool = True
+        self.rnse_source_evidence = 'producer_unavailable'
 
     def is_radio_active(self) -> bool:
         """
@@ -216,9 +218,13 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
         can_ids = cfg.get('can_ids', {})
         car_tz = pytz.timezone(CONFIG['car_time_zone'])
         brightness = RnseBrightnessController.from_config(cfg.get('rnse', {}))
+        brightness.inherit_state(CONFIG.get('rnse_brightness'))
         light_id = can_ids.get('light_status')
-        if brightness.settings.enabled and light_id is None:
+        if brightness.needs_lights and light_id is None:
             raise KeyError('can_ids.light_status is required for RNS-E auto brightness')
+        command_address = zmq_config.get('rnse_control_command', 'ipc:///run/rnse_control/rnse_control.ipc')
+        if not isinstance(command_address, str) or not command_address.startswith('ipc:///') or '\x00' in command_address:
+            raise ValueError('rnse_control_command must be a local absolute IPC address')
         
         CONFIG.update({
             'can_interface': can_config.get('infotainment', 'can0'),
@@ -227,6 +233,9 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
             'zmq_send_address': zmq_config.get('send_address'),
             'zmq_base_publish_address': zmq_config.get('system_events'),
             'rnse_brightness': brightness,
+            'config_path': config_path,
+            'rnse_command_address': command_address,
+            'hudiy_metric_address': zmq_config.get('metric_stream', 'ipc:///run/rnse_control/hudiy_stream.ipc'),
             'can_ids': {
                 'light_status': int(light_id, 16) if light_id is not None else None,
                 'tv_presence': int(can_ids.get('tv_presence', '0x602'), 16),
@@ -249,7 +258,7 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
 
         log_level = logging.DEBUG if debug_mode else logging.INFO
         logger.setLevel(log_level)
-        if brightness.settings.enabled:
+        if brightness.enabled:
             logger.info('RNS-E auto brightness enabled: day=%s, night=%s; waiting for vehicle lights and active radio.',
                         brightness.settings.day_brightness, brightness.settings.night_brightness)
             
@@ -265,6 +274,11 @@ def initialize_zmq_sender() -> bool:
         logger.info(f"Connecting ZeroMQ PUSH socket to {CONFIG['zmq_send_address']}...")
         ZMQ_CONTEXT = zmq.Context.instance()
         ZMQ_PUSH_SOCKET = ZMQ_CONTEXT.socket(zmq.PUSH)
+        # The gateway can be stopped independently. A bridge request must not
+        # block every asyncio task or build a stale CAN backlog while it is down.
+        ZMQ_PUSH_SOCKET.setsockopt(zmq.SNDTIMEO, 250)
+        ZMQ_PUSH_SOCKET.setsockopt(zmq.IMMEDIATE, 1)
+        ZMQ_PUSH_SOCKET.setsockopt(zmq.LINGER, 0)
         ZMQ_PUSH_SOCKET.connect(CONFIG['zmq_send_address'])
         return True
     except zmq.ZMQError as e:
@@ -388,7 +402,7 @@ def publish_power_status(state: AppState):
 def handle_rnse_light_status_message(msg: Dict[str, Any]):
     """Observe the existing vehicle light signal; periodic reconciliation queues TX."""
     brightness = CONFIG.get('rnse_brightness')
-    if brightness is None or not brightness.settings.enabled:
+    if brightness is None:
         return
     try:
         dlc = msg.get('dlc', 0)
@@ -583,7 +597,7 @@ class GpioShutdownMonitor:
 def reconcile_rnse_brightness(state: AppState):
     """Queue a changed target once; no brightness heartbeat or applied-state claim."""
     brightness = CONFIG.get('rnse_brightness')
-    if brightness is None or not brightness.settings.enabled:
+    if brightness is None:
         return
     inhibited = (state.can_listen_only or state.desired_listen_only
                  or state.listen_only_transition_in_progress
@@ -591,8 +605,45 @@ def reconcile_rnse_brightness(state: AppState):
     command = brightness.pending_command(state.is_radio_active(), inhibited)
     if command is not None and send_can_message(command.arbitration_id, command.payload.hex()):
         brightness.mark_queued(command)
-        logger.info('Queued RNS-E %s brightness %s via CAN %03X: %s',
-                    command.mode, command.level, command.arbitration_id, command.payload.hex())
+        logger.info('Queued RNS-E %s dial=%s LCD=%s source=%s via CAN %03X: %s',
+                    command.mode, command.level, command.lcd_brightness, command.source,
+                    command.arbitration_id, command.payload.hex())
+
+
+def rnse_bridge_snapshot(state: AppState):
+    inhibited = (state.can_listen_only or state.desired_listen_only
+                 or state.listen_only_transition_in_progress or flashing_mode_enabled())
+    result = CONFIG['rnse_brightness'].snapshot(inhibited)
+    result.update(radio_active=state.is_radio_active(), inhibited=inhibited,
+                  source_evidence=state.rnse_source_evidence, connection_known=False)
+    if not result['radio_active'] and result['state'] == 'ready':
+        result['state'] = 'waiting_radio'
+        result['queued'] = False
+    return result
+
+
+def process_rnse_bridge_request(data, state: AppState):
+    if data['action'] == 'manual':
+        CONFIG['rnse_brightness'].set_manual(data.get('values'))
+    elif data['action'] == 'reload':
+        # Reload only this policy, without restarting power-management tasks or
+        # accepting an arbitrary file path from a web request.
+        with open(CONFIG['config_path'], 'r') as handle:
+            document = json.load(handle)
+        brightness = RnseBrightnessController.from_config(document.get('rnse', {}))
+        if brightness.needs_lights and CONFIG['can_ids']['light_status'] is None:
+            raise ValueError('Configure can_ids.light_status and restart RNS-E functions first.')
+        brightness.inherit_state(CONFIG['rnse_brightness'])
+        CONFIG['rnse_brightness'] = brightness
+    if data['action'] != 'status':
+        reconcile_rnse_brightness(state)
+    return rnse_bridge_snapshot(state)
+
+
+def observe_rnse_source(source, evidence, state: AppState):
+    state.rnse_source_evidence = evidence
+    if CONFIG['rnse_brightness'].observe_source(source):
+        reconcile_rnse_brightness(state)
 
 
 async def send_periodic_messages_task(state: AppState):
@@ -635,7 +686,9 @@ async def listen_for_can_messages_task(state: AppState):
             sub_stream.transport.subscribe(time_topic.encode('utf-8'))
             logger.info(f"Subscribing to time sync topic: {time_topic}")
 
-        if CONFIG['rnse_brightness'].settings.enabled:
+        # Keep observing while controls are off so a live settings reload has a
+        # confirmed current mode. Missing identifiers are never guessed.
+        if CONFIG['can_ids']['light_status'] is not None:
             light_topic = f"CAN_{CONFIG['can_ids']['light_status']:03X}"
             sub_stream.transport.subscribe(light_topic.encode('utf-8'))
             logger.info(f"Subscribing to RNS-E brightness light topic: {light_topic}")
@@ -653,10 +706,8 @@ async def listen_for_can_messages_task(state: AppState):
         if pw_mgmt.get('listen_only_mode', {}).get('enabled', False):
             sub_stream.transport.subscribe(gw_nm_topic.encode('utf-8'))
             logger.info(f"Subscribing to gateway NM topic: {gw_nm_topic}")
-        if (pw_mgmt.get('listen_only_mode', {}).get('enabled', False)
-                or CONFIG['rnse_brightness'].settings.enabled):
-            sub_stream.transport.subscribe(nav_nm_topic.encode('utf-8'))
-            logger.info(f"Subscribing to radio NM topic: {nav_nm_topic}")
+        sub_stream.transport.subscribe(nav_nm_topic.encode('utf-8'))
+        logger.info(f"Subscribing to radio NM topic: {nav_nm_topic}")
 
         while RUNNING:
             msg = await sub_stream.read()
@@ -855,7 +906,11 @@ async def start_runtime(state: AppState):
     tasks = [
         asyncio.create_task(listen_for_can_messages_task(state)),
         asyncio.create_task(send_periodic_messages_task(state)),
-        asyncio.create_task(shutdown_monitor_task(state))
+        asyncio.create_task(shutdown_monitor_task(state)),
+        asyncio.create_task(serve_commands(CONFIG['rnse_command_address'],
+            lambda data: process_rnse_bridge_request(data, state), lambda: RUNNING)),
+        asyncio.create_task(listen_projection(CONFIG['hudiy_metric_address'],
+            lambda source, evidence: observe_rnse_source(source, evidence, state), lambda: RUNNING)),
     ]
     return context, tasks
 
@@ -890,10 +945,16 @@ async def main_async():
                     break
                 preserved_can_listen_only = state.can_listen_only
                 preserved_desired_listen_only = state.desired_listen_only
+                preserved_nav_sleep = state.nav_sleep_ind
+                preserved_nav_time = state.last_nav_nm_time
+                preserved_source_evidence = state.rnse_source_evidence
                 await stop_runtime(state, pub_context, tasks)
                 state = AppState()
                 state.can_listen_only = preserved_can_listen_only
                 state.desired_listen_only = preserved_desired_listen_only
+                state.nav_sleep_ind = preserved_nav_sleep
+                state.last_nav_nm_time = preserved_nav_time
+                state.rnse_source_evidence = preserved_source_evidence
                 pub_context, tasks = await start_runtime(state)
                 logger.info("Configuration reload complete.")
             else:

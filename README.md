@@ -12,8 +12,12 @@ Edit integration and Hudiy configuration, control project services and read
 recent logs on the head unit. The Files portal also accepts validated config
 replacements with backups. See [Manager usage](hudiy_manager/README.md).
 
-Automatic RNS-E brightness follows vehicle day/night state with configurable
-levels from 0–10, separately from Hudiy’s theme switching.
+RNS-E controls include automatic screen brightness (0–10), separate automatic
+LCD brightness (0–100), startup baselines when each automatic channel is off,
+and an opt-in source label based on Hudiy’s reported media/navigation provider.
+The provider label does not indicate an exact connection state.
+The RNS-E page also has live Pi video controls for gamma, contrast, black point
+and RGB gains, with optional startup profiles and original-color restoration.
 
 ### DIS (Driver Information System)
 *   **Contextual Display**: Shows navigation, now playing, and phone info from Hudiy API. 

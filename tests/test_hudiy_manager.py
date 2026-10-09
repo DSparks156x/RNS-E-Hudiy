@@ -256,6 +256,10 @@ class RouteTests(TemporaryConfigCase):
         self.client = self.app.test_client()
         self.headers = {'X-Hudiy-Management': '1'}
 
+    def tearDown(self):
+        self.app.extensions['management_video'].close()
+        super().tearDown()
+
     def test_mutations_require_same_origin_custom_header_and_current_pin(self):
         revision = self.store.read('rnse')['revision']
         body = {'document': self.document, 'revision': revision}

@@ -9,6 +9,17 @@ export interface SaveResult extends ConfigSnapshot { backup?: string; message?: 
 export interface ManagedService { id: string; label: string; unit: string; active_state: string; sub_state: string; description?: string; can_control: boolean; error?: string; }
 export interface SettingField { id: string; path: string; keys: string[]; value: JsonValue; metadata: SettingMetadata; section: string; }
 
+export const RNSE_DEFAULTS = { auto_brightness: { enabled: false, day_brightness: 10, night_brightness: 5 }, manual_brightness: 10, manual_lcd_brightness: 0, auto_lcd_brightness: { enabled: false, day_brightness: 100, night_brightness: 6 }, source_label: { enabled: false } };
+const object = (value: JsonValue | undefined): value is ConfigDocument => !!value && typeof value === 'object' && !Array.isArray(value);
+function rnseDefaults(document: ConfigDocument): ConfigDocument {
+  if ('rnse' in document && !object(document.rnse)) return document;
+  const rnse = { ...RNSE_DEFAULTS, ...(document.rnse as ConfigDocument || {}) } as ConfigDocument;
+  for (const group of ['auto_brightness', 'auto_lcd_brightness', 'source_label'] as const) {
+    if (!(group in (document.rnse as ConfigDocument || {})) || object(rnse[group])) rnse[group] = { ...RNSE_DEFAULTS[group], ...(object(rnse[group]) ? rnse[group] : {}) };
+  }
+  return { ...document, rnse };
+}
+
 export function fieldsFor(document: ConfigDocument, metadata: Metadata, project = true): SettingField[] {
   const fields: SettingField[] = [];
   const walk = (value: JsonValue, path: string, keys: string[]) => {
@@ -20,7 +31,7 @@ export function fieldsFor(document: ConfigDocument, metadata: Metadata, project 
     const section = project ? metadata.sections?.find(group => (group.root && (path === group.root || path.startsWith(`${group.root}.`))) || group.keys?.some(key => path === key || path.startsWith(`${key}.`))) : undefined;
     fields.push({ id: '/' + keys.map(key => key.replace(/~/g, '~0').replace(/\//g, '~1')).join('/'), path, keys, value, metadata: known || {}, section: section?.id || (project ? 'additional' : keys[0]) });
   };
-  Object.entries(document).forEach(([key, value]) => walk(value, key, [key]));
+  Object.entries(project ? rnseDefaults(document) : document).forEach(([key, value]) => walk(value, key, [key]));
   return fields.sort((a, b) => (a.metadata.order ?? Number.MAX_SAFE_INTEGER) - (b.metadata.order ?? Number.MAX_SAFE_INTEGER));
 }
 
@@ -47,7 +58,7 @@ export function parseSetting(text: string, original: JsonValue, metadata: Settin
   return value;
 }
 
-/** Clone the whole document so unknown keys survive edits; never merge with defaults. */
+/** Preserve unknown keys; add defaults only within an explicitly edited RNS-E group. */
 export function applyEdits(snapshot: ConfigDocument, fields: SettingField[], edits: Record<string, string>): ConfigDocument {
   const next = JSON.parse(JSON.stringify(snapshot)) as ConfigDocument;
   for (const field of fields) {
@@ -57,7 +68,15 @@ export function applyEdits(snapshot: ConfigDocument, fields: SettingField[], edi
     const value = parseSetting(byId ? edits[field.id] : edits[field.path], field.value, field.metadata);
     const parts = field.keys;
     let parent = next;
-    for (const part of parts.slice(0, -1)) parent = parent[part] as ConfigDocument;
+    for (let index = 0; index < parts.length - 1; index++) {
+      const part = parts[index];
+      if (!Object.prototype.hasOwnProperty.call(parent, part)) Object.defineProperty(parent, part, { value: {}, writable: true, enumerable: true, configurable: true });
+      if (!object(parent[part])) throw new Error(`Cannot edit inside ${parts.slice(0, index + 1).join('.')}.`);
+      if (parts[0] === 'rnse' && index === 1 && ['auto_brightness', 'auto_lcd_brightness', 'source_label'].includes(part)) {
+        parent[part] = { ...RNSE_DEFAULTS[part as 'auto_brightness' | 'auto_lcd_brightness' | 'source_label'], ...parent[part] };
+      }
+      parent = parent[part] as ConfigDocument;
+    }
     parent[parts[parts.length - 1]] = value;
   }
   return next;

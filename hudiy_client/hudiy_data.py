@@ -96,6 +96,9 @@ class HudiyEventHandler(ClientEventHandler):
         self.last_media = None
         self.last_coverart_hash = None
         self._media_lock = threading.RLock()
+        self._projection_publish_lock = threading.Lock()
+        from hudiy_client.projection_source import ProjectionSource
+        self.projection_source = ProjectionSource()
         self._pending_media_clear = None
         self._pending_media_metadata = None
         self._applying_media_clear = False
@@ -158,7 +161,23 @@ class HudiyEventHandler(ClientEventHandler):
             'api_minor': message.api_version.minor,
         })
         if client._name == "DATA":
+            self.set_projection_api_connected(True)
             self._resubscribe(client)
+
+    def set_projection_api_connected(self, connected):
+        self.projection_source.set_api_connected(connected)
+        self.publish_projection_source()
+
+    def publish_projection_source(self):
+        """Repeat only the ZMQ snapshot; consumers deduplicate CAN commands."""
+        try:
+            # DATA callbacks and the snapshot heartbeat use separate threads.
+            # Snapshot and enqueue together so an old snapshot cannot follow a
+            # newer source/disconnect event in the publisher queue.
+            with self._projection_publish_lock:
+                self.safe_pub.publish(b'HUDIY_PROJECTION', self.projection_source.snapshot())
+        except Exception as exc:
+            logger.warning('Cannot publish projection provider hint: %s', exc)
 
     def _resubscribe(self, client):
         """Re-send full subscription set. Acts as a state-refresh request since the
@@ -303,6 +322,8 @@ class HudiyEventHandler(ClientEventHandler):
             pos = getattr(message, 'position_label', '0:00')
         
             src_id = getattr(message, 'source', 0)
+            self.projection_source.report('media', src_id)
+            self.publish_projection_source()
             src_label = MEDIA_SOURCE_MAP.get(src_id, "None")
             is_playing = bool(getattr(message, 'is_playing', False))
             # NONE cannot be playing even if a provider leaves the raw flag set.
@@ -521,6 +542,8 @@ class HudiyEventHandler(ClientEventHandler):
 
     def on_navigation_status(self, client, message):
         source = getattr(message, 'source', 0)
+        self.projection_source.report('navigation', source)
+        self.publish_projection_source()
         state = getattr(message, 'state', 2)  # 1=Active, 2=Inactive
         if hasattr(message, 'HasField') and not message.HasField('state'):
             state = 2  # Proto2's absent enum otherwise reads as ACTIVE.
@@ -1207,6 +1230,7 @@ class HudiyData:
             except Exception as e:
                 logger.error(f"DATA Thread unexpected error: {e}", exc_info=True)
 
+            self.handler.set_projection_api_connected(False)
             if self.data_client:
                 self.data_client.disconnect()
             if self.running:
@@ -1272,13 +1296,18 @@ class HudiyData:
         tp2_status_thread.start()
 
         try:
+            next_projection_snapshot = 0.0
             while self.running:
+                if time.monotonic() >= next_projection_snapshot:
+                    self.handler.publish_projection_source()
+                    next_projection_snapshot = time.monotonic() + 2.0
                 time.sleep(1)
         except Exception as e:
             logger.exception(f"Fatal error in main loop: {e}")
         finally:
             logger.info("Main loop finished. Cleaning up...")
             self.running = False
+            self.handler.set_projection_api_connected(False)
             self.handler.stop()
             self.connection_manager.stop()
             self.safe_pub.stop()

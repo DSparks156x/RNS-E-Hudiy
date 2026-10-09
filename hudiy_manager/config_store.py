@@ -110,18 +110,27 @@ def validate_document(target, document):
             if 'enabled' in value and type(value['enabled']) is not bool:
                 raise ConfigError(f'{section}.enabled must be boolean.')
         rnse = document.get('rnse', {})
-        if 'auto_brightness' in rnse:
-            brightness = rnse['auto_brightness']
+        for section, maximum in (('auto_brightness', 10), ('auto_lcd_brightness', 100)):
+            if section not in rnse:
+                continue
+            brightness = rnse[section]
             if not isinstance(brightness, dict):
-                raise ConfigError('rnse.auto_brightness must be an object.')
+                raise ConfigError(f'rnse.{section} must be an object.')
             if 'enabled' in brightness and type(brightness['enabled']) is not bool:
-                raise ConfigError('rnse.auto_brightness.enabled must be boolean.')
+                raise ConfigError(f'rnse.{section}.enabled must be boolean.')
             for key in ('day_brightness', 'night_brightness'):
                 value = brightness.get(key)
-                if value is not None and (type(value) is not int or not 0 <= value <= 10):
-                    raise ConfigError(f'rnse.auto_brightness.{key} must be an integer from 0 to 10 or null.')
+                if value is not None and (type(value) is not int or not 0 <= value <= maximum):
+                    raise ConfigError(f'rnse.{section}.{key} must be an integer from 0 to {maximum} or null.')
                 if brightness.get('enabled') is True and value is None:
-                    raise ConfigError(f'Set rnse.auto_brightness.{key} to a level from 0 to 10 before enabling it.')
+                    raise ConfigError(f'Set rnse.{section}.{key} to a level from 0 to {maximum} before enabling it.')
+        for key, maximum in (('manual_brightness', 10), ('manual_lcd_brightness', 100)):
+            if key in rnse and (type(rnse[key]) is not int or not 0 <= rnse[key] <= maximum):
+                raise ConfigError(f'rnse.{key} must be an integer from 0 to {maximum}.')
+        if 'source_label' in rnse:
+            source = rnse['source_label']
+            if not isinstance(source, dict) or ('enabled' in source and type(source['enabled']) is not bool):
+                raise ConfigError('rnse.source_label must be an object with a boolean enabled field.')
     elif target.id == 'hudiy-main':
         if not document:
             raise ConfigError('Hudiy main configuration cannot be empty.')

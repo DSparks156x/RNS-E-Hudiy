@@ -63,3 +63,32 @@ test('file portal targets the car hostname and DataView port from independent ma
   assert.equal(filesPortalUrl({ protocol: 'http:', hostname: '192.168.4.1' }), 'http://192.168.4.1:5003/files');
   assert.equal(filesPortalUrl({ protocol: 'http:', hostname: '[::1]' }), 'http://[::1]:5003/files');
 });
+
+test('new RNS-E controls appear on an older config without changing it on read or unrelated save', () => {
+  const original = { interfaces: {}, custom: 'keep', rnse: { auto_brightness: { enabled: true, day_brightness: 8, night_brightness: 2, custom: 9 } } };
+  const fields = fieldsFor(original, {});
+  assert.equal(fields.find(field => field.path === 'rnse.auto_lcd_brightness.day_brightness').value, 100);
+  assert.equal(fields.find(field => field.path === 'rnse.source_label.enabled').value, false);
+  assert.equal(original.rnse.auto_lcd_brightness, undefined);
+  assert.deepEqual(applyEdits(original, fields, {}), original);
+  const next = applyEdits(original, fields, { custom: 'new' });
+  assert.deepEqual(next.rnse, original.rnse);
+});
+
+test('enabling a new automatic group writes its required levels and preserves other groups', () => {
+  const original = { interfaces: {}, rnse: { auto_brightness: { enabled: true, day_brightness: 8, night_brightness: 2, custom: 9 } } };
+  const fields = fieldsFor(original, {});
+  const next = applyEdits(original, fields, { 'rnse.auto_lcd_brightness.enabled': 'true' });
+  assert.deepEqual(next.rnse.auto_lcd_brightness, { enabled: true, day_brightness: 100, night_brightness: 6 });
+  assert.deepEqual(next.rnse.auto_brightness, original.rnse.auto_brightness);
+  assert.equal(next.rnse.manual_brightness, undefined);
+  assert.equal(next.rnse.source_label, undefined);
+});
+
+test('a config without any RNS-E section can explicitly enable automation without losing unknown keys', () => {
+  const original = { interfaces: {}, custom: ['keep'] };
+  const next = applyEdits(original, fieldsFor(original, {}), { 'rnse.auto_brightness.enabled': 'true' });
+  assert.deepEqual(next.rnse.auto_brightness, { enabled: true, day_brightness: 10, night_brightness: 5 });
+  assert.deepEqual(next.custom, original.custom);
+  assert.equal(original.rnse, undefined);
+});

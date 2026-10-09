@@ -370,6 +370,12 @@ for (const [key, help] of Object.entries(IMAGE_HELP)) SCHEMA['display.center_dis
 SCHEMA['rnse.auto_brightness.enabled'] = {label:'Automatic RNS-E brightness',type:'boolean',help:'Set RNS-E screen brightness from vehicle day/night state. Sends a brightness command when the light state changes or the radio wakes. This is separate from Hudiy and Android Auto theme switching.'};
 SCHEMA['rnse.auto_brightness.day_brightness'] = {label:'Day brightness',type:'number',integer:true,min:0,max:10,help:'RNS-E screen brightness in daytime: 0 is the lowest level and 10 is the highest. Used only when automatic RNS-E brightness is enabled.'};
 SCHEMA['rnse.auto_brightness.night_brightness'] = {label:'Night brightness',type:'number',integer:true,min:0,max:10,help:'RNS-E screen brightness when the vehicle reports night mode: 0 is the lowest level and 10 is the highest. Used only when automatic RNS-E brightness is enabled.'};
+SCHEMA['rnse.manual_brightness'] = {label:'Manual screen brightness',type:'number',integer:true,min:0,max:10,help:'Startup baseline for RNS-E screen brightness when automatic screen brightness is off. The day/night brightness sliders are for live testing; releasing a slider sends one frame without changing this startup value.'};
+SCHEMA['rnse.auto_lcd_brightness.enabled'] = {label:'Automatic LCD brightness',type:'boolean',help:'Set the separate RNS-E LCD panel brightness from vehicle day/night state. The LCD level uses its own scale and is independent of screen brightness.'};
+SCHEMA['rnse.auto_lcd_brightness.day_brightness'] = {label:'Day LCD brightness',type:'number',integer:true,min:0,max:100,help:'LCD level for daytime, from 0 to 100. This controls the RNS-E LCD panel, not the overall screen brightness.'};
+SCHEMA['rnse.auto_lcd_brightness.night_brightness'] = {label:'Night LCD brightness',type:'number',integer:true,min:0,max:100,help:'LCD level for night mode, from 0 to 100. This controls the RNS-E LCD panel, not the overall screen brightness.'};
+SCHEMA['rnse.manual_lcd_brightness'] = {label:'Manual LCD brightness',type:'number',integer:true,min:0,max:100,help:'Startup baseline for the LCD panel when automatic LCD brightness is off. Day/night LCD sliders are for live testing; releasing a slider sends one frame without changing this startup value.'};
+SCHEMA['rnse.source_label.enabled'] = {label:'Show source label',type:'boolean',help:'Opt in to showing a label based on Hudiy’s reported media or navigation provider. This reports the provider Hudiy sees, not whether that source is currently connected.'};
 function metadataFor(path) {
   if (path === 'display.font_resolution') return {help: 'Legacy cluster compatibility marker. The value legacy selects the red DIS font/layout behavior. Preserve this for a red cluster; the center_display.high_resolution setting controls artwork resolution separately.', type: 'text'};
   if (path === 'display.center_display.navigation.high_resolution') return {help: 'Legacy navigation artwork-resolution flag used by older branches. Current configs use display.center_display.high_resolution for shared artwork resolution; this flag can still provide a fallback when the shared setting is absent. Preserved on export.'};
@@ -498,7 +504,11 @@ const BUNDLED_CONFIG = {
   "config_restore_repo": "https://github.com/DSparks156x/RNS-E-Hudiy",
   "config_restore_branch": "testing",
   "rnse": {
-    "auto_brightness": {"enabled": false, "day_brightness": 10, "night_brightness": 5}
+    "auto_brightness": {"enabled": false, "day_brightness": 10, "night_brightness": 1},
+    "manual_brightness": 10,
+    "auto_lcd_brightness": {"enabled": false, "day_brightness": 100, "night_brightness": 6},
+    "manual_lcd_brightness": 0,
+    "source_label": {"enabled": false}
   },
   "interfaces": {
     "can": {

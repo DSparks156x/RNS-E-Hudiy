@@ -1,0 +1,47 @@
+.rnse-bridge { display: grid; gap: 14px; padding: 12px 16px 24px; }
+.rnse-bridge h2, .rnse-bridge h3, .rnse-bridge p { margin: 0; }
+.rnse-bridge h2 { font-size: 21px; }.rnse-bridge h3 { font-size: 16px; }
+.rnse-bridge small, .rnse-live-note, .rnse-bridge details p { color: var(--on-surface-variant); line-height: 1.4; }
+.rnse-bridge-heading, .rnse-control-title, .rnse-auto-heading, .rnse-source-setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rnse-bridge-heading small { display: block; margin-top: 5px; }
+.rnse-bridge-state { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.rnse-bridge button { min-height: 44px; min-width: 44px; }
+.rnse-live-controls, .rnse-auto-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rnse-live-control, .rnse-auto-card, .rnse-source-setting { padding: 12px; background: var(--surface); border: 1px solid var(--outline-variant); border-radius: 16px; }
+.rnse-control-title { align-items: flex-start; font-size: 15px; }.rnse-control-title label { font-weight: 600; }.rnse-control-title output { font-size: 13px; white-space: nowrap; color: var(--primary); }
+.rnse-live-slider { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; }
+.rnse-live-slider input { width: 100%; min-width: 0; height: 44px; touch-action: none; accent-color: var(--primary); cursor: pointer; }
+.rnse-live-slider button { font-size: 25px; padding: 0; }.rnse-live-control small { display: block; font-size: 12px; }
+.rnse-live-note { font-size: 12px; }
+.rnse-auto-heading { min-height: 44px; margin-bottom: 10px; }.rnse-auto-heading h3 { max-width: 160px; }
+.rnse-auto-levels { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rnse-config-value > label { display: block; font-size: 12px; color: var(--on-surface-variant); margin-bottom: 6px; }
+.rnse-config-value .manager-stepper { gap: 3px; }.rnse-config-value .manager-stepper button { min-width: 40px; }.rnse-config-value output { font-size: 21px; min-width: 32px; }.rnse-config-value output small { font-size: 10px; }
+.rnse-bridge details summary { min-height: 44px; display: list-item; padding: 12px 4px; cursor: pointer; }.rnse-bridge details p { font-size: 13px; padding: 6px 4px; }
+.rnse-startup-settings .rnse-auto-levels { max-width: 410px; margin-top: 8px; }
+@media (max-width: 900px) { .rnse-bridge { padding: 10px 12px 20px; gap: 10px; }.rnse-bridge h2 { font-size: 18px; }.rnse-live-controls, .rnse-auto-controls { gap: 8px; }.rnse-live-control, .rnse-auto-card { padding: 9px; }.rnse-control-title { display: grid; gap: 3px; }.rnse-auto-levels { gap: 6px; }.rnse-config-value .manager-stepper button { min-width: 36px; }.rnse-config-value .manager-stepper output { min-width: 26px; } }
+@media (max-width: 600px) { .rnse-live-controls, .rnse-auto-controls { grid-template-columns: 1fr; }.rnse-bridge-heading { align-items: flex-start; }.rnse-bridge-state { flex-direction: column; align-items: flex-end; } }
+@media (max-height: 540px) and (min-width: 600px) {
+  .manager-rnse-panels { margin-bottom: 4px; }
+  .rnse-bridge { padding: 0 0 8px; gap: 6px; }
+  .rnse-bridge-heading { min-height: 44px; font-size: 13px; }
+  .rnse-bridge-state { gap: 6px; font-size: 12px; }
+  .rnse-bridge-state button { padding: 0 10px; }
+  .rnse-live-control { padding: 7px 8px; border-radius: 12px; }
+  .rnse-control-title { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+  .rnse-control-title output { font-size: 12px; }
+  .rnse-live-slider { margin: 3px 0 0; gap: 5px; }
+  .rnse-live-control > small { display: none; }
+  .rnse-live-note { font-size: 12px; line-height: 1.35; }
+  .rnse-auto-card { padding: 6px 8px; border-radius: 12px; }
+  .rnse-auto-heading { margin-bottom: 3px; gap: 4px; }
+  .rnse-auto-heading h3 { font-size: 14px; }
+  .rnse-auto-levels { gap: 6px; }
+  .rnse-config-value > label { margin-bottom: 2px; font-size: 12px; }
+  .rnse-config-value .manager-stepper { gap: 2px; }
+  .rnse-config-value .manager-stepper button { min-width: 44px; min-height: 44px; }
+  .rnse-config-value .manager-stepper output { font-size: 17px; min-width: 20px; }
+  .rnse-config-value .manager-stepper output small { display: none; }
+  .rnse-source-setting { padding: 8px; }
+  .rnse-source-setting small { font-size: 11px; }
+}

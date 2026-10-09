@@ -100,3 +100,80 @@ def register_management_metadata(app, metadata_path):
         except (OSError, ValueError):
             return jsonify({'schema': {}, 'sections': [], 'error': 'Setting descriptions have not been installed.'}), 503
         return jsonify(document)
+
+
+def register_management_video(app, store, video):
+    """Control the desktop user's Wayland output, independently of config.json."""
+    from .video_control import VideoError, MAX_PROFILE_BYTES
+
+    @app.errorhandler(VideoError)
+    def video_error(error):
+        return jsonify({'error': str(error)}), error.status
+
+    @app.get('/api/manage/video')
+    def manager_video():
+        return jsonify(video.snapshot())
+
+    def video_body():
+        content = request.stream.read(MAX_PROFILE_BYTES + 1)
+        if len(content) > MAX_PROFILE_BYTES:
+            raise VideoError('Video settings exceed the 8 KiB limit.')
+        data = parse_document(content)
+        if not isinstance(data, dict):
+            raise VideoError('Provide a JSON object with video settings.')
+        return data
+
+    @app.post('/api/manage/video/apply')
+    def manager_video_apply():
+        denied = require_mutation_access(store)
+        if denied:
+            return denied
+        data = video_body()
+        return jsonify(video.apply(data.get('settings'), data.get('output')))
+
+    @app.post('/api/manage/video/profile')
+    def manager_video_profile():
+        denied = require_mutation_access(store)
+        if denied:
+            return denied
+        data = video_body()
+        return jsonify(video.save_profile(data.get('settings'), data.get('output')))
+
+    @app.post('/api/manage/video/reset')
+    def manager_video_reset():
+        denied = require_mutation_access(store)
+        if denied:
+            return denied
+        video_body()
+        return jsonify(video.reset())
+
+
+def register_management_rnse_bridge(app, store, bridge):
+    @app.get('/api/manage/rnse-control')
+    def manager_rnse_status():
+        return jsonify(bridge.request('status'))
+
+    def body():
+        content = request.stream.read(4097)
+        if len(content) > 4096:
+            raise ConfigError('RNS-E control request exceeds the 4 KiB limit.')
+        data = parse_document(content)
+        if not isinstance(data, dict):
+            raise ConfigError('Provide a JSON object.')
+        return data
+
+    @app.post('/api/manage/rnse-control/manual')
+    def manager_rnse_manual():
+        denied = require_mutation_access(store)
+        if denied:
+            return denied
+        return jsonify(bridge.request('manual', body()))
+
+    @app.post('/api/manage/rnse-control/reload')
+    def manager_rnse_reload():
+        denied = require_mutation_access(store)
+        if denied:
+            return denied
+        if body():
+            raise ConfigError('Reload takes an empty JSON object.')
+        return jsonify(bridge.request('reload'))

@@ -8,6 +8,16 @@
       "enabled": false,
       "day_brightness": 10,
       "night_brightness": 1
+    },
+    "manual_brightness": 10,
+    "auto_lcd_brightness": {
+      "enabled": false,
+      "day_brightness": 100,
+      "night_brightness": 6
+    },
+    "manual_lcd_brightness": 0,
+    "source_label": {
+      "enabled": false
     }
   },
   "interfaces": {

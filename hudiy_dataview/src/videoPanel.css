@@ -1,0 +1,51 @@
+.manager-video { padding:2px 0 12px; }
+.manager-video-heading { display:flex; gap:12px; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+.manager-video-heading h2 { font-size:18px; margin:0 0 5px; font-weight:600; }
+.manager-video-heading p,.manager-video-note,.manager-video-unavailable { font-size:11px; line-height:1.5; margin:0; color:var(--on-surface-variant); }
+.manager-video-status { font-size:10px; white-space:nowrap; padding:7px 10px; border-radius:14px; background:var(--manager-raised); color:var(--on-surface-variant); }
+.manager-video-status.active { background:var(--primary-container); color:var(--on-primary-container); }
+.manager-video-state { display:flex; align-items:center; gap:5px; }
+.manager-video-state button { font-size:10px; min-height:44px; padding:0 10px; white-space:nowrap; }
+.manager-video-output { display:flex; align-items:center; gap:12px; color:var(--on-surface-variant); font-size:11px; margin-bottom:10px; }
+.manager-video-output select { flex:1; min-width:0; font-size:12px; }
+.manager-video-single-output { font-size:10px; color:var(--on-surface-variant); margin:0 0 10px; }
+.manager-video-compact-help { display:none; }
+.manager-video-controls { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 12px; }
+.manager-video-control { min-width:0; padding:10px 13px 8px; border-radius:17px; background:var(--surface-container); }
+.manager-video-control-label { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.manager-video-control-label label { font-size:12px; font-weight:600; }
+.manager-video-control-label output { font-size:12px; font-variant-numeric:tabular-nums; color:var(--primary); }
+.manager-container .manager-video-control input[type=range] { appearance:none; width:100%; height:44px; min-height:44px; padding:0; margin:0; background:transparent; border:none; cursor:pointer; touch-action:pan-y; }
+.manager-video-control input[type=range]::-webkit-slider-runnable-track { height:7px; background:var(--primary-container); border-radius:7px; }
+.manager-video-control input[type=range]::-webkit-slider-thumb { appearance:none; width:24px; height:24px; margin-top:-8.5px; border-radius:50%; background:var(--primary); border:3px solid var(--on-primary,var(--background)); }
+.manager-video-control input[type=range]::-moz-range-track { height:7px; background:var(--primary-container); border-radius:7px; }
+.manager-video-control input[type=range]::-moz-range-thumb { width:20px; height:20px; border-radius:50%; background:var(--primary); border:3px solid var(--on-primary,var(--background)); }
+.manager-video-control input[type=range]:disabled { opacity:.4; cursor:default; }
+.manager-video-control p { font-size:10px; line-height:1.4; margin:-1px 0 0; color:var(--on-surface-variant); }
+.manager-video-actions { display:flex; gap:7px; flex-wrap:wrap; margin:12px 0 8px; }
+.manager-video-actions button { font-size:11px; padding:0 12px; flex:1; white-space:nowrap; }
+.manager-video-test-strip { display:flex; height:18px; gap:6px; margin-top:12px; border:1px solid var(--outline-variant); border-radius:5px; overflow:hidden; }
+.manager-video-grays,.manager-video-rgb { display:flex; flex:3; }
+.manager-video-rgb { flex:1; }
+.manager-video-test-strip span { flex:1; }
+.manager-video-unavailable { margin:0 0 12px; }
+@media(max-height:540px) and (min-width:600px) {
+  .manager-video { padding-top:0; }
+  .manager-video-heading { align-items:center; margin-bottom:5px; gap:8px; }
+  .manager-video-heading h2 { font-size:15px; margin-bottom:3px; }
+  .manager-video-heading p { font-size:10px; }
+  .manager-video-state button { font-size:10px; padding:0 9px; }
+  .manager-video-status { font-size:9px; padding:6px 8px; }
+  .manager-video-single-output { margin-bottom:6px; }
+  .manager-video-controls { gap:6px 9px; }
+  .manager-video-control { padding:6px 11px 0; border-radius:13px; }
+  .manager-video-control-label label,.manager-video-control-label output { font-size:11px; line-height:14px; }
+  .manager-video-control p { display:none; }
+  .manager-video-compact-help { display:block; font-size:10px; color:var(--on-surface-variant); margin-top:6px; }
+  .manager-video-compact-help summary { cursor:pointer; min-height:24px; padding:5px 0; color:var(--primary); }
+  .manager-video-compact-help p { margin:4px 0; line-height:1.4; }
+  .manager-video-test-strip { margin-top:5px; height:12px; }
+  .manager-video-actions { margin:7px 0 5px; }
+  .manager-video-note { font-size:10px; }
+}
+@media(max-width:599px) { .manager-video-heading { flex-wrap:wrap; } .manager-video-controls { gap:8px; } .manager-video-control { padding:10px; } .manager-video-actions button { flex-basis:40%; } }

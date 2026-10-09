@@ -1,4 +1,4 @@
-.manager-container { color-scheme:dark; --manager-raised:color-mix(in srgb,var(--surface-container) 92%,var(--on-surface)); }
+.manager-container { color-scheme:dark; user-select:none; -webkit-user-select:none; --manager-raised:color-mix(in srgb,var(--surface-container) 92%,var(--on-surface)); }
 .manager-container[data-theme="light"] { color-scheme:light; }
 .manager-container * { box-sizing:border-box; }
 .manager-container :is(button,a,select,input):focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
@@ -29,7 +29,26 @@
 .manager-sections { display:flex; flex-direction:column; gap:4px; overflow:auto; padding:2px 4px 16px 0; }
 .manager-sections button { text-align:left; background:transparent; color:var(--on-surface-variant); font-size:12px; min-height:44px; flex-shrink:0; padding:10px 13px; }
 .manager-sections button.active { background:var(--primary-container); color:var(--on-primary-container); }
-.manager-settings-scroll { overflow:auto; min-height:0; padding:0 4px 20px 0; }
+.manager-settings-region { display:flex; flex-direction:column; min-height:0; min-width:0; overflow:hidden; }
+.manager-settings-scroll { overflow:auto; flex:1; min-height:0; padding:0 4px 12px 0; }
+.manager-settings-scroll,.manager-sections,.manager-panel-scroll,.manager-log-text,.manager-message { touch-action:pan-y; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+.manager-scroll-buttons { display:flex; flex-shrink:0; gap:8px; padding:4px 0; border-top:1px solid var(--outline-variant); }
+.manager-scroll-buttons button { flex:1; font-size:12px; }
+.manager-brightness { background:var(--surface-container); padding:8px 12px 0; border-radius:16px; }
+.manager-brightness-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.manager-brightness h3 { font-size:14px; font-weight:600; margin:0; }
+.manager-brightness-levels { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:4px; }
+.manager-brightness-levels label { display:block; font-size:12px; margin-bottom:5px; }
+.manager-stepper { display:flex; align-items:center; gap:6px; }
+.manager-stepper button { min-width:48px; min-height:48px; padding:0; font-size:25px; }
+.manager-stepper output { flex:1; text-align:center; font-size:20px; font-variant-numeric:tabular-nums; color:var(--primary); }
+.manager-stepper small { font-size:10px; color:var(--on-surface-variant); margin-left:4px; }
+.manager-brightness details { font-size:11px; color:var(--on-surface-variant); }
+.manager-brightness summary { min-height:44px; padding:14px 0; cursor:pointer; color:var(--primary); }
+.manager-brightness details p { line-height:1.5; margin:0 0 10px; }
+.manager-rnse-panels { display:flex; gap:8px; margin:0 0 12px; }
+.manager-rnse-panels button { min-height:44px; padding:0 18px; font-size:12px; border-radius:24px; background:transparent; color:var(--on-surface-variant); }
+.manager-rnse-panels button.active { background:var(--primary-container); color:var(--on-primary-container); }
 .manager-section-heading { padding:4px 0 12px; }
 .manager-section-heading h2,.manager-panel-heading h2 { font-size:18px; margin:0 0 5px; font-weight:600; }
 .manager-section-heading p,.manager-panel-heading p { color:var(--on-surface-variant); font-size:11px; line-height:1.5; margin:0; }
@@ -76,7 +95,7 @@
 .manager-log-tools select { font-size:12px; min-width:0; }
 .manager-log-tools select:first-child { flex:1; }
 .manager-log-tools button { font-size:12px; }
-.manager-log-text { flex:1; min-height:0; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; background:var(--surface-container); border-radius:16px; padding:14px; margin:0; color:var(--on-surface); font:11px/1.6 'Roboto Mono',monospace; user-select:text; }
+.manager-log-text { flex:1; min-height:0; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; background:var(--surface-container); border-radius:16px; padding:14px; margin:0; color:var(--on-surface); font:11px/1.6 'Roboto Mono',monospace; user-select:none; -webkit-user-select:none; }
 .manager-log-footer { font-size:10px; color:var(--on-surface-variant); flex-shrink:0; }
 @media(max-height:540px) and (min-width:600px) {
   .manager-header { padding:8px 16px 4px; }
@@ -101,7 +120,8 @@
   .manager-settings-workspace { display:flex; flex-direction:column; padding:0 10px; gap:8px; }
   .manager-sections { flex-direction:row; padding:0; flex-shrink:0; max-height:50px; }
   .manager-sections button { white-space:nowrap; }
-  .manager-settings-scroll { flex:1; }
+  .manager-settings-region { flex:1; }
+  .manager-sections { touch-action:pan-x; }
   .manager-setting { grid-template-columns:minmax(0,1fr) 130px; gap:10px; }
   .manager-savebar { padding:8px 10px; flex-wrap:wrap; }
   .manager-savebar>div { flex-basis:100%; }

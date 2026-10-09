@@ -4,14 +4,18 @@ import sys
 import urllib.error
 import urllib.request
 import json
+import atexit
+import signal
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from flask import Flask, jsonify, render_template
 from hudiy_manager.config_store import ConfigStore
-from hudiy_manager.routes import register_management_configs, register_management_metadata, register_management_services
+from hudiy_manager.routes import register_management_configs, register_management_metadata, register_management_services, register_management_video, register_management_rnse_bridge
+from hudiy_manager.rnse_bridge import RnseBridgeClient
 from hudiy_manager.service_control import ServiceController
+from hudiy_manager.video_control import VideoController
 
 
 def dataview_theme():
@@ -25,18 +29,23 @@ def dataview_theme():
         return None, None
 
 
-def create_app(project_root=None, home=None, controller=None, theme_loader=None, metadata_path=None):
+def create_app(project_root=None, home=None, controller=None, theme_loader=None, metadata_path=None, video_controller=None, bridge_client=None):
     project_root = Path(project_root or Path(__file__).resolve().parents[1]).absolute()
     assets = project_root / 'hudiy_dataview'
     app = Flask(__name__, static_folder=str(assets / 'static'), template_folder=str(assets / 'templates'))
     app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024
     store = ConfigStore(project_root, home)
     controller = controller or ServiceController(home=store.home)
+    video = video_controller or VideoController(home=store.home)
     app.extensions['management_config_store'] = store
     app.extensions['management_services'] = controller
+    app.extensions['management_video'] = video
+    atexit.register(video.close)
     register_management_configs(app, store)
     register_management_services(app, store, controller)
     register_management_metadata(app, metadata_path or assets / 'static' / 'configMetadata.json')
+    register_management_video(app, store, video)
+    register_management_rnse_bridge(app, store, bridge_client or RnseBridgeClient(store))
 
     @app.get('/')
     @app.get('/manage')
@@ -65,7 +74,16 @@ def create_app(project_root=None, home=None, controller=None, theme_loader=None,
 
 
 def main():
-    create_app().run(host='127.0.0.1', port=5004, threaded=True)
+    app = create_app()
+    previous = signal.getsignal(signal.SIGTERM)
+    def terminate(_signum, _frame):
+        raise SystemExit(0)
+    signal.signal(signal.SIGTERM, terminate)
+    try:
+        app.run(host='127.0.0.1', port=5004, threaded=True)
+    finally:
+        app.extensions['management_video'].close()
+        signal.signal(signal.SIGTERM, previous)
 
 
 if __name__ == '__main__':

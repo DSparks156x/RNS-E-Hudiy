@@ -40,6 +40,7 @@ else
 fi
 
 REPO_URL="https://github.com/DSparks156x/RNS-E-Hudiy.git"
+REAL_UID=$(id -u "$REAL_USER") || exit 1
 # Detect Repo from existing config if available
 if [ -f "$REAL_HOME/config.json" ]; then
     DETECTED_REPO=$(python3 -c "import json, sys; r=json.load(open('$REAL_HOME/config.json')).get('repo', ''); print(r.replace('https://github.com/', '').replace('.git', ''))" 2>/dev/null)
@@ -673,11 +674,12 @@ Group=${REAL_USER}
 SupplementaryGroups=systemd-journal
 WorkingDirectory=${REAL_HOME}/hudiy_manager
 Environment=PYTHONUNBUFFERED=1
+Environment=XDG_RUNTIME_DIR=/run/user/${REAL_UID}
 ExecStart=/usr/bin/python3 ${REAL_HOME}/hudiy_manager/app.py
 Restart=always
 RestartSec=5
 KillSignal=SIGTERM
-TimeoutStopSec=5
+TimeoutStopSec=10
 
 [Install]
 WantedBy=multi-user.target"
