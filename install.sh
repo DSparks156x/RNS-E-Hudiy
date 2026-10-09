@@ -145,7 +145,7 @@ echo -e "${YELLOW}? Step 2: Downloading Project Files...${NC}"
 STAGING_DIR="$REAL_HOME/.cache/rns-e-hudiy-installer"
 TEMP_DIR="$STAGING_DIR" # Retain the existing source-path name below.
 STAGING_PARENT=$(dirname "$STAGING_DIR")
-SPARSE_PATHS=(rns-e_can hudiy_client dis_client tp2 hudiy_dataview flasher config/hudiy)
+SPARSE_PATHS=(rns-e_can hudiy_client dis_client tp2 hudiy_dataview vehicle_data flasher config/hudiy)
 
 mkdir -p "$STAGING_PARENT"
 
@@ -275,7 +275,14 @@ install_folder "hudiy_client" || exit 1
 install_folder "dis_client" || exit 1
 install_folder "tp2" || exit 1
 install_folder "hudiy_dataview" || exit 1
+install_folder "vehicle_data" || exit 1
 install_folder "flasher" || exit 1
+
+# These modules share the saved DataView/DIS configuration and wheel routing.
+(cd / && python3 -I -c 'import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); sys.path.insert(0, str(Path(sys.argv[1]) / "rns-e_can")); from vehicle_data.workspace import WorkspaceStore, validate_workspace, default_workspace; from hudiy_dataview.data_logs import DataLogs; from wheel_controls import WheelControlRouter; validate_workspace(default_workspace()); print("Installed Data & Logs and wheel control imports OK")' "$REAL_HOME") || {
+    echo "ERROR: Installed Data & Logs or wheel control modules are unavailable."
+    exit 1
+}
 
 # Verify deployed package and dependency without constructing a CAN device.
 (cd / && python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import can; from flasher.vag_protocols import TP2Transport, KWPClient; from flasher.controllers.haldex_gen4 import HaldexFlasher; from flasher.controllers.pq_eps.protocol import PQEPSFlasher; from flasher.readout import HaldexReadout, PQEPSReadout; from flasher.traffic import transmission_guard, flashing_mode_enabled; print("Installed shared protocol, Haldex, and PQ EPS imports OK")' "$REAL_HOME") || {
@@ -304,7 +311,7 @@ install_config() {
     if [[ "$DEST" == *.json ]]; then
         # Smart Merge for JSON: adds missing keys, preserves existing values
         python3 -c "
-import json, sys
+import json, os, sys
 def deep_merge(target, source):
     updated = False
     for key, value in source.items():
@@ -317,7 +324,24 @@ def deep_merge(target, source):
 try:
     with open(sys.argv[1], 'r') as f: target = json.load(f)
     with open(sys.argv[2], 'r') as f: source = json.load(f)
-    if deep_merge(target, source):
+    updated = deep_merge(target, source)
+    if os.path.basename(sys.argv[1]) == 'config.json':
+        diagnostics = target.get('diagnostics', {})
+        if isinstance(diagnostics, dict) and 'hudiy_api_capture' in diagnostics:
+            del diagnostics['hudiy_api_capture']
+            updated = True
+    if os.path.basename(sys.argv[1]) == 'shortcuts.json':
+        shortcuts = target.get('shortcuts')
+        if isinstance(shortcuts, list):
+            valve = next((item for item in source.get('shortcuts', [])
+                          if isinstance(item, dict) and item.get('action') == 'toggle_exhaust_valve'), None)
+            if valve and not any(isinstance(item, dict) and item.get('action') == 'toggle_exhaust_valve'
+                                 for item in shortcuts):
+                after_haldex = next((index + 1 for index, item in enumerate(shortcuts)
+                                     if isinstance(item, dict) and item.get('action') == 'toggle_haldex_mode'), len(shortcuts))
+                shortcuts.insert(after_haldex, valve)
+                updated = True
+    if updated:
         with open(sys.argv[3], 'w') as f: json.dump(target, f, indent=4)
         sys.exit(0) # Updated
     else:
@@ -532,8 +556,8 @@ fi
 mount -a
 
 # Keep firmware user-visible.
-mkdir -p "${REAL_HOME}/haldexfw/readouts" "${REAL_HOME}/epsfw/readouts"
-chown -R ${REAL_USER}:${REAL_USER} "${REAL_HOME}/haldexfw" "${REAL_HOME}/epsfw"
+mkdir -p "${REAL_HOME}/haldexfw/readouts" "${REAL_HOME}/epsfw/readouts" "${REAL_HOME}/exhaustfw"
+chown -R ${REAL_USER}:${REAL_USER} "${REAL_HOME}/haldexfw" "${REAL_HOME}/epsfw" "${REAL_HOME}/exhaustfw"
 
 # ------------------------------------------------------------------------------
 # 7. Install Systemd Services (Networkd Method)
@@ -623,8 +647,8 @@ WantedBy=multi-user.target"
 
 # 1.7 hudiy_status_service (CAN Status Service)
 write_service "hudiy_status_service.service" "[Unit]
-Description=Hudiy CAN Status Service
-After=tp2_worker.service
+Description=Vehicle Values and CAN Status Service
+After=tp2_worker.service can_handler.service
 
 [Service]
 User=${REAL_USER}

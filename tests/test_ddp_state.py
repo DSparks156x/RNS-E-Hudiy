@@ -7,6 +7,8 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'dis_client'))
 if 'can' not in sys.modules:
     fake=types.ModuleType('can'); fake.CanError=RuntimeError
+    # Shared discovery can import the offline SocketCAN adapter afterward.
+    fake.Message=lambda **kwargs: types.SimpleNamespace(**kwargs)
     sys.modules['can']=fake
 import ddp_protocol as ddp
 

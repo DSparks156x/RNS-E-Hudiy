@@ -1,8 +1,8 @@
 import time
 try:
-    from ..font_metrics import measure_text, fit_text as fit_font_text, font_profile
+    from ..font_metrics import measure_text, fit_text as fit_font_text, font_profile, text_character_capacity
 except ImportError:
-    from font_metrics import measure_text, fit_text as fit_font_text, font_profile
+    from font_metrics import measure_text, fit_text as fit_font_text, font_profile, text_character_capacity
 
 class BaseApp:
     # --- SHARED DISPLAY FLAGS ---
@@ -47,9 +47,9 @@ class BaseApp:
             val = float(celsius_val)
             if unit_type == 'imperial':
                 f_val = val * 1.8 + 32.0
-                return f"{int(round(f_val))}°F"
+                return f"{int(round(f_val))}\u00b0F"
             else:
-                return f"{int(round(val))}°C"
+                return f"{int(round(val))}\u00b0C"
         except (ValueError, TypeError):
             return f"{celsius_val}"
 
@@ -89,12 +89,22 @@ class BaseApp:
         """Called by DisplayEngine when a DRAW_ACK with seq is received from the renderer."""
         pass
 
+    def _text_profile(self):
+        return font_profile(self.config)
+
     def text_width(self, text, flags=0x06):
         """Physical-pixel advance using the configured cluster font profile."""
-        return measure_text(text,flags,font_profile(self.config))
+        return measure_text(text,flags,self._text_profile())
 
     def fit_text(self, text, width, flags=0x06):
-        return fit_font_text(text,width,flags,font_profile(self.config))
+        profile=self._text_profile()
+        return fit_font_text(text,width,flags,profile,
+                             max_chars=text_character_capacity(flags,profile,self.config))
+
+    def text_fits(self,text,width,flags=0x06):
+        profile=self._text_profile()
+        return (self.text_width(text,flags)<=width
+                and len(str(text))<=text_character_capacity(flags,profile,self.config))
 
     def _scroll_text(self, text, key, max_len=14, speed_ms=None, align='left', start_pause_ms=None, end_pause_ms=None, continuous=None, *, max_width_px=None, font_flags=0x06):
         """
@@ -118,6 +128,8 @@ class BaseApp:
             return self._scroll_text_pixels(text,key,max_width_px,font_flags,speed_ms,
                                            align,start_pause_ms,end_pause_ms,continuous)
 
+        max_len=min(max_len,text_character_capacity(font_flags,self._text_profile(),self.config))
+        if max_len<=0:return ''
         if len(text) <= max_len:
             # If it fits, remove state so it resets if it grows later
             if key in self._scroll_state: del self._scroll_state[key]
@@ -185,13 +197,17 @@ class BaseApp:
     def _scroll_text_pixels(self,text,key,width,flags,speed_ms,align,start_pause_ms,end_pause_ms,continuous):
         """Advance by characters while fitting each window to measured pixels."""
         if width<0:raise ValueError('Text width cannot be negative')
-        profile=font_profile(self.config)
+        profile=self._text_profile()
         total=measure_text(text,flags,profile)
-        if total<=width:
+        limit=text_character_capacity(flags,profile,self.config)
+        if limit<=0:
+            self._scroll_state.pop(key,None)
+            return ''
+        if total<=width and len(text)<=limit:
             self._scroll_state.pop(key,None)
             return text.strip() if align=='center' else text
         now=time.monotonic()*1000
-        signature=(text,'pixels',width,flags&0x0C,profile,bool(continuous))
+        signature=(text,'pixels',width,flags&0x8C,profile,limit,bool(continuous))
         if self._scroll_state.get(key,{}).get('signature')!=signature:
             self._scroll_state[key]={'signature':signature,'offset':0,'last_tick':now,
                                      'pause_until':now+start_pause_ms}
@@ -202,7 +218,7 @@ class BaseApp:
         else:
             # End at the first suffix that fits, not at a fixed character count.
             terminal=0;remaining=total
-            while remaining>width and terminal<len(text):
+            while (remaining>width or len(text)-terminal>limit) and terminal<len(text):
                 remaining-=measure_text(text[terminal],flags,profile)
                 terminal+=1
         if state['offset']<0 or (continuous and state['offset']>=terminal) or (not continuous and state['offset']>terminal):
@@ -221,4 +237,4 @@ class BaseApp:
                     state['pause_until']=now+speed_ms+end_pause_ms
         offset=state['offset']
         candidate=(display_text*2)[offset:] if continuous else text[offset:]
-        return fit_font_text(candidate,width,flags,profile)
+        return fit_font_text(candidate,width,flags,profile,max_chars=limit)

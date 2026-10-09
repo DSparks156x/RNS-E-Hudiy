@@ -1,225 +1,165 @@
 import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { collectionGroup, FileGroup, PortalCatalog, validateFile, visibleFiles } from '../filePortalModel';
 
-interface PortalFile {
-  name: string;
-  path: string;
-  size: number;
-  modified: number;
-  download_url: string;
+export interface FilesTabProps {
+  loadCatalog?: () => Promise<PortalCatalog>;
+  sendFile?: (target: string, file: File, pin: string, progress: (percent: number) => void) => Promise<string>;
+  initialGroup?: FileGroup;
+  initialCollection?: string;
 }
-
-interface PortalCollection {
-  id: string;
-  label: string;
-  description: string;
-  kind: 'firmware' | 'logs' | 'readouts';
-  upload: boolean;
-  extensions: string[];
-  max_size: number;
-  count: number;
-  total_size: number;
-  archive_url: string | null;
-  files: PortalFile[];
-}
-
-interface PortalCatalog {
-  pin_required: boolean;
-  all_logs_archive_url: string | null;
-  collections: PortalCollection[];
-}
-
-const formatSize = (bytes: number) => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`;
-  return `${(bytes / 1024 ** 2).toFixed(bytes < 10 * 1024 ** 2 ? 1 : 0)} MB`;
+const loadCatalog = async (): Promise<PortalCatalog> => {
+  const response = await fetch('/api/files');
+  if (!response.ok) throw new Error(`Could not load files (${response.status}).`);
+  return response.json();
 };
-
+const sendFile: NonNullable<FilesTabProps['sendFile']> = (target, file, pin, progress) => new Promise((resolve, reject) => {
+  const form = new FormData(); form.append('file', file);
+  const xhr = new XMLHttpRequest(); xhr.open('POST', `/api/files/upload/${encodeURIComponent(target)}`);
+  if (pin) xhr.setRequestHeader('X-Hudiy-Pin', pin);
+  xhr.upload.onprogress = event => { if (event.lengthComputable) progress(Math.round(event.loaded / event.total * 100)); };
+  xhr.onload = () => {
+    let body: { message?: string; error?: string } = {};
+    try { body = JSON.parse(xhr.responseText); } catch { /* Fall back to the HTTP status. */ }
+    if (xhr.status >= 200 && xhr.status < 300) resolve(body.message || 'File validated and saved.');
+    else reject(new Error(body.error || `Upload failed (${xhr.status}).`));
+  };
+  xhr.onerror = () => reject(new Error('Connection lost during upload.'));
+  xhr.onabort = () => reject(new Error('Upload interrupted.'));
+  xhr.send(form);
+});
+export const formatSize = (bytes: number) => bytes < 1024 ? `${bytes} B`
+  : bytes < 1024 ** 2 ? `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`
+  : `${(bytes / 1024 ** 2).toFixed(bytes < 10 * 1024 ** 2 ? 1 : 0)} MB`;
 const formatDate = (timestamp: number) => new Intl.DateTimeFormat(undefined, {
-  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
 }).format(new Date(timestamp * 1000));
+function Icon({ name }: { name: 'download' | 'upload' | 'folder' | 'refresh' | 'search' | 'close' }) {
+  const paths = {
+    download: 'M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7 7-7Z', upload: 'M9 16h6v-6h4l-7-7-7 7h4m-4 8h14v2H5Z',
+    folder: 'M10 4H2v16h20V6H12l-2-2Z', refresh: 'M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.3L13 11h8V3l-3.3 3.3Z',
+    search: 'M10 3a7 7 0 1 0 4.9 12l5.4 5.4 1.4-1.4-5.4-5.4A7 7 0 0 0 10 3m0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z',
+    close: 'm6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4Z',
+  };
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={paths[name]} /></svg>;
+}
+const GROUPS: { id: FileGroup; label: string; description: string }[] = [
+  { id: 'recordings', label: 'Drive recordings', description: 'CSV recordings from Drive Logger profiles. Named Data & Logs sessions export from Review.' },
+  { id: 'debug', label: 'Debug logs', description: 'Saved service journals, current errors, Hudiy API events, and controller operation reports.' },
+  { id: 'controllers', label: 'Controller files', description: 'Firmware libraries and readout images. Uploading saves a file; flashing is a separate action in the controller tools.' },
+];
 
-const DownloadIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7 7-7Z" /></svg>;
-const UploadIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16h6v-6h4l-7-7-7 7h4m-4 8h14v2H5Z" /></svg>;
-const FolderIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H2v16h20V6H12l-2-2Z" /></svg>;
-const RefreshIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.3L13 11h8V3l-3.3 3.3Z" /></svg>;
-
-export function FilesTab() {
+export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: postFile = sendFile,
+  initialGroup = 'recordings', initialCollection = 'drive_logs' }: FilesTabProps = {}) {
   const [catalog, setCatalog] = useState<PortalCatalog | null>(null);
+  const [group, setGroup] = useState<FileGroup>(initialGroup);
+  const [activeCollection, setActiveCollection] = useState(initialCollection);
   const [selectedTarget, setSelectedTarget] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [activeCollection, setActiveCollection] = useState('drive_logs');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [progress, setProgress] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
   const [pin, setPin] = useState('');
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('date');
+  const [showUpload, setShowUpload] = useState(initialGroup === 'controllers');
   const inputRef = useRef<HTMLInputElement>(null);
-
+  const requestId = useRef(0);
   const refresh = async () => {
-    setLoading(true);
+    const request = ++requestId.current; setLoading(true);
     try {
-      const response = await fetch('/api/files');
-      if (!response.ok) throw new Error(`Portal request failed (${response.status})`);
-      const data: PortalCatalog = await response.json();
+      const data = await fetchCatalog(); if (request !== requestId.current) return;
       setCatalog(data);
       const targets = data.collections.filter(collection => collection.upload);
-      setSelectedTarget(previous => targets.some(target => target.id === previous)
-        ? previous : (targets[0]?.id || ''));
-      setActiveCollection(previous => data.collections.some(collection => collection.id === previous)
-        ? previous : (data.collections[0]?.id || ''));
-      setMessage(null);
+      setSelectedTarget(previous => targets.some(target => target.id === previous) ? previous : targets[0]?.id || '');
+      setActiveCollection(previous => data.collections.some(collection => collection.id === previous) ? previous : data.collections[0]?.id || '');
     } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Could not load files.' });
-    } finally {
-      setLoading(false);
-    }
+      if (request === requestId.current) setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Could not load files.' });
+    } finally { if (request === requestId.current) setLoading(false); }
   };
-
-  useEffect(() => { void refresh(); }, []);
-
-  const uploadTargets = useMemo(
-    () => catalog?.collections.filter(collection => collection.upload) || [],
-    [catalog]
-  );
+  useEffect(() => { void refresh(); return () => { requestId.current++; }; }, [fetchCatalog]);
+  const collections = catalog?.collections || [];
+  const groupCollections = collections.filter(collection => collectionGroup(collection) === group);
+  const currentCollection = groupCollections.find(collection => collection.id === activeCollection) || groupCollections[0];
+  const uploadTargets = collections.filter(collection => collection.upload);
   const currentTarget = uploadTargets.find(target => target.id === selectedTarget);
-  const browseCollections = catalog?.collections || [];
-  const currentCollection = browseCollections.find(collection => collection.id === activeCollection);
-
-  const chooseFile = (file: File | null) => {
-    setSelectedFile(file);
-    setMessage(null);
-  };
-
+  const files = useMemo(() => visibleFiles(currentCollection?.files || [], search, sort), [currentCollection, search, sort]);
+  const validation = selectedFile && currentTarget ? validateFile(selectedFile, currentTarget) : null;
+  const chooseFile = (file: File | null) => { setSelectedFile(file); setMessage(null); };
   const onFileInput = (event: ChangeEvent<HTMLInputElement>) => chooseFile(event.target.files?.[0] || null);
   const onDrop = (event: DragEvent) => {
-    event.preventDefault();
-    setDragging(false);
-    chooseFile(event.dataTransfer.files?.[0] || null);
+    event.preventDefault(); setDragging(false); if (!uploading) chooseFile(event.dataTransfer.files?.[0] || null);
   };
-
-  const upload = () => {
-    if (!selectedFile || !selectedTarget || uploading) return;
-    const form = new FormData();
-    form.append('file', selectedFile);
-    setUploading(true);
-    setUploadProgress(0);
-    setMessage(null);
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `/api/files/upload/${encodeURIComponent(selectedTarget)}`);
-    if (pin) xhr.setRequestHeader('X-Hudiy-Pin', pin);
-    xhr.upload.onprogress = event => {
-      if (event.lengthComputable) setUploadProgress(Math.round(event.loaded / event.total * 100));
-    };
-    xhr.onload = () => {
-      setUploading(false);
-      let body: { message?: string; error?: string } = {};
-      try { body = JSON.parse(xhr.responseText); } catch { /* use fallback below */ }
-      if (xhr.status >= 200 && xhr.status < 300) {
-        setMessage({ type: 'ok', text: body.message || 'Upload complete.' });
-        setSelectedFile(null);
-        if (inputRef.current) inputRef.current.value = '';
-        void refresh();
-      } else {
-        setMessage({ type: 'error', text: body.error || `Upload failed (${xhr.status}).` });
-      }
-    };
-    xhr.onerror = () => {
-      setUploading(false);
-      setMessage({ type: 'error', text: 'Connection lost during upload.' });
-    };
-    xhr.send(form);
+  const upload = async () => {
+    if (!selectedFile || !currentTarget || validation || uploading) return;
+    setUploading(true); setProgress(0); setMessage(null);
+    try {
+      const text = await postFile(selectedTarget, selectedFile, pin, setProgress);
+      setGroup(collectionGroup(currentTarget));
+      setActiveCollection(selectedTarget);
+      setSearch('');
+      setMessage({ type: 'ok', text }); setSelectedFile(null); if (inputRef.current) inputRef.current.value = '';
+      await refresh();
+    } catch (error) { setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Upload failed.' }); }
+    finally { setUploading(false); }
   };
-
-  return (
-    <section className="file-portal tab-content">
-      <header className="portal-header">
-        <div>
-          <span className="portal-eyebrow">DEVICE STORAGE</span>
-          <h1>Files</h1>
-          <p>Move firmware, recordings, and diagnostics without a laptop.</p>
-        </div>
-        <button className="portal-icon-button" onClick={() => void refresh()} aria-label="Refresh files" disabled={loading}>
-          <RefreshIcon />
-        </button>
-      </header>
-
-      <div className="portal-scroll pretty-scroll">
-        <div className="portal-grid">
-          <article className="portal-card upload-card">
-            <div className="portal-card-heading">
-              <span className="portal-card-icon"><UploadIcon /></span>
-              <div><h2>Send firmware</h2><p>Choose the controller this artifact belongs to.</p></div>
-            </div>
-
-            <label className="portal-field-label" htmlFor="firmware-target">Target</label>
-            <select id="firmware-target" className="portal-select" value={selectedTarget}
-              onChange={event => { setSelectedTarget(event.target.value); chooseFile(null); }}>
-              {uploadTargets.map(target => <option value={target.id} key={target.id}>{target.label}</option>)}
-            </select>
-
-            <button type="button" className={`portal-drop-zone${dragging ? ' dragging' : ''}`}
-              onClick={() => inputRef.current?.click()}
-              onDragOver={event => { event.preventDefault(); setDragging(true); }}
-              onDragLeave={() => setDragging(false)} onDrop={onDrop}>
-              <span className="drop-icon"><UploadIcon /></span>
-              <strong>{selectedFile ? selectedFile.name : 'Choose a firmware file'}</strong>
-              <span>{selectedFile ? formatSize(selectedFile.size)
-                : `${currentTarget?.extensions.join(', ') || 'Configured types'} • up to ${formatSize(currentTarget?.max_size || 0)}`}</span>
-            </button>
-            <input ref={inputRef} className="portal-file-input" type="file"
-              accept={currentTarget?.extensions.join(',')} onChange={onFileInput} />
-
-            {catalog?.pin_required && <input className="portal-pin" type="password" inputMode="numeric"
-              placeholder="Portal PIN" value={pin} onChange={event => setPin(event.target.value)} />}
-
-            {uploading && <div className="portal-progress" aria-label={`Upload ${uploadProgress}%`}>
-              <span style={{ width: `${uploadProgress}%` }} />
-            </div>}
-            <button className="portal-primary-button" disabled={!selectedFile || uploading || !selectedTarget} onClick={upload}>
-              {uploading ? `Uploading ${uploadProgress}%` : 'Validate & save'}
-            </button>
-            <p className="portal-safety-note">Uploading only adds the file to the library. It never starts a flash.</p>
-          </article>
-
-          <article className="portal-card library-card">
-            <div className="portal-card-heading">
-              <span className="portal-card-icon"><FolderIcon /></span>
-              <div className="portal-library-title"><h2>Get files</h2><p>Recordings, service errors, flash reports, and readouts.</p></div>
-              {catalog?.all_logs_archive_url && <a className="portal-all-logs" href={catalog.all_logs_archive_url}>
-                <DownloadIcon /> All logs
-              </a>}
-            </div>
-
-            <div className="collection-chips pretty-scroll" role="tablist">
-              {browseCollections.map(collection => <button key={collection.id}
-                className={`collection-chip${activeCollection === collection.id ? ' active' : ''}`}
-                onClick={() => setActiveCollection(collection.id)} role="tab">
-                {collection.label}<span>{collection.count}</span>
-              </button>)}
-            </div>
-
-            <div className="collection-summary">
-              <div><strong>{currentCollection?.label}</strong><span>{currentCollection?.description}</span></div>
-              {currentCollection?.archive_url && <a className="portal-bundle-button" href={currentCollection.archive_url}>
-                <DownloadIcon /> Download all
-              </a>}
-            </div>
-
-            <div className="portal-file-list pretty-scroll">
-              {loading && <div className="portal-empty">Scanning device storage…</div>}
-              {!loading && !currentCollection?.files.length && <div className="portal-empty">No files in this collection yet.</div>}
-              {currentCollection?.files.map(file => <a className="portal-file-row" href={file.download_url} key={`${activeCollection}:${file.path}`}>
-                <span className="portal-file-type">{file.name.split('.').pop()?.slice(0, 4).toUpperCase()}</span>
-                <span className="portal-file-name"><strong>{file.name}</strong><small>{file.path !== file.name ? file.path : formatDate(file.modified)}</small></span>
-                <span className="portal-file-meta"><small>{formatDate(file.modified)}</small><strong>{formatSize(file.size)}</strong></span>
-                <span className="portal-download-icon"><DownloadIcon /></span>
-              </a>)}
-            </div>
-          </article>
-        </div>
-        {message && <div className={`portal-message ${message.type}`} role="status">{message.text}</div>}
+  const selectGroup = (next: FileGroup) => {
+    setGroup(next); setSearch(''); setActiveCollection(collections.find(collection => collectionGroup(collection) === next)?.id || '');
+  };
+  return <section className="file-portal tab-content">
+    <header className="portal-header">
+      <div className="portal-brand"><span className="portal-brand-icon"><Icon name="folder" /></span><div><h1>Files</h1><p>Recordings, logs & controller libraries</p></div></div>
+      <div className="portal-header-actions">
+        {catalog?.all_logs_archive_url && <a className="portal-text-button" href={catalog.all_logs_archive_url}><Icon name="download" />All logs ZIP</a>}
+        <button className="portal-primary-button portal-upload-open" onClick={() => { selectGroup('controllers'); setShowUpload(true); }} disabled={loading}><Icon name="upload" />Upload file</button>
+        <button className="portal-icon-button" onClick={() => { setMessage(null); void refresh(); }} aria-label="Refresh files" disabled={loading}><Icon name="refresh" /></button>
       </div>
-    </section>
-  );
+    </header>
+    <nav className="portal-groups" aria-label="File categories">{GROUPS.map(item => <button key={item.id} aria-pressed={group === item.id}
+      className={group === item.id ? 'active' : ''} onClick={() => selectGroup(item.id)}>{item.label}<span>{collections.filter(c => collectionGroup(c) === item.id).reduce((sum, c) => sum + c.count, 0)}</span></button>)}</nav>
+    <div className="portal-scroll pretty-scroll">
+      <p className="portal-group-description">{GROUPS.find(item => item.id === group)?.description}</p>
+      <div className={`portal-workspace${showUpload && group === 'controllers' ? ' has-upload' : ''}`}>
+        <div className="portal-browser">
+          <aside className="portal-collections" aria-label="Collections"><span className="portal-field-label">Collections</span>
+            {groupCollections.map(collection => <button key={collection.id} aria-pressed={currentCollection?.id === collection.id}
+              className={currentCollection?.id === collection.id ? 'active' : ''} onClick={() => { setActiveCollection(collection.id); setSearch(''); }}><Icon name="folder" /><span>{collection.label}<small>{collection.count} {collection.count === 1 ? 'file' : 'files'} · {formatSize(collection.total_size)}</small></span></button>)}
+          </aside>
+          <article className="portal-card library-card">
+            <div className="collection-summary"><div><h2>{currentCollection?.label || 'Files'}</h2><p>{currentCollection?.description || 'Your device files appear here.'}</p></div>
+              {currentCollection?.archive_url && <a className="portal-bundle-button" href={currentCollection.archive_url}><Icon name="download" /><span>Collection ZIP</span></a>}
+            </div>
+            <div className="portal-list-tools"><label className="portal-search"><Icon name="search" /><input type="search" aria-label="Search files" placeholder="Search files" value={search} onChange={event => setSearch(event.target.value)} /></label>
+              <select aria-label="Sort files" value={sort} onChange={event => setSort(event.target.value)}><option value="date">Newest first</option><option value="name">Name A–Z</option><option value="size">Largest first</option></select></div>
+            <div className="portal-file-list pretty-scroll" aria-busy={loading}>
+              {loading && <div className="portal-empty" role="status">Loading device files…</div>}
+              {!loading && !files.length && <div className="portal-empty">{search ? 'No files match this search.' : 'No files in this collection yet.'}</div>}
+              {!loading && files.map(file => <a className="portal-file-row" href={file.download_url} key={`${currentCollection?.id}:${file.path}`} aria-label={`Download ${file.name}`}>
+                <span className="portal-file-type">{file.name.split('.').pop()?.slice(0, 4).toUpperCase()}</span>
+                <span className="portal-file-name"><strong>{file.name}</strong><small>{formatDate(file.modified)} · {formatSize(file.size)}</small>{file.path !== file.name && <small className="portal-file-path">{file.path}</small>}</span>
+                <span className="portal-download-icon"><Icon name="download" /></span></a>)}
+            </div>
+            {!loading && <p className="portal-list-count">{files.length} of {currentCollection?.count || 0} {currentCollection?.count === 1 ? 'file' : 'files'}</p>}
+          </article>
+        </div>
+        {showUpload && group === 'controllers' && <article className="portal-card upload-card">
+          <div className="portal-card-heading"><span className="portal-card-icon"><Icon name="upload" /></span><h2>Upload a file</h2><button className="portal-icon-button" aria-label="Close upload panel" onClick={() => setShowUpload(false)} disabled={uploading}><Icon name="close" /></button></div>
+          <label className="portal-field-label" htmlFor="firmware-target">Save to collection</label>
+          <select id="firmware-target" className="portal-select" value={selectedTarget} disabled={uploading || loading}
+            onChange={event => { setSelectedTarget(event.target.value); chooseFile(null); if (inputRef.current) inputRef.current.value = ''; }}>{uploadTargets.map(target => <option value={target.id} key={target.id}>{target.label}</option>)}</select>
+          <button type="button" disabled={uploading || !currentTarget} className={`portal-drop-zone${dragging ? ' dragging' : ''}`} onClick={() => inputRef.current?.click()}
+            onDragOver={event => { event.preventDefault(); if (!uploading) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}>
+            <Icon name="upload" /><strong>{selectedFile?.name || 'Choose or drop a file'}</strong><span>{selectedFile ? formatSize(selectedFile.size) : `${currentTarget?.extensions.join(', ') || 'Configured types'} · up to ${formatSize(currentTarget?.max_size || 0)}`}</span></button>
+          <input ref={inputRef} className="portal-file-input" type="file" accept={currentTarget?.extensions.join(',')} onChange={onFileInput} disabled={uploading} />
+          {catalog?.pin_required && <label className="portal-pin-label">Upload PIN<input className="portal-pin" type="password" autoComplete="off" value={pin} disabled={uploading} onChange={event => setPin(event.target.value)} /></label>}
+          {validation && <p className="portal-validation" role="alert">{validation}</p>}
+          {uploading && <div className="portal-progress" role="progressbar" aria-label="File upload" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><span style={{ width: `${progress}%` }} /></div>}
+          <button className="portal-primary-button" disabled={!selectedFile || uploading || !!validation || !selectedTarget || (catalog?.pin_required && !pin)} onClick={() => void upload()}>{uploading ? `Uploading ${progress}%` : 'Validate & save'}</button>
+          <p className="portal-safety-note">Firmware is checked for the selected target before saving. Uploading does not start a flash.</p>
+        </article>}
+      </div>
+    </div>
+    {message && <div className={`portal-message ${message.type}`} role={message.type === 'error' ? 'alert' : 'status'}><span>{message.text}</span><button className="portal-icon-button" aria-label="Dismiss message" onClick={() => setMessage(null)}><Icon name="close" /></button></div>}
+  </section>;
 }

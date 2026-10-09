@@ -3,16 +3,30 @@ from typing import List, Dict, Any
 import logging
 import json
 import os
+import math
+import re
 from nav_icons import canvas_for_icon
+try:
+    from ..navigation_state import MANEUVER_TYPES, distance_meters, has_route_content, is_no_route
+    from ..display_resolution import high_resolution
+except ImportError:
+    from navigation_state import MANEUVER_TYPES, distance_meters, has_route_content, is_no_route
+    from display_resolution import high_resolution
 
 logger = logging.getLogger(__name__)
 
 class NavApp(BaseApp):
+    def _text_profile(self):
+        from enhanced_navigation import white_navigation_enabled
+        navigation = (((self.config.get('display') or {}).get('center_display') or {}).get('navigation') or {})
+        return 'native' if self.has_route and white_navigation_enabled(self.config, navigation) else super()._text_profile()
+
     def __init__(self, config=None):
         super().__init__(config)
         self.maneuver_type = 0      # NavigationManeuverType
         self.maneuver_side = 3      # UNSPECIFIED
         self.maneuver_angle = 0     # 0-360 degrees
+        self.maneuver_angle_present = False
         self.description = ""       # "Turn left onto Main St"
         self.distance_label = ""    # "500 m" or "2.3 km"
         self.icon_data = b""        # Raw PNG from HUDIY (not used)
@@ -20,8 +34,7 @@ class NavApp(BaseApp):
         # Cache previous state to prevent flickering logic if needed
         self.last_maneuver = -1
         self._meters = -1.0
-        self.last_val_len = 0
-        self.last_unit_len = 0
+        self._route_absent = False
         
         self.road_side = "right"
         try:
@@ -49,24 +62,40 @@ class NavApp(BaseApp):
         except Exception: pass
 
     def update_hudiy(self, topic: bytes, data: Dict[str, Any]):
+        if topic == b'HUDIY_NAV_STATUS':
+            if data.get('active') is False:
+                self.update_hudiy(b'HUDIY_NAV', {'has_route': False})
+            return
         if topic == b'HUDIY_NAV':
             # An empty full update is the producer's explicit "route ended"
             # payload.  Clear every route-bearing field so a previous distance
             # cannot keep navigation visible after the maneuver is gone.
-            if not data:
+            pending_maneuver = (data.get('has_route') is not False
+                and data.get('maneuver_type') in MANEUVER_TYPES
+                and not is_no_route(data.get('description'))
+                and not is_no_route(data.get('distance')) and not self._route_absent)
+            if not has_route_content(data) and not pending_maneuver:
+                self._route_absent = True
                 self.description = ""
                 self.distance_label = ""
                 self._meters = -1.0
                 self.maneuver_type = 0
                 self.maneuver_side = 3
                 self.maneuver_angle = 0
+                self.maneuver_angle_present = False
                 return
 
             # Full maneuver update
-            self.description = data.get('description', '')
+            self._route_absent = False
+            self.description = str(data.get('description') or '')
             self.maneuver_type = data.get('maneuver_type', 0)
             self.maneuver_side = data.get('maneuver_side', 3)
             self.maneuver_angle = data.get('maneuver_angle', 0)
+            self.maneuver_angle_present = (data.get('maneuver_angle_present') is True
+                and isinstance(self.maneuver_angle, (int, float))
+                and not isinstance(self.maneuver_angle, bool)
+                and 0 <= self.maneuver_angle <= 0xFFFFFFFF
+                and math.isfinite(self.maneuver_angle))
             if 'distance' in data:
                 self.distance_label = self._normalize_distance_label(data['distance'])
                 self._meters = self.parse_distance(self.distance_label)
@@ -77,6 +106,12 @@ class NavApp(BaseApp):
                 self._meters = -1.0
 
         elif topic == b'HUDIY_NAV_DISTANCE':
+            if data.get('has_route') is False or is_no_route(data.get('label')):
+                self.update_hudiy(b'HUDIY_NAV', {'has_route': False})
+                return
+            # A delayed distance callback must not revive an ended route.
+            if self._route_absent:
+                return
             self.distance_label = self._normalize_distance_label(data.get('label', ''))
             self._meters = self.parse_distance(self.distance_label)
 
@@ -132,6 +167,9 @@ class NavApp(BaseApp):
         if t == 12: return f"ROUNDABOUT_EXIT_{cw_ccw}" # Exit
         
         if t == 13: # ROUNDABOUT_ENTER_AND_EXIT
+            if not self.maneuver_angle_present:
+                # An absent proto2 angle looks like0; do not invent a U-turn.
+                return f"ROUNDABOUT_{cw_ccw}"
             a = angle % 360
             
             # Determine overall maneuver side based strictly on angle.
@@ -179,7 +217,10 @@ class NavApp(BaseApp):
     @property
     def has_route(self) -> bool:
         """Whether Hudiy has supplied actual maneuver data."""
-        return bool(self.description or self.distance_label) or self._meters >= 0
+        return has_route_content({
+            'description': self.description, 'distance': self.distance_label,
+            'maneuver_type': self.maneuver_type,
+        })
 
     @staticmethod
     def _normalize_distance_label(label: Any):
@@ -193,50 +234,7 @@ class NavApp(BaseApp):
     @staticmethod
     def parse_distance(label: Any) -> float:
         """Parses distance (number or string like '200 m', '1.2 km') into meters."""
-        if label is None:
-            return -1.0
-        
-        # If already a number, just return as float (assume meters)
-        if isinstance(label, (int, float)):
-            return float(label)
-            
-        try:
-            s = str(label).lower().strip()
-            if not s:
-                return -1.0
-            if s in ('now', 'arrived'):
-                return 0.0
-            
-            import re
-            m = re.search(r'([\d.,/]+)\s*([a-z]*)', s)
-            if not m:
-                return -1.0
-            
-            num_str = m.group(1)
-            unit = m.group(2)
-            
-            if '/' in num_str:
-                parts = num_str.split('/')
-                val = float(parts[0]) / float(parts[1])
-            else:
-                # Clean thousands separators
-                if ',' in num_str:
-                    if '.' in num_str:
-                        num_str = num_str.replace(',', '')
-                    else:
-                        if len(num_str.split(',')[-1]) == 3:
-                            num_str = num_str.replace(',', '')
-                        else:
-                            num_str = num_str.replace(',', '.')
-                val = float(num_str)
-            
-            if 'km' in unit: val *= 1000.0
-            elif 'mi' in unit: val *= 1609.34
-            elif 'ft' in unit: val *= 0.3048
-            
-            return val
-        except Exception:
-            return -1.0
+        return distance_meters(label)
 
     def _split_distance(self, label: Any):
         """Splits distance into (value, units)."""
@@ -345,7 +343,8 @@ class NavApp(BaseApp):
             nav_cfg = center_display.get('navigation') or {}
         
         max_dist = nav_cfg.get('approach_bar_max_distance', 300)
-        if max_dist is None or max_dist <= 0:
+        if (isinstance(max_dist, bool) or not isinstance(max_dist, (int, float))
+                or not math.isfinite(max_dist) or max_dist <= 0):
             max_dist = 300
         
         if val > max_dist: return 0
@@ -365,6 +364,12 @@ class NavApp(BaseApp):
                 {'group': 'no_route_2', 'cmd': 'draw_text', 'text': "" .ljust(16), 'x': 0, 'y': 31, 'flags': 0x06}
             ]
 
+        navigation = ((self.config.get('display') or {}).get('center_display') or {}).get('navigation') or {}
+        from enhanced_navigation import global_white_view
+        white_view = global_white_view(self, navigation)
+        if white_view is not None:
+            return white_view
+
         icon_key = self._get_icon_name()
         # Ensure icon exists in icons.py mapping fallback
         # (Assuming dis_service handles missing keys gracefully or we check here?)
@@ -372,24 +377,26 @@ class NavApp(BaseApp):
         
         bar_h = self._get_progress_height()
 
-        # Clean distance: "500 m" -> "500m", but ONLY if we actually have a label
-        dist_clean = ""
-        if self.distance_label:
-            dist_clean = str(self.distance_label).replace(" ", "").replace("km", "km").replace("m", "m")
-
         # Build graphical command list
         # The 'type' key is used by the engine for caching signatures
         # 'clear_on_update': False prevents the engine from sending 'clear_payload', avoid flicker
         display = self.config.get('display') or {}
         center_display = display.get('center_display') or {}
         navigation = center_display.get('navigation') or {}
-        native = navigation.get('high_resolution') is True
+        native = high_resolution(self.config)
         commands = [{
             'type': 'nav_graphic_native' if native else 'nav_graphic_v2',
             'clear_on_update': False,
         }]
 
         if native:
+            order = navigation.get('native_render_order', 'planes')
+            if order not in ('planes', 'tiles'):
+                order = 'planes'
+            delay_ms = navigation.get('native_message_delay_ms', 5)
+            if (isinstance(delay_ms, bool) or not isinstance(delay_ms, (int, float))
+                    or not 0 <= delay_ms <= 100):
+                delay_ms = 5
             # Only replace the72x72 icon at physical(6,2); its reserved rectangle
             # leaves distance/street/bar pixels intact on maneuver changes.
             commands.append({
@@ -398,7 +405,8 @@ class NavApp(BaseApp):
                 'update_rect': [6, 2, 72, 72],
                 'preserves_overlays': True,
                 'data_hex': canvas_for_icon(icon_key).hex(),
-                'render_order': 'tiles',
+                'render_order': order,
+                'post_message_delay_s': delay_ms / 1000,
             })
         else:
             commands.append({
@@ -409,11 +417,12 @@ class NavApp(BaseApp):
                 'y': 1,
             })
 
-        # 2. Distance (top-right) — only draw if we have real data
+        # 2. Distance (top-right) â€” only draw if we have real data
         speed_unit = self.get_effective_unit('speed', 'imperial')
         
-        # Logical x42 leaves44 physical pixels, or38 before the bar at x61.
-        distance_width = 38 if bar_h > 0 else 44
+        # Legacy compatibility still reserves a fixed column independently
+        # of bar progress; the white path above uses the same32px width.
+        distance_width = 32
         if self._meters >= 0:
             fractional = False
             if speed_unit == 'imperial':
@@ -438,25 +447,23 @@ class NavApp(BaseApp):
             val_str = self.fit_text(val_str, distance_width, flags=0x06)
             unit_str = self.fit_text(unit_str, distance_width, flags=0x06)
         
-        # When bar_h == 0 (no bar), we can safely clear the entire remaining width (w=22, up to x=63).
-        # This handles 4-digit distances that reach into the bar's empty coordinate space.
-        # When bar_h > 0 (bar is drawn), we restrict clear width to w=19 to protect the bar at x=61.
-        clear_w = 22 if bar_h == 0 else 19
+        # Fixed field width keeps old numeric/unit footprints independent of
+        # whether the compatibility approach strip is filled or empty.
+        clear_w = 16
 
         dist_commands = []
         if val_str:
-            x_pos = 42
+            x_pos = 40 + max(0, (distance_width - self.text_width(val_str, flags=0x06)) // 4)
             
             # Always clear the value area first to prevent ghosting
             dist_commands.append({
                 'cmd': 'clear_area',
-                'x': 42,
+                'x': 40,
                 'y': 8,
                 'w': clear_w,
                 'h': 9
             })
             
-            self.last_val_len = len(val_str)
 
             # Draw numeric value on top
             dist_commands.append({
@@ -471,40 +478,36 @@ class NavApp(BaseApp):
             if unit_str:
                 dist_commands.append({
                     'cmd': 'clear_area',
-                    'x': 42,
+                    'x': 40,
                     'y': 17,
                     'w': clear_w,
                     'h': 9
                 })
                 
-                self.last_unit_len = len(unit_str)
 
                 dist_commands.append({
                     'cmd': 'draw_text',
                     'text': unit_str,
-                    'x': x_pos,
+                    'x': 40 + max(0, (distance_width - self.text_width(unit_str, flags=0x06)) // 4),
                     'y': 17,
                     'flags': 0x06
                 })
             else:
                 dist_commands.append({
                     'cmd': 'clear_area',
-                    'x': 42,
+                    'x': 40,
                     'y': 17,
                     'w': clear_w,
                     'h': 9
                 })
-                self.last_unit_len = 0
         else:
             dist_commands.append({
                 'cmd': 'clear_area',
-                'x': 42,
+                'x': 40,
                 'y': 8,
                 'w': clear_w,
                 'h': 18
             })
-            self.last_val_len = 0
-            self.last_unit_len = 0
 
         # Assign group='dist' to dist_commands
         for cmd in dist_commands:
@@ -523,11 +526,11 @@ class NavApp(BaseApp):
                 street = street.lower().split(p.lower(), 1)[-1]
                 break
 
-        # Reserve the bar and a one-logical-pixel left/right margin. Text
-        # advances are physical pixels; command coordinates remain logical.
-        street_right = 61 if bar_h > 0 else 64
+        # The compatibility strip ends above this row. Text advances are
+        # physical pixels; command coordinates remain logical.
+        street_right = 64
         street_width = (street_right - 2) * 2
-        scrolling = self.text_width(street, flags=0x06) > street_width
+        scrolling = not self.text_fits(street, street_width, flags=0x06)
         street_display = self._scroll_text(
             street, 'nav_street', max_width_px=street_width, font_flags=0x06,
             align='left')
@@ -537,8 +540,7 @@ class NavApp(BaseApp):
             0, (street_width - self.text_width(street_display, flags=0x06)) // 4)
 
         street_commands = [
-            # First clear the street name area surgically (x=0 to x=60)
-            # This protects the progress bar starting at x=61
+            # The whole street row is available beneath the approach strip.
             {
                 'group': 'street',
                 'cmd': 'clear_area',
@@ -559,39 +561,69 @@ class NavApp(BaseApp):
         ]
 
         # 4. Red: Progress bar (Right Edge)
-        self.last_bar_h = bar_h
 
         bar_commands = []
-        # Always clear the bar area (x=61..63, y=0..47) to erase old pixels and any text overflow
-        bar_commands.append({'cmd': 'clear_area', 'x': 61, 'y': 0, 'w': 3, 'h': 48})
+        # A changed bar replaces its own strip; unchanged bars are skipped by the engine.
+        bar_commands.append({'cmd': 'clear_area', 'x': 61, 'y': 3, 'w': 3, 'h': 35})
         
         if bar_h > 0:
-            start_y = 48 - bar_h # Anchor to bottom (Y=48)
+            # Unproved legacy/red graphics font keeps safe existing line
+            # primitives, above the full street row, growing from the top.
+            bar_h = (bar_h * 35 + 24) // 48
+            start_y = 3
             
             # Draw 3 vertical lines for a thick bar
             bar_commands.append({'cmd': 'draw_line', 'x': 61, 'y': start_y, 'length': bar_h, 'vertical': True})
             bar_commands.append({'cmd': 'draw_line', 'x': 62, 'y': start_y, 'length': bar_h, 'vertical': True})
             bar_commands.append({'cmd': 'draw_line', 'x': 63, 'y': start_y, 'length': bar_h, 'vertical': True})
 
-        # Each independently updated group restores its bar. An absent bar
-        # is cleared before text is allowed to use that space.
-        for bc in bar_commands:
-            bc_dist = bc.copy()
-            bc_dist['group'] = 'dist'
-            bc_street = bc.copy()
-            bc_street['group'] = 'street'
-            if bar_h > 0:
-                dist_commands.append(bc_dist)
-                street_commands.append(bc_street)
-            else:
-                # Groups update independently. Clear only each group's stripe
-                # so its full-width text cannot erase the other's right edge.
-                bc_dist.update(y=0, h=39)
-                bc_street.update(y=39, h=9)
-                dist_commands.insert(0, bc_dist)
-                street_commands.insert(0, bc_street)
-
+        # The bar has its own signature and changes only with approach height.
+        # Fixed text reservations never depend on fill or disappearance.
+        for command in bar_commands:
+            command['group'] = 'bar'
+        commands += bar_commands
         commands += dist_commands
         commands += street_commands
 
         return commands
+
+    def _get_stock_view(self):
+        """Native mono style for supported maneuvers; custom handles the rest.
+
+        This is an explicit presentation adapter, not equivalence between
+        HUDIY maneuver enums and RNSE raw type bytes. Do not map unsupported
+        turns, forks, ramps or roundabouts by their enum numeric value.
+        """
+        if type(self.maneuver_type) is not int or type(self.maneuver_side) is not int:
+            return None
+        if self.maneuver_type in (2, 14):
+            # Existing HUDIY mapper presents name-change/straight as STRAIGHT.
+            direction = 0x00
+        elif self.maneuver_type == 4 and self.maneuver_side in (1, 2):
+            direction = 0x40 if self.maneuver_side == 1 else 0xC0
+        else:
+            key = (self.maneuver_type, self.maneuver_side)
+            if getattr(self, '_stock_unmapped', None) != key:
+                logger.info('Stock maneuver mapping unproved for%s; retaining custom renderer', key)
+                self._stock_unmapped = key
+            return None
+        from icons import encode_audscii
+        street = self.description
+        # Same extraction policy as the existing custom road field.
+        prefixes = ["Turn left onto ", "Turn right onto ", "Turn left into ", "Turn right into ",
+                    "Keep left onto ", "Keep right onto ", "Head onto ", "Continue onto ",
+                    "Take the ", " toward ", " towards "]
+        for prefix in prefixes:
+            if prefix.lower() in street.lower():
+                street = street.lower().split(prefix.lower(), 1)[-1]
+                break
+        road = bytes(encode_audscii(street))[:20]
+        if 0 in road:
+            # Avoid a possible57 terminator; do not rewrite the native glyph.
+            return None
+        height = self._get_progress_height()
+        progress = max(0, min(255, (height * 255 + 24) // 48))
+        return [dict(type='nav_stock_mono', clear_on_update=False),
+                dict(group='stock_frame', cmd='draw_stock_mono_frame',
+                     source_object=[0, 2, 1, 0x0D, direction, 0], object_stage='render',
+                     screen_selector=4, raw_progress=progress, road_bytes=list(road))]

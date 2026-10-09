@@ -105,36 +105,25 @@ class ApiEventCapture:
     """Append callback events to a portal-visible, two-file rotating capture."""
 
     DEFAULT_PATH = "~/logs/hudiy-api/hudiy-api-events.log"
+    MAX_SIZE_MB = 8
 
-    def __init__(self, settings: Optional[Mapping[str, Any]] = None):
-        settings = settings if isinstance(settings, Mapping) else {}
-        self.enabled = bool(settings.get("enabled", True))
-        self.path = os.path.abspath(os.path.expanduser(str(
-            settings.get("path", self.DEFAULT_PATH)
-        )))
-        try:
-            max_size_mb = max(1, min(int(settings.get("max_size_mb", 8)), 100))
-        except (TypeError, ValueError):
-            max_size_mb = 8
-        self.max_bytes = max_size_mb * 1024 * 1024
+    def __init__(self):
+        # Always use the same location as Save Logs and the file portal. Older
+        # configs cannot disable capture or send it somewhere users cannot find.
+        self.path = os.path.abspath(os.path.expanduser(self.DEFAULT_PATH))
+        self.max_bytes = self.MAX_SIZE_MB * 1024 * 1024
         root, extension = os.path.splitext(self.path)
         self.previous_path = root + "-previous" + (extension or ".log")
         self.session_id = uuid.uuid4().hex
         self._sequence = 0
         self._lock = threading.Lock()
 
-        if self.enabled:
-            try:
-                os.makedirs(os.path.dirname(self.path), exist_ok=True)
-                self.record("capture_started", derived={
-                    "capture_path": self.path,
-                    "max_size_mb": max_size_mb,
-                    "format_version": 1,
-                })
-                logger.info("Hudiy API event capture enabled: %s", self.path)
-            except Exception as exc:
-                self.enabled = False
-                logger.warning("Could not enable Hudiy API event capture: %s", exc)
+        self.record("capture_started", derived={
+            "capture_path": self.path,
+            "max_size_mb": self.MAX_SIZE_MB,
+            "format_version": 1,
+        })
+        logger.info("Hudiy API event capture initialized: %s", self.path)
 
     def _rotate_if_needed(self, incoming_bytes: int) -> None:
         try:
@@ -154,8 +143,6 @@ class ApiEventCapture:
     def record(self, event: str, message: Any = None, *, provider: str = "unknown",
                derived: Optional[Mapping[str, Any]] = None,
                context: Optional[Mapping[str, Any]] = None) -> None:
-        if not self.enabled:
-            return
         try:
             decoded = {}
             present_fields: list[str] = []
@@ -185,6 +172,9 @@ class ApiEventCapture:
                     "context": _plain_value(dict(context or {})),
                 }
                 encoded = (json.dumps(entry, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+                # Retry on later callbacks after a temporary directory/write
+                # failure instead of disabling diagnostics until a restart.
+                os.makedirs(os.path.dirname(self.path), exist_ok=True)
                 self._rotate_if_needed(len(encoded))
                 with open(self.path, "ab") as capture_file:
                     capture_file.write(encoded)

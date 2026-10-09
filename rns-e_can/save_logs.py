@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # save_logs.py
-# Saves the last 3 minutes of journalctl logs for configured services.
+# Saves recent service journals and snapshots of the raw Hudiy API capture.
 
 import json
 import os
@@ -23,6 +23,45 @@ try:
 except ImportError as e:
     print(f"Warning: Could not import Hudiy client libraries: {e}")
     Client = None # Fail gracefully if Hudiy libraries are missing
+    ClientEventHandler = object
+
+
+API_CAPTURE_PATH = '~/logs/hudiy-api/hudiy-api-events.log'
+
+
+def save_api_captures(log_dir, index=1):
+    """Snapshot complete JSON-lines events without modifying the live capture."""
+    path = os.path.abspath(os.path.expanduser(API_CAPTURE_PATH))
+    stem, extension = os.path.splitext(path)
+    saved = []
+    for source in (stem + '-previous' + (extension or '.log'), path):
+        try:
+            with open(source, 'rb') as handle:
+                # Fix the endpoint at open time. A simultaneous append/rotation
+                # cannot make this snapshot grow indefinitely or mix files.
+                data = handle.read(os.fstat(handle.fileno()).st_size)
+            data = data[:data.rfind(b'\n') + 1]
+            if not data:
+                continue
+            basename = os.path.splitext(os.path.basename(source))[0]
+            file_index = index
+            while True:
+                destination = os.path.join(log_dir, f'{basename}_{file_index}.log')
+                try:
+                    with open(destination, 'xb') as output:
+                        output.write(data)
+                    break
+                except FileExistsError:
+                    file_index += 1
+            saved.append(destination)
+            print(f'Saved raw Hudiy API capture to {destination}')
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            print(f'Could not snapshot raw Hudiy API capture {source}: {exc}')
+    if not saved:
+        print(f'No raw Hudiy API capture found at {path}; service journals do not contain raw API fields.')
+    return saved
 
 class SaveLogsEventHandler(ClientEventHandler):
     def __init__(self, date_str, index):
@@ -115,24 +154,28 @@ def main():
     elif log_dir_base == '~':
         log_dir_base = home_dir
         
-    log_dir = os.path.join(log_dir_base, date_str)
+    date_dir = os.path.join(log_dir_base, date_str)
     
     try:
-        os.makedirs(log_dir, exist_ok=True)
+        os.makedirs(date_dir, exist_ok=True)
+        # Reserve one folder for the entire button press. Atomic mkdir prevents
+        # simultaneous saves from mixing journals and API captures together.
+        index = 1
+        while True:
+            log_dir = os.path.join(date_dir, str(index))
+            try:
+                os.mkdir(log_dir)
+                break
+            except FileExistsError:
+                index += 1
     except Exception as e:
-        print(f"Error creating directory {log_dir}: {e}")
+        print(f"Error creating saved-log directory under {date_dir}: {e}")
         return
 
     any_saved = False
     for service in services:
         service_clean = service.replace('.service', '')
-        index = 1
-        # Find next available number
-        while True:
-            log_file = os.path.join(log_dir, f"{service_clean}_{index}.log")
-            if not os.path.exists(log_file):
-                break
-            index += 1
+        log_file = os.path.join(log_dir, f"{service_clean}_{index}.log")
 
         print(f"Collecting logs for {service} -> {log_file}")
         
@@ -147,13 +190,14 @@ def main():
                     if result.stdout.strip():
                         f.write(result.stdout)
                     else:
-                        f.write(f"--- No logs found for {service} in the last 3 minutes ---")
+                        f.write(f"--- No logs found for {service} in the last {minutes} minutes ---")
                 print(f"Saved {service} logs to {log_file}")
             else:
                 print(f"Error running journalctl for {service}: {result.stderr}")
         except Exception as e:
             print(f"Failed to collect logs for {service}: {e}")
 
+    any_saved = bool(save_api_captures(log_dir, index)) or any_saved
     if any_saved and Client is not None:
         print("Triggering Hudiy status icon...")
         client = Client("save_logs")

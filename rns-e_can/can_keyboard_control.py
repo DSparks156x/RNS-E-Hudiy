@@ -18,6 +18,7 @@ import signal
 import sys
 import uinput
 import os
+from wheel_controls import WheelControlRouter
 
 # --- Global State ---
 RUNNING = True
@@ -26,6 +27,9 @@ ZMQ_SUB_SOCKET = None
 UINPUT_DEVICE = None
 FEATURES = {}
 CONFIG = {}
+INPUT_PUB = None
+WHEEL_CONTEXT_ID = None
+TOP_CONTEXT_ID = None
 
 # --- Logging Setup ---
 def setup_logging():
@@ -47,21 +51,20 @@ class ControlState:
         self.mmi_long_action_fired = {}
         self.mmi_extended_action_fired = {}
         self.last_mmi_action_info = {'command': None, 'time': 0}
-        self.mfsw_mode_press_count = 0
-        self.mfsw_mode_long_action_fired = False
         self.mfsw_ptt_press_count = 0
         self.mfsw_ptt_long_action_fired = False
-        self.mfsw_scroll_click_press_count = 0
-        self.mfsw_scroll_click_long_action_fired = False
         self.mfsw_volume_scroll_click_press_count = 0
         self.mfsw_volume_scroll_click_long_action_fired = False
-        self.mfsw_scroll_locked = False
         self.mfsw_volume_scroll_locked = False
         self.last_mfsw_scroll_time = 0
-        self.is_phone_app_active = False
-        self.hudiy_phone_active = False
         self.is_pi_source_active = False
         self.last_status_log_time = time.time()
+        self.wheel = WheelControlRouter(publish_wheel_event,
+            lambda action: press_key(CONFIG.get('mfsw_map', {}).get(action)),
+            double_click_ms=CONFIG.get('wheel_double_click_ms', 350),
+            long_count=CONFIG.get('long_press_count', 5),
+            auto_phone=CONFIG.get('auto_phone_control', False))
+        self.last_wheel_status_time = 0
 
     def reset_mmi_state(self, mmi_command):
         """Resets all tracking variables for a specific MMI command."""
@@ -125,9 +128,6 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
         mfsw_cmds_cfg = mfsw_cfg.get('commands') or {}
         mfsw_short_press = mfsw_cfg.get('short_press') or {}
         mfsw_long_press = mfsw_cfg.get('long_press') or {}
-        phone_alt_cfg = mfsw_cfg.get('phone_alt') or {}
-        phone_short = phone_alt_cfg.get('short_press') or {}
-        phone_long = phone_alt_cfg.get('long_press') or {}
 
         # Source Mappings
         source_data = input_cfg.get('source') or {}
@@ -139,6 +139,10 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
             'zmq_address': zmq_cfg.get('can_raw_stream'),
             'zmq_display_status': zmq_cfg.get('dis_display_status'),
             'zmq_metric_stream': zmq_cfg.get('metric_stream'),
+            'zmq_input_control_stream': zmq_cfg.get('input_control_stream', 'ipc:///run/rnse_control/input_control_stream.ipc'),
+            'zmq_top_status': zmq_cfg.get('dis_top_status', 'ipc:///run/rnse_control/dis_top_status.ipc'),
+            'wheel_double_click_ms': mfsw_cfg.get('double_click_ms', 350),
+            'auto_phone_control': bool(display_cfg.get('phone', {}).get('scroll_wheel_phone_menu', False)),
             'can_ids': {k: int(v, 16) for k, v in cfg.get('can_ids', {}).items()},
             'mmi_scroll_cmds': {tuple(map(int, k.split(','))) for k in mmi_scroll_cmds},
             'mmi_short_map': {tuple(map(int, k.split(','))): parse_key(v) for k, v in mmi_short_press.items()},
@@ -164,13 +168,6 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
                 'volume_scroll_click_long': parse_key(mfsw_long_press.get('volume_scroll_click'))
             },
             
-            'mfsw_phone_alt_map': {
-                'mode_short': parse_key(phone_short.get('mode')),
-                'mode_long': parse_key(phone_long.get('mode')),
-                'ptt_short': parse_key(phone_short.get('ptt')),
-                'ptt_long': parse_key(phone_long.get('ptt'))
-            },
-            
             'tv_mode_id': int(source_data.get('tv_mode_identifier', '0x00'), 16),
             'play_key': parse_key(source_data.get('play_key')),
             'pause_key': parse_key(source_data.get('pause_key')),
@@ -187,10 +184,14 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
 # --- Core Logic Functions ---
 def initialize_zmq_subscriber():
     """Initializes and configures the ZeroMQ subscriber socket."""
-    global ZMQ_CONTEXT, ZMQ_SUB_SOCKET
+    global ZMQ_CONTEXT, ZMQ_SUB_SOCKET, INPUT_PUB
     try:
         logger.info(f"Connecting ZeroMQ subscriber to {CONFIG['zmq_address']}...")
         ZMQ_CONTEXT = zmq.Context.instance()
+        if INPUT_PUB is None:
+            INPUT_PUB = ZMQ_CONTEXT.socket(zmq.PUB)
+            INPUT_PUB.setsockopt(zmq.LINGER, 0)
+            INPUT_PUB.bind(CONFIG['zmq_input_control_stream'])
         ZMQ_SUB_SOCKET = ZMQ_CONTEXT.socket(zmq.SUB)
         ZMQ_SUB_SOCKET.set(zmq.RCVTIMEO, 1000)
         ZMQ_SUB_SOCKET.connect(CONFIG['zmq_address'])
@@ -200,6 +201,8 @@ def initialize_zmq_subscriber():
         if CONFIG.get('zmq_metric_stream'):
             ZMQ_SUB_SOCKET.connect(CONFIG['zmq_metric_stream'])
             ZMQ_SUB_SOCKET.setsockopt_string(zmq.SUBSCRIBE, "HUDIY_PHONE")
+        ZMQ_SUB_SOCKET.connect(CONFIG['zmq_top_status'])
+        ZMQ_SUB_SOCKET.setsockopt_string(zmq.SUBSCRIBE, 'DIS_TOP_STATUS')
         
         feature_map = {
             'mmi': 'mmi_controls',
@@ -275,6 +278,20 @@ def press_key(key):
     except Exception as e:
         logger.error(f"Failed to simulate key '{key}': {e}")
 
+
+def publish_wheel_event(event, owner, app):
+    """Semantic input only: DIS consumers never interpret raw wheel frames."""
+    if INPUT_PUB is None:
+        return
+    payload = {'event': event, 'owner': owner, 'app': app,
+               'control_epoch': TOP_CONTEXT_ID if app == 'app_phone_top' else WHEEL_CONTEXT_ID,
+               'timestamp': time.time()}
+    topic = b'WHEEL_CONTROL' if event == 'mode' else b'DIS_INPUT'
+    try:
+        INPUT_PUB.send_multipart([topic, json.dumps(payload).encode()], flags=zmq.NOBLOCK)
+    except zmq.ZMQError as exc:
+        logger.warning('Wheel input publication failed: %s', exc)
+
 def run_command(command_str):
     """Executes a shell command from the configuration."""
     if not command_str: return
@@ -340,48 +357,24 @@ def handle_mfsw_message(msg, state):
     cmd_byte = int(msg['data_hex'][2:4], 16)
     now = time.time()
     
-    scroll_menu = CONFIG.get('display', {}).get('phone', {}).get('scroll_wheel_phone_menu', False)
-    if scroll_menu and (state.is_phone_app_active or getattr(state, 'hudiy_phone_active', False)) and cmd_byte in [mfsw_cmds.get('scroll_up'), mfsw_cmds.get('scroll_down'), mfsw_cmds.get('scroll_click')]:
+    routed = {
+        mfsw_cmds.get('mode_press'): 'mode',
+        mfsw_cmds.get('scroll_click'): 'click',
+        mfsw_cmds.get('scroll_up'): 'scroll_up',
+        mfsw_cmds.get('scroll_down'): 'scroll_down',
+    }
+    if cmd_byte in routed:
+        state.wheel.handle(routed[cmd_byte])
+        if routed[cmd_byte] in ('scroll_up', 'scroll_down'):
+            state.last_mfsw_scroll_time = now
         return
 
-    phone_active = state.is_phone_app_active or getattr(state, 'hudiy_phone_active', False)
-    alt_map = CONFIG.get('mfsw_phone_alt_map', {})
-
-    def get_action(key_name):
-        if phone_active:
-            val = alt_map.get(key_name)
-            if val is not None:
-                return val
-        return CONFIG['mfsw_map'].get(key_name)
-
-    if cmd_byte == mfsw_cmds.get('scroll_up'):
-        if not state.mfsw_scroll_locked:
-            press_key(CONFIG['mfsw_map'].get('scroll_up'))
-            state.mfsw_scroll_locked = True
-            state.last_mfsw_scroll_time = now
-    elif cmd_byte == mfsw_cmds.get('scroll_down'):
-        if not state.mfsw_scroll_locked:
-            press_key(CONFIG['mfsw_map'].get('scroll_down'))
-            state.mfsw_scroll_locked = True
-            state.last_mfsw_scroll_time = now
-    elif cmd_byte == mfsw_cmds.get('mode_press'):
-        state.mfsw_mode_press_count += 1
-        if not state.mfsw_mode_long_action_fired and state.mfsw_mode_press_count >= CONFIG['long_press_count']:
-            logger.info("MFSW Mode Long Press")
-            press_key(get_action('mode_long'))
-            state.mfsw_mode_long_action_fired = True
-    elif cmd_byte == mfsw_cmds.get('ptt_press'):
+    if cmd_byte == mfsw_cmds.get('ptt_press'):
         state.mfsw_ptt_press_count += 1
         if not state.mfsw_ptt_long_action_fired and state.mfsw_ptt_press_count >= CONFIG['long_press_count']:
             logger.info("MFSW PTT Long Press")
-            press_key(get_action('ptt_long'))
+            press_key(CONFIG['mfsw_map'].get('ptt_long'))
             state.mfsw_ptt_long_action_fired = True
-    elif cmd_byte == mfsw_cmds.get('scroll_click'):
-        state.mfsw_scroll_click_press_count += 1
-        if not state.mfsw_scroll_click_long_action_fired and state.mfsw_scroll_click_press_count >= CONFIG['long_press_count']:
-            logger.info("MFSW Scroll Click Long Press")
-            press_key(CONFIG['mfsw_map'].get('scroll_click_long'))
-            state.mfsw_scroll_click_long_action_fired = True
     elif cmd_byte == mfsw_cmds.get('volume_scroll_up'):
         if not state.mfsw_volume_scroll_locked:
             press_key(CONFIG['mfsw_map'].get('volume_scroll_up_short'))
@@ -397,31 +390,16 @@ def handle_mfsw_message(msg, state):
             press_key(CONFIG['mfsw_map'].get('volume_scroll_click_long'))
             state.mfsw_volume_scroll_click_long_action_fired = True
     elif cmd_byte in CONFIG['mfsw_release_cmds']:
-        if not state.mfsw_mode_long_action_fired and state.mfsw_mode_press_count > 0:
-            logger.info("MFSW Mode Short Press")
-            press_key(get_action('mode_short'))
-        
+        state.wheel.handle('release')
         if not state.mfsw_ptt_long_action_fired and state.mfsw_ptt_press_count > 0:
-            logger.info("MFSW PTT Short Press")
-            press_key(get_action('ptt_short'))
-
-        if not state.mfsw_scroll_click_long_action_fired and state.mfsw_scroll_click_press_count > 0:
-            logger.info("MFSW Scroll Click Short Press")
-            press_key(CONFIG['mfsw_map'].get('scroll_click_short'))
-
+            press_key(CONFIG['mfsw_map'].get('ptt_short'))
         if not state.mfsw_volume_scroll_click_long_action_fired and state.mfsw_volume_scroll_click_press_count > 0:
-            logger.info("MFSW Volume Scroll Click Short Press")
             press_key(CONFIG['mfsw_map'].get('volume_scroll_click_short'))
 
-        state.mfsw_scroll_locked = False
         state.mfsw_volume_scroll_locked = False
 
-        state.mfsw_mode_press_count = 0
-        state.mfsw_mode_long_action_fired = False
         state.mfsw_ptt_press_count = 0
         state.mfsw_ptt_long_action_fired = False
-        state.mfsw_scroll_click_press_count = 0
-        state.mfsw_scroll_click_long_action_fired = False
         state.mfsw_volume_scroll_click_press_count = 0
         state.mfsw_volume_scroll_click_long_action_fired = False
 
@@ -455,7 +433,7 @@ def shutdown_handler(signum, frame):
 
 def main():
     """Main application entry point and loop."""
-    global UINPUT_DEVICE, RUNNING
+    global UINPUT_DEVICE, RUNNING, WHEEL_CONTEXT_ID, TOP_CONTEXT_ID
 
     logger.info("Starting can_keyboard_control.py service...")
     if not load_and_initialize_config(): sys.exit(1)
@@ -473,16 +451,28 @@ def main():
     logger.info("--- Service is running ---")
     while RUNNING:
         try:
-            if ZMQ_SUB_SOCKET.poll(timeout=1000):
+            state.wheel.tick()
+            if time.monotonic() - state.last_wheel_status_time > 1.0:
+                state.last_wheel_status_time = time.monotonic()
+                state.wheel.heartbeat()
+            if ZMQ_SUB_SOCKET.poll(timeout=25):
                 topic_bytes, msg_bytes = ZMQ_SUB_SOCKET.recv_multipart()
                 topic_str = topic_bytes.decode('utf-8')
                 msg_dict = json.loads(msg_bytes.decode('utf-8'))
                 
                 if topic_str == "DIS_DISPLAY_STATUS":
-                    state.is_phone_app_active = (msg_dict.get('app') == 'app_phone' and msg_dict.get('state') == 'READY')
+                    WHEEL_CONTEXT_ID = msg_dict.get('control_epoch')
+                    state.wheel.context(msg_dict.get('app'), msg_dict.get('state') == 'READY',
+                                        context_id=WHEEL_CONTEXT_ID,
+                                        controllable=msg_dict.get('wheel_supported', False))
+                    continue
+                elif topic_str == 'DIS_TOP_STATUS':
+                    TOP_CONTEXT_ID = msg_dict.get('control_epoch')
+                    state.wheel.top_context(msg_dict.get('state') == 'READY')
                     continue
                 elif topic_str == "HUDIY_PHONE":
-                    state.hudiy_phone_active = (msg_dict.get('state') in ["INCOMING", "ALERTING", "ACTIVE"])
+                    state.wheel.phone(msg_dict.get('call_active') is not False and
+                                      msg_dict.get('state') in ['INCOMING', 'ALERTING', 'DIALING', 'ACTIVE'])
                     continue
                     
                 can_id = msg_dict.get('arbitration_id')
@@ -498,6 +488,7 @@ def main():
                 state.log_periodic_status()
 
         except (zmq.ZMQError, json.JSONDecodeError, UnicodeDecodeError) as e:
+            state.wheel.disconnect()
             logger.warning(f"A recoverable error occurred: {e}. Reconnecting...")
             if ZMQ_SUB_SOCKET and not ZMQ_SUB_SOCKET.closed: ZMQ_SUB_SOCKET.close()
             initialize_zmq_subscriber()
@@ -509,6 +500,7 @@ def main():
     logger.info("Main loop terminated. Closing resources.")
     if UINPUT_DEVICE: UINPUT_DEVICE.destroy()
     if ZMQ_SUB_SOCKET and not ZMQ_SUB_SOCKET.closed: ZMQ_SUB_SOCKET.close()
+    if INPUT_PUB is not None: INPUT_PUB.close()
     if ZMQ_CONTEXT and not ZMQ_CONTEXT.closed: ZMQ_CONTEXT.term()
     logger.info("can_keyboard_control.py has finished.")
 

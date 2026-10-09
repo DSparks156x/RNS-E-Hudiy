@@ -13,6 +13,7 @@ if REPO.name != 'RNS-E-Hudiy':
 sys.path.insert(0, str(REPO / 'dis_client'))
 from apps.media import MediaApp
 from font_metrics import measure_text
+from text_render import text_bounds, text_update
 
 SOURCE = REPO / 'dis_client/dis_display.py'
 tree = ast.parse(SOURCE.read_text(encoding='utf-8'))
@@ -69,7 +70,7 @@ class MediaPixelWidths(unittest.TestCase):
         self.assertEqual(app.get_view()['line4'], ('W' * 10, 0x06))
 
     def test_legacy_profile_uses_legacy_widths_for_media(self):
-        app = MediaApp({'display': {'font_resolution': 'legacy'}})
+        app = MediaApp({'display': {'center_display': {'high_resolution': False}}})
         app.title = 'W' * 30
         view = app.get_view()['line1'][0]
         self.assertLess(len(view), 30)
@@ -101,18 +102,18 @@ class DictionaryTextLines(unittest.TestCase):
         self.ack()
         self.e.current_app.get_view.return_value = {'line1': ('iii', 0x06)}
         self.e._draw()
-        self.assertEqual(self.commands(), [dict(command='clear_area', x=0, y=1, w=64, h=9),
-            dict(command='draw_text', text='iii', y=1, flags=0x06)])
+        self.assertEqual(self.commands(), [text_update(dict(text='iii',x=0,y=1,flags=6,field_id='line1'),
+                         dict(text='WWW',x=0,y=1,flags=6),viewport=(0,1,64,9))])
         self.assertEqual(self.e._send_draw.call_count, 1)
 
     def test_every_dictionary_line_is_bounded_by_its_selected_font(self):
         for profile in ('native', 'legacy'):
             for flags in (0x02, 0x06, 0x0A, 0x26):
                 self.e.force_redraw()
-                self.e.cfg = {'display': {'font_resolution': profile}}
+                self.e.cfg = {'display': {'center_display': {'high_resolution': profile == 'native'}}}
                 self.e.current_app.get_view.return_value = {'line1': ('W' * 40, flags)}
                 self.e._draw()
-                command = next(c for c in self.commands() if c['command'] == 'draw_text')
+                command = next(c for c in self.commands() if c['command'] == 'update_text')
                 self.assertLessEqual(measure_text(command['text'], flags, profile), 128)
                 self.assertNotIn('\x1f', command['text'])
                 self.ack()
@@ -123,35 +124,38 @@ class DictionaryTextLines(unittest.TestCase):
         self.ack()
         self.e.current_app.get_view.return_value = {'line1': ('A', 0x26)}
         self.e._draw()
-        self.assertEqual([c['command'] for c in self.commands()], ['clear_area', 'draw_text'])
-        self.assertEqual(self.commands()[1]['text'], 'A')
+        self.assertEqual([c['command'] for c in self.commands()], ['update_text'])
+        self.assertEqual(self.commands()[0]['text'], 'A')
+        self.assertEqual(self.commands()[0]['clear_rect']['w'],64)
 
     def test_empty_and_omitted_lines_clear_without_padding_or_repeat_frames(self):
         self.e._draw()
         self.ack()
         self.e.current_app.get_view.return_value = {}
         self.e._draw()
-        self.assertEqual(self.commands(), [dict(command='clear_area', x=0, y=1, w=64, h=9)])
+        self.assertEqual(self.commands(), [text_update(dict(text='',x=0,y=1,flags=6,field_id='line1'),
+                         dict(text='WWW',x=0,y=1,flags=6),viewport=(0,1,64,9))])
         self.ack()
         self.e._draw()
         self.e._send_draw.assert_not_called()
 
     def test_clear_rectangles_stay_inside_central_or_full_region(self):
-        self.e.current_app.get_view.return_value = {'line5': ('A', 0x06)}
-        self.e._draw()
-        clear = next(c for c in self.commands() if c['command'] == 'clear_area')
-        self.assertEqual((clear['y'], clear['h']), (41, 7))
-        self.ack()
-        self.e.force_redraw()
-        self.e.nav_active = True
-        self.e._draw()
-        clear = next(c for c in self.commands() if c['command'] == 'clear_area')
-        self.assertEqual((clear['y'], clear['h']), (41, 9))
+        for active, height in ((False,7),(True,9)):
+            self.e.force_redraw()
+            self.e.nav_active=active
+            self.e.current_app.get_view.return_value={'line5':('WWW',6)}
+            self.e._draw()
+            self.ack()
+            self.e.current_app.get_view.return_value={'line5':('i',6)}
+            self.e._draw()
+            clear=self.commands()[0]['clear_rect']
+            self.assertEqual((clear['y'],clear['h']),(41,height))
+            self.ack()
 
     def test_custom_to_dictionary_transition_is_one_atomic_frame(self):
         self.e.last_sent.update(groups={'icon': 'old'}, last_type='native')
         self.e._draw()
-        self.assertEqual([c['command'] for c in self.commands()], ['clear', 'clear_area', 'draw_text'])
+        self.assertEqual([c['command'] for c in self.commands()], ['clear', 'update_text'])
         self.e._send_draw.assert_called_once()
         self.assertIsNone(self.e.last_sent['groups'])
 
@@ -180,21 +184,22 @@ class DictionaryTextLines(unittest.TestCase):
         self.e.cfg = app.config
         self.e.current_app = app
         self.e._draw()
-        title = next(c for c in self.commands() if c['command'] == 'draw_text' and c['y'] == 1)
+        title = next(c for c in self.commands() if c['command'] == 'update_text' and c['y'] == 1)
         self.assertEqual(title['flags'], 0x06)
         self.ack()
         app.title = 'iii'
         self.e._draw()
-        self.assertEqual(self.commands(), [dict(command='clear_area', x=0, y=1, w=64, h=9),
-            dict(command='draw_text', text='iii', y=1, flags=0x26)])
+        self.assertEqual(self.commands(), [text_update(dict(text='iii',x=0,y=1,flags=0x26,field_id='line1'),
+                         dict(text='W'*10,x=0,y=1,flags=6),viewport=(0,1,64,9))])
         self.assertNotIn('media_title', app._scroll_state)
 
     def test_profile_switch_redraws_even_if_text_is_identical(self):
         self.e._draw()
         self.ack()
-        self.e.cfg = {'display': {'font_resolution': 'legacy'}}
+        self.e.cfg = {'display': {'center_display': {'high_resolution': False}}}
         self.e._draw()
-        self.assertEqual([c['command'] for c in self.commands()], ['clear_area', 'draw_text'])
+        self.assertEqual([c['command'] for c in self.commands()], ['update_text'])
+        self.assertEqual(self.commands()[0]['clear_rect'],dict(x=0,y=1,w=64,h=9))
 
 
 if __name__ == '__main__':

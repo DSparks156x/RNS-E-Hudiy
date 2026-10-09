@@ -13,6 +13,8 @@ sys.path.insert(0, str(repo))
 if 'can' not in sys.modules:
     fake = types.ModuleType('can')
     fake.CanError = RuntimeError
+    # Preserve the message interface used by other offline adapter fixtures.
+    fake.Message = lambda **kwargs: types.SimpleNamespace(**kwargs)
     sys.modules['can'] = fake
 source = Path(os.environ.get('DDP_FRAMING_SOURCE', str(repo / 'dis_client/ddp_protocol.py')))
 spec = importlib.util.spec_from_file_location('ddp_framing_under_test', source)

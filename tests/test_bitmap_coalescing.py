@@ -11,7 +11,7 @@ if not SOURCE.exists():
 tree = ast.parse(SOURCE.read_text())
 names = {'_raw_bitmap_payload', '_coalesce_bitmap_commands', '_send_raw_bitmap_batch',
          '_bitmap_message_budget', '_bitmap_rows_per_command', '_bitmap_row_records'}
-ns = {'DisMode': SimpleNamespace(WHITE='white'), 'logger': logging.getLogger(__name__)}
+ns = {'DisMode': SimpleNamespace(WHITE='white', RED='red'), 'logger': logging.getLogger(__name__)}
 exec(compile(ast.Module(body=[n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name in names],
                        type_ignores=[]), str(SOURCE), 'exec'), ns)
 Service = type('Service', (), {name: ns[name] for name in names})

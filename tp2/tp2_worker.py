@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flasher.traffic import flashing_mode_enabled
 from tp2_protocol import TP2Protocol, TP2Error
 from tp2_coding import TP2Coding
+from tp2.group_scheduler import GroupScheduler, parse_group_periods, group_observation
 from openpilot_receiver import OpenpilotReceiver, OPENPILOT_TRANSPORT_ENABLED, OPENPILOT_DISABLED_REASON
 
 class ThreadSafeZmqPub:
@@ -140,7 +141,10 @@ class TP2Service:
             payload = {
                 "enabled": self.user_enabled,
                 "running": self.running,
-                "ignition": self.last_ignition_state
+                "ignition": self.last_ignition_state,
+                "diagnostic_owner": self.diagnostic_owner,
+                "flashing": flashing_mode_enabled(),
+                "available": self.running and self.diagnostic_owner is None and not flashing_mode_enabled()
             }
             self.pub.send_multipart([b"HUDIY_TP2_STATUS", json.dumps(payload).encode()])
             logger.info(f"Published TP2 Status: {payload}")
@@ -174,14 +178,16 @@ class TP2Service:
             'last_connect_attempt': 0,
             'error_count': 0
         }
+        session['scheduler'] = GroupScheduler()
         self.sessions[module_id] = session
         return session
 
     def _rebuild_groups_list(self, session):
         # NOTE: Must be called within Lock
-        now = time.time()
+        now = time.monotonic()
         normal_set = set()
         low_set = set()
+        timed = {}
         expired_clients = []
         
         for cid, data in session.get('client_subs', {}).items():
@@ -190,6 +196,8 @@ class TP2Service:
             else:
                 normal_set.update(data.get('groups', []))
                 low_set.update(data.get('low_groups', []))
+                for group, period in data.get('group_periods_ms', {}).items():
+                    timed[group] = min(timed.get(group, period), period)
                 
         for cid in expired_clients:
             del session['client_subs'][cid]
@@ -198,12 +206,15 @@ class TP2Service:
         # If a group is in normal, don't keep it in low
         low_set = low_set - normal_set
         
-        new_normal = list(normal_set)
-        new_low = list(low_set)
+        new_normal = sorted(normal_set)
+        new_low = sorted(low_set)
         
         session['normal_groups_list'] = new_normal
         session['low_groups_list'] = new_low
-        session['active'] = len(new_normal) > 0 or len(new_low) > 0 or session.get('pending_dtc_req', False) or session.get('pending_dtc_clear', False)
+        scheduler = session.setdefault('scheduler', GroupScheduler())
+        scheduler.configure(normal_set, low_set, timed, now)
+        session['group_periods_ms'] = dict(scheduler.periods)
+        session['active'] = bool(scheduler.periods) or session.get('pending_dtc_req', False) or session.get('pending_dtc_clear', False)
 
     def _ensure_connected(self, module_id, session):
         # Main Thread Only
@@ -311,6 +322,7 @@ class TP2Service:
                             logger.info("Resuming incomplete flash under diagnostic owner %s", token)
                         self.diagnostic_owner = token
                         self.quiescent.clear()
+                        self._publish_status()
                     if not self.quiescent.wait(10):
                         raise RuntimeError("Diagnostic closure not acknowledged; remains inhibited")
                     response = {"status": "ok", "quiescent": True, "owner": token}
@@ -321,6 +333,7 @@ class TP2Service:
                         self.diagnostic_owner = ("recovery-required"
                             if msg.get("recovery_required") is True else None)
                         self.quiescent.clear()
+                        self._publish_status()
                     response = {"status": "ok"}
                 elif self.diagnostic_owner and cmd not in ("STATUS", "SYNC"):
                     response = {"status": "error", "message": "Exclusive diagnostics in progress"}
@@ -338,13 +351,18 @@ class TP2Service:
                                 "error_count": s.get('error_count', 0),
                                 "last_activity": s.get('last_activity', 0),
                                 "group_errors": s.get('group_errors', {}),
-                                "group_cooldowns": s.get('group_cooldowns', {})
+                                "group_cooldowns": s.get('group_cooldowns', {}),
+                                "group_periods_ms": s.get('group_periods_ms', {}),
+                                "group_stats": s['scheduler'].snapshot(time.monotonic()) if 'scheduler' in s else {}
                             })
                         response = {
                             "status": "ok", 
                             "enabled": self.user_enabled,
                             "running": self.running,
                             "ignition": self.last_ignition_state,
+                            "diagnostic_owner": self.diagnostic_owner,
+                            "flashing": flashing_mode_enabled(),
+                            "available": self.running and self.diagnostic_owner is None and not flashing_mode_enabled(),
                             "session_count": len(sess_info),
                             "sessions": sess_info
                         }
@@ -359,6 +377,7 @@ class TP2Service:
                         param_mod = int(mod)
                         param_groups = [int(g) for g in groups]
                         param_lp_groups = [int(g) for g in lp_groups]
+                        param_periods = parse_group_periods(msg.get('group_periods_ms', {}))
                         
                         with self.lock:
                             session = self._get_or_create_session(param_mod)
@@ -369,13 +388,14 @@ class TP2Service:
                             session['client_subs'][client_id] = {
                                 'groups': param_groups,
                                 'low_groups': param_lp_groups,
-                                'last_sync': time.time()
+                                'group_periods_ms': param_periods,
+                                'last_sync': time.monotonic()
                             }
                             
                             self._rebuild_groups_list(session)
                             
                             logger.info(f"(Cmd) SYNC for client '{client_id}', Mod 0x{param_mod:02X}, Normal: {session['normal_groups_list']}, Low: {session['low_groups_list']}")
-                            response = {"status": "ok", "message": "Synced", "active_groups": session['normal_groups_list']}
+                            response = {"status": "ok", "message": "Synced", "active_groups": sorted(session['group_periods_ms']), "group_periods_ms": session['group_periods_ms']}
                     else:
                         response = {"status": "error", "message": "Missing client_id or module"}
 
@@ -526,7 +546,7 @@ class TP2Service:
                     if self.diagnostic_owner:
                         break
                     # Check for expired clients periodically
-                    now = time.time()
+                    now = time.monotonic()
                     if now - session.get('last_expiry_check', 0) > 5.0:
                         with self.lock:
                             self._rebuild_groups_list(session)
@@ -552,49 +572,33 @@ class TP2Service:
                                 logger.info(f"Module 0x{mod_id:02X} Session Deleted (TesterID 0x{freed_id:X} returned to pool).")
                         continue
                     
-                    # Connection Management
-                    now = time.time()
-                    normal_list = session.get('normal_groups_list', [])
-                    low_list = session.get('low_groups_list', [])
+                    # Connection Management: retain fast timed sessions between
+                    # reads, but preserve idle disconnection for slow-only clients.
                     pending_dtc = session.get('pending_dtc_req', False)
                     pending_clear = session.get('pending_dtc_clear', False)
-                    last_low_fetch = session.get('last_low_fetch', 0)
-                    
-                    # Fetch low priority groups once per minute
-                    low_due = (now - last_low_fetch) >= 60.0
-                    current_low_list = low_list if low_due else []
-                    
-                    if not normal_list and not current_low_list and not pending_dtc and not pending_clear:
-                        # Nothing to actively poll right now (idling between low-priority fetches)
+                    with self.lock:
+                        scheduler = session['scheduler']
+                        blocked = [group for group, until in session.get('group_cooldowns', {}).items()
+                                   if time.monotonic() < until]
+                        due_group = scheduler.select(time.monotonic(), blocked, advance=False)
+                        fast_polling = any(period < 60000 for period in scheduler.periods.values())
+                    if due_group is None and not pending_dtc and not pending_clear:
                         if session['connected']:
                             try:
-                                session['protocol'].disconnect()
-                                logger.info(f"Module 0x{mod_id:02X} Disconnected (Idling low-priority).")
-                            except: pass
-                            session['connected'] = False
+                                if fast_polling:
+                                    if time.time() - session['protocol'].last_kwp_req > 2.0:
+                                        session['protocol'].send_kvp_request([0x3E])
+                                    session['protocol'].maybe_send_keep_alive()
+                                else:
+                                    session['protocol'].disconnect()
+                                    session['connected'] = False
+                            except:
+                                session['connected'] = False
                         continue
                         
                     if not self._ensure_connected(mod_id, session):
                         continue
                     
-                    active_list = normal_list + current_low_list
-                    
-                    if 'idx' not in session: session['idx'] = 0
-                    if session['idx'] >= len(active_list):
-                        session['idx'] = 0
-                        # We completed a full sweep of the active_list.
-                        # If low groups were in the list, we just fetched them. Mark the time.
-                        if current_low_list:
-                            session['last_low_fetch'] = now
-                        
-                        # Re-evaluate for the very next iteration
-                        low_due = (now - session.get('last_low_fetch', 0)) >= 60.0
-                        current_low_list = low_list if low_due else []
-                        active_list = normal_list + current_low_list
-
-                    if not active_list and not session.get('pending_dtc_req') and not session.get('pending_dtc_clear'):
-                        continue
-
                     # Process DTC Clear if pending
                     if session.get('pending_dtc_clear'):
                         proto = session['protocol']
@@ -735,7 +739,7 @@ class TP2Service:
                         session['dtc_cooldown'] = time.time() + 2.0
                         
                         # Continue to normal polling
-                        if not active_list:
+                        if not session['scheduler'].periods:
                             try:
                                 if time.time() - session['protocol'].last_kwp_req > 2.0:
                                      session['protocol'].send_kvp_request([0x3E])
@@ -748,25 +752,17 @@ class TP2Service:
                     if 'group_errors' not in session: session['group_errors'] = {}
                     if 'group_cooldowns' not in session: session['group_cooldowns'] = {}
                         
-                    grp = None
-                    valid_group_found = False
-                    
-                    for step in range(len(active_list)):
-                        check_idx = (session['idx'] + step) % len(active_list)
-                        candidate_grp = active_list[check_idx]
-                        if time.time() > session['group_cooldowns'].get(candidate_grp, 0):
-                            grp = candidate_grp
-                            valid_group_found = True
-                            session['idx'] = check_idx
-                            break
-                        
-                    if not valid_group_found:
+                    with self.lock:
+                        blocked = [group for group, until in session['group_cooldowns'].items()
+                                   if time.monotonic() < until]
+                        grp = scheduler.select(time.monotonic(), blocked)
+                    if grp is None:
                         # All groups in cooldown. Keep session alive but do nothing else.
                         if session['connected']:
                              try:
                                  if time.time() - session['protocol'].last_kwp_req > 2.0:
                                      session['protocol'].send_kvp_request([0x3E])
-                                 session['protocol'].send_keep_alive()
+                                 session['protocol'].maybe_send_keep_alive()
                              except:
                                  session['connected'] = False
                         continue
@@ -774,21 +770,20 @@ class TP2Service:
                     proto = session['protocol']
                     
                     logger.info(f"Polling Mod 0x{mod_id:02X} Grp {grp}")
+                    request_started = time.monotonic()
+                    with self.lock:
+                        scheduler.started(grp, request_started)
                     try:
                         resp = proto.send_kvp_request([0x21, grp])
-                        
-                        if resp and resp[0] == 0x61 and resp[1] == grp:
-                            # Decode
-                            decoded = TP2Coding.decode_block(resp[2:])
-                            # Publish
-                            payload = {
-                                'module': mod_id,
-                                'group': grp,
-                                'data': decoded
-                            }
+                        acquired = time.time()
+                        duration_ms = (time.monotonic() - request_started) * 1000
+                        payload, failure = group_observation(mod_id, grp, resp, acquired, duration_ms)
+                        with self.lock:
+                            scheduler.completed(grp, time.monotonic(), acquired, duration_ms, failure is None)
+                        if payload is not None:
                             self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
-                            logger.info(f"Published Mod 0x{mod_id:02X} Grp {grp}: {[d.get('value') for d in decoded]}")
-                            
+                            logger.info(f"Published Mod 0x{mod_id:02X} Grp {grp}: {[d.get('value') for d in payload['data']]}")
+                        if failure is None:
                             session['group_errors'][grp] = 0 
                             session['error_count'] = 0
                             
@@ -800,13 +795,19 @@ class TP2Service:
                                 logger.warning(f"Mod 0x{mod_id:02X} Keep-Alive failed after read: {ka_e}")
                                 session['connected'] = False
                             
-                        elif resp and resp[0] == 0x7F:
-                            # NRC (Negative Response Code)
-                            logger.warning(f"Mod 0x{mod_id:02X} Grp {grp} Rejected (NRC): {resp}")
+                        else:
+                            self.pub.send_multipart([b'HUDIY_DIAG_OBSERVATION', json.dumps(failure).encode()])
+                            logger.warning(f"Mod 0x{mod_id:02X} Grp {grp} Failed: {failure['error']}")
                             session['group_errors'][grp] = session['group_errors'].get(grp, 0) + 1
 
 
                     except Exception as e:
+                        acquired = time.time()
+                        duration_ms = (time.monotonic() - request_started) * 1000
+                        _, failure = group_observation(mod_id, grp, None, acquired, duration_ms, error=e)
+                        with self.lock:
+                            scheduler.completed(grp, time.monotonic(), acquired, duration_ms, False)
+                        self.pub.send_multipart([b'HUDIY_DIAG_OBSERVATION', json.dumps(failure).encode()])
                         session['group_errors'][grp] = session['group_errors'].get(grp, 0) + 1
                         logger.error(f"Mod 0x{mod_id:02X} Grp {grp} Error: {e} (Count: {session['group_errors'][grp]})")
                         
@@ -831,12 +832,9 @@ class TP2Service:
                     # Cooldown logic for this group
                     if session['group_errors'].get(grp, 0) >= 3:
                          logger.warning(f"Mod 0x{mod_id:02X} Grp {grp} failed 3 times. Suspending for 30 seconds.")
-                         session['group_cooldowns'][grp] = time.time() + 30.0
+                         session['group_cooldowns'][grp] = time.monotonic() + 30.0
                          session['group_errors'][grp] = 0
                          
-                    # Move to next group index unconditionally for next loop
-                    if active_list:
-                         session['idx'] += 1
                 
                 # Rate Limiting - Throttled by T3 in protocol, so we can run faster here
                 time.sleep(0.01) 

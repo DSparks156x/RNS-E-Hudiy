@@ -11,7 +11,7 @@ from apps.nav import NavApp
 
 
 def app_with_route(description='Main St', distance='10 m', profile='native'):
-    app = NavApp({'display': {'font_resolution': profile,
+    app = NavApp({'display': {'center_display': {'high_resolution': profile == 'native'},
                   'units': {'speed': 'metric'}}})
     app.update_hudiy(b'HUDIY_NAV', {'description': description, 'distance': distance})
     return app
@@ -61,44 +61,25 @@ class NavigationMeasuredLayoutTests(unittest.TestCase):
         app.get_view()
         app.update_hudiy(b'HUDIY_NAV_DISTANCE', {'label': '9999 km'})
         view = app.get_view()
+        bar_clear = next(i for i, item in enumerate(view)
+                         if item.get('group') == 'bar' and item.get('cmd') == 'clear_area')
         for group in ('street', 'dist'):
-            commands = [item for item in view if item.get('group') == group]
-            bar_clear = next(i for i, item in enumerate(commands)
-                             if item.get('cmd') == 'clear_area' and item.get('x') == 61)
-            draw = next(i for i, item in enumerate(commands) if item.get('cmd') == 'draw_text')
+            draw = next(i for i, item in enumerate(view)
+                        if item.get('group') == group and item.get('cmd') == 'draw_text')
             self.assertLess(bar_clear, draw)
         self.assertTrue(any(c.get('group') == 'street' and c.get('cmd') == 'clear_area'
                             and c.get('x') == 0 and c.get('w') == 64 for c in view))
 
-    def test_absent_bar_clears_cannot_erase_other_groups_right_edge(self):
-        app = app_with_route(description='A long street running toward the edge',
-                             distance='9999 km')
-        view = app.get_view()
-        groups = {group: [item for item in view if item.get('group') == group]
-                  for group in ('dist', 'street')}
-        clears = {}
-        for group, commands in groups.items():
-            clears[group] = next(item for item in commands
-                                 if item.get('cmd') == 'clear_area' and item.get('x') == 61)
-        self.assertEqual((clears['dist']['y'], clears['dist']['h']), (0, 39))
-        self.assertEqual((clears['street']['y'], clears['street']['h']), (39, 9))
-
-        # Model two existing right-edge pixels. Replay each independent group
-        # and the full ordered view: its clears must preserve the other band.
-        for commands, protected in ((groups['dist'], (62, 43)),
-                                    (groups['street'], (62, 12))):
-            for item in commands:
-                if item.get('cmd') == 'clear_area':
-                    covers = (item['x'] <= protected[0] < item['x'] + item['w']
-                              and item['y'] <= protected[1] < item['y'] + item['h'])
-                    self.assertFalse(covers)
-        distance_drawn = False
-        for item in view:
-            if item.get('group') == 'dist' and item.get('cmd') == 'draw_text':
-                distance_drawn = True
-            if distance_drawn and item.get('cmd') == 'clear_area':
-                self.assertFalse(item['x'] <= 62 < item['x'] + item['w']
-                                 and item['y'] <= 12 < item['y'] + item['h'])
+    def test_street_scroll_does_not_change_bar_signature(self):
+        app = app_with_route(description='A long street running toward the edge')
+        original = app.get_view()
+        app.description = 'A completely different long street name'
+        changed = app.get_view()
+        self.assertEqual([c for c in original if c.get('group') == 'bar'],
+                         [c for c in changed if c.get('group') == 'bar'])
+        # Neither text group contains duplicated bar-clear/draw operations.
+        self.assertFalse(any(c.get('x') == 61 and c.get('group') in ('dist', 'street')
+                             for c in changed))
 
     def test_distance_numbers_are_complete_representations_and_fit(self):
         for profile in ('native', 'legacy'):

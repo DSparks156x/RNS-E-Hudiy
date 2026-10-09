@@ -1,0 +1,3 @@
+pyzmq>=25
+Pillow>=10
+numpy>=1.24

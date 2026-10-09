@@ -6,6 +6,8 @@ import { EngineTab } from './tabs/EngineTab';
 import { TransmissionTab } from './tabs/TransmissionTab';
 import { AWDTab } from './tabs/AWDTab';
 import { DiagnosticsTab } from './tabs/DiagnosticsTab';
+import { DataLogsTab } from './tabs/DataLogsTab';
+import { ValueRequest } from './components/dataLogs/model';
 
 import { useHudiyTheme } from './hooks/useHudiyTheme';
 
@@ -13,15 +15,18 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'engine', label: 'Engine' },
   { id: 'transmission', label: 'Transmission' },
   { id: 'awd', label: 'AWD' },
+  { id: 'data_logs', label: 'Data & Logs' },
   { id: 'diagnostics', label: 'Diagnostics' },
 ];
 
 export function App() {
   const [currentTab, setCurrentTab] = useState<TabId>('engine');
   const [smoothing, setSmoothing] = useState(true);
+  const [dataLogValues, setDataLogValues] = useState<ValueRequest[]>([]);
+  const updateDataLogValues = useCallback((values: ValueRequest[]) => setDataLogValues(values), []);
 
   // Notice we only get the socket instance back now; data state is gone!
-  const { socket } = useSocket(currentTab);
+  const { socket } = useSocket(currentTab, dataLogValues);
 
   const themeHook = useHudiyTheme(socket);
   const theme = themeHook.theme;
@@ -91,12 +96,13 @@ export function App() {
       >
         <div
           className="tab-strip"
-          style={{ transform: `translateX(${translatePct}%)` }}
+          style={{ transform: `translateX(${translatePct}%)`, width: `${tabCount * 100}%`, '--slide-width': `${100 / tabCount}%` } as React.CSSProperties}
         >
           {/* We no longer need to pass the giant data object to components */}
           <div className="tab-slide"><EngineTab /></div>
           <div className="tab-slide"><TransmissionTab /></div>
           <div className="tab-slide"><AWDTab socket={socket} /></div>
+          <div className="tab-slide"><DataLogsTab socket={socket} isActive={currentTab === 'data_logs'} onValues={updateDataLogValues} /></div>
           <div className="tab-slide"><DiagnosticsTab isActive={currentTab === 'diagnostics'} /></div>
         </div>
       </div>

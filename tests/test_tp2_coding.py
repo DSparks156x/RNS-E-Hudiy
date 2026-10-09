@@ -40,6 +40,12 @@ class TestTP2CodingConfirmedVagFormulas(unittest.TestCase):
 
 
 class TestTP2CodingBlockContract(unittest.TestCase):
+    def test_eight_fields_have_no_heuristic_names_or_four_field_limit(self):
+        decoded = TP2Coding.decode_block([0x06, 50, 250] * 8)
+        self.assertEqual(len(decoded), 8)
+        self.assertTrue(all(item == {"value": 12.5, "unit": "V", "type": 6}
+                            for item in decoded))
+
     def test_payload_only_multiple_triples(self):
         decoded = TP2Coding.decode_block([
             0x1A, 70, 105,

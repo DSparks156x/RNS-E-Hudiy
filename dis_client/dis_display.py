@@ -10,12 +10,14 @@ from apps.media import MediaApp
 from apps.nav import NavApp
 from apps.phone import PhoneApp
 from apps.settings import SettingsApp
-from apps.car_info import CarInfoApp
+from apps.car_info import create_car_info_app
 from apps.coverart import CoverArtApp
 from apps.easteregg import EasterEggApp
 from apps.acceleration_test import AccelerationTestApp
 from apps.openpilot import OpenpilotApp
 import re
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from navigation_policy import NavigationPolicy
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
@@ -26,6 +28,7 @@ class DisplayEngine:
     Y = {'line1': 1, 'line2': 11, 'line3': 21, 'line4': 31, 'line5': 41}
 
     def __init__(self, config_path='/home/pi/config.json', mock=False):
+        self._wheel_epoch = time.time_ns()
         with open(config_path) as f: self.cfg = json.load(f)
         self.car_units = {
             'speed': 'metric',
@@ -43,7 +46,7 @@ class DisplayEngine:
         self.apps['app_nav']          = NavApp(self.cfg)
         self.apps['app_media'] = MediaApp(self.cfg)
         self.apps['app_phone']        = PhoneApp(self.cfg)
-        self.apps['app_car_info']     = CarInfoApp(self.cfg)
+        self.apps['app_car_info'] = create_car_info_app(self.cfg)
         self.apps['app_acceleration_test'] = AccelerationTestApp(self.cfg)
         # Settings still exists if needed, but not in cycle
         self.apps['app_settings']     = SettingsApp(self) 
@@ -124,12 +127,14 @@ class DisplayEngine:
                 self.sub_hudiy.connect(_zmq.get('metric_stream', 'ipc:///run/rnse_control/hudiy_stream.ipc'))
                 self.sub_hudiy.connect(_zmq.get('status_stream', 'ipc:///run/rnse_control/status_stream.ipc'))
                 self.sub_hudiy.connect(_zmq.get('tp2_stream', 'ipc:///run/rnse_control/tp2_stream.ipc'))
+                self.sub_hudiy.connect(_zmq.get('vehicle_data_stream', 'ipc:///run/rnse_control/vehicle_data_stream.ipc'))
+                self.sub_hudiy.connect(_zmq.get('input_control_stream', 'ipc:///run/rnse_control/input_control_stream.ipc'))
                 self.hudiy_connected = True
         except Exception as e:
             logger.warning(f"Mock Mode/Windows: Could not connect to metric_stream: {e}")
             
         if self.hudiy_connected:
-            for t in [b'HUDIY_MEDIA', b'HUDIY_NAV', b'HUDIY_PHONE', b'HUDIY_NAV_STATUS', b'HUDIY_DIAG', b'HUDIY_COVERART', b'HUDIY_OPENPILOT']: 
+            for t in [b'HUDIY_MEDIA', b'HUDIY_NAV', b'HUDIY_PHONE', b'HUDIY_NAV_STATUS', b'HUDIY_DIAG', b'HUDIY_VALUES', b'HUDIY_COVERART', b'HUDIY_OPENPILOT', b'DIS_INPUT', b'WHEEL_CONTROL']:
                 self.sub_hudiy.subscribe(t)
 
         self.draw = self.zmq_ctx.socket(zmq.PUSH)
@@ -183,11 +188,11 @@ class DisplayEngine:
             logger.warning(f"Could not bind dis_display_status socket: {e}")
 
         if not mock:
-            # TP2 Command Socket (for atmospheric pressure subscription)
+            # Value subscription command socket (diagnostic sessions belong to TP2).
             self.tp2_cmd = self.zmq_ctx.socket(zmq.REQ)
             self.tp2_cmd.setsockopt(zmq.RCVTIMEO, 1000)
             self.tp2_cmd.setsockopt(zmq.LINGER, 0)
-            _tp2_addr = self.cfg.get('interfaces', {}).get('zmq', {}).get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
+            _tp2_addr = self.cfg.get('interfaces', {}).get('zmq', {}).get('vehicle_data_command', 'ipc:///run/rnse_control/vehicle_data_cmd.ipc')
             self.tp2_cmd.connect(_tp2_addr)
             self.last_tp2_sync = 0
 
@@ -225,6 +230,11 @@ class DisplayEngine:
         self.nav_auto_switch = nav_cfg.get('auto_switch', True)
         self.nav_approach_threshold = nav_cfg.get('auto_switch_approach_threshold', 500)
         self.nav_return_threshold = nav_cfg.get('auto_switch_return_threshold', 1000)
+        self.nav_peek_seconds = nav_cfg.get('auto_switch_peek_seconds', 5)
+        self.nav_policy = NavigationPolicy(self.nav_approach_threshold, self.nav_return_threshold, self.nav_peek_seconds)
+        self.cluster_selected_session = False
+        self._last_cluster_request = 0
+        self._context_nav_peek_until = 0
         self.nav_claim_on_nav = nav_cfg.get('claim_on_nav', False)
         self.user_paused = False
         self.boot_inactive_hold = self.start_inactive
@@ -295,12 +305,14 @@ class DisplayEngine:
             payload = {
                 "state": state_str,
                 "app": app_name,
+                "wheel_supported": hasattr(self.current_app, 'set_control_mode'),
+                "control_epoch": getattr(self, '_wheel_epoch', 0),
                 "timestamp": time.time()
             }
 
             # Avoid redundant publishes unless forced (e.g. heartbeat or app switch)
             if not force:
-                current_id = (state_str, app_name)
+                current_id = (state_str, app_name, getattr(self, '_wheel_epoch', 0))
                 if getattr(self, '_last_published_id', None) == current_id:
                     return
                 self._last_published_id = current_id
@@ -348,6 +360,10 @@ class DisplayEngine:
         self.press_history.append(now)
 
         count = len(self.pages)
+        # Cycle from the visible navigation override, then keep the resulting
+        # page as the user's choice beneath future temporary interruptions.
+        if self.pre_nav_app_name is not None and 'app_nav' in self.pages:
+            self.current_page_idx = self.pages.index('app_nav')
         start_idx = self.current_page_idx
         
         for _ in range(count):
@@ -366,7 +382,12 @@ class DisplayEngine:
             break
             
         target_name = self.pages[self.current_page_idx]
-        
+        if not ((target_name != 'app_nav' or self.is_nav_available()) and
+                (target_name != 'app_phone' or self.is_phone_available())):
+            self.current_page_idx = start_idx
+            return
+        self._cancel_auto_switches()
+
         self.current_app.on_leave()
         self.current_app = self.apps[target_name]
         
@@ -375,6 +396,7 @@ class DisplayEngine:
             logger.info("Timers manually reset via stalk cycle.")
             
         self.current_app.on_enter()
+        self._wheel_epoch = getattr(self, '_wheel_epoch', 0) + 1
         self.last_tp2_sync = 0 # Force immediate TP2 sync on context switch
         
         logger.info(f"Switched to App: {target_name}")
@@ -383,7 +405,8 @@ class DisplayEngine:
             self.settings['last_app'] = target_name
             self.save_settings()
             
-        self.force_redraw(send_clear=True)
+        self._deferred_app_clear = self._wheel_epoch
+        self.force_redraw(send_clear=False)
         self.publish_status()
 
     def switch_to_app(self, app_name):
@@ -398,9 +421,11 @@ class DisplayEngine:
         self.current_app.on_leave()
         self.current_app = self.apps[app_name]
         self.current_app.on_enter()
+        self._wheel_epoch = getattr(self, '_wheel_epoch', 0) + 1
         self.last_tp2_sync = 0 # Force immediate TP2 sync on context switch
         logger.info(f"Auto-Switched to App: {app_name}")
-        self.force_redraw(send_clear=True)
+        self._deferred_app_clear = self._wheel_epoch
+        self.force_redraw(send_clear=False)
         self.publish_status()
 
     def _leave_empty_context_page(self, fallback):
@@ -427,17 +452,34 @@ class DisplayEngine:
         # Override standard logic: Up/Down Tap cycles pages
         
         if action == 'tap_up':
-            self._cancel_auto_switches()
             self.switch_page(-1) # Previous
         elif action == 'tap_down':
-            self._cancel_auto_switches()
             self.switch_page(1)  # Next
         else:
             # Pass holds or other events to app if needed
             self.current_app.handle_input(action)
 
+    def _handle_wheel_input(self, topic, data):
+        """Consume the keyboard service's already debounced, single-owner events."""
+        app_name = next((name for name, app in self.apps.items() if app is self.current_app), None)
+        matching = (data.get('app') == app_name and
+                    data.get('control_epoch') == getattr(self, '_wheel_epoch', 0))
+        if topic == b'WHEEL_CONTROL':
+            self._wheel_status_at = time.monotonic()
+            active = matching and data.get('owner') == 'dis' and self.service_ready
+            if hasattr(self.current_app, 'set_control_mode'):
+                self.current_app.set_control_mode(active)
+        elif (matching and data.get('owner') == 'dis' and self.service_ready
+                and getattr(self.current_app, 'control_mode', False)):
+            action = data.get('event')
+            if action in ('previous', 'next', 'select', 'back'):
+                self.process_input(action)
+
     def _cancel_auto_switches(self):
         """Reset all auto-switch states when the user manually interacts."""
+        if hasattr(self, 'nav_policy'):
+            self.nav_policy.manual_select()
+        self._context_nav_peek_until = 0
         self.pre_nav_app_name = None
         self.pre_phone_app_name = None
         self.pre_cover_app_name = None
@@ -489,8 +531,13 @@ class DisplayEngine:
         should_claim = nav_should_claim or phone_should_claim
         # A contextual claim must present its context, not the startup media page.
         if nav_should_claim and not phone_should_claim and not is_nav_page and (self.user_paused or self.boot_inactive_hold):
-            self._leave_empty_context_page('app_nav')
-        if getattr(self, 'context_claim_only', False) and not should_claim:
+            self.pre_nav_app_name = current_app_name
+            # Claim-on-nav is an explicit request to present this context even
+            # when routine maneuver auto-switching is disabled.
+            self._context_nav_peek_until = time.monotonic() + max(0,
+                getattr(getattr(self, 'nav_policy', None), 'peek_s', 5))
+        if (getattr(self, 'context_claim_only', False) and not should_claim
+                and not getattr(self, 'cluster_selected_session', False)):
             if not self.user_paused:
                 if self._send_draw({'command': 'pause'}):
                     self.user_paused = True
@@ -517,11 +564,12 @@ class DisplayEngine:
             if self._send_draw({'command': 'resume'}):
                 self.user_paused = False
                 self.content_auto_claimed = True
-        elif self.content_auto_claimed and not should_claim:
+        elif (self.content_auto_claimed and not should_claim
+                and not getattr(self, 'cluster_selected_session', False)):
             logger.info("Claiming content ended: releasing the center display.")
-            self._send_draw({'command': 'pause'})
-            self.user_paused = True
-            self.content_auto_claimed = False
+            if self._send_draw({'command': 'pause'}):
+                self.user_paused = True
+                self.content_auto_claimed = False
 
     def is_nav_available(self):
         """Navigation exists only when the provider has a real route."""
@@ -588,8 +636,8 @@ class DisplayEngine:
         """
         from native_bitmap import packed_bitmap, validate_render_options, validate_update_rect
         validate_render_options(render_order, band_rows)
-        if not isinstance(delta, bool) or (delta and render_order != 'tiles'):
-            raise ValueError('Native delta is a boolean option for completed tiles only')
+        if not isinstance(delta, bool) or (delta and render_order not in ('tiles', 'planes')):
+            raise ValueError('Native delta is a boolean option for tiles or planes')
         update_rect = validate_update_rect(update_rect, render_order, delta)
         data = packed_bitmap(source)  # Validate before sequence or cache changes.
         if (not getattr(self, 'service_ready', True)
@@ -644,12 +692,16 @@ class DisplayEngine:
             return False
         self._pending_ui_frame = None
         if success:
+            if (getattr(self, '_pending_ui_frame_clear_epoch', None) is not None
+                    and getattr(self, '_pending_ui_frame_clear_epoch', None)
+                    == getattr(self, '_deferred_app_clear', None)):
+                self._deferred_app_clear = None
             self.current_app.on_frame_acked(seq)
         else:
             failed = getattr(self.current_app, 'on_frame_failed', None)
             if failed:
                 failed(seq)
-            self.force_redraw(send_clear=True)
+            self.force_redraw(send_clear=getattr(self, '_deferred_app_clear', None) is None)
         return True
 
     def force_redraw(self, send_clear=False):
@@ -698,32 +750,20 @@ class DisplayEngine:
                                 topic, msg = parts
                                 try:
                                     data = json.loads(msg)
+                                    if topic in (b'DIS_INPUT', b'WHEEL_CONTROL'):
+                                        self._handle_wheel_input(topic, data)
+                                        continue
                                     
                                     if hasattr(self, 'log_push'):
                                         self.log_push.send_string(f"RX: {topic.decode('utf-8')} -> {data}")
                                         
                                     if topic == b'HUDIY_NAV_STATUS':
-                                        active = data.get('active', False)
+                                        self.apps['app_nav'].update_hudiy(topic, data)
+                                        active = data.get('active') is True
                                         if active != self.nav_active:
                                             self.nav_active = active
-                                            logger.info(f"Nav Active State Changed: {active}")
-                                            
-                                            # Provider activation is not an auto-switch condition.
-                                            # Re-evaluate the cached distance in case it arrived
-                                            # before NAV_STATUS, but enforce the same thresholds.
-                                            if active:
-                                                self._handle_nav_auto_switch(self.apps['app_nav'])
-                                            elif not active:
-                                                # Auto-switch AWAY from nav if currently on it
-                                                current_name = self.pages[self.current_page_idx]
-                                                if current_name == 'app_nav':
-                                                    if self.pre_nav_app_name:
-                                                        self.switch_to_app(self.pre_nav_app_name)
-                                                    else:
-                                                        self.switch_to_app('app_media')
-                                            
-                                                # Clean up toggle state when nav deactivated
-                                                self.pre_nav_app_name = None
+                                            logger.info("Nav Active State Changed: %s", active)
+                                        self._handle_nav_auto_switch(self.apps['app_nav'])
 
                                     # Update NavApp specifically for background monitoring (auto-switch, availability)
                                     if topic.startswith(b'HUDIY_NAV') and topic != b'HUDIY_NAV_STATUS':
@@ -784,21 +824,12 @@ class DisplayEngine:
                                     if state == "DISCONNECTED":
                                         if self.start_inactive and not self.boot_inactive_hold:
                                             logger.info("Service disconnected. Resetting boot inactive hold flags.")
-                                        self.boot_inactive_hold = self.start_inactive
+                                        self._handle_service_disconnect()
                                         self.has_entered_paused_state = False
-                                        self.content_auto_claimed = False
-                                    
+
                                     # Set paused flag once service acknowledges pause
                                     if state == "PAUSED":
                                         self.has_entered_paused_state = True
-                                        
-                                    # Detect cluster-triggered wakeup (user cycled to tab)
-                                    if state == "READY" and self.boot_inactive_hold and self.has_entered_paused_state and not self.context_claim_only:
-                                        logger.info("Cluster-triggered wakeup/re-init detected. Clearing boot inactive hold.")
-                                        self.boot_inactive_hold = False
-                                        self.user_paused = False
-                                        self.content_auto_claimed = False
-                                        self._send_draw({'command': 'resume'})
                                         
                                     if self.service_ready != is_ready:
                                         self.service_ready = is_ready
@@ -814,6 +845,11 @@ class DisplayEngine:
                                         self.publish_status()
                                 except Exception as split_err:
                                     logger.error(f"Failed to parse DIS_STATE message '{msg}': {split_err}")
+                            elif msg.startswith("DIS_REQUESTED"):
+                                try:
+                                    self._handle_cluster_request(int(msg.split()[1]))
+                                except (ValueError, IndexError):
+                                    logger.warning("Invalid cluster request: %s", msg)
                             elif msg.startswith("DRAW_NACK"):
                                 try:
                                     seq = int(msg.split()[1])
@@ -832,6 +868,7 @@ class DisplayEngine:
 
                 if self.sub in socks: self._handle_can()
                 
+                self._handle_nav_auto_switch(self.apps['app_nav'])
                 # Periodic App Priority Resolution
                 active_app_name = self._resolve_app_priority()
                 if self.apps[active_app_name] != self.current_app:
@@ -839,23 +876,24 @@ class DisplayEngine:
                     if self.current_app: self.current_app.on_leave()
                     self.current_app = self.apps[active_app_name]
                     self.current_app.on_enter()
+                    self._wheel_epoch = getattr(self, '_wheel_epoch', 0) + 1
                     self.last_tp2_sync = 0 # Force immediate TP2 sync on priority switch
                     self.force_redraw(send_clear=True)
 
-                # Periodic TP2 SYNC for Automotive Data
-                if hasattr(self, 'tp2_cmd') and now - self.last_tp2_sync > 10.0:
+                # Config/subpage edits renew immediately; logging keeps its own lease.
+                for app in self.apps.values():
+                    if hasattr(app, 'tick'):
+                        app.tick()
+                requested = getattr(self.current_app, 'value_requests', [])
+                if hasattr(self, 'tp2_cmd') and (now - self.last_tp2_sync > 5.0
+                        or requested != getattr(self, '_last_value_requests', None)):
                     self.last_tp2_sync = now
+                    self._last_value_requests = requested.copy()
                     try:
-                        # Allow current app to ask for specific groups, default to 113 for atmospheric
-                        groups = getattr(self.current_app, 'tp2_groups', [])
-                        low_priority = getattr(self.current_app, 'tp2_low_priority_groups', [113])
-
                         sync_msg = {
-                            "cmd": "SYNC",
+                            "cmd": "SYNC_VALUES",
                             "client_id": "dis_display",
-                            "module": 1,
-                            "groups": groups,
-                            "low_priority_groups": low_priority
+                            "values": requested
                         }
                         self.tp2_cmd.send_json(sync_msg, flags=zmq.NOBLOCK)
                         # We must receive the reply to satisfy the REQ/REP state machine
@@ -871,13 +909,16 @@ class DisplayEngine:
                             self.tp2_cmd = self.zmq_ctx.socket(zmq.REQ)
                             self.tp2_cmd.setsockopt(zmq.RCVTIMEO, 1000)
                             self.tp2_cmd.setsockopt(zmq.LINGER, 0)
-                            _tp2_addr = self.cfg.get('interfaces', {}).get('zmq', {}).get('tp2_command', 'ipc:///run/rnse_control/tp2_cmd.ipc')
+                            _tp2_addr = self.cfg.get('interfaces', {}).get('zmq', {}).get('vehicle_data_command', 'ipc:///run/rnse_control/vehicle_data_cmd.ipc')
                             self.tp2_cmd.connect(_tp2_addr)
                     except Exception as e:
                         logger.debug(f"TP2 Sync failure handled: {e}")
 
                 self._check_nav_availability_pause()
                 self._check_buttons()
+                if time.monotonic() - getattr(self, '_wheel_status_at', 0) > 3.0:
+                    if hasattr(self.current_app, 'set_control_mode'):
+                        self.current_app.set_control_mode(False)
                 self._draw()
 
                 # Periodic status heartbeat (every 1s)
@@ -890,46 +931,51 @@ class DisplayEngine:
             except Exception as e: logger.error(f"Err: {e}", exc_info=True); time.sleep(1)
 
     def _handle_nav_auto_switch(self, nav_app):
-        """Apply distance hysteresis for the navigation overlay.
+        """Observe route events without replacing the user's selected page."""
+        if not hasattr(self, 'nav_policy'):
+            self.nav_policy = NavigationPolicy(
+                getattr(self, 'nav_approach_threshold', 500),
+                getattr(self, 'nav_return_threshold', 1000),
+                getattr(self, 'nav_peek_seconds', 5))
+        signature = tuple(getattr(nav_app, key, None) for key in
+            ('maneuver_type', 'maneuver_side', 'maneuver_angle', 'description'))
+        available = self.is_nav_available()
+        selected = self.pages[self.current_page_idx]
+        now = time.monotonic()
+        interrupt = self.nav_policy.update(available, signature,
+            getattr(nav_app, 'meters', -1), now,
+            enabled=getattr(self, 'nav_auto_switch', True) and 'app_nav' in self.pages)
+        interrupt = interrupt or (available and now < getattr(self, '_context_nav_peek_until', 0))
+        self.nav_auto_triggered = self.nav_policy.approaching
+        # A manually selected Nav page stays selected, regardless of distance.
+        self.pre_nav_app_name = selected if interrupt and selected != 'app_nav' else None
 
-        Enter at/below the approach threshold. Once auto-entered, remain on Nav
-        until a known distance exceeds the return threshold. Unknown distance
-        is transitional and must not cause either transition.
-        """
-        if not getattr(self, 'nav_auto_switch', True) or not self.nav_active or not getattr(self, 'service_ready', False): return
-        
-        meters = nav_app.meters
-        current_name = self.pages[self.current_page_idx]
-        approach_threshold = getattr(self, 'nav_approach_threshold', 500)
-        return_threshold = getattr(self, 'nav_return_threshold', 1000)
+    def _handle_service_disconnect(self):
+        """A lost cluster session restores the configured ownership policy."""
+        self.boot_inactive_hold = bool(self.start_inactive)
+        self.user_paused = bool(self.start_inactive)
+        self.content_auto_claimed = False
+        self.cluster_selected_session = False
+        self._last_cluster_request = 0
+        self._context_nav_peek_until = 0
+        self.pre_nav_app_name = None
+        if hasattr(self, 'nav_policy'):
+            self.nav_policy.reset()
+        self.force_redraw(send_clear=False)
 
-        # A details update precedes its matching distance update. Waiting here
-        # prevents a stale/unknown value from flickering the overlay.
-        if meters < 0:
+    def _handle_cluster_request(self, generation):
+        """Accept a confirmed 2E/2F content request, never generic READY."""
+        if generation <= getattr(self, '_last_cluster_request', 0):
             return
-
-        # Above the return threshold arms the next approach transition.
-        if meters > return_threshold:
-            self.nav_auto_triggered = False
-
-        if current_name != 'app_nav':
-            # Threshold to switch TO Nav
-            if 0 <= meters <= approach_threshold and not getattr(self, 'nav_auto_triggered', False):
-                logger.info(f"Distance Alert: {meters}m. Switching to Nav.")
-                self.nav_auto_triggered = True
-                self.pre_nav_app_name = current_name
-                self.switch_to_app('app_nav')
-        elif self.pre_nav_app_name:
-            # Only auto-entered Nav returns automatically. A manually selected
-            # Nav page has no pre_nav_app_name and remains user-controlled.
-            if meters > return_threshold:
-                previous_app = self.pre_nav_app_name
-                logger.info(
-                    "Next maneuver is %.1fm away (> %.1fm): returning to %s.",
-                    meters, return_threshold, previous_app,
-                )
-                self.pre_nav_app_name = None
-                self.switch_to_app(previous_app)
+        if not self._send_draw({'command': 'resume'}):
+            return
+        self._last_cluster_request = generation
+        self.cluster_selected_session = True
+        self.boot_inactive_hold = False
+        self.user_paused = False
+        self.content_auto_claimed = False
+        self.force_redraw(send_clear=False)
+        logger.info("Cluster requested DIS content; allowing presentation.")
 
     def _handle_media_match(self, data):
         """Check for Easter Egg matches using regex."""
@@ -993,7 +1039,7 @@ class DisplayEngine:
             logger.error(f"Failed to process Easter Eggs: {e}")
 
     def _handle_phone_status(self, data):
-        state = data.get('state', 'IDLE')
+        state = PhoneApp.call_state(data)
         interesting = state in PhoneApp.CALL_STATES
         
         if interesting != self.phone_active:
@@ -1046,13 +1092,6 @@ class DisplayEngine:
                         elif self.btn['up']['p']: self._btn_event('up', False, now)
                         if b & 0x10: self._btn_event('down', True, now)
                         elif self.btn['down']['p']: self._btn_event('down', False, now)
-                    elif t_str in getattr(self, 't_mfsw', set()) and len(payload) > 1:
-                        b = payload[1]
-                        scroll_menu = self.cfg.get('display', {}).get('phone', {}).get('scroll_wheel_phone_menu', False)
-                        if scroll_menu or self.pages[self.current_page_idx] != 'app_phone':
-                            if b == 0x0B: self.process_input('scroll_up')
-                            elif b == 0x0C: self.process_input('scroll_down')
-                            elif b == 0x08: self.process_input('scroll_click')
         except zmq.Again: pass
 
     def _btn_event(self, name, pressed, now):
@@ -1086,6 +1125,7 @@ class DisplayEngine:
         import time
         self._pending_ui_frame_started = time.monotonic()
         self._pending_ui_frame = (seq, self.current_app)
+        self._pending_ui_frame_clear_epoch = getattr(self, '_deferred_app_clear', None)
         self.current_app.on_frame_sent(seq)
         return True
 
@@ -1107,18 +1147,73 @@ class DisplayEngine:
         self.force_redraw(send_clear=False)
         return False
 
+    def _prepare_text_group(self, items, previous_items, profile, group):
+        """Replace field wipes with measured atomic text updates.
+
+        A clear rectangle is a field boundary, not an instruction to erase
+        neighboring overlays every time proportional text changes.
+        """
+        from text_render import text_update
+        texts = [item for item in items if item.get('cmd') == 'draw_text']
+        old_texts = [item for item in previous_items if item.get('cmd') == 'draw_text']
+        clears = [item for item in items if item.get('cmd') == 'clear_area']
+        consumed = set()
+        slots = []
+        for index, new in enumerate(texts):
+            previous = old_texts[index] if index < len(old_texts) else None
+            matching = next((clear for clear in clears
+                if clear.get('y', 0) <= new.get('y', 0) < clear.get('y', 0) + clear.get('h', 0)
+                and clear.get('x', 0) <= new.get('x', 0) < clear.get('x', 0) + clear.get('w', 0)), None)
+            viewport = tuple(matching.get(k, 0) for k in ('x', 'y', 'w', 'h')) if matching else (0, 0, 64, 48)
+            if matching:
+                consumed.add(id(matching))
+            new = dict(new, field_id=f'{group}:{index}')
+            update = text_update(new, previous, profile, viewport=viewport, config=self.cfg)
+            # The renderer's public representation uses cmd; service IPC uses command.
+            update['cmd'] = update.pop('command')
+            slots.append(update)
+        result = []
+        text_index = 0
+        for item in items:
+            if item.get('cmd') == 'clear_area' and id(item) in consumed:
+                continue
+            if item.get('cmd') == 'draw_text':
+                result.append(slots[text_index])
+                text_index += 1
+            else:
+                result.append(item)
+        for index, previous in enumerate(old_texts[len(texts):], start=len(texts)):
+            update = text_update(dict(previous, text='', field_id=f'{group}:{index}'), previous, profile, config=self.cfg)
+            update['cmd'] = update.pop('command')
+            result.append(update)
+        return result
+
     def _draw(self):
         if (not getattr(self, 'service_ready', True) or getattr(self, 'user_paused', False)
                 or self._ui_frame_waiting()):
             return
         view = self.current_app.get_view()
+        from font_metrics import font_profile
+        from text_render import text_update
+        profile = font_profile(self.cfg)
+        deferred_clear = getattr(self, '_deferred_app_clear', None) is not None
         if isinstance(view, list):
             current_type = view[0].get('type') if view else None
+            # Explicit white navigation can use normal artwork while keeping
+            # native text metrics. Other app/profile defaults remain global.
+            if (isinstance(current_type, str) and current_type.startswith('nav_white_')
+                    and view[0].get('text_profile') == 'native'):
+                profile = 'native'
             prev_type = self.last_sent.get('last_type')
-            full_redraw = current_type != prev_type
+            full_redraw = (current_type != prev_type
+                or self.last_sent.get('_text_profile') != profile)
             payloads = []
-            if full_redraw:
+            if deferred_clear or (full_redraw and current_type != 'nav_stock_mono'):
                 clear = 'clear_payload' if view and view[0].get('clear_on_update', True) and prev_type else 'clear'
+                if deferred_clear or (isinstance(current_type, str) and current_type.startswith(('nav_enhanced_', 'nav_white_'))):
+                    # Enhanced snapshots clear and draw under one final39;
+                    # retain the established clear behavior for other views.
+                    clear = 'clear_payload'
                 payloads.append(dict(command=clear))
             groups_current = {}
             for item in view:
@@ -1144,12 +1239,20 @@ class DisplayEngine:
             for group, items in groups_current.items():
                 if not (full_redraw or replaces_center or last_groups.get(group) != str(items)):
                     continue
-                for item in items:
+                previous_items = [] if full_redraw or replaces_center else (self.last_sent.get('group_items') or {}).get(group, [])
+                prepared_items = self._prepare_text_group(items, previous_items, profile, group)
+                for item in prepared_items:
                     cmd = item.get('cmd')
+                    if (full_redraw and group == 'icon' and cmd == 'clear_area'
+                            and isinstance(current_type, str) and current_type.startswith('nav_white_')):
+                        # The snapshot already has a payload-only full clear.
+                        continue
                     if cmd == 'native_bitmap':
                         payload = dict(command='draw_native_bitmap', x=0, y=0, w=128, h=96,
                             data_hex=item.get('data_hex', ''), render_order=item.get('render_order', 'tiles'),
                             band_rows=item.get('band_rows', 12))
+                        if 'post_message_delay_s' in item:
+                            payload['post_message_delay_s'] = item['post_message_delay_s']
                         if item.get('delta', False):
                             payload['delta'] = True
                         if item.get('update_rect') is not None:
@@ -1159,7 +1262,7 @@ class DisplayEngine:
                             x=item.get('x', 0), y=item.get('y', 0))
                         if 'mode_flag' in item:
                             payload['mode_flag'] = item['mode_flag']
-                    elif cmd in ('draw_text', 'draw_line', 'clear_area', 'draw_raw_bitmap'):
+                    elif cmd in ('draw_text', 'update_text', 'draw_line', 'clear_area', 'draw_raw_bitmap', 'draw_stock_mono_frame', 'draw_native_font', 'draw_stock_nav_glyph'):
                         payload = {key: value for key, value in item.items() if key not in ('cmd', 'group', 'type')}
                         payload['command'] = cmd
                     else:
@@ -1172,38 +1275,45 @@ class DisplayEngine:
                 return
             self.last_sent['groups'] = {group: value for group, value in last_groups.items() if group in groups_current}
             self.last_sent['last_type'] = current_type
+            self.last_sent['group_items'] = groups_current
+            self.last_sent['_text_profile'] = profile
             for key in self.Y:
                 self.last_sent[key] = None
             return
 
-        from font_metrics import fit_text, font_profile
+        from font_metrics import fit_text, font_profile, text_character_capacity
         profile = font_profile(self.cfg)
         custom_transition = self.last_sent.get('groups') is not None
         profile_changed = self.last_sent.get('_text_profile') != profile
-        payloads = [dict(command='clear')] if custom_transition else []
+        payloads = [dict(command='clear_payload')] if custom_transition or deferred_clear else []
         next_text, next_flags = {}, {}
-        max_height = 88 if getattr(self, 'nav_active', False) else 48
+        # Normal text pages use the 48-logical-pixel central region.
+        # Background navigation does not enlarge the active page's window.
+        max_height = 48
         for key, y_pos in self.Y.items():
             if key not in view:
                 # An omitted line must not retain content from the prior view.
                 if not custom_transition and self.last_sent.get(key) not in (None, ''):
                     height = min(9, max_height - y_pos)
                     if height > 0:
-                        payloads.append(dict(command='clear_area', x=0, y=y_pos, w=64, h=height))
+                        payloads.append(text_update(dict(text='', x=0, y=y_pos, flags=self.last_sent_flags.get(key, 6), field_id=key),
+                            dict(text=self.last_sent[key], x=0, y=y_pos, flags=self.last_sent_flags.get(key, 6)),
+                            profile=profile, viewport=(0, y_pos, 64, height), config=self.cfg))
                 next_text[key], next_flags[key] = None, 0
                 continue
             text, flags = view[key]
-            text = fit_text(str(text), 128, flags, profile)
+            text = fit_text(str(text), 128, flags, profile,
+                max_chars=text_character_capacity(flags,profile,self.cfg))
             next_text[key], next_flags[key] = text, flags
             if (custom_transition or profile_changed or self.last_sent.get(key) != text
                     or self.last_sent_flags.get(key, 0) != flags):
-                # Proportional text can shrink even when its character count is
-                # unchanged. Clear the bounded line rather than adding spaces.
                 height = min(9, max_height - y_pos)
                 if height > 0:
-                    payloads.append(dict(command='clear_area', x=0, y=y_pos, w=64, h=height))
-                    if text:
-                        payloads.append(dict(command='draw_text', text=text, y=y_pos, flags=flags))
+                    previous = None if custom_transition else dict(text=self.last_sent.get(key) or '',
+                        x=0, y=y_pos, flags=self.last_sent_flags.get(key, 6))
+                    payloads.append(text_update(dict(text=text, x=0, y=y_pos, flags=flags, field_id=key),
+                        previous, profile=profile, viewport=(0, y_pos, 64, height),
+                        force_clear=profile_changed and not custom_transition, config=self.cfg))
         if payloads and not self._queue_ui_frame(payloads):
             return
         self.last_sent.update(next_text)

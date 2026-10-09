@@ -1,18 +1,63 @@
-import { DiagnosticMessage } from '../types';
+import { DiagnosticMessage, VehicleValue } from '../types';
 
 type Listener = () => void;
 
 class Store {
     private data: Record<string, DiagnosticMessage> = {};
+    private values: Record<string, { sample: VehicleValue; received: number; displayed: number | string }> = {};
     private listeners: Set<Listener> = new Set();
-    // We can track individual value listeners for tighter updates if needed,
-    // but a single global subscribe is usually fast enough when components simply read from the store,
-    // since they are reading raw refs and returning motion values, we actually only need the motion value to update.
-    // Wait, right, we want motion values! Let's do a central motion value store.
-
-    // Actually, let's keep it simple: the store holds raw data.
-    // We'll provide a hook `useLiveValue(groupKey, index)` that subscribes to specific keys.
+    // Motion values subscribe directly so telemetry does not render the whole app.
     private valueListeners: Map<string, Set<(val: number | string) => void>> = new Map();
+
+    updateValues(batch: VehicleValue[], now = performance.now()) {
+        for (const incoming of batch) {
+            let sample = incoming;
+            if (!sample || typeof sample.id !== 'string') continue;
+            if (sample.status === 'ok' && typeof sample.value === 'number' && !Number.isFinite(sample.value)) {
+                sample = { ...sample, status: 'invalid', value: null, quality: {
+                    ...sample.quality, valid: false, reason: 'Non-finite source value' } };
+            }
+            // Snapshots/renewals may already exceed their acquisition age limit.
+            // Publish only the final state, avoiding a healthy/stale flicker.
+            if (this.isExpired(sample, 0)) sample = this.staleSample(sample);
+            const usable = typeof sample.value === 'string' || typeof sample.value === 'number';
+            const displayed = sample.status === 'ok' && usable ? sample.value! : '--';
+            this.values[sample.id] = { sample, received: now, displayed };
+            this.valueListeners.get(`value:${sample.id}[0]`)?.forEach(l => l(displayed));
+        }
+        this.expireValues(now);
+    }
+
+    expireValues(now = performance.now()) {
+        for (const [id, entry] of Object.entries(this.values)) {
+            const { sample } = entry;
+            if (sample.status === 'ok' && this.isExpired(sample, now - entry.received)) {
+                entry.displayed = '--';
+                entry.sample = this.staleSample(sample);
+                this.valueListeners.get(`value:${id}[0]`)?.forEach(l => l('--'));
+            }
+        }
+    }
+
+    private isExpired(sample: VehicleValue, elapsed: number) {
+        return sample.status === 'ok' && typeof sample.max_age_ms === 'number' &&
+            typeof sample.age_ms === 'number' && sample.age_ms + elapsed > sample.max_age_ms;
+    }
+
+    private staleSample(sample: VehicleValue): VehicleValue {
+        return { ...sample, status: 'stale', quality: {
+            ...sample.quality, valid: false, fresh: false, reason: 'Source stopped updating' } };
+    }
+
+    clearValues() {
+        const ids = Object.keys(this.values);
+        this.values = {};
+        for (const id of ids) {
+            this.valueListeners.get(`value:${id}[0]`)?.forEach(l => l('--'));
+        }
+    }
+
+    getValue(id: string) { return this.values[id]?.sample; }
 
     update(batch: DiagnosticMessage[]) {
         batch.forEach((msg) => {
@@ -55,6 +100,9 @@ class Store {
 
         // Fire immediately with current value if we have it
         const currentMsg = this.data[groupKey];
+        if (groupKey.startsWith('value:')) {
+            listener(this.values[groupKey.slice(6)]?.displayed ?? '--');
+        }
         if (currentMsg && currentMsg.data[index]) {
             const val = currentMsg.data[index].value;
             const raw = typeof val === 'number' ? val : (isNaN(parseFloat(val)) ? val : parseFloat(val));

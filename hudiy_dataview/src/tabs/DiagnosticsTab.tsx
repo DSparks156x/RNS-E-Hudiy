@@ -3,6 +3,7 @@ import { useSocket } from '../hooks/useSocket';
 import { useHudiyTheme } from '../hooks/useHudiyTheme';
 import { Keypad } from '../components/Keypad';
 import { HaldexFlashModal } from '../components/HaldexFlashModal';
+import { ExhaustValvePanel } from '../components/ExhaustValvePanel';
 
 interface FreezeFrameItem {
     label: string;
@@ -49,6 +50,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
     const [loadingDTCs, setLoadingDTCs] = useState(false);
     const [dtcError, setDtcError] = useState<string | null>(null);
     const [showFlashModal, setShowFlashModal] = useState(false);
+    const [showExhaust, setShowExhaust] = useState(false);
 
     // Group Subscriptions
     const [group1, setGroup1] = useState<string>('');
@@ -228,6 +230,10 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
         );
     };
 
+    if (showExhaust) {
+        return <ExhaustValvePanel socket={socket} theme={theme} onBack={() => setShowExhaust(false)} />;
+    }
+
     if (selectedModule === null) {
         return (
             <section id="diagnostics" className="tab-content" style={{ color: theme.onSurface, padding: '10px', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -255,6 +261,11 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                             <span style={{ fontSize: '1rem', opacity: 0.8 }}>0x{mod.id.toString(16).padStart(2, '0').toUpperCase()}</span>
                         </button>
                     ))}
+                    <button style={{ ...styles.moduleBtn, backgroundColor: theme.primaryContainer, color: theme.onPrimaryContainer }}
+                        onClick={() => setShowExhaust(true)}>
+                        <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Exhaust valve controller</span>
+                        <span style={{ fontSize: '1rem', opacity: 0.8 }}>SB2209</span>
+                    </button>
                 </div>
             </section>
         );

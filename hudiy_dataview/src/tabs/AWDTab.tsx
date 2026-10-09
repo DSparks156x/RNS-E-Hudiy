@@ -38,23 +38,23 @@ export function AWDTab({ socket = null }: AWDTabProps) {
           <h3>Haldex Engagement</h3>
           <div className="gauges-row">
             <div className="gauge-wrapper">
-              <Gauge id="gauge_awd_pres" groupKey="10:3" index={0} min={0} max={60} label={['Bar', 'Oil Pressure']} sizeClass="gauge-md" />
+              <Gauge id="gauge_awd_pres" valueId="awd.oil_pressure" min={0} max={60} label={['Bar', 'Oil Pressure']} sizeClass="gauge-md" />
             </div>
             <div className="gauge-wrapper">
-              <Gauge id="gauge_awd_torque" groupKey="10:3" index={1} min={0} max={2000} label={['Nm', 'Est. Torque']} sizeClass="gauge-md" />
+              <Gauge id="gauge_awd_torque" valueId="awd.estimated_torque" min={0} max={2000} label={['Nm', 'Est. Torque']} sizeClass="gauge-md" />
             </div>
           </div>
           <div className="extra-vals-grid">
             <div className="col">
               <div className="val-row-sm">
                 <span className="label">Valve (N273):</span>
-                <span><LiveText groupKey="10:3" index={2} format={(v) => fmtVal(v, '%')} /></span>
+                <span><LiveText valueId="awd.valve.opening" format={(v) => fmtVal(v, '%')} /></span>
               </div>
             </div>
             <div className="col">
               <div className="val-row-sm">
                 <span className="label">Current:</span>
-                <span><LiveText groupKey="10:3" index={3} format={(v) => fmtVal(v, 'mA')} /></span>
+                <span><LiveText valueId="awd.valve.current" format={(v) => fmtVal(v, 'mA')} /></span>
               </div>
             </div>
           </div>
@@ -104,11 +104,11 @@ export function AWDTab({ socket = null }: AWDTabProps) {
             <div className="haldex-metrics-row">
               <div className="haldex-metric">
                 <span className="lbl">Cmd Torque</span>
-                <span className="val">{haldex.b08_torque_nm.toFixed(1)} <small>Nm</small></span>
+                <span className="val"><LiveText valueId="awd.commanded_torque" format={(v) => fmtVal(v, 'Nm')} /></span>
               </div>
               <div className="haldex-metric">
                 <span className="lbl">Slip Trq</span>
-                <span className="val">{haldex.a7c_slip_nm.toFixed(1)} <small>Nm</small></span>
+                <span className="val"><LiveText valueId="awd.slip_control_torque" format={(v) => fmtVal(v, 'Nm')} /></span>
               </div>
               <div className="haldex-metric">
                 <span className="lbl">Active</span>
@@ -193,15 +193,15 @@ export function AWDTab({ socket = null }: AWDTabProps) {
             <div className="val-list">
               <div className="val-row">
                 <span className="label">Oil Temp</span>
-                <span className="value"><LiveText groupKey="10:1" index={0} format={(v) => fmtVal(v, '°C')} /></span>
+                <span className="value"><LiveText valueId="awd.oil_temperature" format={(v) => fmtVal(v, '°C')} /></span>
               </div>
               <div className="val-row">
                 <span className="label">Plate Temp</span>
-                <span className="value"><LiveText groupKey="10:1" index={1} format={(v) => fmtVal(v, '°C')} /></span>
+                <span className="value"><LiveText valueId="awd.plate_temperature" format={(v) => fmtVal(v, '°C')} /></span>
               </div>
               <div className="val-row">
                 <span className="label">Supply Volt</span>
-                <span className="value"><LiveText groupKey="10:1" index={2} format={(v) => fmtVal(v, 'V')} /></span>
+                <span className="value"><LiveText valueId="awd.supply_voltage" format={(v) => fmtVal(v, 'V')} /></span>
               </div>
             </div>
           </div>
@@ -212,19 +212,19 @@ export function AWDTab({ socket = null }: AWDTabProps) {
             <div className="val-list">
               <div className="val-row">
                 <span className="label">CAN Out</span>
-                <span className="value sm"><LiveText groupKey="10:5" index={0} /></span>
+                <span className="value sm"><LiveText valueId="awd.can_output_signals" format={String} /></span>
               </div>
               <div className="val-row">
                 <span className="label">Veh Mode</span>
-                <span className="value sm"><LiveText groupKey="10:5" index={1} /></span>
+                <span className="value sm"><LiveText valueId="awd.vehicle_mode" format={String} /></span>
               </div>
               <div className="val-row">
                 <span className="label">Slip Ctrl</span>
-                <span className="value sm"><LiveText groupKey="10:5" index={2} /></span>
+                <span className="value sm"><LiveText valueId="awd.slip_control" format={String} /></span>
               </div>
               <div className="val-row">
                 <span className="label">Op Mode</span>
-                <span className="value sm"><LiveText groupKey="10:5" index={3} /></span>
+                <span className="value sm"><LiveText valueId="awd.operating_mode_fault" format={String} /></span>
               </div>
             </div>
           </div>

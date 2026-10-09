@@ -39,7 +39,7 @@ class BoundedPixels(unittest.TestCase):
                      [6, 2, 0, 72], [6, 2, 72], '6,2,72,72'):
             with self.subTest(rect=rect), self.assertRaises(ValueError):
                 validate_update_rect(rect)
-        for order in ('planes', 'bands'):
+        for order in ('bands',):
             with self.assertRaises(ValueError):
                 compile_native_payloads(bytes(1536), render_order=order, update_rect=RECT)
         with self.assertRaises(ValueError):
@@ -60,7 +60,7 @@ class BoundedService(unittest.TestCase):
 
     def test_service_invalid_bounds_and_delta_reject_before_any_write(self):
         for changes in (dict(update_rect=[7, 2, 72, 72]), dict(update_rect=[6, 2, 128, 72]),
-                        dict(render_order='planes'), dict(delta=True)):
+                        dict(render_order='bands'), dict(delta=True)):
             self.f.results.clear()
             self.assertEqual(self.s._expand_draw_command(dict(self.patch, **changes)), [])
             self.assertEqual(self.f.results, ['DRAW_NACK 71'])
@@ -146,7 +146,9 @@ class BoundedFrontend(unittest.TestCase):
 
     def test_reserved_bounded_icon_update_leaves_unchanged_overlays_alone(self):
         f, initial, changed = self.prepare()
-        self.assertEqual([c['command'] for c in initial], ['clear', 'draw_native_bitmap', 'draw_text', 'draw_text'])
+        self.assertEqual([c['command'] for c in initial], ['clear', 'draw_native_bitmap', 'update_text', 'update_text'])
+        # Atomic text fields are emitted on first presentation; bounded icon
+        # patches preserve them and must not cause redundant text updates.
         self.assertEqual([c['command'] for c in changed], ['draw_native_bitmap'])
         self.assertEqual(changed[0]['update_rect'], RECT)
         self.assertNotIn('preserves_overlays', changed[0])
@@ -155,7 +157,7 @@ class BoundedFrontend(unittest.TestCase):
         for flag, bounded in ((False, True), (True, False)):
             with self.subTest(flag=flag, bounded=bounded):
                 f, initial, changed = self.prepare(flag, bounded)
-                self.assertEqual([c['command'] for c in changed], ['draw_native_bitmap', 'draw_text', 'draw_text'])
+                self.assertEqual([c['command'] for c in changed], ['draw_native_bitmap', 'update_text', 'update_text'])
 
 
 if __name__ == '__main__':

@@ -13,7 +13,7 @@ from apps.nav import NavApp
 
 def nav_config(native=True, units='metric'):
     return {'display': {'road_side': 'right', 'units': {'speed': units},
-                        'center_display': {'navigation': {'high_resolution': native}}}}
+                        'center_display': {'high_resolution': native}}}
 
 
 def distance_text(view):
@@ -23,7 +23,7 @@ def distance_text(view):
 
 def bar_height(view):
     return max([item['length'] for item in view
-                if item.get('group') == 'dist' and item.get('cmd') == 'draw_line'] or [0])
+                if item.get('group') == 'bar' and item.get('cmd') == 'draw_line'] or [0])
 
 
 def route(app, description='Main St', distance='200 m'):

@@ -1,560 +1,30 @@
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RNS-E HUDiy Config Editor</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-        rel="stylesheet">
-    <style>
-        :root {
-            --bg: #0f172a;
-            --card-bg: #1e293b;
-            --input-bg: #0f172a;
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --accent: #38bdf8;
-            --accent-glow: rgba(56, 189, 248, 0.2);
-            --border: #334155;
-            --success: #10b981;
-            --radius-lg: 12px;
-            --radius-md: 8px;
-            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        html,
-        body {
-            height: 100%;
-            overflow: hidden;
-        }
-
-        body {
-            font-family: 'Inter', system-ui, sans-serif;
-            background-color: var(--bg);
-            color: var(--text-primary);
-            line-height: 1.6;
-            display: flex;
-            flex-direction: column;
-        }
-
-        header {
-            width: 100%;
-            max-width: 1200px;
-            margin: 2rem 0;
-            text-align: center;
-        }
-
-        h1 {
-            font-size: clamp(2rem, 5vw, 3rem);
-            font-weight: 800;
-            color: var(--accent);
-            letter-spacing: -0.05em;
-        }
-
-        .main-container.editor-layout {
-            flex: 1;
-            display: flex;
-            flex-direction: row;
-            width: 100%;
-            max-width: 1440px;
-            margin: 0 auto;
-            gap: 2rem;
-            overflow: hidden;
-            padding: 1rem;
-        }
-
-        .actions-bar {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 1rem;
-            background: var(--card-bg);
-            padding: 1rem;
-            border-radius: var(--radius-lg);
-            border: 1px solid var(--border);
-            position: sticky;
-            top: 1rem;
-            z-index: 100;
-            backdrop-filter: blur(8px);
-            background: rgba(30, 41, 59, 0.8);
-        }
-
-        .btn {
-            background: var(--border);
-            color: var(--text-primary);
-            border: none;
-            padding: 0.8rem 1.4rem;
-            border-radius: var(--radius-md);
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            font-size: 0.9rem;
-        }
-
-        .btn:hover {
-            background: #475569;
-            transform: translateY(-2px);
-        }
-
-        .btn.primary {
-            background: var(--accent);
-            color: var(--bg);
-        }
-
-        .btn.primary:hover {
-            background: #7dd3fc;
-            box-shadow: 0 0 20px var(--accent-glow);
-        }
-
-        /* Sidebar Layout */
-        .editor-layout {
-            display: flex;
-            flex-direction: row;
-            /* Force side-by-side on desktop */
-            gap: 2rem;
-            width: 100%;
-            align-items: flex-start;
-        }
-
-        .sidebar {
-            width: 250px;
-            min-width: 250px;
-            max-width: 250px;
-            background: var(--card-bg);
-            border-radius: var(--radius-lg);
-            border: 1px solid var(--border);
-            padding: 1.5rem;
-            height: 100%;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        /* Custom Scrollbars */
-        .sidebar::-webkit-scrollbar,
-        .content-area::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .sidebar::-webkit-scrollbar-track,
-        .content-area::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .sidebar::-webkit-scrollbar-thumb,
-        .content-area::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 4px;
-        }
-
-        .sidebar::-webkit-scrollbar-thumb:hover,
-        .content-area::-webkit-scrollbar-thumb:hover {
-            background: rgba(56, 189, 248, 0.4);
-        }
-
-        .sidebar-header {
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: var(--accent);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 0.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .toc-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-        }
-
-        .toc-link {
-            display: block;
-            padding: 0.6rem 0.8rem;
-            border-radius: var(--radius-md);
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 0.85rem;
-            font-weight: 500;
-            transition: all 0.2s;
-            cursor: pointer;
-            word-break: break-word;
-            white-space: normal;
-        }
-
-        .toc-link:hover {
-            background: rgba(56, 189, 248, 0.1);
-            color: var(--accent);
-        }
-
-        .toc-link.active {
-            background: var(--accent);
-            color: #ffffff;
-            /* White text */
-            font-weight: 600;
-        }
-
-        .toc-link.sub-link.active {
-            background: rgba(56, 189, 248, 0.15);
-            color: #ffffff;
-            border-left: 3px solid var(--accent);
-            border-radius: 0 4px 4px 0;
-            padding-left: 0.6rem;
-        }
-
-        .content-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 2rem;
-            min-width: 0;
-            height: 100%;
-            overflow-y: auto;
-            padding-right: 0.5rem;
-        }
-
-        /* Search Styles */
-        .search-wrapper {
-            position: relative;
-            flex: 1;
-            min-width: 250px;
-        }
-
-        .search-wrapper svg {
-            position: absolute;
-            left: 0.75rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-secondary);
-            pointer-events: none;
-        }
-
-        .search-input {
-            padding-left: 2.5rem;
-            background: rgba(15, 23, 42, 0.4);
-        }
-
-        #config-form {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 2rem;
-        }
-
-        @media (max-width: 900px) {
-            .editor-layout {
-                flex-direction: column;
-            }
-
-            .sidebar {
-                width: 100%;
-                position: static;
-                max-height: none;
-            }
-        }
-
-        .config-section {
-            background: var(--card-bg);
-            border-radius: var(--radius-lg);
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            animation: fadeIn 0.4s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .section-header {
-            background: rgba(51, 65, 85, 0.4);
-            padding: 1.25rem 1.5rem;
-            border-bottom: 1px solid var(--border);
-            font-weight: 700;
-            color: var(--accent);
-            text-transform: uppercase;
-            font-size: 0.9rem;
-            letter-spacing: 0.1em;
-        }
-
-        .section-content {
-            padding: 1.5rem;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr));
-            gap: 2rem;
-        }
-
-        /* Nested Groups */
-        .nested-group {
-            grid-column: 1 / -1;
-            background: rgba(15, 23, 42, 0.3);
-            border: 1px dashed var(--border);
-            border-radius: var(--radius-md);
-            padding: 1.25rem;
-            margin-top: 0.5rem;
-        }
-
-        .nested-title {
-            font-size: 0.8rem;
-            font-weight: 700;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            margin-bottom: 1.25rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .nested-title::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: var(--border);
-        }
-
-        .nested-content {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-            gap: 1.5rem;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.6rem;
-        }
-
-        .label-wrapper {
-            display: flex;
-            flex-direction: column;
-            gap: 0.2rem;
-        }
-
-        label {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            text-transform: capitalize;
-        }
-
-        .help-tip {
-            color: var(--text-secondary);
-            font-size: 0.75rem;
-            line-height: 1.4;
-        }
-
-        input,
-        select {
-            background: var(--input-bg);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            color: var(--text-primary);
-            padding: 0.75rem 1rem;
-            font-size: 0.95rem;
-            font-family: 'JetBrains Mono', monospace;
-            width: 100%;
-        }
-
-        input:focus {
-            outline: none;
-            border-color: var(--accent);
-            background: #1e293b;
-        }
-
-        .json-raw {
-            width: 100%;
-            height: 300px;
-            font-family: 'JetBrains Mono', monospace;
-            background: #000;
-            color: #10b981;
-            padding: 1rem;
-            border-radius: var(--radius-md);
-            font-size: 0.85rem;
-        }
-
-        #file-input {
-            display: none;
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 2rem;
-            left: 50%;
-            transform: translateX(-50%) translateY(100px);
-            background: var(--accent);
-            color: var(--bg);
-            padding: 0.8rem 2rem;
-            border-radius: 99px;
-            font-weight: 700;
-            box-shadow: 0 10px 25px rgba(56, 189, 248, 0.4);
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            z-index: 1000;
-            opacity: 0;
-        }
-
-        .toast.show {
-            transform: translateX(-50%) translateY(0);
-            opacity: 1;
-        }
-
-        /* Detailed Help Styles */
-        .help-icon {
-            cursor: pointer;
-            color: var(--accent);
-            font-size: 0.9rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 1.2rem;
-            height: 1.2rem;
-            background: rgba(56, 189, 248, 0.1);
-            border-radius: 50%;
-            transition: all 0.2s;
-            vertical-align: middle;
-            margin-left: 0.5rem;
-        }
-
-        .help-icon:hover {
-            background: var(--accent);
-            color: var(--bg);
-        }
-
-        .detailed-help-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(4px);
-            z-index: 1000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
-        }
-
-        .detailed-help-modal {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 2rem;
-            max-width: 600px;
-            width: 100%;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-            animation: fadeIn 0.3s ease-out;
-        }
-
-        .detailed-help-text {
-            white-space: pre-wrap;
-            margin-bottom: 2rem;
-            color: var(--text-primary);
-        }
-
-        @media (max-width: 640px) {
-            header {
-                margin: 1rem 0;
-            }
-
-            .section-content {
-                padding: 1rem;
-                gap: 1.5rem;
-            }
-
-            .nested-group {
-                padding: 0.75rem;
-            }
-        }
-    </style>
-</head>
-
-<body>
-
-    <div class="main-container editor-layout">
-        <!-- Sidebar Navigation -->
-        <nav class="sidebar">
-            <div class="toc-list" id="toc-list"></div>
-        </nav>
-
-        <!-- Main Content -->
-        <div class="content-area">
-            <header>
-                <h1>HUDiy Config</h1>
-                <p class="subtitle">Experience management for your RNS-E interface</p>
-            </header>
-            <div class="actions-bar">
-                <!-- Search -->
-                <div class="search-wrapper">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
-                    <input type="text" id="search-input" class="search-input"
-                        placeholder="Search parameters or values..." oninput="filterConfig(this.value)">
-                </div>
-
-                <input type="file" id="file-input" accept=".json">
-                <button class="btn" onclick="document.getElementById('file-input').click()">
-                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                    </svg>
-                    Import JSON
-                </button>
-                <button class="btn primary" onclick="downloadConfig()">
-                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                    </svg>
-                    Export config.json
-                </button>
-            </div>
-
-            <div id="config-form"></div>
-
-            <div class="config-section" id="raw-section"
-                style="display: none; margin-top: 2rem; border-color: var(--success);">
-                <div class="section-header" style="color: var(--success);">Live JSON Preview</div>
-                <div class="section-content">
-                    <textarea id="json-output" class="json-raw" readonly></textarea>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="toast" class="toast">Saved Successfully</div>
-
-    <div id="detailed-help-overlay" class="detailed-help-overlay" onclick="closeDetailedHelp()">
-        <div class="detailed-help-modal" onclick="event.stopPropagation()">
-            <div class="nested-title" id="help-modal-title">Detailed Help</div>
-            <div class="detailed-help-text" id="help-modal-text"></div>
-            <button class="btn" onclick="closeDetailedHelp()"
-                style="width: 100%; justify-content: center;">Close</button>
-        </div>
-    </div>
-
-    <script>
-        let currentConfig = {};
-
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark"><title>RNS-E HUDiy · Configuration</title>
+<style>
+:root{--bg:#f6f7f0;--surface:#fff;--soft:#e9eee2;--ink:#20261e;--muted:#56614f;--line:#d6ddcf;--accent:#416431;--on-accent:#fff;--error:#a52c25;--radius:22px;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#141a13;--surface:#1e261c;--soft:#2b3627;--ink:#e2e9dc;--muted:#aab8a2;--line:#414e3b;--accent:#b2d49d;--on-accent:#243b17;--error:#ffb4ab;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}button,input,select,textarea{font:inherit}button,a,input,select,textarea{touch-action:manipulation}button{cursor:pointer}a{color:var(--accent)}:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+header{padding:36px 32px 20px;max-width:1450px;margin:auto}h1{font-size:clamp(28px,4vw,40px);line-height:1.15;font-weight:600;letter-spacing:-1.2px;margin:8px 0 14px}.eyebrow{font-size:12px;letter-spacing:2px;color:var(--muted)}p{margin:8px 0;color:var(--muted)}.source-panel{padding:22px;border-radius:var(--radius);background:var(--soft);margin-top:24px}.source-controls{display:flex;flex-wrap:wrap;align-items:end;gap:12px}.source-controls label{display:flex;flex-direction:column;gap:6px;flex:1;min-width:180px;font-size:13px}.source-controls label:first-child{flex:2}input,select,textarea{color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 13px;min-width:0;width:100%}.btn{border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);padding:11px 20px;min-height:44px;font-weight:600}.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}button:disabled{opacity:.5;cursor:wait}.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px}.search-wrapper{flex:1;min-width:180px}.source-status{font-size:13px;margin-top:12px}.source-status.error{color:var(--error)}
+.main-container{display:grid;grid-template-columns:230px minmax(0,1fr);max-width:1450px;padding:8px 32px 60px;margin:auto;gap:28px}.sidebar{position:sticky;top:20px;align-self:start;max-height:calc(100vh - 40px);overflow:auto}.toc-link{display:block;text-decoration:none;color:var(--muted);padding:10px 14px;border-radius:999px;font-size:14px}.toc-link:hover,.toc-link.active{background:var(--soft);color:var(--ink)}.config-section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin-bottom:18px;scroll-margin-top:20px}.section-header{font-size:22px;font-weight:600;margin:0 0 8px}.section-description{margin:0 0 24px;font-size:14px}.section-content,.nested-content{display:grid;gap:22px}.nested-group{padding-top:16px;border-top:1px solid var(--line)}.nested-title{font-size:17px;font-weight:600;margin:0 0 16px}.form-group{display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,.8fr);gap:12px 28px;align-items:start}.label-wrapper label{font-weight:600;display:block}.help-tip{display:block;color:var(--muted);font-size:13px;margin-top:6px;max-width:66ch}.setting-path{display:block;font:11px/1.5 ui-monospace,monospace;color:var(--muted);overflow-wrap:anywhere;margin-top:7px}.json-raw{font:13px/1.5 ui-monospace,monospace;min-height:120px;resize:vertical}.field-error{grid-column:2;color:var(--error);font-size:13px;margin:0}.invalid{border-color:var(--error)}.help-icon{background:var(--soft);color:var(--accent);border:0;border-radius:50%;margin-left:8px;width:26px;height:26px}.hint{font-size:12px;color:var(--muted)}.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:12px 22px;background:var(--ink);color:var(--bg);border-radius:999px;opacity:0;pointer-events:none}.toast.show{opacity:1}#file-input{display:none}#empty-search{padding:32px;text-align:center}#raw-section summary{cursor:pointer;font-weight:600}#json-output{width:100%;min-height:320px;margin-top:18px}dialog{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:24px;width:min(600px,90vw);padding:28px}dialog::backdrop{background:#0008}.detailed-help-text{white-space:pre-wrap;margin:16px 0 24px;color:var(--muted)}
+@media(max-width:850px){.main-container{grid-template-columns:1fr;gap:12px;padding:8px 20px 40px}.sidebar{position:static;max-height:none}.toc-list{display:flex;overflow:auto;gap:6px;padding-bottom:10px}.toc-link{white-space:nowrap}header{padding:24px 20px 12px}.config-section{padding:20px}}@media(max-width:540px){.form-group{grid-template-columns:1fr;gap:10px}.field-error{grid-column:1}.toolbar .btn{flex:1}.source-panel{padding:16px}.source-controls .btn{width:100%}.config-section{padding:18px}}
+[hidden]{display:none!important}
+</style></head><body>
+<header><div class="eyebrow">RNS-E HUDIY</div><h1>Configuration</h1><p>Adjust the cluster display, controls and vehicle services. Download your config, then apply it on the Pi.</p>
+<div class="source-panel"><div class="source-controls">
+<label for="source-repo">GitHub repository<select id="source-repo" onchange="sourceSelectionChanged()"><option value="DSparks156x/RNS-E-Hudiy" selected>DSparks156x / RNS-E-Hudiy</option><option value="custom">Another repository…</option></select></label>
+<label id="custom-repo-label" hidden for="custom-repo">Owner / repository<input id="custom-repo" placeholder="owner/repository" onchange="sourceSelectionChanged()"></label>
+<label for="source-branch">Branch<select id="source-branch" onchange="sourceSelectionChanged()"><option selected>testing</option><option>release</option><option>beta</option><option>main</option><option value="custom">Another branch…</option></select></label>
+<label id="custom-branch-label" hidden for="custom-branch">Branch name<input id="custom-branch" placeholder="feature/my-branch" onchange="sourceSelectionChanged()"></label>
+<button id="open-config" class="btn primary" onclick="openRepositoryConfig()">Open config</button>
+<button class="btn" onclick="openRepositoryPage()">View on GitHub ↗</button>
+</div><p id="source-status" class="source-status" role="status" aria-live="polite">Bundled example. Open config fetches the latest config.json from the selected branch.</p>
+<div class="toolbar"><div class="search-wrapper"><input type="search" id="search-input" aria-label="Search settings" placeholder="Search settings, descriptions or values" oninput="filterConfig(this.value)"></div><input type="file" id="file-input" accept=".json,application/json"><button class="btn" onclick="document.getElementById('file-input').click()">Import JSON</button><button id="undo-load" class="btn" hidden onclick="undoLoad()">Undo load</button><button id="export-config" class="btn primary" onclick="downloadConfig()">Download config.json</button></div>
+<p class="hint">Edits stay in this browser tab. Opening or importing a config replaces the form; Undo load restores your previous work. No changes are sent to GitHub or the Pi.</p></div></header>
+<main class="main-container"><nav class="sidebar" aria-label="Settings sections"><div class="toc-list" id="toc-list"></div></nav><div class="content-area"><div id="config-form"></div><p id="empty-search" hidden>No settings match this search.</p><details class="config-section" id="raw-section"><summary>JSON preview</summary><textarea id="json-output" class="json-raw" readonly aria-label="Current configuration JSON"></textarea></details></div></main>
+<div id="toast" class="toast" role="status" aria-live="polite"></div><dialog id="detailed-help-overlay" aria-labelledby="help-modal-title"><h2 id="help-modal-title"></h2><div class="detailed-help-text" id="help-modal-text"></div><button class="btn" onclick="closeDetailedHelp()">Close</button></dialog>
+<script>
+let currentConfig = {};
         const SCHEMA = {
             "branch": {
                 label: "update branch",
@@ -572,9 +42,12 @@
                 detailedHelp: "Testing Branch - Latest experimental possibly broken changes, used by me for testing.\n\nRelease Branch - Latest relatively well tested good release.\n\nBeta Branch - Latest less tested release or Release if newer. may or may not really get used"
             },
             "display.center_display.enabled": { help: "Enable or disable the cluster display service.", type: "boolean" },
+            "display.center_display.high_resolution": { label: "High Resolution", help: "Selects existing high or normal artwork and other app/font layouts. An explicit Stock or Bitmap navigation icon choice uses the white DIS layout with the native approach bar at either artwork resolution. Keep a saved legacy font profile for a red DIS.", type: "boolean" },
             "display.center_display.mode": { label: "Default App", help: "Initial display mode.", type: "select", options: ["nav", "media", "phone", "car_info", "acceleration_test"] },
             "display.center_display.applist": { label: "Configured Applications", help: "Cycleable applications in order.", options: ["nav", "media", "phone", "car_info", "acceleration_test", "coverart"] },
-            "display.center_display.navigation.high_resolution": { label: "Native Navigation Icons", help: "Use crisp 72x72 icons on a 128x96 white DIS canvas. Disabled keeps legacy icons; distance and street text use the cluster font.", type: "boolean" },
+            "display.center_display.navigation.native_render_order": { label: "Navigation Icon Rendering", help: "Planes draw the icon quickly and then refine it. Tiles finish each small area before moving on.", type: "select", options: ["planes", "tiles"] },
+            "display.center_display.navigation.icon_style": { label: "Navigation Icons", help: "Stock uses native font icons without numeric distance. Bitmap uses the existing high or normal artwork and numeric next-maneuver distance. Both use the native approach bar and full-width street on a white DIS.", type: "select", options: ["stock", "bitmap"] },
+            "display.center_display.navigation.native_message_delay_ms": { label: "Icon Drawing Pause (ms)", help: "Increase this pause if native icons show stray pixels.", type: "number", min: 0, max: 100 },
             "display.center_display.navigation.auto_switch": { help: "Automatic switching to Nav app.", type: "boolean" },
             "display.center_display.navigation.auto_switch_approach_threshold": { help: "Auto switch distance (meters).", type: "number" },
             "display.center_display.navigation.auto_switch_return_threshold": { help: "Switch back distance (meters).", type: "number" },
@@ -582,7 +55,6 @@
             "display.center_display.navigation.claim_on_nav": { help: "Auto-claim center display when a route starts and release when it ends.", type: "boolean" },
             "display.center_display.coverart": { label: "Album Cover Art" },
             "display.center_display.coverart.brief": { help: "Show briefly on track start (5s).", type: "boolean" },
-            "display.center_display.coverart.native_resolution": { label: "Native Cover Art", help: "Render covers at 128x96 physical pixels on white DIS. Disabled keeps the 64x48 bitmap path.", type: "boolean" },
             "display.center_display.coverart.native_preset": { label: "Native Image Preset", help: "legacy uses existing Processing Args at native resolution; balanced uses ordered dither; photo uses error diffusion; text uses a crisp threshold.", type: "select", options: ["legacy", "balanced", "photo", "text"] },
             "display.center_display.coverart.native_args": { label: "Native Processing Overrides", type: "json", help: "JSON object of overrides for the selected native preset. Empty uses its defaults. With legacy, these override Processing Args. Dimensions stay 128x96." },
             "display.center_display.coverart.native_render_order": { label: "Native Draw Order", help: "tiles completes small regions before moving on. planes draws the base then subpixel layers; bands completes horizontal strips. All produce the same target pixels.", type: "select", options: ["tiles", "planes", "bands"] },
@@ -631,20 +103,27 @@
             "display.top_display.nav_line1_mode": { label: "Nav Line 1 Mode", help: "Formatting: key-key-key (description, maneuver, distance)", type: "text", options: ["description", "maneuver", "distance"] },
             "display.top_display.nav_line2_mode": { label: "Nav Line 2 Mode", help: "Formatting: key-key-key (description, maneuver, distance)", type: "text", options: ["description", "maneuver", "distance"] },
 
-            "display.units.speed": { help: "Velocity units.", type: "select", options: ["imperial", "metric", "car"] },
+            "display.units": { label: "Navigation & Legacy Units", help: "Global overrides for navigation, acceleration tests, the red DIS Car Info screen and the older boost widget. Configure each new DIS reading's units in DataView → Data & Logs → DIS pages." },
+            "display.units.speed": { label: "Navigation & Acceleration Speed", help: "mph/miles or km/h/km for navigation and acceleration tests. car follows the vehicle's unit setting.", type: "select", options: ["imperial", "metric", "car"] },
             "display.units.ambient_temp": { help: "Temperature readout units.", type: "select", options: ["imperial", "metric", "car"] },
-            "display.units.boost": { help: "Boost Units.", type: "select", options: ["imperial", "metric", "car"] },
-            "display.units.cartemp": { help: "Car Temperature units (oil/coolant).", type: "select", options: ["imperial", "metric", "car"] },
-            "display.units.boost_mode": { help: "Absolute manifold pressure or manifold minus atmosphere", type: "select", options: ["absolute", "relative"] },
-            "display.font_resolution": { label: "Cluster Font Metrics", help: "native uses the captured white-cluster font advances; legacy uses the red-cluster reference advances. This controls text layout, independently of navigation/cover-art bitmap resolution.", type: "select", options: ["native", "legacy"] },
+            "display.units.boost": { label: "Legacy Boost Units", help: "Boost units for the red DIS Car Info screen and older boost widget. New DIS pages choose units per slot.", type: "select", options: ["imperial", "metric", "car"] },
+            "display.units.cartemp": { label: "Legacy Temperature Units", help: "Oil/coolant temperature units for the red DIS Car Info screen. New DIS pages choose units per slot.", type: "select", options: ["imperial", "metric", "car"] },
+            "display.units.boost_mode": { label: "Legacy Boost Pressure Mode", help: "Absolute pressure or pressure minus atmosphere for the red DIS Car Info screen and older boost widget. New DIS pages select the desired value from the catalog.", type: "select", options: ["absolute", "relative"] },
             "display.text_scrolling.continuous": { help: "Loop long text indefinitely.", type: "boolean" },
             "display.text_scrolling.continuous_gap": { help: "space between end and start of scroll text" },
             "display.text_scrolling.speed_ms": { help: "Delay between scroll steps (ms).", type: "number" },
             "display.text_scrolling.line_offset_ms": { help: "time offset between scroll lines" },
             "display.text_scrolling.start_delay_ms": { help: "Scroll pause time at start of text" },
             "display.text_scrolling.end_delay_ms": { help: "Scroll pause time at end of text" },
-            "display.phone.scroll_wheel_phone_menu": { help: "Enable interacting with phone calls via the MFSW scroll wheel actions (Accept/Reject/End).", type: "boolean" },
+            "display.phone.scroll_wheel_phone_menu": { label: "Automatic Phone Wheel Control", help: "Automatically enter DIS wheel control for the visible center phone page or top-only phone display. Double-click MODE to return to normal wheel mappings for the current call. Manual readings control takes priority. Page showing is configured separately.", type: "boolean" },
             "display.phone.claim_on_phone": { help: "Auto-claim center display on incoming/active phone calls and release when ended.", type: "boolean" },
+            "input_mappings.mfsw.double_click_ms": { label: "Wheel Double-click Window (ms)", help: "MODE double-click toggles DIS control. In DIS control, wheel double-click goes back. Single-click actions wait for this window.", type: "number", min: 150, max: 800 },
+            "interfaces.zmq.input_control_stream": { label: "DIS Wheel Events", help: "The keyboard service publishes shared wheel ownership and semantic DIS input events here.", type: "text" },
+            "interfaces.zmq.dis_top_status": { label: "Top DIS Control Status", help: "Top phone display visibility and readiness for shared wheel routing.", type: "text" },
+            "interfaces.zmq.data_logs_command": { label: "Shared Logging Commands", help: "DataView receives DIS Start, Mark, Stop and status commands here.", type: "text" },
+            "data_logs": { label: "Named-value Recordings", help: "Recording profiles and DIS pages are edited in DataView → Data & Logs. The existing data_logger section still controls raw CAN/debug logging." },
+            "data_logs.directory": { label: "Recording Directory", help: "Stores workspace.json and named-value sessions. Existing raw/debug logs keep their own directory.", type: "text" },
+            "data_logs.queue_size": { label: "Recording Writer Queue", help: "Maximum queued samples. Queue losses are reported in recording status.", type: "number", min: 100 },
             "features.day_night_mode": { help: "Automatically sets day/night in Hudiy. Hudiy state propagates to AA/Carplay", type: "boolean" },
             "features.source_controls": { help: "Auto Pause/Resume when switching from/to tv source.", type: "boolean" },
             "features.debug_mode": { help: "Enable detailed logging for troubleshooting.", type: "boolean" },
@@ -663,11 +142,6 @@
             "features.power_management.connection_management.manage_bluetooth": { help: "Toggle Bluetooth/BLE adapter power automatically.", type: "boolean" },
             "features.power_management.connection_management.manage_android_auto": { help: "Dispatch connect/disconnect to Hudiy Android Auto.", type: "boolean" },
             "features.power_management.connection_management.disconnect_delay_seconds": { help: "Delay before disconnecting when ignition/radio turns off (sec).", type: "number" },
-            // Hudiy API diagnostics
-            "diagnostics.hudiy_api_capture": { label: "Hudiy API Event Capture", help: "Records provider-tagged projection, media, navigation, and phone API callbacks for AA/CarPlay comparison." },
-            "diagnostics.hudiy_api_capture.enabled": { help: "Keep a bounded diagnostic capture available in the file portal.", type: "boolean" },
-            "diagnostics.hudiy_api_capture.path": { help: "Output file shown in the portal's Hudiy API captures collection." },
-            "diagnostics.hudiy_api_capture.max_size_mb": { help: "Maximum current capture size in MB; one previous capture is retained.", type: "number" },
             // MMI Specific Mappings
             "input_mappings.mmi": { label: "RNS-E (MMI)" },
             "input_mappings.mmi.cooldown_period": { help: "Min time between distinct button events (sec).", type: "number" },
@@ -780,19 +254,158 @@
             }
         };
 
+// Descriptions follow the consumers in can_base_function, can_keyboard_control,
+// dis_display, vehicle_data/service, haldex_manager, data_logger and file_portal.
+const SETTING_HELP = {
+  branch: 'Update track selected by the Pi installer: testing and main follow their branches. Other tracks, including release and beta, prefer the latest matching track-* tag, then the branch, then main if the reference is missing. This is independent of the source picker above.',
+  repo: 'GitHub repository URL used by the Pi updater. Use the full https://github.com/owner/repository URL.',
+  config_restore_repo: 'Repository from which the installer restores a replacement config.json when you request a config reset.',
+  config_restore_branch: 'Branch used for a requested config reset. Normal updates preserve your existing config.',
+  ddp_bitmap_message_bytes: 'Maximum bytes in each DDP bitmap message (13–195). Larger messages reduce command overhead. Multi-row commands require 105 or fewer bytes. Default example: 105.',
+  'diagnostics.enabled': 'Enable the diagnostic worker used to read ECU measuring groups. CAN-derived readings can still be available independently.',
+  'diagnostics.values.diagnostic_hz': 'Default requested frequency, in Hz, for diagnostic values without an explicit polling period. Actual delivery depends on ECU and bus capacity.',
+  'diagnostics.values.ican_hz': 'Default requested frequency, in Hz, for infotainment CAN values without an explicit polling period.',
+  'diagnostics.values.lease_seconds': 'Seconds before the shared value broker expires a client’s requests when the client stops renewing its interest.',
+  'haldex.enabled': 'Enable the Haldex control manager. Mode changes require compatible controller firmware; this setting does not flash firmware.',
+  'haldex.default_mode': 'Startup mode: null restores the last saved mode, 0 = Stock, 1 = Performance, 2 = Competition. A fixed mode disables saving mode changes as the next startup choice.',
+  'haldex.burst_count': 'Number of CAN frames sent in a Haldex mode command burst. Repeated frames help the controller receive the requested mode.',
+  'haldex.burst_interval_ms': 'Pause in milliseconds between frames in each Haldex mode command burst.',
+  'haldex.persistence_file': 'JSON file storing the last requested Haldex mode when default_mode is null. The Pi service must be able to write here.',
+  'haldex.firmware_dir': 'Directory containing Haldex firmware available in DataView and the file portal. A leading ~ expands to the Pi service user’s home directory.',
+  'eps.firmware_dir': 'Directory containing steering controller images or datasets for the EPS tools. A leading ~ expands on the Pi.',
+  'exhaust_valve.firmware_dir': 'Directory used for exhaust-valve firmware images. The flashing tools inspect candidate firmware before deployment.',
+  'exhaust_valve.installed_generation_floor': 'Minimum deployed exhaust-control firmware generation assumed when no deployment record exists. Keep this aligned with the firmware actually installed.',
+  'exhaust_valve.generation_file': 'Deployment record used to track installed exhaust-control firmware generation and determine supported commands.',
+  'exhaust_valve.intent_file': 'JSON persistence file for the requested exhaust-valve behavior, restored by the Haldex manager.',
+  'data_logger.default_profile': 'Default raw/debug recording profile. The current logger implements the haldex profile, falling back to it for unknown profile names.',
+  'data_logger.log_directory': 'Directory for raw/debug sessions, separate from named-value recordings under data_logs.directory. Supports ~ on the Pi.',
+  'data_logger.queue_size': 'Maximum queued raw/debug records before the writer falls behind. Runtime enforces at least 100; dropped records are reported.',
+  'data_logger.profiles.haldex.measuring_groups': 'Additional diagnostic groups for raw Haldex sessions. JSON list of objects: module (hex address), groups (list of group numbers), low_priority_groups (optional list), value_count (default 4). An empty list uses the built-in profile groups.',
+  'openpilot.enabled': 'Reserved setting. Openpilot integration is disabled in the current runtime because its CAN identifiers conflict with Haldex control; enabling this setting does not activate it.',
+  'display.center_display.start_inactive': 'Start with the original cluster presentation until HUDiy display ownership is requested. Useful when you want the factory screen visible at boot.',
+  'display.center_display.mode': 'Center DIS app selected at startup. car_info uses named-value pages on the white DIS and the legacy vehicle summary on the red DIS.',
+  'display.center_display.applist': 'Ordered JSON list of apps available when cycling the center display. Keep the app IDs: nav, media, phone, car_info, acceleration_test; coverart can also be selected.',
+  'display.top_display.applist': 'Top-line app priority, highest first. The first app with active content wins: phone for a call, nav for guidance, media for playback.',
+  'display.center_display.coverart.args': 'JSON object of legacy image-processing overrides. Used by the legacy preset; the other native presets use their own defaults plus native_args. Open the help button for each processing argument.',
+  'display.center_display.navigation.auto_switch': 'Temporarily show navigation when a maneuver approaches. Each new maneuver gets a five-second preview; manually choosing another page suppresses that maneuver’s automatic approach switch.',
+  'display.center_display.navigation.auto_switch_approach_threshold': 'Distance to the maneuver, in meters, at which navigation takes over the center display. The example uses 500 m.',
+  'display.center_display.navigation.auto_switch_return_threshold': 'Distance to a later maneuver, in meters, beyond which the previous app can return after the approach sequence. Keep this larger than the approach threshold to avoid switching back and forth.',
+  'display.center_display.navigation.approach_bar_max_distance': 'Distance in meters used to scale the native maneuver-approach bar. This controls the bar’s visual range, independently of automatic page switching.',
+  'display.text_centering': 'Center short text in the DIS text area. Long text uses the scrolling settings instead.',
+  'display.text_scrolling.continuous': 'Wrap long text into a repeating loop. Disabled scrolling moves to the end and then returns to the beginning.',
+  'display.text_scrolling.continuous_gap': 'Number of spaces between the end and beginning of a continuously scrolling line.',
+  'display.text_scrolling.speed_ms': 'Milliseconds between scrolling steps. Larger values scroll more slowly.',
+  'display.text_scrolling.line_offset_ms': 'Milliseconds of additional delay between lines so they do not all start scrolling together.',
+  'display.text_scrolling.start_delay_ms': 'Milliseconds to hold a long line at its beginning before scrolling starts.',
+  'display.text_scrolling.end_delay_ms': 'Milliseconds to hold a line at its end before restarting non-continuous scrolling.',
+  'display.units.ambient_temp': 'Ambient temperature override: imperial = °F, metric = °C, car = the vehicle’s temperature unit setting.',
+  'features.sync_android_auto': 'When day/night synchronization runs, explicitly set Android Auto’s appearance mode as well as Hudiy’s common/system mode. Disabled uses the common mode alone; this does not connect or disconnect Android Auto.',
+  'features.mmi_controls': 'Translate RNS-E buttons and knob events into the configured keyboard mappings.',
+  'features.mfsw_controls': 'Translate multifunction steering-wheel events into keyboard actions. DIS wheel ownership uses these events for phone and readings controls.',
+  'features.system_actions': 'Allow MMI extended-press mappings to run system commands such as saving logs, rebooting or shutting down.',
+  'features.time_sync.enabled': 'Set the Pi clock from the vehicle’s CAN time message when its drift exceeds the configured threshold.',
+  'features.time_sync.data_format': 'Vehicle time-message encoding. old_logic decodes BCD time/date fields; new_logic decodes binary fields. Match your vehicle’s transmitted format.',
+  'features.time_sync.threshold_minutes': 'Absolute clock difference in minutes that triggers synchronization. 0.1 means six seconds.',
+  'features.car_time_zone': 'IANA timezone used to interpret the local time sent by the car, for example America/Denver or Europe/London.',
+  'features.power_management.auto_shutdown.enabled': 'Enable automatic Pi shutdown after the selected power-state trigger persists for the delay.',
+  'features.power_management.auto_shutdown.trigger': 'Power-state transition that starts the shutdown timer: ignition_off or key_pulled. A return to the active state cancels the timer; an active GPIO wake signal holds off shutdown.',
+  'features.power_management.listen_only_mode.enabled': 'Place the infotainment SocketCAN interface into listen-only mode after the vehicle bus is ready to sleep, avoiding transmissions that keep it awake.',
+  'features.power_management.listen_only_mode.delay_seconds': 'Seconds to wait after the sleep-ready condition before switching the CAN interface to listen-only.',
+  'features.power_management.listen_only_mode.fallback_seconds': 'Seconds since ignition turned OFF before forcing the sleep-ready state, even if network-management frames still arrive. This is a fallback for vehicles that keep transmitting.',
+  'features.power_management.gpio_shutdown.enabled': 'Watch the configured GPIO and shut down the Pi when its shutdown level persists for the delay.',
+  'features.power_management.gpio_shutdown.pin': 'BCM GPIO number of the shutdown input. This is a GPIO number, not a physical header-pin number.',
+  'features.power_management.gpio_shutdown.active_low': 'gpiozero input polarity: enabled means low is the active Button state; disabled means high is active. The service derives the wake signal from this state and shuts down when that wake signal is OFF.',
+  'features.power_management.gpio_shutdown.delay_seconds': 'Seconds the GPIO must remain at its shutdown level before the Pi shuts down.',
+  'features.power_management.connection_management.enabled': 'Automatically manage Hudiy Android Auto and Bluetooth connections using ignition, radio and wake events.',
+  'features.tv_simulation.enabled': 'Transmit TV tuner presence frames so the RNS-E can select the TV source used by the video interface.',
+  'input_mappings.mmi.scroll_commands': 'MMI byte pairs treated as immediate rotary events. These bypass press-duration handling; the matching short-press mapping chooses the keyboard key.',
+  'input_mappings.mfsw.commands.release': 'Two-byte steering-wheel release pattern. Keep this as a JSON array of hex strings, matching the vehicle CAN payload.',
+  'input_mappings.source.tv_mode_identifier': 'Hex source-state byte identifying TV mode. Source controls pause playback when leaving TV and resume when returning.',
+  'input_mappings.source.play_key': 'Keyboard key emitted on returning to the TV source when features.source_controls is enabled.',
+  'input_mappings.source.pause_key': 'Keyboard key emitted on leaving the TV source when features.source_controls is enabled.',
+  'interfaces.zmq.haldex_command': 'Local ZeroMQ endpoint accepting Haldex and exhaust-control requests from DataView.',
+  'interfaces.zmq.haldex_status': 'Local ZeroMQ endpoint publishing requested and observed Haldex state to DataView and other consumers.',
+  'interfaces.zmq.can_raw_stream': 'ZeroMQ publication address for received SocketCAN frames, consumed by keyboard, vehicle-state and diagnostic services.',
+  'interfaces.zmq.send_address': 'ZeroMQ command address for outgoing CAN frames. CAN consumers send requests here; the CAN service writes them onto the bus.',
+  'interfaces.zmq.system_events': 'ZeroMQ publication address for shared vehicle power events such as ignition, radio state and door wake transitions.',
+  'interfaces.zmq.metric_stream': 'ZeroMQ publication address for Hudiy API data including media, phone and navigation state. DIS and DataView consume these updates.',
+  'interfaces.zmq.dis_draw': 'ZeroMQ address for DIS drawing commands sent by display apps to the cluster drawing service.',
+  'interfaces.zmq.dis_status': 'ZeroMQ address for the cluster drawing service’s session/status events, used by the display coordinator.',
+  'interfaces.zmq.dis_display_status': 'ZeroMQ publication address for center-DIS presentation and app state, used to coordinate wheel ownership and top-line content.',
+  'interfaces.zmq.tp2_stream': 'ZeroMQ publication address for TP2 diagnostic session responses and measuring-group data.',
+  'interfaces.zmq.tp2_command': 'ZeroMQ command address for diagnostic-worker requests such as opening a session and reading a measuring group.',
+  'file_portal.firmware_targets': 'JSON list of firmware upload targets. Each object defines id, label, description, directory, extensions, validator and max_size_mb. Supported validators: haldex and pq-eps. Extensions are a list such as [".bin"]. Keep each target’s directory aligned with its controller firmware_dir.',
+};
+for (const [path, help] of Object.entries(SETTING_HELP)) {
+  SCHEMA[path] = {...SCHEMA[path], help};
+}
+SCHEMA.branch.detailedHelp = 'testing and main follow their branch directly.\n\nrelease, beta and other track names first select the latest version-sorted tag matching track-*. Without a matching tag, the installer tries that branch. If the selected reference does not exist, it falls back to main.\n\nThe source picker above reads config.json from the exact branch or reference you choose; it does not resolve update-track tags.';
+SCHEMA.config_restore_branch.detailedHelp = 'Reference from which a requested config reset downloads config.json. Use the branch or tag that contains the replacement config you want. The current installer keeps your existing config during normal updates.';
+Object.assign(SCHEMA, {
+  'haldex.default_mode': {...SCHEMA['haldex.default_mode'], type: 'json-value'},
+  ddp_bitmap_message_bytes: {...SCHEMA.ddp_bitmap_message_bytes, type: 'number', min: 13, max: 195, integer: true},
+  'features.time_sync.data_format': {...SCHEMA['features.time_sync.data_format'], type: 'select', options: ['old_logic', 'new_logic']},
+  'features.power_management.auto_shutdown.trigger': {...SCHEMA['features.power_management.auto_shutdown.trigger'], type: 'select', options: ['ignition_off', 'key_pulled']},
+  'file_portal.firmware_targets': {...SCHEMA['file_portal.firmware_targets'], type: 'json-array'},
+  'data_logger.profiles.haldex.measuring_groups': {...SCHEMA['data_logger.profiles.haldex.measuring_groups'], type: 'json-array'},
+});
+const CAN_HELP = {
+  light_status: 'Vehicle light state used for Hudiy day/night mode', time_data: 'Vehicle clock and date used for Pi clock synchronization',
+  ignition_status: 'Ignition and key state used by power and connection management', door_status: 'Door state used for connection wake windows',
+  gateway_nm_status: 'Gateway network-management state used to detect bus sleep', nav_nm_status: 'RNS-E network-management state used to track radio activity',
+  tv_presence: 'TV tuner presence frames transmitted by TV simulation', fis_line1: 'First factory top-DIS text line', fis_line2: 'Second factory top-DIS text line',
+  media_status: 'Factory media source status', nav_status: 'Factory navigation status', mmi: 'RNS-E button and rotary input frames',
+  mfsw: 'Multifunction steering-wheel input frames', source: 'Selected RNS-E source state',
+};
+for (const [key, help] of Object.entries(CAN_HELP)) SCHEMA['can_ids.' + key] = {help: help + '. Enter a hexadecimal CAN identifier, for example 0x635.', type: 'text'};
+const IMAGE_HELP = {
+ contrast: 'Contrast multiplier; 1 leaves contrast unchanged.', sharpen: 'Sharpening multiplier; 1 leaves sharpness unchanged.',
+ dither: 'Monochrome dither method, e.g. fs for Floyd–Steinberg.', invert: 'Invert the final monochrome pixels.', no_enhance: 'Skip automatic enhancement before conversion.',
+ bg_fill: 'Background color used when fitting the image.', grayscale_mode: 'Grayscale conversion strategy; smart uses luminance processing.',
+ brightness: 'Brightness multiplier; 1 leaves brightness unchanged.', gamma: 'Gamma applied during grayscale processing.', black_floor: 'Shadow cutoff (0–255) used before monochrome conversion.',
+ boldness: 'Pixel expansion amount for strengthening fine features.', diffusion: 'Error-diffusion strength for dithered output.',
+};
+SCHEMA['display.center_display.coverart.args'].detailedHelp = Object.entries(IMAGE_HELP).map(([key, help]) => key + ': ' + help).join('\n\n');
+for (const [key, help] of Object.entries(IMAGE_HELP)) SCHEMA['display.center_display.coverart.args.' + key] = {help};
+function metadataFor(path) {
+  if (path === 'display.font_resolution') return {help: 'Legacy cluster compatibility marker. The value legacy selects the red DIS font/layout behavior. Preserve this for a red cluster; the center_display.high_resolution setting controls artwork resolution separately.', type: 'text'};
+  if (path === 'display.center_display.navigation.high_resolution') return {help: 'Legacy navigation artwork-resolution flag used by older branches. Current configs use display.center_display.high_resolution for shared artwork resolution; this flag can still provide a fallback when the shared setting is absent. Preserved on export.'};
+  if (path === 'display.center_display.coverart.native_resolution') return {help: 'Legacy cover-art resolution flag used by older branches. Current configs use display.center_display.high_resolution for shared artwork resolution; this flag can still provide a fallback when the shared setting is absent. Preserved on export.'};
+  if (path === 'diagnostics.hudiy_api_capture.enabled') return {help: 'Legacy Hudiy API capture toggle. Current builds always capture API diagnostic events and ignore this toggle; older branches may still use it. Preserved so you can edit configurations for those versions.'};
+  if (path === 'diagnostics.hudiy_api_capture.path') return {help: 'Legacy destination for Hudiy API diagnostic captures. Current builds always capture at their standard location and ignore this path; older branches may still use it. A leading ~ expands on the Pi.'};
+  if (path === 'diagnostics.hudiy_api_capture.max_size_mb') return {help: 'Legacy maximum Hudiy API capture-log size in megabytes before rotation. Current builds use their standard capture rotation and ignore this limit; older branches may still use it. Preserved on export.'};
+  const known = Object.prototype.hasOwnProperty.call(SCHEMA,path) ? SCHEMA[path] : null;
+  const action = path.match(/^input_mappings\.(mmi|mfsw)\.(?:(phone_alt)\.)?(short_press|long_press|extended_press)\.(.+)$/);
+  if (action) {
+    const device = action[1] === 'mmi' ? 'RNS-E' : 'steering wheel';
+    const duration = {short_press: 'short press', long_press: 'long press', extended_press: 'extended press'}[action[3]];
+    return {...known, help: `Action for ${device} ${duration} (${action[4]}). ${action[2] ? 'Overrides the normal mapping while the phone context is active. ' : ''}${action[3] === 'extended_press' ? 'Enter a shell command run on the Pi; features.system_actions must be enabled.' : 'Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.'}`, type: 'json-value'};
+  }
+  if (path.startsWith('input_mappings.mfsw.commands.') && !known) return {help: 'Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.', type: 'text'};
+  return known || {help: 'Custom setting from the loaded configuration. Its behavior depends on the selected branch or extension. The editor preserves its JSON type and value.'};
+}
         // Missing keys in older imports receive compatibility defaults only.
         const NATIVE_DISPLAY_DEFAULTS = {
-            "display.font_resolution": "native",
-            "display.center_display.navigation.high_resolution": false,
-            "display.center_display.coverart.native_resolution": false,
+            "display.center_display.high_resolution": true,
+            "display.center_display.navigation.native_render_order": "planes",
+            "display.center_display.navigation.native_message_delay_ms": 5,
             "display.center_display.coverart.native_preset": "legacy",
             "display.center_display.coverart.native_args": {},
             "display.center_display.coverart.native_render_order": "tiles",
             "display.center_display.coverart.native_delta": false
         };
 
-        function addNativeDisplayDefaults(config) {
-            for (const [path, value] of Object.entries(NATIVE_DISPLAY_DEFAULTS)) {
+        const DATA_LOGS_DEFAULTS = {
+            "input_mappings.mfsw.double_click_ms": 350,
+            "interfaces.zmq.input_control_stream": "ipc:///run/rnse_control/input_control_stream.ipc",
+            "interfaces.zmq.dis_top_status": "ipc:///run/rnse_control/dis_top_status.ipc",
+            "interfaces.zmq.data_logs_command": "ipc:///run/rnse_control/data_logs_cmd.ipc",
+            "data_logs.directory": "~/logs/data-logs",
+            "data_logs.queue_size": 10000
+        };
+
+        function addMissingDefaults(config, defaults) {
+            for (const [path, value] of Object.entries(defaults)) {
                 const parts = path.split('.');
                 let target = config;
                 for (const part of parts.slice(0, -1)) {
@@ -810,6 +423,60 @@
             return config;
         }
 
+        function addNativeDisplayDefaults(config) {
+            const object = value => value && typeof value === 'object' && !Array.isArray(value);
+            if (object(config)) {
+                if (!Object.prototype.hasOwnProperty.call(config, 'display')) config.display = {};
+                const display = config.display;
+                if (object(display)) {
+                    if (!Object.prototype.hasOwnProperty.call(display, 'center_display')) display.center_display = {};
+                    const center = display.center_display;
+                    if (object(center)) {
+                        if (!Object.prototype.hasOwnProperty.call(center, 'high_resolution')) {
+                            const oldFlags = [center.navigation?.high_resolution, center.coverart?.native_resolution, center.car_info?.high_resolution].filter(value => typeof value === 'boolean');
+                            center.high_resolution = display.font_resolution === 'native' ? true
+                                : display.font_resolution === 'legacy' ? false
+                                : oldFlags.length ? oldFlags.some(Boolean) : true;
+                        }
+                        // Preserve an explicit red-cluster compatibility marker.
+                        if (display.font_resolution !== 'legacy') delete display.font_resolution;
+                        for (const [section, key] of [['navigation', 'high_resolution'], ['coverart', 'native_resolution'], ['car_info', 'high_resolution']]) {
+                            if (object(center[section])) {
+                                delete center[section][key];
+                                if (Object.keys(center[section]).length === 0) delete center[section];
+                            }
+                        }
+                    }
+                }
+            }
+            addMissingDefaults(config, NATIVE_DISPLAY_DEFAULTS);
+            const center = config?.display?.center_display;
+            if (object(center) && center.high_resolution === true) {
+                if (!object(center.navigation)) center.navigation = {};
+                if (!Object.prototype.hasOwnProperty.call(center.navigation, 'icon_style')) {
+                    center.navigation.icon_style = center.navigation.renderer === 'stock' ? 'stock' : 'bitmap';
+                }
+            }
+            if (center?.navigation?.icon_style === 'custom' && center.high_resolution === true
+                    && config?.display?.font_resolution !== 'legacy') center.navigation.icon_style = 'bitmap';
+            return config;
+        }
+
+        function addDataLogsDefaults(config) {
+            addMissingDefaults(config, DATA_LOGS_DEFAULTS);
+            // API diagnostics are always captured at the standard location.
+            if (config?.diagnostics && typeof config.diagnostics === 'object') {
+                delete config.diagnostics.hudiy_api_capture;
+            }
+            const center = config?.display?.center_display;
+            const carInfo = center?.car_info;
+            if (carInfo && typeof carInfo === 'object' && !Array.isArray(carInfo)) {
+                delete carInfo.high_resolution;
+                if (Object.keys(carInfo).length === 0) delete center.car_info;
+            }
+            return config;
+        }
+
         function parseObjectSetting(text) {
             const value = JSON.parse(text);
             if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -818,562 +485,652 @@
             return value;
         }
 
-        document.getElementById('file-input').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    currentConfig = addNativeDisplayDefaults(JSON.parse(e.target.result));
-                    renderForm();
-                    showToast("Configuration Loaded");
-                } catch (err) {
-                    alert("Invalid JSON file");
-                }
-            };
-            reader.readAsText(file);
-        });
 
-        function renderForm() {
-            const formContainer = document.getElementById('config-form');
-            formContainer.innerHTML = '';
 
-            const tocList = document.getElementById('toc-list');
-            if (tocList) tocList.innerHTML = '';
 
-            const SECTIONS = [
-                { id: "core", title: "Update Configuration", keys: ["branch", "repo", "config_restore_repo", "config_restore_branch"] },
-                { id: "display", title: "DIS (Cluster Display)", root: "display" },
-                { id: "features", title: "Enhanced Features", root: "features" },
-                { id: "can", title: "CAN Bus IDs", root: "can_ids" },
-                { id: "io", title: "Input Mappings", root: "input_mappings" },
-                { id: "net", title: "Network Interfaces", root: "interfaces" }
-            ];
 
-            SECTIONS.forEach(sec => {
-                const sectionEl = document.createElement('div');
-                sectionEl.className = 'config-section';
-                sectionEl.id = `section-${sec.id}`;
-                sectionEl.innerHTML = `<div class="section-header">${sec.title}</div><div class="section-content"></div>`;
-                formContainer.appendChild(sectionEl);
-
-                // Add to ToC
-                if (tocList) {
-                    const itemWrapper = document.createElement('div');
-                    itemWrapper.className = 'toc-section-wrapper';
-
-                    const li = document.createElement('a');
-                    li.className = 'toc-link';
-                    li.href = `#section-${sec.id}`;
-                    li.textContent = sec.title;
-                    li.onclick = (e) => {
-                        e.preventDefault();
-                        document.getElementById(`section-${sec.id}`).scrollIntoView({ behavior: 'smooth' });
-                        document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
-                        li.classList.add('active');
-                    };
-                    itemWrapper.appendChild(li);
-
-                    const sublist = document.createElement('div');
-                    sublist.className = 'toc-sublist';
-                    sublist.style.paddingLeft = '1rem';
-                    sublist.style.display = 'flex';
-                    sublist.style.flexDirection = 'column';
-                    sublist.style.gap = '0.15rem';
-                    sublist.id = `sublist-${sec.root || sec.id}`;
-                    itemWrapper.appendChild(sublist);
-
-                    tocList.appendChild(itemWrapper);
-                }
-
-                const container = sectionEl.querySelector('.section-content');
-                if (sec.keys) {
-                    sec.keys.forEach(k => renderNode(k, currentConfig[k], container, k));
-                } else if (sec.root) {
-                    renderRecursive(currentConfig[sec.root], sec.root, container);
-                }
-            });
-
-            if (tocList && tocList.firstChild && tocList.firstChild.querySelector('.toc-link')) {
-                tocList.firstChild.querySelector('.toc-link').classList.add('active');
-            }
-
-            updateRawJson();
-            if (typeof initScrollSpy === 'function') initScrollSpy();
+const BUNDLED_CONFIG = {
+  "branch": "testing",
+  "repo": "https://github.com/DSparks156x/RNS-E-Hudiy",
+  "config_restore_repo": "https://github.com/DSparks156x/RNS-E-Hudiy",
+  "config_restore_branch": "testing",
+  "interfaces": {
+    "can": {
+      "infotainment": "can0",
+      "diagnostic": "can0"
+    },
+    "zmq": {
+      "can_raw_stream": "ipc:///run/rnse_control/can_stream.ipc",
+      "send_address": "ipc:///run/rnse_control/can_send.ipc",
+      "system_events": "ipc:///run/rnse_control/base_events.ipc",
+      "metric_stream": "ipc:///run/rnse_control/hudiy_stream.ipc",
+      "dis_draw": "ipc:///run/rnse_control/dis_draw.ipc",
+      "dis_status": "ipc:///run/rnse_control/dis_status.ipc",
+      "dis_display_status": "ipc:///run/rnse_control/dis_display_status.ipc",
+      "input_control_stream": "ipc:///run/rnse_control/input_control_stream.ipc",
+      "dis_top_status": "ipc:///run/rnse_control/dis_top_status.ipc",
+      "data_logs_command": "ipc:///run/rnse_control/data_logs_cmd.ipc",
+      "tp2_stream": "ipc:///run/rnse_control/tp2_stream.ipc",
+      "tp2_command": "ipc:///run/rnse_control/tp2_cmd.ipc",
+      "haldex_command": "ipc:///run/rnse_control/haldex_cmd.ipc",
+      "haldex_status": "ipc:///run/rnse_control/haldex_status.ipc"
+    }
+  },
+  "diagnostics": {
+    "enabled": true,
+    "values": {
+      "diagnostic_hz": 2,
+      "ican_hz": 10,
+      "lease_seconds": 15
+    }
+  },
+  "haldex": {
+    "enabled": true,
+    "default_mode": null,
+    "burst_count": 5,
+    "burst_interval_ms": 20,
+    "persistence_file": "/home/pi/.hudiy/haldex_mode.json",
+    "firmware_dir": "~/haldexfw"
+  },
+  "eps": {
+    "firmware_dir": "~/epsfw"
+  },
+  "exhaust_valve": {
+    "firmware_dir": "~/exhaustfw",
+    "installed_generation_floor": 16,
+    "generation_file": "~/.hudiy/exhaust_deployment.json",
+    "intent_file": "~/.hudiy/exhaust_valve_intent.json"
+  },
+  "data_logger": {
+    "default_profile": "haldex",
+    "log_directory": "~/logs",
+    "queue_size": 10000,
+    "profiles": {
+      "haldex": {
+        "measuring_groups": []
+      }
+    }
+  },
+  "data_logs": {
+    "directory": "~/logs/data-logs",
+    "queue_size": 10000
+  },
+  "file_portal": {
+    "upload_pin": "",
+    "archive_limit_mb": 256,
+    "runtime_log_directory": "/var/log/rnse_control",
+    "firmware_targets": [
+      {
+        "id": "haldex",
+        "label": "Haldex AWD",
+        "description": "Validated Gen4 controller firmware images",
+        "directory": "~/haldexfw",
+        "extensions": [
+          ".bin"
+        ],
+        "validator": "haldex",
+        "max_size_mb": 4
+      },
+      {
+        "id": "pq-eps",
+        "label": "PQ EPS",
+        "description": "Validated full images or 4 KiB 0x5E steering datasets",
+        "directory": "~/epsfw",
+        "extensions": [
+          ".bin"
+        ],
+        "validator": "pq-eps",
+        "max_size_mb": 4
+      }
+    ]
+  },
+  "openpilot": {
+    "enabled": false
+  },
+  "display": {
+    "center_display": {
+      "applist": [
+        "nav",
+        "media",
+        "phone",
+        "car_info",
+        "acceleration_test"
+      ],
+      "enabled": true,
+      "mode": "media",
+      "high_resolution": true,
+      "start_inactive": false,
+      "navigation": {
+        "auto_switch": true,
+        "auto_switch_approach_threshold": 500,
+        "auto_switch_return_threshold": 1000,
+        "approach_bar_max_distance": 300,
+        "claim_on_nav": false,
+        "native_render_order": "planes",
+        "native_message_delay_ms": 5
+      },
+      "coverart": {
+        "brief": true,
+        "args": {
+          "contrast": 1.9,
+          "sharpen": 1.5,
+          "dither": "fs",
+          "invert": false,
+          "no_enhance": false,
+          "bg_fill": "black",
+          "grayscale_mode": "smart",
+          "brightness": 1,
+          "gamma": 2.2,
+          "black_floor": 45,
+          "boldness": 0,
+          "diffusion": 0.85
+        },
+        "native_preset": "legacy",
+        "native_args": {},
+        "native_render_order": "planes",
+        "native_delta": false
+      },
+      "acceleration_test": {
+        "auto_reset_on_stop": true,
+        "auto_reset_delay": 0.25,
+        "tolerance_display": true,
+        "line_1": "0-60",
+        "line_2": "0-30",
+        "line_3": "40-70",
+        "line_4": "speed"
+      }
+    },
+    "road_side": "right",
+    "units": {
+      "speed": "imperial",
+      "ambient_temp": "imperial",
+      "boost": "metric",
+      "boost_mode": "absolute",
+      "cartemp": "metric"
+    },
+    "text_scrolling": {
+      "continuous": true,
+      "continuous_gap": 1,
+      "speed_ms": 400,
+      "start_delay_ms": 0,
+      "end_delay_ms": 0,
+      "line_offset_ms": 2000
+    },
+    "text_centering": true,
+    "top_display": {
+      "applist": [
+        "phone",
+        "nav",
+        "media"
+      ],
+      "enabled": true,
+      "media_line1_mode": "title",
+      "media_line2_mode": "source",
+      "media_line1_alt_mode": "source",
+      "phone_line1_mode": "caller",
+      "phone_line2_mode": "state",
+      "nav_line1_mode": "description",
+      "nav_line2_mode": "distance"
+    },
+    "phone": {
+      "scroll_wheel_phone_menu": true,
+      "claim_on_phone": false
+    }
+  },
+  "features": {
+    "day_night_mode": true,
+    "sync_android_auto": false,
+    "time_sync": {
+      "enabled": true,
+      "data_format": "old_logic",
+      "threshold_minutes": 0.1
+    },
+    "power_management": {
+      "auto_shutdown": {
+        "enabled": false,
+        "trigger": "ignition_off",
+        "delay_seconds": 900
+      },
+      "listen_only_mode": {
+        "enabled": true,
+        "delay_seconds": 10,
+        "fallback_seconds": 900
+      },
+      "gpio_shutdown": {
+        "enabled": true,
+        "pin": 12,
+        "active_low": true,
+        "delay_seconds": 60
+      },
+      "connection_management": {
+        "enabled": true,
+        "connect_on_ignition": true,
+        "connect_on_radio": true,
+        "door_open_window_seconds": 15,
+        "unlock_wake_window_seconds": 15,
+        "manage_bluetooth": true,
+        "manage_android_auto": true,
+        "disconnect_delay_seconds": 0
+      }
+    },
+    "tv_simulation": {
+      "enabled": false
+    },
+    "mmi_controls": true,
+    "mfsw_controls": true,
+    "source_controls": false,
+    "system_actions": true,
+    "car_time_zone": "America/Denver",
+    "debug_mode": false,
+    "log_saver": {
+      "services": [
+        "dis_display.service",
+        "hudiy_data_api.service",
+        "dis_service.service",
+        "tp2_worker.service"
+      ],
+      "minutes": 3,
+      "log_directory": "~/logs"
+    }
+  },
+  "can_ids": {
+    "light_status": "0x635",
+    "time_data": "0x623",
+    "ignition_status": "0x2C3",
+    "door_status": "0x470",
+    "gateway_nm_status": "0x42B",
+    "nav_nm_status": "0x436",
+    "tv_presence": "0x602",
+    "fis_line1": "0x363",
+    "fis_line2": "0x365",
+    "media_status": "0x6C1",
+    "nav_status": "0x6C0",
+    "mmi": "0x461",
+    "mfsw": "0x5C3",
+    "source": "0x661"
+  },
+  "input_mappings": {
+    "mmi": {
+      "cooldown_period": 0.2,
+      "long_press_message_count": 5,
+      "extended_long_press_message_count": 30,
+      "scroll_commands": [
+        "0,32",
+        "0,64"
+      ],
+      "short_press": {
+        "1,0": "KEY_V",
+        "2,0": "KEY_N",
+        "64,0": "KEY_UP",
+        "128,0": "KEY_DOWN",
+        "0,16": "KEY_ENTER",
+        "0,32": "KEY_2",
+        "0,64": "KEY_1",
+        "0,2": "KEY_ESC",
+        "0,1": "KEY_H"
+      },
+      "long_press": {
+        "1,0": "KEY_LEFT",
+        "2,0": "KEY_RIGHT",
+        "64,0": null,
+        "128,0": "KEY_M",
+        "0,16": null,
+        "0,32": null,
+        "0,64": null,
+        "0,2": "KEY_0",
+        "0,1": null
+      },
+      "extended_press": {
+        "1,0": "python3 ~/rns-e_can/save_logs.py",
+        "2,0": "sudo shutdown -h now",
+        "64,0": null,
+        "128,0": null,
+        "0,16": "sudo reboot",
+        "0,32": null,
+        "0,64": null,
+        "0,2": null,
+        "0,1": null
+      }
+    },
+    "mfsw": {
+      "double_click_ms": 350,
+      "commands": {
+        "scroll_up": "0x0B",
+        "scroll_down": "0x0C",
+        "mode_press": "0x1C",
+        "volume_scroll_up": "0x06",
+        "volume_scroll_down": "0x07",
+        "ptt_press": "0x2A",
+        "scroll_click": "0x08",
+        "volume_scroll_click": "0xA7",
+        "release": [
+          "0x00",
+          "0x00"
+        ]
+      },
+      "short_press": {
+        "scroll_up": "KEY_V",
+        "scroll_down": "KEY_N",
+        "mode": "KEY_ENTER",
+        "ptt": "KEY_M",
+        "scroll_click": "KEY_B",
+        "volume_scroll_up": null,
+        "volume_scroll_down": null,
+        "volume_scroll_click": null
+      },
+      "long_press": {
+        "mode": "KEY_ESC",
+        "ptt": "KEY_H",
+        "scroll_click": "KEY_B",
+        "volume_scroll_up": null,
+        "volume_scroll_down": null,
+        "volume_scroll_click": null
+      },
+      "phone_alt": {
+        "short_press": {
+          "mode": null,
+          "ptt": null
+        },
+        "long_press": {
+          "mode": null,
+          "ptt": null
         }
+      }
+    },
+    "source": {
+      "tv_mode_identifier": "0x37",
+      "play_key": "KEY_X",
+      "pause_key": "KEY_C"
+    }
+  }
+};
+const SECTIONS = [
+  {id:'core', title:'Updates', keys:['branch','repo','config_restore_repo','config_restore_branch'], description:'Where the Pi gets code updates and replacement configuration.'},
+  {id:'display', title:'Cluster display', root:'display', description:'Center DIS apps, the two top lines, units and scrolling. DataView manages named-value pages under Data & Logs.'},
+  {id:'io', title:'Buttons & wheel', root:'input_mappings', description:'RNS-E and steering-wheel input patterns, press durations and actions.'},
+  {id:'features', title:'Power & integration', root:'features', description:'Day/night mode, vehicle time, connection management and shutdown behavior.'},
+  {id:'diagnostics', title:'Vehicle readings', root:'diagnostics', description:'Diagnostic worker and shared vehicle-value request rates.'},
+  {id:'haldex', title:'Haldex AWD', root:'haldex', description:'Startup mode, mode-command delivery and controller firmware storage.'},
+  {id:'eps', title:'Steering firmware', root:'eps', description:'Storage for EPS controller images and steering datasets.'},
+  {id:'exhaust', title:'Exhaust valve', root:'exhaust_valve', description:'Firmware generation tracking and persisted valve intent.'},
+  {id:'recordings', title:'Named-value recordings', root:'data_logs', description:'Storage and writer capacity for DataView → Data & Logs sessions. Profiles and DIS pages live in workspace.json.'},
+  {id:'logger', title:'Raw / debug logging', root:'data_logger', description:'Raw CAN and measuring-group recording for engineering and troubleshooting.'},
+  {id:'files', title:'File portal', root:'file_portal', description:'Downloads, firmware upload destinations and upload access settings.'},
+  {id:'net', title:'Service interfaces', root:'interfaces', description:'SocketCAN devices and ZeroMQ addresses. Keep endpoint changes consistent across services.'},
+  {id:'can', title:'CAN identifiers', root:'can_ids', description:'Vehicle frame identifiers. Keep the hex string format and match the vehicle’s bus.'},
+  {id:'transport', title:'Display transport', keys:['ddp_bitmap_message_bytes'], description:'Low-level limits for drawing cluster bitmaps.'},
+  {id:'openpilot', title:'Optional integration', root:'openpilot', description:'Reserved integration settings.'},
+];
+let previousLoad = null;
+let configRevision = 0;
+let loadRequest = 0;
+let activeFetch = null;
+const invalidPaths = new Set();
+const renderedFields = [];
+const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+const plainObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+function escapeHtml(text) { return String(text).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])); }
+function labelFor(key) { return key.replace(/_/g, ' ').replace(/^./, char => char.toUpperCase()); }
 
-        function filterConfig(query) {
-            query = query.toLowerCase();
-            const sections = document.querySelectorAll('.config-section');
-            const tocLinks = document.querySelectorAll('.toc-link');
+function validateConfig(value) {
+  if (!plainObject(value)) throw new Error('config.json must contain a JSON object at the top level.');
+  return value;
+}
+function loadConfiguration(config, source) {
+  validateConfig(config);
+  if (Object.keys(currentConfig).length) previousLoad = {config: JSON.parse(JSON.stringify(currentConfig)), source: document.getElementById('source-status').textContent};
+  // Imports are exact: migrations remain available as compatibility helpers,
+  // but the UI does not silently add, delete or convert branch-specific values.
+  currentConfig = JSON.parse(JSON.stringify(config));
+  configRevision++;
+  invalidPaths.clear();
+  renderForm();
+  setStatus(source);
+  document.getElementById('undo-load').hidden = !previousLoad;
+}
+function undoLoad() {
+  if (!previousLoad) return;
+  loadRequest++;
+  if (activeFetch) activeFetch.abort();
+  activeFetch = null;
+  document.getElementById('open-config').disabled = false;
+  const previous = previousLoad;
+  previousLoad = null;
+  currentConfig = previous.config;
+  configRevision++;
+  invalidPaths.clear();
+  renderForm();
+  setStatus(previous.source + ' · Previous configuration restored.');
+  document.getElementById('undo-load').hidden = true;
+}
+function repositorySelection(repo, branch) {
+  repo = repo.trim().replace(/^https:\/\/github\.com\//i, '').replace(/\/$/, '').replace(/\.git$/, '');
+  branch = branch.trim();
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) throw new Error('Use a GitHub owner/repository name or repository URL.');
+  if (!branch || /[\s?#\\]/.test(branch) || branch.includes('..') || branch.startsWith('/') || branch.endsWith('/')) throw new Error('Enter a valid branch name. Branch names may include slashes.');
+  const [owner, name] = repo.split('/');
+  const root = 'https://raw.githubusercontent.com/' + encodeURIComponent(owner) + '/' + encodeURIComponent(name) + '/';
+  return {repo, branch, rawUrl: root + encodeURIComponent(branch) + '/config.json', pageUrl:'https://github.com/' + repo + '/tree/' + encodeURIComponent(branch)};
+}
+function selectedRepository() {
+  const repo = document.getElementById('source-repo').value;
+  const branch = document.getElementById('source-branch').value;
+  return repositorySelection(repo === 'custom' ? document.getElementById('custom-repo').value : repo,
+    branch === 'custom' ? document.getElementById('custom-branch').value : branch);
+}
+function sourceSelectionChanged() {
+  loadRequest++;
+  if (activeFetch) activeFetch.abort();
+  document.getElementById('custom-repo-label').hidden = document.getElementById('source-repo').value !== 'custom';
+  document.getElementById('custom-branch-label').hidden = document.getElementById('source-branch').value !== 'custom';
+  document.getElementById('open-config').disabled = false;
+  setStatus('Source selection changed. Click Open config to load its latest config.json. Current edits are retained until a successful load.');
+}
+function openRepositoryPage() {
+  try { window.open(selectedRepository().pageUrl, '_blank', 'noopener,noreferrer'); }
+  catch(error) { setStatus(error.message, true); }
+}
+function setStatus(message, error=false) {
+  const status = document.getElementById('source-status');
+  status.textContent = message;
+  status.className = 'source-status' + (error ? ' error' : '');
+}
+async function fetchRepositoryConfig(selection, signal, fetcher=fetch) {
+  const response = await fetcher(selection.rawUrl, {cache:'no-store', signal});
+  if (!response.ok) {
+    if (response.status === 404) throw new Error('config.json was not found. Check the public repository and branch name.');
+    throw new Error('GitHub returned HTTP ' + response.status + '. Your current configuration is retained.');
+  }
+  let value;
+  try { value = JSON.parse(await response.text()); }
+  catch(error) { throw new Error('The selected branch returned invalid JSON. Your current configuration is retained.'); }
+  return validateConfig(value);
+}
+async function openRepositoryConfig() {
+  const button = document.getElementById('open-config');
+  let selection;
+  try { selection = selectedRepository(); }
+  catch(error) { setStatus(error.message, true); return; }
+  const request = ++loadRequest;
+  const revision = configRevision;
+  if (activeFetch) activeFetch.abort();
+  activeFetch = new AbortController();
+  const controller = activeFetch;
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  button.disabled = true;
+  setStatus('Loading ' + selection.repo + ' · ' + selection.branch + '…');
+  try {
+    const config = await fetchRepositoryConfig(selection, activeFetch.signal);
+    if (request !== loadRequest) return;
+    if (revision !== configRevision) throw new Error('You edited the form while the config was loading. Your edits are retained; click Open config again to replace them.');
+    loadConfiguration(config, selection.repo + ' · ' + selection.branch + ' · Loaded ' + new Date().toLocaleTimeString());
+    showToast('Latest configuration loaded');
+  } catch(error) {
+    if (request !== loadRequest) return;
+    setStatus(error.name === 'AbortError' ? 'Loading timed out. Your current configuration is retained. Try again or import a local JSON file.' : error.message + (error instanceof TypeError ? ' Check your network connection or import a local JSON file.' : ''), true);
+  } finally {
+    clearTimeout(timeout);
+    if (request === loadRequest) { button.disabled = false; activeFetch = null; }
+  }
+}
 
-            sections.forEach(sec => {
-                let sectionVisible = false;
-                const fields = sec.querySelectorAll('.form-group');
-                fields.forEach(f => {
-                    const label = f.querySelector('label')?.innerText.toLowerCase() || "";
-                    const help = f.querySelector('.help-tip')?.innerText.toLowerCase() || "";
-                    const inputs = f.querySelectorAll('input, select');
-                    let matchValue = false;
-                    inputs.forEach(input => {
-                        if (input.type !== 'file' && input.value.toLowerCase().includes(query)) {
-                            matchValue = true;
-                        }
-                    });
+function renderForm() {
+  const form = document.getElementById('config-form');
+  const toc = document.getElementById('toc-list');
+  form.replaceChildren();
+  toc.replaceChildren();
+  renderedFields.length = 0;
+  const covered = new Set(SECTIONS.flatMap(section => section.keys || [section.root]));
+  const extra = Object.keys(currentConfig).filter(key => !covered.has(key));
+  const sections = [...SECTIONS, {id:'custom', title:'Additional settings', keys:extra, description:'Branch-specific or custom settings are retained with their original JSON types.'}];
+  for (const section of sections) {
+    const keys = section.keys ? section.keys.filter(key => hasOwn(currentConfig,key)) : hasOwn(currentConfig,section.root) ? [section.root] : [];
+    if (!keys.length) continue;
+    const block = document.createElement('section');
+    block.className = 'config-section';
+    block.id = 'section-' + section.id;
+    const heading = document.createElement('h2'); heading.className = 'section-header'; heading.textContent = section.title;
+    const description = document.createElement('p'); description.className = 'section-description'; description.textContent = section.description;
+    const content = document.createElement('div'); content.className = 'section-content';
+    block.appendChild(heading); block.appendChild(description); block.appendChild(content); form.appendChild(block);
+    const link = document.createElement('a'); link.className='toc-link'; link.href='#'+block.id; link.textContent=section.title; toc.appendChild(link);
+    if (section.root && plainObject(currentConfig[section.root])) renderRecursive(currentConfig[section.root], [section.root], content);
+    else keys.forEach(key => renderNode([key],currentConfig[key],content,key));
+  }
+  updateRawJson();
+  filterConfig(document.getElementById('search-input').value || '');
+}
+function renderRecursive(obj, path, container) {
+  if (!plainObject(obj)) return;
+  const segments = Array.isArray(path) ? path : path.split('.');
+  for (const [key,value] of Object.entries(obj)) {
+    const next = [...segments,key];
+    const meta = metadataFor(next.join('.'));
+    if (plainObject(value) && Object.keys(value).length && !meta.type?.startsWith('json')) {
+      const group = document.createElement('div'); group.className = 'nested-group';
+      const heading = document.createElement('h3'); heading.className='nested-title'; heading.textContent=meta.label || labelFor(key); group.appendChild(heading);
+      const content = document.createElement('div'); content.className='nested-content'; group.appendChild(content); container.appendChild(group);
+      renderRecursive(value,next,content);
+    } else renderNode(next,value,container,key);
+  }
+}
+function renderNode(path, value, container, shortKey) {
+  const segments = Array.isArray(path) ? path : path.split('.');
+  const key = segments.join('.');
+  const meta = metadataFor(key);
+  const group = document.createElement('div'); group.className='form-group';
+  const label = meta.label || labelFor(shortKey);
+  const id = 'setting-' + renderedFields.length;
+  // Only metadata is inserted as escaped text. Imported keys cannot inject HTML.
+  group.innerHTML = `<div class="label-wrapper"><label for="${id}">${escapeHtml(label)}</label><span class="help-tip" id="${id}-help">${escapeHtml(meta.help || '')}</span><code class="setting-path">${escapeHtml(key)}</code></div>`;
+  let input;
+  let parse;
+  if (meta.type === 'json' || meta.type === 'json-array' || plainObject(value) || Array.isArray(value)) {
+    input = document.createElement('textarea'); input.className='json-raw'; input.value=JSON.stringify(value,null,2);
+    parse = text => {
+      const parsed = JSON.parse(text);
+      if (meta.type === 'json' && !plainObject(parsed)) throw new Error('Expected a JSON object');
+      if ((meta.type === 'json-array' || Array.isArray(value)) && !Array.isArray(parsed)) throw new Error('Expected a JSON array');
+      if (plainObject(value) && !plainObject(parsed)) throw new Error('Expected a JSON object');
+      return parsed;
+    };
+  } else if (meta.type === 'json-value' || value === null) {
+    input = document.createElement('input'); input.type='text'; input.value=key.startsWith('input_mappings.') && typeof value === 'string' ? value : JSON.stringify(value);
+    parse = text => {
+      if (/^input_mappings\./.test(key)) {
+        if (!text.trim() || text.trim() === 'null') return null;
+        // Accept familiar keyboard names and commands with or without JSON quotes.
+        return text.trim().startsWith('"') ? JSON.parse(text) : text;
+      }
+      const parsed = JSON.parse(text);
+      if (key === 'haldex.default_mode' && parsed !== null && ![0,1,2].includes(parsed)) throw new Error('Use null, 0, 1 or 2.');
+      return parsed;
+    };
+  } else if (typeof value === 'boolean') {
+    input = document.createElement('select');
+    for (const [val,text] of [['true','Enabled'],['false','Disabled']]) { const option=document.createElement('option');option.value=val;option.textContent=text;input.appendChild(option); }
+    input.value=String(value); parse=text => text==='true';
+  } else if (typeof value === 'number') {
+    input=document.createElement('input');input.type='number';input.step='any';input.value=value;
+    if (meta.min !== undefined) input.min=meta.min;
+    if (meta.max !== undefined) input.max=meta.max;
+    parse=text => {
+      if (!String(text).trim() || !Number.isFinite(Number(text))) throw new Error('Enter a finite number.');
+      const number=Number(text);
+      if (meta.integer && !Number.isInteger(number)) throw new Error('Enter a whole number.');
+      if (meta.min !== undefined && number<meta.min) throw new Error('Minimum: '+meta.min);
+      if (meta.max !== undefined && number>meta.max) throw new Error('Maximum: '+meta.max);
+      return number;
+    };
+  } else if (meta.type === 'select' && typeof value === 'string') {
+    input=document.createElement('select');
+    const choices=[...meta.options];if (!choices.includes(value)) choices.unshift(value);
+    for (const choice of choices) {const option=document.createElement('option');option.value=choice;option.textContent=choice+(meta.options.includes(choice)?'':' (from config)');input.appendChild(option);}
+    input.value=value;parse=text=>text;
+  } else {
+    input=document.createElement('input');input.type='text';input.value=value ?? '';parse=text=>text;
+    if (meta.options) {const list=document.createElement('datalist');list.id=id+'-options';for(const choice of meta.options){const option=document.createElement('option');option.value=choice;list.appendChild(option);}input.setAttribute('list',list.id);group.appendChild(list);}
+  }
+  input.id=id;
+  input.setAttribute('aria-describedby',id+'-help');
+  const error=document.createElement('p');error.className='field-error';error.id=id+'-error';error.setAttribute('role','alert');error.hidden=true;
+  const pathId=JSON.stringify(segments);
+  input.oninput = () => {configRevision++;};
+  input.onchange = event => {
+    try {
+      const parsed=parse(event.target.value);
+      setValueByPath(segments,parsed);
+      invalidPaths.delete(pathId);input.classList.remove('invalid');input.removeAttribute('aria-invalid');input.setAttribute('aria-describedby',id+'-help');error.hidden=true;
+      field.search=[key,label,meta.help,meta.detailedHelp,JSON.stringify(parsed)].join(' ').toLowerCase();
+    } catch(problem) {
+      invalidPaths.add(pathId);input.classList.add('invalid');input.setAttribute('aria-invalid','true');input.setAttribute('aria-describedby',id+'-help '+error.id);error.textContent=problem.message;error.hidden=false;
+    }
+    document.getElementById('export-config').disabled=invalidPaths.size>0;
+  };
+  group.appendChild(input);group.appendChild(error);container.appendChild(group);
+  if (meta.detailedHelp) {
+    const help=document.createElement('button');help.className='help-icon';help.textContent='?';help.setAttribute('aria-label','More about '+label);help.onclick=()=>showDetailedHelp(label,meta.detailedHelp);group.querySelector('label')?.appendChild(help);
+  }
+  const field={group,input,search:[key,label,meta.help,meta.detailedHelp,JSON.stringify(value)].join(' ').toLowerCase()};
+  renderedFields.push(field);
+}
+function filterConfig(query) {
+  query=query.toLowerCase().trim();
+  let count=0;
+  for(const field of renderedFields){const match=field.search.includes(query)||String(field.input.value).toLowerCase().includes(query);field.group.hidden=!match;if(match)count++;}
+  for(const group of document.querySelectorAll('#config-form .nested-group')) group.hidden=![...group.querySelectorAll('.form-group')].some(field=>!field.hidden);
+  for(const section of document.querySelectorAll('#config-form .config-section')){section.hidden=![...section.querySelectorAll('.form-group')].some(field=>!field.hidden);const link=document.querySelector(`.toc-link[href="#${section.id}"]`);if(link)link.hidden=section.hidden;}
+  document.getElementById('empty-search').hidden=count>0;
+}
+function setValueByPath(path,value) {
+  const parts=Array.isArray(path)?path:path.split('.');
+  let object=currentConfig;
+  for(const part of parts.slice(0,-1)){if(!hasOwn(object,part))throw new Error('Setting parent no longer exists.');object=object[part];}
+  Object.defineProperty(object,parts.at(-1),{value,writable:true,enumerable:true,configurable:true});
+  configRevision++;
+  updateRawJson();
+}
+function updateRawJson(){document.getElementById('json-output').value=JSON.stringify(currentConfig,null,2);document.getElementById('export-config').disabled=invalidPaths.size>0;}
+function downloadConfig(){if(invalidPaths.size)return;const blob=new Blob([JSON.stringify(currentConfig,null,2)+'\n'],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='config.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('Configuration downloaded');}
+let toastTimeout;
+function showToast(message){const toast=document.getElementById('toast');toast.textContent=message;toast.classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>toast.classList.remove('show'),2500);}
+function showDetailedHelp(title,text){document.getElementById('help-modal-title').textContent=title;document.getElementById('help-modal-text').textContent=text;document.getElementById('detailed-help-overlay').showModal();}
+function closeDetailedHelp(){document.getElementById('detailed-help-overlay').close();}
+document.getElementById('file-input').addEventListener('change',async event=>{
+  const file=event.target.files[0];if(!file)return;
+  const request=++loadRequest;if(activeFetch)activeFetch.abort();
+  const revision=configRevision;
+  try{const config=validateConfig(JSON.parse(await file.text()));if(request!==loadRequest)return;if(configRevision!==revision)throw new Error('The form changed while the file was loading. Import it again to replace your edits.');loadConfiguration(config,'Imported '+file.name);showToast('Configuration imported');}
+  catch(error){if(request===loadRequest)setStatus('Import failed: '+error.message+'. Your current configuration is retained.',true);}
+  finally{event.target.value='';if(request===loadRequest)document.getElementById('open-config').disabled=false;}
+});
+if (document.addEventListener) document.addEventListener('DOMContentLoaded',()=>{
+  const query=new URLSearchParams(window.location.search);
+  if(query.has('search'))document.getElementById('search-input').value=query.get('search');
+  if(query.has('repo')){const requested=query.get('repo');const picker=document.getElementById('source-repo');let normalized=requested;try{normalized=repositorySelection(requested,'testing').repo;}catch(error){}if([...picker.options].some(option=>option.value===normalized))picker.value=normalized;else{picker.value='custom';document.getElementById('custom-repo').value=requested;document.getElementById('custom-repo-label').hidden=false;}}
+  if(query.has('branch')){const branch=query.get('branch');const picker=document.getElementById('source-branch');if([...picker.options].some(option=>option.value===branch))picker.value=branch;else{picker.value='custom';document.getElementById('custom-branch').value=branch;document.getElementById('custom-branch-label').hidden=false;}}
+  currentConfig=JSON.parse(JSON.stringify(BUNDLED_CONFIG));renderForm();
+  if(query.get('load')==='1'||query.get('autoload')==='1')openRepositoryConfig();
+});
 
-                    if (label.includes(query) || help.includes(query) || matchValue) {
-                        f.style.display = 'flex';
-                        sectionVisible = true;
-                    } else {
-                        f.style.display = 'none';
-                    }
-                });
-
-                const nestedGroups = sec.querySelectorAll('.nested-group');
-                nestedGroups.forEach(g => {
-                    let groupVisible = false;
-                    const gFields = g.querySelectorAll('.form-group');
-                    gFields.forEach(f => {
-                        if (f.style.display !== 'none') groupVisible = true;
-                    });
-                    g.style.display = groupVisible ? 'block' : 'none';
-                    if (groupVisible) sectionVisible = true;
-                });
-
-                sec.style.display = sectionVisible ? 'block' : 'none';
-
-                // Update ToC visibility
-                tocLinks.forEach(link => {
-                    if (link.getAttribute('href') === `#section-${sec.id}`) {
-                        link.style.display = sectionVisible ? 'block' : 'none';
-                    }
-                });
-            });
-        }
-
-        let scrollSpyObserver = null;
-
-        function initScrollSpy() {
-            if (scrollSpyObserver) scrollSpyObserver.disconnect();
-
-            const sections = document.querySelectorAll('.config-section, .nested-group');
-            const tocLinks = document.querySelectorAll('.toc-link');
-
-            const observerOptions = {
-                root: document.querySelector('.content-area'),
-                rootMargin: '-5% 0px -85% 0px',
-                threshold: 0
-            };
-
-            scrollSpyObserver = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        const id = entry.target.id;
-                        tocLinks.forEach(link => {
-                            if (link.getAttribute('href') === `#${id}`) {
-                                document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
-                                link.classList.add('active');
-
-                                // Auto-scroll active link into sidebar view
-                                link.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                            }
-                        });
-                    }
-                });
-            }, observerOptions);
-
-            sections.forEach(sec => {
-                if (sec.id) scrollSpyObserver.observe(sec);
-            });
-        }
-
-        function renderRecursive(obj, path, container) {
-            if (!obj) return;
-
-            const entries = Object.entries(obj);
-
-            // Separate direct fields, nested objects, and special fields to be moved to bottom
-            const bottomKeys = ['scroll_commands'];
-            if (path === 'features.power_management') {
-                bottomKeys.push('auto_shutdown');
-            }
-            if (path === 'input_mappings.mfsw') {
-                bottomKeys.push('commands');
-            }
-            const hideKeys = (path.includes('long_press') || path.includes('extended_press')) ? ['0,32', '0,64'] : [];
-
-            const fields = entries.filter(([k, v]) => (SCHEMA[`${path}.${k}`]?.type === 'json' || typeof v !== 'object' || v === null || Array.isArray(v)) && !bottomKeys.includes(k) && !hideKeys.includes(k));
-            const nested = entries.filter(([k, v]) => SCHEMA[`${path}.${k}`]?.type !== 'json' && typeof v === 'object' && v !== null && !Array.isArray(v) && !bottomKeys.includes(k));
-            const bottomFields = entries.filter(([k, _]) => bottomKeys.includes(k));
-
-            function renderNestedGroup(key, val, p) {
-                const groupWrapper = document.createElement('div');
-                groupWrapper.className = 'nested-group';
-                const groupId = `nested-${p}.${key}`.replace(/\./g, '-').replace(/,/g, '-');
-                groupWrapper.id = groupId;
-
-                const meta = SCHEMA[`${p}.${key}`] || {};
-                const labelText = meta.label || key.replace(/_/g, ' ');
-
-                groupWrapper.innerHTML = `
-                    <div class="nested-title">${labelText}</div>
-                    <div class="nested-content"></div>
-                `;
-                container.appendChild(groupWrapper);
-
-                // Add to sidebar ToC (Hierarchical)
-                const parentId = p.replace(/\./g, '-').replace(/,/g, '-');
-                let parentSublist = document.getElementById(`sublist-${parentId}`);
-                if (!parentSublist) {
-                    const sectionRoot = p.split('.')[0];
-                    parentSublist = document.getElementById(`sublist-${sectionRoot}`);
-                }
-
-                if (parentSublist) {
-                    const itemWrapper = document.createElement('div');
-                    itemWrapper.className = 'toc-sub-section-wrapper';
-
-                    const subLink = document.createElement('a');
-                    subLink.className = 'toc-link sub-link';
-                    subLink.href = `#${groupId}`;
-                    subLink.textContent = labelText;
-                    subLink.style.fontSize = '0.78rem';
-                    subLink.style.padding = '0.4rem 0.8rem';
-                    subLink.style.opacity = '0.85';
-                    subLink.style.color = 'var(--text-secondary)';
-                    subLink.onclick = (e) => {
-                        e.preventDefault();
-                        groupWrapper.scrollIntoView({ behavior: 'smooth' });
-                        document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
-                        subLink.classList.add('active');
-                    };
-                    itemWrapper.appendChild(subLink);
-
-                    // Create sublist for children Node of THIS group
-                    const childSublist = document.createElement('div');
-                    childSublist.className = 'toc-sublist';
-                    childSublist.style.paddingLeft = '0.75rem'; // Indent further
-                    childSublist.style.display = 'flex';
-                    childSublist.style.flexDirection = 'column';
-                    childSublist.style.gap = '0.15rem';
-                    childSublist.id = `sublist-${p}.${key}`.replace(/\./g, '-').replace(/,/g, '-');
-                    itemWrapper.appendChild(childSublist);
-
-                    parentSublist.appendChild(itemWrapper);
-                }
-
-                renderRecursive(val, `${p}.${key}`, groupWrapper.querySelector('.nested-content'));
-            }
-
-            // 1. Render normal direct fields
-            fields.forEach(([key, val]) => {
-                renderNode(`${path}.${key}`, val, container, key);
-            });
-
-            // 2. Render normal nested groups
-            nested.forEach(([key, val]) => {
-                renderNestedGroup(key, val, path);
-            });
-
-            // 3. Render bottom fields (like scroll_commands)
-            bottomFields.forEach(([key, val]) => {
-                if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
-                    renderNestedGroup(key, val, path);
-                } else {
-                    renderNode(`${path}.${key}`, val, container, key);
-                }
-            });
-        }
-
-        function renderNode(path, value, container, shortKey) {
-            const meta = SCHEMA[path] || {};
-            const group = document.createElement('div');
-            group.className = 'form-group';
-
-            const labelText = meta.label || shortKey.replace(/_/g, ' ');
-            const helpText = meta.help || "";
-            const detailedHelp = meta.detailedHelp || "";
-
-            group.innerHTML = `
-                <div class="label-wrapper">
-                    <label>
-                        ${labelText}
-                        ${detailedHelp ? `<span class="help-icon" onclick="showDetailedHelp('${labelText}', \`${detailedHelp.replace(/'/g, "\\'")}\`)">?</span>` : ''}
-                    </label>
-                    ${helpText ? `<span class="help-tip">${helpText}</span>` : ''}
-                </div>
-            `;
-
-            let input;
-            if (meta.type === 'select') {
-                input = document.createElement('select');
-                meta.options.forEach(opt => {
-                    const o = document.createElement('option');
-                    o.value = opt;
-                    o.textContent = opt;
-                    if (opt === value) o.selected = true;
-                    input.appendChild(o);
-                });
-            } else if (meta.options && meta.type === 'text') {
-                // Select or Custom
-                const wrapper = document.createElement('div');
-                wrapper.style.display = 'flex';
-                wrapper.style.gap = '0.5rem';
-
-                input = document.createElement('input');
-                input.type = 'text';
-                input.value = value || "";
-                input.style.flex = "1";
-
-                const select = document.createElement('select');
-                select.style.width = "auto";
-                select.innerHTML = '<option value="">Custom...</option>';
-                let isPreset = false;
-                meta.options.forEach(opt => {
-                    const o = document.createElement('option');
-                    o.value = opt;
-                    o.textContent = opt;
-                    if (opt === value) {
-                        o.selected = true;
-                        isPreset = true;
-                    }
-                    select.appendChild(o);
-                });
-
-                // Set initial visibility
-                input.style.display = isPreset ? 'none' : 'block';
-
-                select.onchange = (e) => {
-                    if (e.target.value) {
-                        input.value = e.target.value;
-                        input.style.display = 'none';
-                    } else {
-                        input.style.display = 'block';
-                        input.focus();
-                    }
-                    // Trigger update
-                    setValueByPath(path, input.value || "");
-                    showToast(`Updated ${labelText}`);
-                };
-
-                input.onchange = (e) => {
-                    setValueByPath(path, e.target.value);
-                    showToast(`Updated ${labelText}`);
-                };
-
-                wrapper.appendChild(select);
-                wrapper.appendChild(input);
-                group.appendChild(wrapper);
-                container.appendChild(group);
-                return; // Group handled
-            } else if (typeof value === 'boolean') {
-                input = document.createElement('select');
-                input.innerHTML = `<option value="true">Enabled</option><option value="false">Disabled</option>`;
-                input.value = value.toString();
-            } else if (typeof value === 'number') {
-                input = document.createElement('input');
-                input.type = 'number';
-                input.step = 'any';
-                input.value = value;
-            } else if (Array.isArray(value)) {
-                // List Editor
-                const listWrapper = document.createElement('div');
-                listWrapper.className = 'list-editor';
-                listWrapper.style.display = 'flex';
-                listWrapper.style.flexDirection = 'column';
-                listWrapper.style.gap = '0.5rem';
-                listWrapper.style.background = 'rgba(15, 23, 42, 0.3)';
-                listWrapper.style.padding = '0.75rem';
-                listWrapper.style.border = '1px dashed var(--border)';
-                listWrapper.style.borderRadius = 'var(--radius-md)';
-
-                function renderItems() {
-                    listWrapper.innerHTML = '';
-                    const items = [...value]; // Create copy that can be updated
-                    if (items.length === 0) {
-                        const emptyTip = document.createElement('div');
-                        emptyTip.style.color = 'var(--text-secondary)';
-                        emptyTip.style.fontSize = '0.8rem';
-                        emptyTip.innerHTML = 'No items';
-                        listWrapper.appendChild(emptyTip);
-                    }
-                    items.forEach((item, index) => {
-                        const itemRow = document.createElement('div');
-                        itemRow.style.display = 'flex';
-                        itemRow.style.gap = '0.5rem';
-
-                        const inputWrapper = document.createElement('div');
-                        inputWrapper.style.display = 'flex';
-                        inputWrapper.style.flex = '1';
-                        inputWrapper.style.gap = '0.5rem';
-
-                        const itemInput = document.createElement('input');
-                        itemInput.type = 'text';
-                        itemInput.value = item || "";
-                        itemInput.style.flex = '1';
-
-                        if (meta.options) {
-                            const select = document.createElement('select');
-                            select.style.width = "auto";
-                            select.innerHTML = '<option value="">Custom...</option>';
-                            let isPreset = false;
-                            meta.options.forEach(opt => {
-                                const o = document.createElement('option');
-                                o.value = opt;
-                                o.textContent = opt;
-                                if (opt === item) {
-                                    o.selected = true;
-                                    isPreset = true;
-                                }
-                                select.appendChild(o);
-                            });
-                            itemInput.style.display = isPreset ? 'none' : 'block';
-                            select.onchange = (e) => {
-                                if (e.target.value) {
-                                    itemInput.value = e.target.value;
-                                    itemInput.style.display = 'none';
-                                } else {
-                                    itemInput.style.display = 'block';
-                                    itemInput.focus();
-                                }
-                                value[index] = itemInput.value || "";
-                                setValueByPath(path, value);
-                                showToast(`Updated ${labelText}`);
-                            };
-                            inputWrapper.appendChild(select);
-                        }
-
-                        itemInput.onchange = (e) => {
-                            value[index] = e.target.value;
-                            setValueByPath(path, value);
-                            showToast(`Updated ${labelText}`);
-                        };
-
-                        inputWrapper.appendChild(itemInput);
-
-                        const removeBtn = document.createElement('button');
-                        removeBtn.className = 'btn';
-                        removeBtn.style.padding = '0.5rem';
-                        removeBtn.style.width = '2.5rem';
-                        removeBtn.style.background = '#ef4444';
-                        removeBtn.style.border = 'none';
-                        removeBtn.innerHTML = '×';
-                        removeBtn.onclick = () => {
-                            value.splice(index, 1);
-                            setValueByPath(path, value);
-                            renderItems();
-                            showToast(`Item Removed`);
-                        };
-
-                        itemRow.appendChild(inputWrapper);
-                        itemRow.appendChild(removeBtn);
-                        listWrapper.appendChild(itemRow);
-                    });
-
-                    const addBtn = document.createElement('button');
-                    addBtn.className = 'btn';
-                    addBtn.style.marginTop = '0.5rem';
-                    addBtn.style.justifyContent = 'center';
-                    addBtn.style.padding = '0.5rem';
-                    addBtn.innerHTML = '+ Add Item';
-                    addBtn.onclick = () => {
-                        value.push('');
-                        setValueByPath(path, value);
-                        renderItems();
-                        // Focus on added input
-                        setTimeout(() => {
-                            const inputs = listWrapper.querySelectorAll('input');
-                            if (inputs.length > 0) inputs[inputs.length - 1].focus();
-                        }, 50);
-                    };
-                    listWrapper.appendChild(addBtn);
-                }
-
-                renderItems();
-                group.appendChild(listWrapper);
-                container.appendChild(group);
-                return; // List handled
-            } else if (meta.type === 'json') {
-                input = document.createElement('textarea');
-                input.className = 'json-raw';
-                input.style.height = '150px';
-                input.value = JSON.stringify(value || {}, null, 2);
-                input.onchange = (e) => {
-                    try {
-                        const v = parseObjectSetting(e.target.value);
-                        setValueByPath(path, v);
-                        showToast(`Updated ${labelText}`);
-                    } catch (err) {
-                        alert("Invalid JSON: " + err.message);
-                    }
-                };
-                // Preserve the object parser instead of replacing it with the
-                // generic text-input handler below.
-                group.appendChild(input);
-                container.appendChild(group);
-                return;
-            } else {
-                input = document.createElement('input');
-                input.type = 'text';
-                input.value = value || "";
-            }
-
-            input.onchange = (e) => {
-                let v = e.target.value;
-                if (input.type === 'number') v = parseFloat(v);
-                if (input.tagName === 'SELECT' && (v === 'true' || v === 'false')) v = (v === 'true');
-
-                setValueByPath(path, v);
-                showToast(`Updated ${labelText}`);
-            };
-
-            group.appendChild(input);
-            container.appendChild(group);
-        }
-
-        function setValueByPath(path, value) {
-            const parts = path.split('.');
-            let obj = currentConfig;
-            for (let i = 0; i < parts.length - 1; i++) {
-                obj = obj[parts[i]];
-            }
-            obj[parts[parts.length - 1]] = value;
-            updateRawJson();
-        }
-
-        function updateRawJson() {
-            const raw = document.getElementById('json-output');
-            raw.value = JSON.stringify(currentConfig, null, 2);
-            document.getElementById('raw-section').style.display = 'block';
-        }
-
-        function downloadConfig() {
-            const blob = new Blob([JSON.stringify(currentConfig, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'config.json';
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            t.textContent = msg;
-            t.classList.add('show');
-            setTimeout(() => t.classList.remove('show'), 2000);
-        }
-
-        function showDetailedHelp(title, text) {
-            document.getElementById('help-modal-title').textContent = title;
-            document.getElementById('help-modal-text').textContent = text;
-            document.getElementById('detailed-help-overlay').style.display = 'flex';
-        }
-
-        function closeDetailedHelp() {
-            document.getElementById('detailed-help-overlay').style.display = 'none';
-        }
-    </script>
-</body>
-
-</html>
+</script></body></html>

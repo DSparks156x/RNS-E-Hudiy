@@ -7,15 +7,20 @@ import queue
 import hashlib
 import uuid
 import logging
+import math
 import zmq
 from flask import Flask, render_template, request, abort, send_file
 from flask_socketio import SocketIO, emit
 try:
     from .data_logger import DataLogger
-    from .file_portal import register_file_portal
+    from .file_portal import register_file_portal, cache_hudiy_theme
+    from .value_bridge import ValueBridge
+    from .data_logs import register_data_logs
 except ImportError:  # Direct execution on the installed Pi.
     from data_logger import DataLogger
-    from file_portal import register_file_portal
+    from file_portal import register_file_portal, cache_hudiy_theme
+    from value_bridge import ValueBridge
+    from data_logs import register_data_logs
 
 # Compatibility fix for Flask 3.1.3+ with older Flask-SocketIO:
 # Flask 3.1.3 made RequestContext.session a property without a setter.
@@ -38,6 +43,7 @@ try:
         sys.path.insert(0, _package_root)
     from flasher.controllers.haldex_gen4 import HaldexFlasher
     from flasher.controllers.pq_eps.protocol import PQEPSFlasher
+    from flasher.exhaust_valve import load_bundle, validate_upload, reserve_generation, ExhaustValveUpdater
     from flasher.traffic import flashing_operation, set_flashing_mode
 
     with open(os.path.join(_base_dir, 'config.json')) as _f:
@@ -67,6 +73,7 @@ except Exception as _e:
             sys.path.insert(0, _package_root)
         from flasher.controllers.haldex_gen4 import HaldexFlasher
         from flasher.controllers.pq_eps.protocol import PQEPSFlasher
+        from flasher.exhaust_valve import load_bundle, validate_upload, reserve_generation, ExhaustValveUpdater
         from flasher.traffic import flashing_operation, set_flashing_mode
     except Exception:
         HaldexFlasher = None
@@ -81,6 +88,8 @@ socketio = SocketIO(app, async_mode='threading', cors_allowed_origins='*',
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] (DataView) %(message)s')
 logger = logging.getLogger(__name__)
 data_logger = DataLogger(_cfg)
+value_bridge = ValueBridge(_cfg.get('interfaces', {}).get('zmq') or _cfg.get('zmq', {}), socketio.emit)
+data_logs = register_data_logs(app, socketio, _cfg, value_bridge.request)
 
 
 def _validate_haldex_portal_upload(path):
@@ -101,6 +110,7 @@ def _validate_eps_portal_upload(path):
 register_file_portal(app, _cfg, validators={
     'haldex': _validate_haldex_portal_upload,
     'pq-eps': _validate_eps_portal_upload,
+    'exhaust-valve': validate_upload,
 })
 
 # Cache Busting
@@ -144,13 +154,13 @@ class Interpolator:
         with self._lock:
             for i, dv in enumerate(data):
                 raw = dv.get('value')
-                if not isinstance(raw, (int, float)):
-                    continue  # skip strings
-
                 key = self._make_key(module, group, i)
+                if not isinstance(raw, (int, float)) or not math.isfinite(raw):
+                    self._state.pop(key, None)
+                    continue  # A missing/text sample ends the numeric segment.
                 prev_state = self._state.get(key)
 
-                if prev_state is None:
+                if prev_state is None or prev_state.get('unit') != dv.get('unit'):
                     # First ever sample — seed everything
                     self._state[key] = {
                         'prev': float(raw),
@@ -158,6 +168,7 @@ class Interpolator:
                         'ema': float(raw),
                         't_update': now,
                         'source_interval': 0.6,
+                        'unit': dv.get('unit'),
                     }
                 else:
                     # EMA filter the new target to smooth out noise
@@ -177,6 +188,7 @@ class Interpolator:
                         'ema': ema,
                         't_update': now,
                         'source_interval': max(0.05, src_ivl),
+                        'unit': dv.get('unit'),
                     }
 
             # Store the full message structure for re-broadcasting
@@ -390,8 +402,10 @@ class ZMQWorker:
 # Initialize Worker
 worker = ZMQWorker()
 
-current_subscriptions = {}
+current_subscriptions = {}  # sid -> module -> normal/low sets
 logger_subscriptions = {}
+_subscription_lock = threading.RLock()
+_connected_sids = set()
 
 
 def set_logger_subscriptions(groups):
@@ -404,23 +418,30 @@ def set_logger_subscriptions(groups):
         entry = desired.setdefault(module, {'normal': set(), 'low': set()})
         entry['low' if item.get('priority') == 'low' else 'normal'].add(group)
 
-    for module in set(logger_subscriptions) | set(desired):
-        entry = desired.get(module, {'normal': set(), 'low': set()})
-        worker.send_command(
-            "SYNC", module=module, groups=sorted(entry['normal']),
-            low_priority_groups=sorted(entry['low']), client_id="dataview_logger",
-            fire_and_forget=True)
-    logger_subscriptions = desired
+    with _subscription_lock:
+        for module in set(logger_subscriptions) | set(desired):
+            entry = desired.get(module, {'normal': set(), 'low': set()})
+            worker.send_command(
+                "SYNC", module=module, groups=sorted(entry['normal']),
+                low_priority_groups=sorted(entry['low']), client_id="dataview_logger",
+                fire_and_forget=True)
+        logger_subscriptions = desired
 
 def sync_subscriptions():
-    """Background task: periodically re-asserts subscriptions as a heartbeat.
-    Uses fire_and_forget so it never competes with UI commands for the queue."""
+    """Renew live browser and independent logger subscriptions."""
     while True:
-        socketio.sleep(10.0)
-        for mod, groups_dict in list(current_subscriptions.items()):
-            worker.send_command("SYNC", module=mod, groups=list(groups_dict['normal']), low_priority_groups=list(groups_dict['low']), client_id="dataview", fire_and_forget=True)
-        for mod, groups_dict in list(logger_subscriptions.items()):
-            worker.send_command("SYNC", module=mod, groups=list(groups_dict['normal']), low_priority_groups=list(groups_dict['low']), client_id="dataview_logger", fire_and_forget=True)
+        socketio.sleep(5.0)
+        with _subscription_lock:
+            # Serialize renewal with disconnect so an old heartbeat cannot resurrect it.
+            for sid, modules in current_subscriptions.items():
+                for mod, groups in modules.items():
+                    worker.send_command("SYNC", module=mod, groups=sorted(groups['normal']),
+                        low_priority_groups=sorted(groups['low']), client_id="dataview:" + sid,
+                        fire_and_forget=True)
+            for mod, groups in logger_subscriptions.items():
+                worker.send_command("SYNC", module=mod, groups=sorted(groups['normal']),
+                    low_priority_groups=sorted(groups['low']), client_id="dataview_logger",
+                    fire_and_forget=True)
 
 @app.route('/')
 def index():
@@ -432,58 +453,81 @@ def file_portal_page():
 
 @socketio.on('connect')
 def handle_connect():
+    with _subscription_lock:
+        _connected_sids.add(request.sid)
     logger.info(f"Client Connected (sid={request.sid})")
-    emit('status', {'mock_mode': False, 'smoothing': SMOOTHING_ENABLED})
+    emit('status', {'mock_mode': False, 'smoothing': SMOOTHING_ENABLED, 'value_api': True})
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    logger.info(f"Client Disconnected (sid={request.sid})")
+    sid = request.sid
+    with _subscription_lock:
+        _connected_sids.discard(sid)
+        modules = current_subscriptions.pop(sid, {})
+        for mod in modules:
+            worker.send_command("SYNC", module=mod, groups=[], low_priority_groups=[],
+                client_id="dataview:" + sid, fire_and_forget=True)
+    value_bridge.release(sid)
+    logger.info(f"Client Disconnected (sid={sid})")
+
+@socketio.on('sync_values')
+def handle_values(data):
+    sid = request.sid
+    values = data.get('values', []) if isinstance(data, dict) else []
+    result = value_bridge.replace(sid, values)
+    with _subscription_lock:
+        if sid not in _connected_sids:
+            value_bridge.release(sid)
+            return
+    emit('values_response', result)
+    return result
+
+@app.route('/api/values/catalog')
+def values_catalog():
+    return value_bridge.request({'cmd': 'CATALOG'})
+
+@app.route('/api/values/status')
+def values_status():
+    return value_bridge.request({'cmd': 'STATUS'})
 
 @socketio.on('toggle_group')
 def handle_toggle(data):
-    mod = data.get('module')
-    grp = data.get('group')
-    action = data.get('action')
-    priority = data.get('priority', 'normal')
-
-    if mod is not None and grp is not None:
-        mod = int(mod)
-        grp = int(grp)
-        if mod not in current_subscriptions:
-            current_subscriptions[mod] = {'normal': set(), 'low': set()}
-
+    if not isinstance(data, dict):
+        emit('command_response', {'status': 'error', 'message': 'Expected group request object'})
+        return
+    mod, grp = data.get('module'), data.get('group')
+    action, priority = data.get('action'), data.get('priority', 'normal')
+    try:
+        if mod is None or grp is None or action not in ('add', 'remove'):
+            raise ValueError('Missing module/group or invalid action')
+        mod, grp = int(mod), int(grp)
+        if not 0 <= mod <= 255 or not 0 <= grp <= 255:
+            raise ValueError('Module and group must fit a byte')
+        with _subscription_lock:
+            if request.sid not in _connected_sids:
+                return
+            modules = current_subscriptions.setdefault(request.sid, {})
+            entry = modules.setdefault(mod, {'normal': set(), 'low': set()})
+            entry['normal'].discard(grp)
+            entry['low'].discard(grp)
+            if action == 'add':
+                entry['low' if priority == 'low' else 'normal'].add(grp)
+            worker.send_command("SYNC", module=mod, groups=sorted(entry['normal']),
+                low_priority_groups=sorted(entry['low']), client_id="dataview:" + request.sid,
+                fire_and_forget=True)
+            if not entry['normal'] and not entry['low']:
+                modules.pop(mod)
+            if not modules:
+                current_subscriptions.pop(request.sid, None)
         if action == 'add':
-            if priority == 'low':
-                current_subscriptions[mod]['low'].add(grp)
-                current_subscriptions[mod]['normal'].discard(grp)
-            else:
-                current_subscriptions[mod]['normal'].add(grp)
-                current_subscriptions[mod]['low'].discard(grp)
-        elif action == 'remove':
-            current_subscriptions[mod]['normal'].discard(grp)
-            current_subscriptions[mod]['low'].discard(grp)
-
-        mod_entry = current_subscriptions.get(mod)
-        if mod_entry is None:
-            return  # Another thread already cleaned it up
-        normal_now = set(mod_entry['normal'])
-        low_now = set(mod_entry['low'])
-
-        worker.send_command("SYNC", module=mod, groups=list(normal_now), low_priority_groups=list(low_now), client_id="dataview", fire_and_forget=True)
-
-        if not normal_now and not low_now:
-            current_subscriptions.pop(mod, None)  # safe even if already removed
-
-        # Snapshot push: immediately send whatever cached data we have for this
-        if action == 'add':
-            if SMOOTHING_ENABLED:
-                snap = interpolator.get_interpolated(mod, grp)
-            else:
-                snap = interpolator.get_raw(mod, grp)
+            snap = (interpolator.get_interpolated(mod, grp) if SMOOTHING_ENABLED
+                    else interpolator.get_raw(mod, grp))
             if snap:
                 emit('diagnostic_batch', [snap])
-
-    emit('command_response', {"status": "ok", "action": action, "module": mod, "group": grp, "priority": priority})
+        emit('command_response', {'status': 'ok', 'action': action, 'module': mod,
+                                  'group': grp, 'priority': priority})
+    except (TypeError, ValueError) as exc:
+        emit('command_response', {'status': 'error', 'message': str(exc)})
 
 @socketio.on('set_smoothing')
 def handle_set_smoothing(data):
@@ -522,6 +566,7 @@ def handle_clear_dtcs(data):
 
 @socketio.on('log_theme')
 def handle_log_theme(theme_data):
+    cache_hudiy_theme(app, theme_data)
     logger.info("=== HUDIY THEME PAYLOAD ===")
     try:
         formatted = json.dumps(theme_data, indent=2)
@@ -583,6 +628,167 @@ def handle_cycle_haldex_mode():
 @socketio.on('get_logger_status')
 def handle_get_logger_status():
     emit('logger_update', data_logger.get_status())
+
+
+@socketio.on('exhaust_valve_command')
+def handle_exhaust_valve_command(data=None):
+    try:
+        if not isinstance(data, dict) or set(data) - {'target', 'toggle'}:
+            raise ValueError('Choose a valve target')
+        command = {'cmd': 'TOGGLE_VALVE'} if data.get('toggle') is True else {
+            'cmd': 'SET_VALVE', 'target': data.get('target')}
+        response = send_haldex_command(command, timeout_ms=2500)
+        if not response or response.get('status') != 'ok':
+            raise RuntimeError((response or {}).get('message', 'Valve manager unavailable'))
+        socketio.emit('exhaust_valve_status', response['data'])
+    except Exception as error:
+        emit('exhaust_valve_error', {'message': str(error), 'stopped': True})
+
+
+def exhaust_artifacts():
+    root = os.path.expanduser(_cfg.get('exhaust_valve', {}).get('firmware_dir', '~/exhaustfw'))
+    artifacts = {}
+    if not os.path.isdir(root):
+        return artifacts
+    for directory, subdirs, names in os.walk(root, followlinks=False):
+        subdirs[:] = sorted(name for name in subdirs if not name.startswith('.')
+                           and not os.path.islink(os.path.join(directory, name)))
+        for name in sorted(names):
+            path = os.path.join(directory, name)
+            if not name.endswith('.json') or os.path.islink(path):
+                continue
+            try:
+                doc, images, artifact_id = load_bundle(path)
+                artifacts[artifact_id] = {'artifact_id': artifact_id, 'name': os.path.relpath(path, root),
+                                          'size_bytes': sum(len(data) for _, data in images),
+                                          'bundle_generation': doc['generation'], '_path': path}
+            except (ValueError, OSError):
+                continue
+    return artifacts
+
+
+@socketio.on('get_exhaust_valve')
+def handle_get_exhaust_valve():
+    response = send_haldex_command({'cmd': 'GET_VALVE_STATUS'})
+    status = (response or {}).get('data', {
+        'target': None, 'confirmed': False, 'status': 'manager_unavailable', 'inhibited': True})
+    status['update_running'] = _exhaust_update_running
+    status['update_result'] = _exhaust_update_result
+    emit('exhaust_valve_status', status)
+    emit('exhaust_valve_artifacts', [{k: v for k, v in item.items() if k != '_path'}
+                                    for item in exhaust_artifacts().values()])
+
+
+_exhaust_update_running = False
+_exhaust_update_result = None
+
+
+@socketio.on('start_exhaust_valve_update')
+def handle_start_exhaust_valve_update(data):
+    global _flasher_running, _flasher_thread, _exhaust_update_running, _exhaust_update_result
+    try:
+        if not isinstance(data, dict) or set(data) - {'artifact_id', 'dry_run'}:
+            raise ValueError('Only artifact_id and dry_run are accepted')
+        dry_run = data.get('dry_run', False)
+        if type(dry_run) is not bool:
+            raise ValueError('dry_run must be boolean')
+        artifact = exhaust_artifacts().get(data.get('artifact_id'))
+        if artifact is None:
+            raise ValueError('Upload a valid can-update.json and both slot images in Files')
+        doc, images, artifact_id = load_bundle(artifact['_path'])
+        if artifact_id != artifact['artifact_id']:
+            raise ValueError('Bundle changed; refresh before updating')
+        with _flasher_lock:
+            if _flasher_running:
+                raise RuntimeError('A flash or readout operation is already in progress')
+            _flasher_running = True
+            _exhaust_update_running = True
+            _exhaust_update_result = None
+    except Exception as error:
+        emit('exhaust_valve_error', {'message': str(error), 'stopped': not _flasher_running})
+        return
+
+    def update_worker():
+        global _flasher_running, _active_flasher, _active_operation, _exhaust_update_running, _exhaust_update_result
+        owner = DiagnosticOwnership()
+        device = None
+        operation_log = None
+        previous_mode = None
+        traffic_operation = None
+        try:
+            operation_log = FlashOperationLog()
+            if dry_run:
+                result = {'status': 'dry_run', 'message': 'Bundle validated; no CAN frames sent'}
+            else:
+                from flasher.socketcan_device import SocketCANDevice
+                from flasher.traffic import flashing_mode_enabled
+                traffic_operation = flashing_operation()
+                traffic_operation.__enter__()
+                previous_mode = flashing_mode_enabled()
+                owner.acquire()
+                set_flashing_mode(True)
+                generation = reserve_generation(
+                    os.path.expanduser(_cfg.get('exhaust_valve', {}).get(
+                        'generation_file', '~/.hudiy/exhaust_deployment.json')),
+                    artifact_id, doc['generation'],
+                    _cfg.get('exhaust_valve', {}).get('installed_generation_floor', 16))
+                device = SocketCANDevice(channel=_cfg.get('interfaces', {}).get('can', {}).get('infotainment', 'can0'))
+                def progress(percent, detail):
+                    operation_log.write(f'Valve update {percent:.1f}% {detail}')
+                    socketio.emit('exhaust_valve_progress', {'percent': round(percent, 1), 'detail': detail})
+                updater = ExhaustValveUpdater(device, progress=progress)
+                with _flasher_lock:
+                    _active_flasher = updater
+                    _active_operation = 'exhaust-update'
+                result = updater.run(images, generation)
+            result['log_path'] = operation_log.path
+            operation_log.finish(result)
+            _exhaust_update_result = result
+            socketio.emit('exhaust_valve_complete', result)
+        except Exception as error:
+            logger.exception('Valve update stopped')
+            result = {'message': str(error), 'status': 'unconfirmed', 'stopped': True}
+            _exhaust_update_result = result
+            if operation_log:
+                try:
+                    operation_log.finish(result)
+                except Exception:
+                    logger.exception('Could not persist valve update failure')
+            socketio.emit('exhaust_valve_error', result)
+        finally:
+            try:
+                for cleanup in (lambda: device.close() if device else None,
+                                owner.release,
+                                lambda: traffic_operation.__exit__(None, None, None) if traffic_operation else None,
+                                lambda: set_flashing_mode(False) if previous_mode is False else None,
+                                lambda: operation_log.close() if operation_log else None):
+                    try:
+                        cleanup()
+                    except Exception:
+                        logger.exception('Valve update cleanup failed')
+            finally:
+                with _flasher_lock:
+                    _flasher_running = False
+                    _exhaust_update_running = False
+                    _active_flasher = None
+                    _active_operation = None
+
+    _flasher_thread = threading.Thread(target=update_worker, daemon=True)
+    socketio.emit('exhaust_valve_started', {'dry_run': dry_run})
+    try:
+        _flasher_thread.start()
+    except Exception as error:
+        with _flasher_lock:
+            _flasher_running = False
+            _exhaust_update_running = False
+        emit('exhaust_valve_error', {'message': str(error), 'stopped': True})
+
+
+@socketio.on('cancel_exhaust_valve_update')
+def handle_cancel_exhaust_valve_update():
+    with _flasher_lock:
+        if _active_operation == 'exhaust-update' and _active_flasher:
+            _active_flasher.cancel()
 
 @socketio.on('start_logger')
 def handle_start_logger(data):
@@ -1215,7 +1421,9 @@ def haldex_status_subscriber_loop():
             socketio.sleep(0.5)
 
 if __name__ == '__main__':
+    value_bridge.start()
     data_logger.start()
+    data_logs.start()
     socketio.start_background_task(worker.run)
 
     logger.info("Starting Flask-SocketIO Server on port 5003")
@@ -1226,3 +1434,4 @@ if __name__ == '__main__':
         socketio.run(app, host='0.0.0.0', port=5003, allow_unsafe_werkzeug=True)
     finally:
         data_logger.close()
+        data_logs.close()

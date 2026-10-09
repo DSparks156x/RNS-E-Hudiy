@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from unittest.mock import patch
 
 try:
     from flask import Flask
@@ -16,7 +17,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 if Flask is not None:
-    from hudiy_dataview.file_portal import build_collections, register_file_portal  # noqa: E402
+    from hudiy_dataview.file_portal import build_collections, register_file_portal, cache_hudiy_theme  # noqa: E402
 
 
 @unittest.skipIf(Flask is None, "Flask is installed by the Pi installer")
@@ -28,15 +29,15 @@ class FilePortalTests(unittest.TestCase):
         self.logs = os.path.join(root, "logs")
         self.service_logs = os.path.join(root, "service")
         self.runtime_logs = os.path.join(root, "runtime")
-        self.api_logs = os.path.join(root, "hudiy-api")
+        self.api_logs = os.path.join(root, "logs", "hudiy-api")
         os.makedirs(self.firmware)
         os.makedirs(self.logs)
-        os.makedirs(os.path.join(self.service_logs, "2026-09-17"))
+        os.makedirs(os.path.join(self.service_logs, "2026-09-17", "1"))
         os.makedirs(self.runtime_logs)
         os.makedirs(self.api_logs)
         with open(os.path.join(self.logs, "drive.csv"), "wb") as handle:
             handle.write(b"timestamp,rpm\n")
-        with open(os.path.join(self.service_logs, "2026-09-17", "tp2_worker.log"), "wb") as handle:
+        with open(os.path.join(self.service_logs, "2026-09-17", "1", "tp2_worker.log"), "wb") as handle:
             handle.write(b"worker output")
         with open(os.path.join(self.runtime_logs, "can_handler.log"), "wb") as handle:
             handle.write(b"live output")
@@ -48,7 +49,7 @@ class FilePortalTests(unittest.TestCase):
             "features": {"log_saver": {"log_directory": self.service_logs}},
             "haldex": {"firmware_dir": self.firmware},
             "diagnostics": {"hudiy_api_capture": {
-                "path": os.path.join(self.api_logs, "hudiy-api-events.log")
+                "enabled": False, "path": os.path.join(root, "obsolete-api-location.log")
             }},
             "file_portal": {
                 "upload_pin": "2468",
@@ -65,8 +66,12 @@ class FilePortalTests(unittest.TestCase):
         }
         self.validated = []
         app = Flask(__name__)
-        register_file_portal(app, config, {"test": self.validated.append})
+        real_expanduser = os.path.expanduser
+        with patch("hudiy_dataview.file_portal.os.path.expanduser", side_effect=lambda path:
+                   os.path.join(root, path[2:]) if path.startswith('~/') else real_expanduser(path)):
+            register_file_portal(app, config, {"test": self.validated.append})
         app.testing = True
+        self.app = app
         self.client = app.test_client()
 
     def tearDown(self):
@@ -82,6 +87,29 @@ class FilePortalTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in collections["hudiy_api"]["files"]], ["hudiy-api-events.log"])
         self.assertTrue(response.get_json()["pin_required"])
         self.assertEqual(response.get_json()["all_logs_archive_url"], "/api/files/archive/all_logs")
+
+    def test_theme_is_available_without_pin_and_tracks_native_updates(self):
+        self.assertEqual(self.client.get("/api/files/theme").get_json(), {"theme": None})
+        palette = {"primary": "#bfd98f", "surface": "#12170f", "darkThemeEnabled": True}
+        self.assertTrue(cache_hudiy_theme(self.app, palette))
+        palette["primary"] = "#ffffff"  # The cache must own its snapshot.
+        response = self.client.get("/api/files/theme")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        self.assertEqual(response.get_json()["theme"]["primary"], "#bfd98f")
+        self.assertTrue(response.get_json()["theme"]["darkThemeEnabled"])
+        cache_hudiy_theme(self.app, {"primary": "#435b33", "darkThemeEnabled": False})
+        self.assertFalse(self.client.get("/api/files/theme").get_json()["theme"]["darkThemeEnabled"])
+
+    def test_theme_exposes_only_color_roles_and_preserves_cache_on_invalid_payload(self):
+        cache_hudiy_theme(self.app, {"primary": "#abcdef", "onSurface": "#eee",
+                                    "darkThemeEnabled": False, "secret": "private",
+                                    "surface": "url(https://example.test/image)", "nested": {"value": "#fff"}})
+        self.assertEqual(self.client.get("/api/files/theme").get_json()["theme"],
+                         {"primary": "#abcdef", "onSurface": "#eee", "darkThemeEnabled": False})
+        self.assertFalse(cache_hudiy_theme(self.app, None))
+        self.assertFalse(cache_hudiy_theme(self.app, {"primary": "invalid"}))
+        self.assertEqual(self.client.get("/api/files/theme").get_json()["theme"]["primary"], "#abcdef")
 
     def test_eps_configuration_adds_a_separate_firmware_target(self):
         eps_directory = os.path.join(self.temporary.name, "eps")
@@ -130,7 +158,7 @@ class FilePortalTests(unittest.TestCase):
         response = self.client.get("/api/files/archive/service_logs")
         self.assertEqual(response.status_code, 200)
         with zipfile.ZipFile(io.BytesIO(response.data)) as archive:
-            self.assertEqual(archive.namelist(), ["2026-09-17/tp2_worker.log"])
+            self.assertEqual(archive.namelist(), ["2026-09-17/1/tp2_worker.log"])
 
         all_logs = self.client.get("/api/files/archive/all_logs")
         with zipfile.ZipFile(io.BytesIO(all_logs.data)) as archive:

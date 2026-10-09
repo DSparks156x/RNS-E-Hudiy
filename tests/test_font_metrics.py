@@ -55,8 +55,8 @@ class FontMetricsTests(unittest.TestCase):
 
     def test_config_profile_and_base_helpers(self):
         self.assertEqual(font_profile({}),'native')
-        self.assertEqual(font_profile({'display':{'font_resolution':'bad'}}),'native')
-        app=BaseApp({'display':{'font_resolution':'legacy'}})
+        self.assertEqual(font_profile({'display':{'center_display': {'high_resolution': True}}}),'native')
+        app=BaseApp({'display':{'center_display': {'high_resolution': False}}})
         self.assertEqual(app.text_width('111'),18)
         self.assertEqual(app.fit_text('1111',18),'111')
 
@@ -110,7 +110,7 @@ class PixelScrollTests(unittest.TestCase):
         self.clock.return_value=.4;self.window('iiiWWW')
         self.assertEqual(self.window('iiiWWW',max_width_px=24),'iiiW')
         self.assertEqual(self.window('iiiWWW',font_flags=0x02),'i')
-        self.app.config={'display':{'font_resolution':'legacy'}}
+        self.app.config={'display':{'center_display': {'high_resolution': False}}}
         self.assertEqual(self.window('iiiWWW',font_flags=0x02),'i')
         self.assertEqual(self.app._scroll_state['title']['offset'],0)
         self.window('iiiWWW',continuous=True)

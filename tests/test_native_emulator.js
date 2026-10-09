@@ -68,4 +68,31 @@ sandbox.handleCommand({command:'clear_payload'});
 sandbox.handleCommand({command:'draw_line', x:3, y:2, length:2, vertical:false});
 assert.equal(pixels.reduce((a,b) => a+b, 0), 4);
 assert.equal(pixels[59*128+6], 0, 'Horizontal line is one physical pixel tall');
-console.log('Emulator: page syntax, native pixels, validation, commit, logical restore and physical line geometry PASS');
+// Execute the real atomic text handler. The old field is wiped before text
+// enters the back buffer, without presenting the intermediate cleared state.
+const textCalls = [];
+pixels.fill(1);
+sandbox.drawText = (text, x, y, flags) => {
+    assert.equal(pixels[60*128+4], 0, 'Previous footprint cleared before replacement');
+    assert.equal(pixels[60*128+122], 1, 'Adjacent approach bar survives text cleanup');
+    textCalls.push({text, x, y, flags});
+    context.fillStyle = 'white';
+    context.fillRect(x, y, 2, 2);
+};
+const beforeText = presents;
+sandbox.handleCommand({command:'update_text', text:'Hi', x:4, y:3, flags:0x26,
+    clear_rect:{x:2,y:3,w:12,h:9}});
+assert.deepEqual(textCalls, [{text:'Hi',x:4,y:30,flags:0x26}]);
+assert.equal(pixels[60*128+8], 1, 'Replacement drawn into the wiped field');
+assert.equal(presents, beforeText, 'Atomic text does not imply a commit');
+sandbox.handleCommand({command:'commit'});
+assert.equal(presents, beforeText+1);
+
+// Removing a field only clears it. An overwrite with no cleanup skips the wipe.
+sandbox.handleCommand({command:'update_text', text:'', clear_rect:{x:2,y:3,w:12,h:9}});
+assert.equal(textCalls.length, 1);
+assert.equal(pixels[60*128+8], 0);
+sandbox.handleCommand({command:'update_text', text:'Next', x:4, y:3});
+assert.deepEqual(textCalls[1], {text:'Next',x:4,y:30,flags:6});
+assert.equal(presents, beforeText+1, 'Only explicit commit presents text');
+console.log('Emulator: native pixels, validation, explicit commit, physical lines and atomic text cleanup PASS');

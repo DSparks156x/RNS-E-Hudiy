@@ -119,7 +119,10 @@ class DDPSharedFramingTests(unittest.TestCase):
 
         self.assertTrue(protocol.send_ddp_frame(list(range(50))))
         self.assertEqual(len(sent), 8)
-        self.assertEqual([frame[1][0] >> 4 for frame in sent], [2, 2, 2, 2, 2, 1, 2, 1])
+        self.assertEqual([frame[1][0] >> 4 for frame in sent], [2, 2, 2, 2, 2, 0, 2, 1])
+        # Six-frame ACK boundaries continue the same application message:
+        # opcode0 requests an intermediate ACK, opcode1 terminates it.
+        self.assertEqual(b''.join(frame[1][1:] for frame in sent), bytes(range(50)))
         self.assertEqual(acknowledgements, [b'\xB6', b'\xB8'])
         self.assertEqual(protocol.send_seq_num, 8)
 

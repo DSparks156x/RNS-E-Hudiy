@@ -80,6 +80,36 @@ Clients must use a `ZMQ.REQ` socket to connect to the command address (`ipc:///r
 ```
 *Note: Clients must send a `SYNC` command every < 15 seconds to keep their subscription active. If a client stops sending SYNC, their requested groups are dropped.*
 
+For a specific cadence, add `group_periods_ms`, with string group numbers and
+positive finite periods in milliseconds. For example, engine groups 11 and 118
+at a requested 2 Hz each:
+
+```json
+{
+  "cmd": "SYNC",
+  "client_id": "engine_values",
+  "module": 1,
+  "groups": [],
+  "low_priority_groups": [],
+  "group_periods_ms": {"11": 500, "118": 500}
+}
+```
+
+The fastest demand from all clients wins, and each group is read once for all
+subscribers. A legacy normal subscription makes that group poll as fast as
+possible; a low-priority subscription requests a 60-second period. Cadence uses
+monotonic deadlines and skips missed polls instead of sending catch-up bursts.
+Actual rates depend on transport and module capacity. `STATUS.sessions` adds
+`group_periods_ms` and `group_stats`, with requested period, successful update
+count, last successful host acquisition timestamp, most recent request duration,
+achieved Hz, and an overrun indicator. Period zero represents legacy unlimited
+polling.
+
+`STATUS` and `HUDIY_TP2_STATUS` retain `enabled` and `running` and add
+`available`, `diagnostic_owner`, and `flashing`. Consumers should use `available`
+to account for diagnostic ownership and flashing inhibition as well as ignition
+and the user's enabled setting.
+
 **Response**:
 ```json
 {
@@ -231,6 +261,15 @@ Clients must use a `ZMQ.SUB` socket connected to the publish address (`ipc:///ru
 }
 ```
 
+Measuring-group payloads also include `acquisition_timestamp` (host receipt time,
+seconds since Unix epoch), `request_duration_ms`, `raw_data_hex` (payload after
+the positive-response SID and echoed group), `block_count`, `trailing_bytes`,
+and `complete`. Complete formula triples are all retained, including responses
+with eight or more fields. `complete` is false for empty payloads or incomplete
+trailing triples; raw consumers can inspect those fields, but named-value
+consumers must reject the partial response. Timestamps describe acquisition by
+the host and do not claim an ECU sampling timestamp.
+
 **Payload Variant 3: DTC Report (Error)**
 ```json
 {
@@ -240,6 +279,16 @@ Clients must use a `ZMQ.SUB` socket connected to the publish address (`ipc:///ru
   "error": "Error reading DTCs: Request Rejected (NRC 22)"
 }
 ```
+
+### Topic: `HUDIY_DIAG_OBSERVATION`
+
+Failed measuring-group requests publish a separate observation with `module`,
+`group`, `error`, `error_kind`, `nrc` (nullable), `transient`,
+`acquisition_timestamp`, `request_duration_ms`, and `raw_response_hex`.
+Negative responses, empty/unexpected responses, incomplete payloads, and
+transport exceptions are represented explicitly. This topic shares the
+`HUDIY_DIAG` prefix: subscribers using a prefix subscription must inspect the
+actual topic before treating a message as a group value.
 
 ---
 
@@ -372,6 +421,58 @@ run();
 
 ## 9. Rate Limiting / Constraints
 
-- **Maximum Concurrent Modules**: The service restricts the maximum number of simultaneous module connections to 10 (Tester IDs pool: `0x300` to `0x309`). Attempting to connect to an 11th module simultaneously will raise an internal error.
+- **Maximum Concurrent Modules**: The worker has seven tester IDs, `0x300` to `0x306`; `0x307` is reserved for Openpilot. Creating an eighth concurrent module session returns an error.
 - **Subscription Expiry**: A client must send a `SYNC` command for its desired measuring blocks at least once every **15 seconds**. Failure to do so will result in the worker dropping the requested groups from its polling cycle to conserve CAN bandwidth.
 - **Polling Throttling**: The core loop sleeps for `0.01s` between operations, though the underlying TP2 protocol enforces strict timing parameters (T1, T3) that inherently rate-limit CAN bus interactions.
+
+## 10. Inspect Raw Measuring Groups and Measure Capacity
+
+Run the capture tool on the diagnostic host with the worker already enabled and
+ignition active. It uses the existing command/stream endpoints from `config.json`
+and requires the updated worker's `STATUS.available` confirmation. It never
+toggles diagnostics, takes diagnostic ownership, or bypasses ignition, flashing,
+or ownership gates. A pause event or unavailable status stops the capture.
+
+```sh
+# Inspect engine group 11 for undocumented fields, default 30 s at 2 Hz.
+python3 tools/inspect_measuring_groups.py --target 01:11 --output group11.ndjson
+
+# Request several selected engine groups at 2 Hz each.
+python3 tools/inspect_measuring_groups.py --target 01:2,3,11,118 --duration 60 --rate 2 --output engine.ndjson
+
+# Include a second module; module/group numbers are decimal unless prefixed 0x.
+python3 tools/inspect_measuring_groups.py --target 01:11,118 --target 0x22:1,3 --output engine-awd.ndjson
+
+# Explicitly opt in to unlimited polling to measure tightened TP2 capacity.
+python3 tools/inspect_measuring_groups.py --target 01:11,118 --as-fast --duration 30 --quiet --output capacity.ndjson
+```
+
+`--target MODULE:GROUP,GROUP` is required and repeatable; only those groups are
+subscribed, and duplicate module/group selections are merged. There is no
+automatic group scan. `--command` and `--stream` override configured endpoints;
+`--config` selects another configuration file. `--output` replaces the named
+file. `--quiet` suppresses individual records on the console while preserving
+the full NDJSON capture and final console summary.
+
+Each group record retains every decoded value and unit, the original raw
+payload hex, acquisition/receipt timestamps, duration, trailing bytes, and
+completeness. An additional `fields` list labels fields starting at one; each
+field's semantic meaning is marked `unconfirmed`. Formula/unit decoding alone
+does not establish what a field measures, especially fields 5–8. Captures can be
+compared against independently observed values before extending the catalog.
+
+The final per-group summary reports successful complete updates, observed field
+counts, incomplete updates, failure observations, achieved Hz between first and
+last successful arrivals, successful updates divided by total capture duration,
+and request-duration mean/p95. Arrival-rate measurements use the recorder's
+monotonic clock, with no smoothing. A single successful update has no meaningful
+between-update rate. Existing consumers can make a selected group poll faster
+than this tool's requested cadence, so the summary measures the shared worker's
+actual stream. Other modules and groups also consume capacity.
+
+The tool refreshes its own UUID client lease every five seconds and clears only
+its own subscriptions on completion, interruption, or failure. Command sockets
+have bounded two-second send/receive timeouts; stream receives are bounded to
+250 ms. If cleanup cannot reach the worker, the subscription expires after the
+worker's 15-second lease timeout. NDJSON contains capture metadata, group and
+failure records, any capture error, and the summary.

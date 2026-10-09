@@ -98,7 +98,8 @@ class ConnectionManager:
         self.disconnect_delay_seconds: float = 0.0
 
         self.state: ManagerState = ManagerState.IDLE_DISCONNECTED
-        self.lock = threading.Lock()
+        # Power transitions can synchronously execute a zero-delay disconnect.
+        self.lock = threading.RLock()
         self.running: bool = True
 
         # Vehicle state tracking
@@ -253,14 +254,17 @@ class ConnectionManager:
         self.state = ManagerState.WAKE_WINDOW_ACTIVE
         self._enable_connections(trigger_reason=f"Wake Window ({reason})")
 
-        self.window_timer = threading.Timer(duration, self._on_wake_window_expired)
-        self.window_timer.start()
+        timer = threading.Timer(duration, lambda: self._on_wake_window_expired(timer))
+        self.window_timer = timer
+        timer.start()
 
-    def _on_wake_window_expired(self):
+    def _on_wake_window_expired(self, timer=None):
         """Called when the temporary wake window timer expires."""
         with self.lock:
-            if self.state != ManagerState.WAKE_WINDOW_ACTIVE:
+            if (not self.running or self.state != ManagerState.WAKE_WINDOW_ACTIVE
+                    or (timer is not None and self.window_timer is not timer)):
                 return
+            self.window_timer = None
 
             # Check if condition for staying connected is met
             is_active = (self.connect_on_ignition and self.kl15) or (self.connect_on_radio and self.radio_active)
@@ -274,17 +278,26 @@ class ConnectionManager:
 
     def _schedule_disconnect(self, reason: str):
         """Schedules a disconnection with optional delay."""
+        if self.state == ManagerState.DISCONNECTING:
+            return
+        self.state = ManagerState.DISCONNECTING
         if self.disconnect_delay_seconds > 0:
             if self.disconnect_timer:
                 self.disconnect_timer.cancel()
             logger.info(f"ConnectionManager: Scheduling disconnect in {self.disconnect_delay_seconds}s (Reason: {reason})")
-            self.disconnect_timer = threading.Timer(self.disconnect_delay_seconds, lambda: self._execute_disconnect(reason))
-            self.disconnect_timer.start()
+            timer = threading.Timer(self.disconnect_delay_seconds,
+                                    lambda: self._execute_disconnect(reason, timer))
+            self.disconnect_timer = timer
+            timer.start()
         else:
             self._execute_disconnect(reason)
 
-    def _execute_disconnect(self, reason: str):
+    def _execute_disconnect(self, reason: str, timer=None):
         with self.lock:
+            if (not self.running or self.state != ManagerState.DISCONNECTING
+                    or (timer is not None and self.disconnect_timer is not timer)):
+                return
+            self.disconnect_timer = None
             # Check if active condition returned before disconnect execution
             is_active = (self.connect_on_ignition and self.kl15) or (self.connect_on_radio and self.radio_active)
             if is_active:
@@ -304,11 +317,9 @@ class ConnectionManager:
     def process_power_status(self, pwr: Dict[str, Any]):
         """Processes updated POWER_STATUS from ZMQ."""
         with self.lock:
-            if not self.enabled:
+            if not self.enabled or not self.running:
                 return
 
-            old_kl15 = self.kl15
-            old_radio = self.radio_active
             old_wake = self.wake_signal
             old_door_open = self.door_open
 
@@ -361,6 +372,8 @@ class ConnectionManager:
             if self.state == ManagerState.ACTIVE_CONNECTED:
                 logger.info(f"ConnectionManager: Ignition/Radio turned OFF (KL15={self.kl15}, Radio={self.radio_active}).")
                 self._schedule_disconnect(reason="Ignition/Radio Turned OFF")
+                return
+            if self.state == ManagerState.DISCONNECTING:
                 return
 
             # If in IDLE_DISCONNECTED or WAKE_WINDOW_ACTIVE, check for door opening or wake signal rising edge:

@@ -2,11 +2,12 @@ import { motion, useTransform } from 'framer-motion';
 import { useLiveValue } from './LiveText';
 
 interface KnockBarsProps {
-  groupKey: string;
+  groupKey?: string;
+  valueIds?: string[];
 }
 
-function KnockBar({ cyl, groupKey, index }: { cyl: number; groupKey: string; index: number }) {
-  const mv = useLiveValue(groupKey, index, 0);
+function KnockBar({ cyl, groupKey, index, valueId }: { cyl: number; groupKey: string; index: number; valueId?: string }) {
+  const mv = useLiveValue(groupKey, index, 0, valueId);
 
   const maxRetard = 12.0;
 
@@ -29,7 +30,7 @@ function KnockBar({ cyl, groupKey, index }: { cyl: number; groupKey: string; ind
   const displayVal = useTransform(mv, (val) => {
     let v = typeof val === 'number' ? val : parseFloat(val);
     v = Math.abs(v);
-    return !isNaN(v) && v > 0.1 ? v.toFixed(1) : '';
+    return isNaN(v) ? '--' : v > 0.1 ? v.toFixed(1) : '';
   });
 
   return (
@@ -46,13 +47,13 @@ function KnockBar({ cyl, groupKey, index }: { cyl: number; groupKey: string; ind
   );
 }
 
-export function KnockBars({ groupKey }: KnockBarsProps) {
+export function KnockBars({ groupKey = '', valueIds }: KnockBarsProps) {
   return (
     <div className="knock-container">
       <div className="knock-header">Timing Pull</div>
       <div className="knock-bars">
         {[0, 1, 2, 3].map((i) => (
-          <KnockBar key={i} cyl={i + 1} groupKey={groupKey} index={i} />
+          <KnockBar key={i} cyl={i + 1} groupKey={groupKey} index={valueIds ? 0 : i} valueId={valueIds?.[i]} />
         ))}
       </div>
     </div>

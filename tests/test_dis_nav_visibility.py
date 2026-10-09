@@ -201,69 +201,54 @@ class ContextClaimTests(unittest.TestCase):
 
 
 class NavigationAutoSwitchTests(unittest.TestCase):
-    def _engine(self, current="app_media"):
+    def _engine(self, current="app_media", meters=2000):
+        from navigation_policy import NavigationPolicy
         engine = DisplayEngine.__new__(DisplayEngine)
         engine.nav_auto_switch = True
         engine.nav_active = True
         engine.service_ready = True
-        engine.nav_approach_threshold = 500
-        engine.nav_return_threshold = 1000
-        engine.nav_auto_triggered = False
-        engine.pre_nav_app_name = None
         engine.pages = ["app_nav", "app_media", "app_car_info"]
         engine.current_page_idx = engine.pages.index(current)
-        switched = []
+        engine.apps = {"app_nav": SimpleNamespace(has_route=True, meters=meters, description='Main')}
+        engine.nav_policy = NavigationPolicy()
+        engine.pre_nav_app_name = None
+        return engine
 
-        def switch_to_app(name):
-            switched.append(name)
-            engine.current_page_idx = engine.pages.index(name)
+    def test_route_start_peeks_without_losing_manual_page(self):
+        engine = self._engine()
+        engine._handle_nav_auto_switch(engine.apps['app_nav'])
+        self.assertEqual(engine.pre_nav_app_name, 'app_media')
+        self.assertEqual(engine.pages[engine.current_page_idx], 'app_media')
 
-        engine.switch_to_app = switch_to_app
-        return engine, switched
+    def test_manual_nav_stays_after_distant_next_maneuver(self):
+        engine = self._engine(current='app_nav')
+        engine._handle_nav_auto_switch(engine.apps['app_nav'])
+        self.assertIsNone(engine.pre_nav_app_name)
+        self.assertEqual(engine.pages[engine.current_page_idx], 'app_nav')
 
-    def test_does_not_enter_above_approach_threshold(self):
-        engine, switched = self._engine()
-
-        engine._handle_nav_auto_switch(SimpleNamespace(meters=501))
-
-        self.assertEqual(switched, [])
-
-    def test_enters_at_approach_threshold(self):
-        engine, switched = self._engine(current="app_car_info")
-
-        engine._handle_nav_auto_switch(SimpleNamespace(meters=500))
-
-        self.assertEqual(switched, ["app_nav"])
-        self.assertEqual(engine.pre_nav_app_name, "app_car_info")
-
-    def test_chained_maneuver_within_return_threshold_stays_on_nav(self):
-        engine, switched = self._engine(current="app_nav")
-        engine.pre_nav_app_name = "app_media"
-        engine.nav_auto_triggered = True
-
-        engine._handle_nav_auto_switch(SimpleNamespace(meters=800))
-
-        self.assertEqual(switched, [])
-        self.assertEqual(engine.pre_nav_app_name, "app_media")
-
-    def test_next_maneuver_above_return_threshold_restores_previous_app(self):
-        engine, switched = self._engine(current="app_nav")
-        engine.pre_nav_app_name = "app_car_info"
-        engine.nav_auto_triggered = True
-
-        engine._handle_nav_auto_switch(SimpleNamespace(meters=1001))
-
-        self.assertEqual(switched, ["app_car_info"])
+    def test_manual_escape_does_not_repeat_same_approach(self):
+        engine = self._engine(meters=100)
+        engine._handle_nav_auto_switch(engine.apps['app_nav'])
+        engine.nav_policy.manual_select()
+        engine.current_page_idx = engine.pages.index('app_car_info')
+        engine._handle_nav_auto_switch(engine.apps['app_nav'])
         self.assertIsNone(engine.pre_nav_app_name)
 
-    def test_unknown_distance_does_not_change_overlay(self):
-        engine, switched = self._engine(current="app_nav")
-        engine.pre_nav_app_name = "app_media"
+    def test_new_maneuver_can_interrupt_after_manual_escape(self):
+        engine = self._engine(meters=100)
+        engine._handle_nav_auto_switch(engine.apps['app_nav'])
+        engine.nav_policy.manual_select()
+        engine.apps['app_nav'].description = 'Pine'
+        engine._handle_nav_auto_switch(engine.apps['app_nav'])
+        self.assertEqual(engine.pre_nav_app_name, 'app_media')
 
-        engine._handle_nav_auto_switch(SimpleNamespace(meters=-1))
+    def test_route_end_cancels_override(self):
+        engine = self._engine(meters=100)
+        engine._handle_nav_auto_switch(engine.apps['app_nav'])
+        engine.apps['app_nav'].has_route = False
+        engine._handle_nav_auto_switch(engine.apps['app_nav'])
+        self.assertIsNone(engine.pre_nav_app_name)
 
-        self.assertEqual(switched, [])
-        self.assertEqual(engine.pre_nav_app_name, "app_media")
 
 
 class TopDisplayNavVisibilityTests(unittest.TestCase):

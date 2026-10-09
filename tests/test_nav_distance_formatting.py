@@ -10,7 +10,7 @@ from apps.nav import NavApp
 
 def render(distance, units='metric', approach_max=300):
     app = NavApp({'display': {'road_side': 'right', 'units': {'speed': units},
-                  'center_display': {'navigation': {'high_resolution': True,
+                  'center_display': {'high_resolution': True, 'navigation': {
                                       'approach_bar_max_distance': approach_max}}}})
     app.update_hudiy(b'HUDIY_NAV', {'description': 'Main St', 'distance': distance,
                                   'maneuver_type': 4, 'maneuver_side': 2})
@@ -18,7 +18,7 @@ def render(distance, units='metric', approach_max=300):
     labels = [item['text'] for item in view
               if item.get('group') == 'dist' and item.get('cmd') == 'draw_text']
     bars = [item['length'] for item in view
-            if item.get('group') == 'dist' and item.get('cmd') == 'draw_line']
+            if item.get('group') == 'bar' and item.get('cmd') == 'draw_line']
     return app, view, labels, max(bars or [0])
 
 

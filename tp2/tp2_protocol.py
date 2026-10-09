@@ -39,16 +39,30 @@ class _WorkerCANDevice:
     def can_recv(self, timeout_ms=20):
         if self.owner.bus is None:
             return []
-        first = self.owner.bus.recv(max(0.001, timeout_ms / 1000.0))
+        timeout = max(0.001, timeout_ms / 1000.0)
+        deadline = time.monotonic() + timeout
+        first = self.owner.bus.recv(timeout)
         if first is None:
             return []
-        messages = [(first.arbitration_id, bytes(first.data), 0)]
-        while True:
+        messages = []
+        if self._valid_message(first):
+            messages.append((first.arbitration_id, bytes(first.data), 0))
+        # Continuous bus traffic must leave time for protocol ACKs and deadlines.
+        for _ in range(255):
+            if time.monotonic() >= deadline:
+                break
             extra = self.owner.bus.recv(0.0)
             if extra is None:
                 break
-            messages.append((extra.arbitration_id, bytes(extra.data), 0))
+            if self._valid_message(extra):
+                messages.append((extra.arbitration_id, bytes(extra.data), 0))
         return messages
+
+    @staticmethod
+    def _valid_message(message):
+        return (not any(getattr(message, flag, False) for flag in
+                        ('is_extended_id', 'is_error_frame', 'is_remote_frame', 'is_fd'))
+                and 0 <= message.arbitration_id <= 0x7FF and 1 <= len(message.data) <= 8)
 
 
 class TP2Protocol:

@@ -45,7 +45,7 @@ class MediaApp(BaseApp):
         def field_flags(text):
             # Center a fitting field, but anchor overflowing scroll windows at
             # the left edge so changing proportional widths cannot recenter it.
-            fits = self.text_width(text or '', self.FLAG_ITEM) <= 128
+            fits = self.text_fits(text or '', 128, self.FLAG_ITEM)
             return self.FLAG_ITEM_CENTERED if centering and fits else self.FLAG_ITEM
 
         for key, field in (('line1', 'title'), ('line2', 'artist'), ('line3', 'album')):

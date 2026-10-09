@@ -28,6 +28,25 @@ def packed_bitmap(source):
     return bytes(source)
 
 
+def changed_native_rect(source, previous):
+    """Smallest complete-cell physical rectangle containing changed pixels."""
+    target, prior = packed_bitmap(source), packed_bitmap(previous)
+    left, top, right, bottom = 128, 96, -1, -1
+    for index, (before, after) in enumerate(zip(prior, target)):
+        difference = before ^ after
+        if not difference:
+            continue
+        y, byte_x = divmod(index, 16)
+        first = byte_x * 8 + 8 - difference.bit_length()
+        last = byte_x * 8 + 8 - (difference & -difference).bit_length()
+        left, right = min(left, first), max(right, last)
+        top, bottom = min(top, y), max(bottom, y)
+    if right < 0:
+        return None
+    x, y = left & ~1, top & ~1
+    return [x, y, (right | 1) + 1 - x, (bottom | 1) + 1 - y]
+
+
 def decode_bitmap(source):
     """Physical cell patterns: TL1/TR2/BL4/BR8."""
     data = packed_bitmap(source)
@@ -92,11 +111,11 @@ def validate_render_options(render_order='planes', band_rows=12):
 
 
 def validate_update_rect(update_rect=None, render_order='tiles', delta=False):
-    """Optional physical rectangle aligned to complete2x2 cells, tiles only."""
+    """Optional cell-aligned physical rectangle for opaque tiles or planes."""
     if update_rect is None:
         return None
-    if render_order != 'tiles' or delta:
-        raise ValueError('Native update_rect requires tiles without delta')
+    if render_order not in ('tiles', 'planes') or delta:
+        raise ValueError('Native update_rect requires tiles or planes without delta')
     if (not isinstance(update_rect, (tuple, list)) or len(update_rect) != 4
             or any(isinstance(v, bool) or not isinstance(v, int) for v in update_rect)):
         raise ValueError('Native update_rect requires four integer physical coordinates')
@@ -209,6 +228,56 @@ def pack_native_records(records, *, budget=105, priming='each', selector_bytes=1
     return packets
 
 
+
+def _compile_bounded_plane_payloads(source, rect, rows_per_command):
+    """Verified opaque ROI base followed by individually primed V/H/dot planes.
+
+    Each base chunk owns its clip and starts at raster row zero. This avoids
+    relying on multi-row raster offsets in a retained larger clip. Corrections
+    restore the ROI clip; the final record restores the full center window.
+    """
+    x, y, w, h = [value // 2 for value in rect]
+    grid = decode_bitmap(source)
+    stride = (w + 7) // 8
+    base = bytearray(stride * h)
+    vertical, horizontal, dots = [], [], []
+    for py in range(h):
+        for px in range(w):
+            pattern = grid[y + py][x + px]
+            tl, tr, bl, br = (bool(pattern & bit) for bit in (1, 2, 4, 8))
+            if br:
+                base[py * stride + px // 8] |= 0x80 >> (px % 8)
+            if bl ^ br:
+                vertical.append((px, py))
+            if tr ^ br:
+                horizontal.append((px, py))
+            if tl ^ tr ^ bl ^ br:
+                dots.append((px, py))
+    records = []
+    rows = min(rows_per_command, (105 - 5) // stride)
+    for first in range(0, h, rows):
+        height = min(rows, h - first)
+        data = base[first * stride:(first + height) * stride]
+        records.append([0x52, 5, 0, x, y + 27 + first, w, height])
+        records.append([0x55, len(data) + 3, 2, 0, 0, *data])
+    records.append([0x52, 5, 0, x, y + 27, w, h])
+    strokes = _runs(vertical, True) + _runs(horizontal, False)
+    strokes += [dict(orientation=0, x=px, y=py, length=1) for px, py in dots]
+    for stroke in strokes:
+        records.append([0x55, 4, 1, 0, 0, 0, 0x63, 4, stroke['orientation'],
+                        stroke['x'], stroke['y'], stroke['length']])
+    records.append([0x52, 5, 0, 0, 27, 64, 48])
+    packets, pending = [], []
+    for record in records:
+        if pending and len(pending) + len(record) > 105:
+            packets.append(pending)
+            pending = []
+        pending += record
+    if pending:
+        packets.append(pending)
+    return packets
+
+
 def compile_native_payloads(source, *, rows_per_command=1, budget=105, priming='each', selector_bytes=1,
                             render_order='planes', band_rows=12, update_rect=None):
     """Bounded native snapshot body, ready for existing guarded _send_graphics.
@@ -222,6 +291,10 @@ def compile_native_payloads(source, *, rows_per_command=1, budget=105, priming='
         raise ValueError('Native packet budget must be an integer13..105')
     validate_render_options(render_order, band_rows)
     update_rect = validate_update_rect(update_rect, render_order)
+    if update_rect is not None and render_order == 'planes':
+        if budget != 105 or priming != 'each' or selector_bytes != 1:
+            raise ValueError('Bounded planes require the verified105-byte each/short profile')
+        return _compile_bounded_plane_payloads(source, update_rect, rows_per_command)
     if render_order == 'tiles':
         if budget != 105 or priming != 'each' or selector_bytes != 1:
             raise ValueError('Completed tiles require the verified105-byte each/short profile')
@@ -231,6 +304,29 @@ def compile_native_payloads(source, *, rows_per_command=1, budget=105, priming='
     return pack_native_records(compile_native_records(source, rows_per_command=rows,
                                render_order=render_order, band_rows=band_rows), budget=budget,
                                priming=priming, selector_bytes=selector_bytes)
+
+
+def compile_plane_delta_payloads(source, previous):
+    """Toggle only changed pixels against a known, intact full snapshot.
+
+    These payloads are not independently replayable. The service must discard
+    its prior image after any uncertain write and recover with an opaque image.
+    """
+    target, prior = packed_bitmap(source), packed_bitmap(previous)
+    rect = changed_native_rect(target, prior)
+    if rect is None:
+        return [[0x52, 5, 0, 0, 27, 64, 48]]
+    difference = bytes(before ^ after for before, after in zip(prior, target))
+    packets = compile_native_payloads(difference, rows_per_command=12,
+                                      render_order='planes', update_rect=rect)
+    for packet in packets:
+        at = 0
+        while at < len(packet):
+            # Parse record boundaries; raster bytes may equal command opcodes.
+            if packet[at] == 0x55 and packet[at + 2] == 2:
+                packet[at + 2] = 1
+            at += packet[at + 1] + 2
+    return packets
 
 
 def compile_native_bitmap(source, *, model=MODEL):

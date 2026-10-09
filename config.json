@@ -16,6 +16,9 @@
       "dis_draw": "ipc:///run/rnse_control/dis_draw.ipc",
       "dis_status": "ipc:///run/rnse_control/dis_status.ipc",
       "dis_display_status": "ipc:///run/rnse_control/dis_display_status.ipc",
+      "input_control_stream": "ipc:///run/rnse_control/input_control_stream.ipc",
+      "dis_top_status": "ipc:///run/rnse_control/dis_top_status.ipc",
+      "data_logs_command": "ipc:///run/rnse_control/data_logs_cmd.ipc",
       "tp2_stream": "ipc:///run/rnse_control/tp2_stream.ipc",
       "tp2_command": "ipc:///run/rnse_control/tp2_cmd.ipc",
       "haldex_command": "ipc:///run/rnse_control/haldex_cmd.ipc",
@@ -24,10 +27,10 @@
   },
   "diagnostics": {
     "enabled": true,
-    "hudiy_api_capture": {
-      "enabled": true,
-      "path": "~/logs/hudiy-api/hudiy-api-events.log",
-      "max_size_mb": 8
+    "values": {
+      "diagnostic_hz": 2,
+      "ican_hz": 10,
+      "lease_seconds": 15
     }
   },
   "haldex": {
@@ -41,6 +44,12 @@
   "eps": {
     "firmware_dir": "~/epsfw"
   },
+  "exhaust_valve": {
+    "firmware_dir": "~/exhaustfw",
+    "installed_generation_floor": 16,
+    "generation_file": "~/.hudiy/exhaust_deployment.json",
+    "intent_file": "~/.hudiy/exhaust_valve_intent.json"
+  },
   "data_logger": {
     "default_profile": "haldex",
     "log_directory": "~/logs",
@@ -50,6 +59,10 @@
         "measuring_groups": []
       }
     }
+  },
+  "data_logs": {
+    "directory": "~/logs/data-logs",
+    "queue_size": 10000
   },
   "file_portal": {
     "upload_pin": "",
@@ -94,6 +107,7 @@
       ],
       "enabled": true,
       "mode": "media",
+      "high_resolution": true,
       "start_inactive": false,
       "navigation": {
         "auto_switch": true,
@@ -101,7 +115,8 @@
         "auto_switch_return_threshold": 1000,
         "approach_bar_max_distance": 300,
         "claim_on_nav": false,
-        "high_resolution": false
+        "native_render_order": "planes",
+        "native_message_delay_ms": 5
       },
       "coverart": {
         "brief": true,
@@ -119,10 +134,9 @@
           "boldness": 0,
           "diffusion": 0.85
         },
-        "native_resolution": false,
         "native_preset": "legacy",
         "native_args": {},
-        "native_render_order": "tiles",
+        "native_render_order": "planes",
         "native_delta": false
       },
       "acceleration_test": {
@@ -151,7 +165,6 @@
       "end_delay_ms": 0,
       "line_offset_ms": 2000
     },
-    "font_resolution": "native",
     "text_centering": true,
     "top_display": {
       "applist": [
@@ -289,6 +302,7 @@
       }
     },
     "mfsw": {
+      "double_click_ms": 350,
       "commands": {
         "scroll_up": "0x0B",
         "scroll_down": "0x0C",

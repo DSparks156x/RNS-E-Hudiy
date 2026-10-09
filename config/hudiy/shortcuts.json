@@ -11,6 +11,11 @@
             "action": "toggle_haldex_mode"
         },
         {
+            "iconFontFamily": "Material Symbols Rounded",
+            "iconName": "valve",
+            "action": "toggle_exhaust_valve"
+        },
+        {
             "iconFontFamily": "Hudiy Symbols",
             "iconName": "\ue900",
             "action": "resume_android_auto_projection"

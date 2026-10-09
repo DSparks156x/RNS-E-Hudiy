@@ -401,10 +401,14 @@ class DataLogger:
             self.default_profile = "haldex"
 
         self._lock = threading.RLock()
+        # Lifecycle operations serialize draining the old writer and installing
+        # the next session. The writer only takes _lock, never this lock.
+        self._operation_lock = threading.RLock()
         self._context: Optional[zmq.Context] = None
         self._capture_thread: Optional[threading.Thread] = None
         self._writer_thread: Optional[threading.Thread] = None
         self._write_queue: Optional[queue.Queue] = None
+        self._stop_queued = False
         self._running = False
         self._recording = False
         self._profile = self.profiles[self.default_profile]
@@ -485,9 +489,16 @@ class DataLogger:
 
     def start_recording(self, profile_name: Optional[str] = None,
                         output_path: Optional[str] = None) -> Dict[str, Any]:
+        with self._operation_lock:
+            return self._start_recording(profile_name, output_path)
+
+    def _start_recording(self, profile_name: Optional[str] = None,
+                         output_path: Optional[str] = None) -> Dict[str, Any]:
         with self._lock:
             if self._recording:
                 raise RuntimeError("A logging session is already recording")
+            if self._writer_thread and self._writer_thread.is_alive():
+                raise RuntimeError("The previous recording writer is still stopping; retry Stop")
             name = profile_name or self.default_profile
             if name not in self.profiles:
                 raise ValueError(f"Unknown logger profile: {name}")
@@ -501,26 +512,46 @@ class DataLogger:
             if os.path.exists(self._output_path):
                 raise ValueError(f"Refusing to overwrite existing log: {self._output_path}")
             self._write_queue = queue.Queue(maxsize=self.queue_size)
+            self._stop_queued = False
             self._recording = True
             self._writer_thread = threading.Thread(
                 target=self._writer_worker,
                 args=(self._output_path, self._profile.columns, self._write_queue),
                 name="DataLogger-CSV", daemon=True)
-            self._writer_thread.start()
+            try:
+                self._writer_thread.start()
+            except Exception:
+                self._recording = False
+                self._writer_thread = None
+                self._write_queue = None
+                raise
             logger.info("Data logger started profile=%s output=%s", name, self._output_path)
             return self.get_status()
 
     def stop_recording(self) -> Dict[str, Any]:
+        with self._operation_lock:
+            return self._stop_recording()
+
+    def _stop_recording(self) -> Dict[str, Any]:
         with self._lock:
-            if not self._recording:
+            if not self._recording and self._writer_thread is None:
                 return self.get_status()
             self._recording = False
             write_queue = self._write_queue
             writer_thread = self._writer_thread
-        if write_queue is not None:
-            write_queue.put(self._STOP)
-        if writer_thread and writer_thread.is_alive():
+        # Do not hold _lock while waiting: the writer needs it to finish rows.
+        if writer_thread and writer_thread.is_alive() and not self._stop_queued:
+            try:
+                write_queue.put(self._STOP, timeout=2.0)
+            except queue.Full:
+                raise RuntimeError("Recording writer queue did not drain; retry Stop") from None
+            self._stop_queued = True
+        if writer_thread:
             writer_thread.join(timeout=5.0)
+            if writer_thread.is_alive():
+                # Keep ownership so Start cannot replace shared session state
+                # while a slow or failed Stop still has an outstanding writer.
+                raise RuntimeError("Recording writer has not finished; retry Stop")
         with self._lock:
             self._write_queue = None
             self._writer_thread = None
@@ -563,11 +594,13 @@ class DataLogger:
             if decoder:
                 self._state.update(decoder(data))
             event_marker = ""
-            if can_id == HALDEX_MODE_COMMAND_ID and len(data) >= 5:
-                mode = data[2]
-                event_marker = (
-                    f"MODE_CMD_BURST: mode={mode} "
-                    f"({MODE_NAMES.get(mode, 'Unknown')}) ctr={data[4]}")
+            if can_id == HALDEX_MODE_COMMAND_ID:
+                command = _decode_haldex_mode_command(data)
+                mode = command.get('requested_haldex_mode')
+                if mode is not None:
+                    event_marker = (
+                        f"MODE_CMD_BURST: mode={mode} "
+                        f"({command['requested_haldex_mode_name']})")
             if can_id in profile.snapshot_can_ids:
                 self._emit_locked(timestamp=timestamp, source="can", can_id=can_id,
                                   event_marker=event_marker)

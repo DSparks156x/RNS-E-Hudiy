@@ -32,6 +32,7 @@ import time
 
 import zmq
 from typing import Optional
+from navigation_state import has_route_content
 
 CONFIG_PATH = "/home/pi/config.json"
 
@@ -42,7 +43,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 try:
-    from icons import audscii_trans, audscii_unicode, encode_audscii
+    from icons import audscii_trans, audscii_unicode, encode_audscii, WHEEL_CONTROL_GLYPH
 except Exception:
     sys.exit("ERROR: icons.py not found or failed to import.")
 
@@ -326,6 +327,7 @@ class LineController:
             continuous=continuous,
             continuous_gap=continuous_gap,
         )
+        self._text_prefix = b''
 
         self._fail_count = 0
         self._next_write = 0.0
@@ -336,13 +338,27 @@ class LineController:
     # --- Text control ---
 
     def set_text(self, text: str) -> bool:
-        return self.scroller.set_text(text)
+        text = text or ''
+        marker = WHEEL_CONTROL_GLYPH + ' '
+        prefix = _encode_text(marker) if text.startswith(marker) else b''
+        if prefix:
+            text = text[len(marker):]
+        text = text.strip()
+        with self.scroller.lock:
+            changed = prefix != self._text_prefix or text != self.scroller.raw_text
+            if changed:
+                # Reserve two bytes so phone ownership never scrolls out of view.
+                self._text_prefix = prefix
+                self.scroller.width = self.W - len(prefix)
+                self.scroller._reset(text)
+            return changed
 
     def clear(self) -> bool:
-        return self.scroller.clear()
+        return self.set_text('')
 
     def snapshot(self) -> bytes:
-        return self.scroller.snapshot()
+        with self.scroller.lock:
+            return self._text_prefix + self.scroller.current_bytes
 
     def restart(self):
         if not self.no_scroll:
@@ -370,11 +386,11 @@ class LineController:
                     "fixed_width": True
                 }
                 logger.debug("[%s] Sending mock top text: %s", self.name, data.hex())
-                self._push.send_json(payload)
+                self._push.send_json(payload, flags=zmq.NOBLOCK)
                 self._fail_count = 0
                 return True
                 
-            self._push.send_multipart([str(self.can_id).encode(), data.hex().encode()])
+            self._push.send_multipart([str(self.can_id).encode(), data.hex().encode()], flags=zmq.NOBLOCK)
             self._fail_count = 0
             return True
         except Exception:
@@ -388,6 +404,7 @@ class LineController:
     def run(self):
         self._push = self._zmq_ctx.socket(zmq.PUSH)
         self._push.setsockopt(zmq.LINGER, 0)
+        self._push.setsockopt(zmq.IMMEDIATE, 1)
         self._push.connect(self._can_send_addr)
 
         _stat_intervals = []
@@ -402,8 +419,9 @@ class LineController:
             if tv and not self.no_scroll:
                 new_frame = self.scroller.tick()
                 if new_frame is not None:
-                    self._send(new_frame)
-                    self._last_sent = new_frame
+                    new_frame = self.snapshot()
+                    if self._send(new_frame):
+                        self._last_sent = new_frame
                     self._next_write = now + self.hb_interval
 
             # Heartbeat — maintain display at low rate
@@ -411,13 +429,13 @@ class LineController:
                 snap = self.snapshot()
                 force = (now - self._last_force) >= HB_FORCE
                 if snap != self._last_sent or force:
-                    if _stat_last_write > 0:
-                        _stat_intervals.append(now - _stat_last_write)
-                    _stat_last_write = now
-                    self._send(snap)
-                    self._last_sent = snap
-                    if force:
-                        self._last_force = now
+                    if self._send(snap):
+                        if _stat_last_write > 0:
+                            _stat_intervals.append(now - _stat_last_write)
+                        _stat_last_write = now
+                        self._last_sent = snap
+                        if force:
+                            self._last_force = now
                 self._next_write = now + self.hb_interval
                 if now >= self._debounce_until:
                     self.unfreeze_scroll()  # release any OEM-triggered freeze
@@ -458,7 +476,7 @@ class CANWatcher:
     def _isend(self, cid: int, data: bytes):
         try:
             logger.debug("CANWatcher reactive send: 0x%03X -> %s", cid, data.hex())
-            self._push.send_multipart([str(cid).encode(), data.hex().encode()])
+            self._push.send_multipart([str(cid).encode(), data.hex().encode()], flags=zmq.NOBLOCK)
         except Exception as e:
             logger.debug("CANWatcher isend failed: %s", e)
 
@@ -472,6 +490,7 @@ class CANWatcher:
 
         self._push = self._zmq_ctx.socket(zmq.PUSH)
         self._push.setsockopt(zmq.LINGER, 0)
+        self._push.setsockopt(zmq.IMMEDIATE, 1)
         self._push.connect(self._can_send_addr)
 
         poller = zmq.Poller()
@@ -605,15 +624,10 @@ class DISController:
         self._id_l2 = _hex(can_ids["fis_line2"], 0x365)
         self._id_src = _hex(can_ids["source"], 0x661)
         self._tv_source_byte = _hex(source_cfg["tv_mode_identifier"], 0x37)
-        self._id_mfsw = _hex(can_ids.get("mfsw"), 0x5C3)
-        self._mfsw_topic = f"CAN_{self._id_mfsw:03X}".encode()
-
-        mfsw_cmds = cfg.get("input_mappings", {}).get("mfsw", {}).get("commands", {})
-        self._mfsw_scroll_up   = _hex(mfsw_cmds.get("scroll_up"),   0x0B)
-        self._mfsw_scroll_down = _hex(mfsw_cmds.get("scroll_down"), 0x0C)
-        self._mfsw_click       = _hex(mfsw_cmds.get("scroll_click"), 0x08)
 
         self._zmq_ctx = zmq.Context()
+        self._input_control_addr = zmq_cfg.get('input_control_stream', 'ipc:///run/rnse_control/input_control_stream.ipc')
+        self._top_status_addr = zmq_cfg.get('dis_top_status', 'ipc:///run/rnse_control/dis_top_status.ipc')
         if self.mock:
             self._can_sub_addr = MOCK_CAN_SUB_ADDR
             self._can_send_addr = MOCK_CAN_SEND_ADDR
@@ -729,18 +743,13 @@ class DISController:
         self._center_deadline = 0.0
         self._not_playing_t = 0.0
 
-        # Phone controls
-        self._scroll_wheel_phone_menu = _bool(
-            cfg.get("display", {}).get("phone", {}).get("scroll_wheel_phone_menu"), False
-        )
-        self._keyboard_device = None
-        try:
-            import uinput
-            self._keyboard_device = uinput.Device(
-                [uinput.KEY_P, uinput.KEY_O], name="topdisplay-phone-kb"
-            )
-        except Exception:
-            pass
+        # The keyboard service is the sole wheel owner for both display regions.
+        from apps.phone import PhoneApp
+        self._phone_controls = PhoneApp(cfg)
+        self._phone_control_mode = False
+        self._top_control_epoch = time.time_ns()
+        self._top_ready = False
+        self._top_wheel_seen = 0
         self._phone_show_action = False
         self._phone_action_idx = 0
         self._phone_show_action_timeout = 0.0
@@ -757,10 +766,10 @@ class DISController:
         if self._display_status_addr != addr:
             sub.connect(self._display_status_addr)
         sub.connect(self._can_sub_addr)
+        sub.connect(self._input_control_addr)
 
-        for t in (b"HUDIY_MEDIA", b"HUDIY_PHONE", b"HUDIY_NAV", b"HUDIY_NAV_STATUS", b"DIS_DISPLAY_STATUS"):
+        for t in (b"HUDIY_MEDIA", b"HUDIY_PHONE", b"HUDIY_NAV", b"HUDIY_NAV_STATUS", b"DIS_DISPLAY_STATUS", b'DIS_INPUT', b'WHEEL_CONTROL'):
             sub.setsockopt(zmq.SUBSCRIBE, t)
-        sub.setsockopt(zmq.SUBSCRIBE, self._mfsw_topic)
         return sub
 
     def _reconnect_zmq(self):
@@ -823,13 +832,64 @@ class DISController:
                 l2 = self._parse_mode(self._ph_l2_mode, f) if self._ctrl_l2 else ""
         else:
             l2 = self._parse_mode(self._ph_l2_mode, f) if self._ctrl_l2 else ""
+        if getattr(self, '_phone_control_mode', False):
+            if self._ctrl_l1:
+                l1 = WHEEL_CONTROL_GLYPH + ' ' + l1
+            elif self._ctrl_l2:
+                l2 = WHEEL_CONTROL_GLYPH + ' ' + l2
         return l1, l2
 
+    def _handle_wheel_control(self, topic, data):
+        matching = (data.get('app') == 'app_phone_top'
+                    and data.get('control_epoch') == self._top_control_epoch)
+        if topic == b'WHEEL_CONTROL':
+            self._top_wheel_seen = time.monotonic()
+            self._phone_control_mode = matching and data.get('owner') == 'dis' and self._top_ready
+            self._phone_controls.set_control_mode(self._phone_control_mode)
+            self._phone_show_action = self._phone_control_mode
+        elif matching and self._phone_control_mode and self._top_ready:
+            action = data.get('event')
+            if action in ('previous', 'next', 'select', 'back'):
+                self._phone_controls.handle_input(action)
+                self._phone_action_idx = self._phone_controls.action_idx
+        self._phone_texts = self._phone_fields(self._last_phone_data)
+        self._resolve()
+
     def _nav_fields(self, d):
+        if not has_route_content(d):
+            return '', ''
         f = {"description": d.get("description", ""),
              "maneuver": d.get("maneuver_text", ""),
              "distance": d.get("distance", "")}
         return self._format_lines(self._nav_l1_mode, self._nav_l2_mode, f)
+
+    def _update_navigation(self, topic, data):
+        if topic == b'HUDIY_NAV_STATUS':
+            self._nav_active = data.get('active') is True
+            if not self._nav_active:
+                self._nav_texts = ('', '')
+        else:
+            self._nav_texts = self._nav_fields(data)
+        self._resolve()
+
+    def _update_phone(self, data):
+        was_active = self._call_active
+        self._phone_controls.update_hudiy(b'HUDIY_PHONE', data)
+        state = self._phone_controls.state
+        self._call_active = self._phone_controls.has_active_call
+        self._last_phone_data = dict(data, state=state)
+        if state != self._last_phone_state:
+            self._phone_show_action = False
+            self._phone_action_idx = 0
+        self._last_phone_state = state
+        if self._call_active:
+            if not was_active:
+                logger.info("Call started (%s)", state)
+            self._phone_texts = self._phone_fields(self._last_phone_data)
+            self._resolve()
+        elif was_active:
+            logger.info("Call ended — restoring display")
+            self._resolve()
 
     def _set_lines(self, l1: str, l2: str):
         l1 = _normalize(l1)
@@ -955,6 +1015,10 @@ class DISController:
 
     def _listener(self):
         self._sub = self._make_sub(self._zmq_addr)
+        top_status = self._zmq_ctx.socket(zmq.PUB)
+        top_status.setsockopt(zmq.LINGER, 0)
+        top_status.bind(self._top_status_addr)
+        last_top_status = 0
         self._no_media_grace = time.monotonic() + NO_MEDIA_TIMEOUT
         self._load_now_playing()
         self._load_nav_state()
@@ -964,12 +1028,25 @@ class DISController:
         _stat_resolves = 0
         _stat_report = time.monotonic() + 30.0
 
-        _stat_msgs = 0
-        _stat_resolves = 0
-        _stat_report = time.monotonic() + 30.0
-
         while self.running:
             now = time.monotonic()
+            ready = (self._prio == PRIO_PHONE and self._call_active
+                     and bool(self._ctrl_l1 or self._ctrl_l2) and self._watcher.tv_active)
+            if ready != self._top_ready:
+                self._top_ready = ready
+                self._top_control_epoch += 1
+                self._phone_control_mode = False
+                self._phone_controls.set_control_mode(False)
+            if now - last_top_status > 1:
+                last_top_status = now
+                top_status.send_multipart([b'DIS_TOP_STATUS', json.dumps({
+                    'state': 'READY' if ready else 'PAUSED', 'control_epoch': self._top_control_epoch}).encode()])
+            if self._phone_control_mode and now - self._top_wheel_seen > 3:
+                self._phone_control_mode = False
+                self._phone_controls.set_control_mode(False)
+                self._phone_show_action = False
+                self._phone_texts = self._phone_fields(self._last_phone_data)
+                self._resolve()
 
             if pending is not None and deadline is not None and now >= deadline:
                 self._media_texts = pending
@@ -982,7 +1059,7 @@ class DISController:
                 pending = None
                 deadline = None
 
-            if self._phone_show_action and now > self._phone_show_action_timeout:
+            if self._phone_show_action and not self._phone_control_mode and now > self._phone_show_action_timeout:
                 self._phone_show_action = False
                 if self._call_active:
                     self._phone_texts = self._phone_fields(self._last_phone_data)
@@ -1010,7 +1087,7 @@ class DISController:
                 _stat_resolves += 1
             elif (self._resolve_dirty.is_set()
                     and pending is None
-                    and not self._call_active and not (self._nav_active and "nav" in self._applist)
+                    and not self._call_active and not (self._is_nav_available() and "nav" in self._applist)
                     and now >= self._no_media_grace):
                 self._resolve()
                 _stat_resolves += 1
@@ -1095,38 +1172,10 @@ class DISController:
                             self._no_media_grace = now + NO_MEDIA_TIMEOUT
 
                     elif topic == b"HUDIY_PHONE":
-                        state = data.get("state", "IDLE")
-                        was = self._call_active
-                        self._call_active = state in CALL_ACTIVE
-                        self._last_phone_data = data
-                        if state != self._last_phone_state:
-                            self._phone_show_action = False
-                            self._phone_action_idx = 0
-                        self._last_phone_state = state
+                        self._update_phone(data)
 
-                        if self._call_active:
-                            if not was:
-                                logger.info("Call started (%s)", state)
-                            self._phone_texts = self._phone_fields(data)
-                            self._resolve()
-                        elif was:
-                            logger.info("Call ended — restoring display")
-                            self._resolve()
-
-                    elif topic == b"HUDIY_NAV_STATUS":
-                        was_active = self._nav_active
-                        self._nav_active = data.get("active", False)
-                        if self._nav_active and not was_active:
-                            # Refresh from cache if texts incomplete
-                            if not all(self._nav_texts):
-                                self._load_nav_state()
-                        self._resolve()
-
-                    elif topic == b"HUDIY_NAV":
-                        self._nav_texts = self._nav_fields(data)
-                        if data.get("description") or data.get("distance"):
-                            self._nav_last_valid_time = now
-                        self._resolve()
+                    elif topic in (b"HUDIY_NAV_STATUS", b"HUDIY_NAV"):
+                        self._update_navigation(topic, data)
 
                     elif topic == b"DIS_DISPLAY_STATUS":
                         self._center_msg_t = now
@@ -1142,43 +1191,8 @@ class DISController:
                             # Skips resolving on ready=False; stale check (5s) handles center going away.
                             if new_ready or new_app != old_app:
                                 self._center_deadline = now + CENTER_DEBOUNCE
-
-                    elif (topic == self._mfsw_topic
-                          and self._scroll_wheel_phone_menu
-                          and self._prio == PRIO_PHONE):
-                        try:
-                            payload = bytes.fromhex(data["data_hex"])
-                        except Exception:
-                            continue
-                        if len(payload) < 2:
-                            continue
-                        b = payload[1]
-                        call_state = self._last_phone_data.get("state", "IDLE")
-                        if b in (self._mfsw_scroll_up, self._mfsw_scroll_down):
-                            if not self._phone_show_action:
-                                self._phone_show_action = True
-                                self._phone_action_idx = 0
-                            elif call_state in ("INCOMING", "ALERTING", "DIALING"):
-                                self._phone_action_idx = 1 - self._phone_action_idx
-                            self._phone_show_action_timeout = now + 2.0
-                            self._phone_texts = self._phone_fields(self._last_phone_data)
-                            self._resolve()
-                        elif b == self._mfsw_click and self._phone_show_action:
-                            key = None
-                            if call_state in ("INCOMING", "ALERTING", "DIALING"):
-                                key = "KEY_P" if self._phone_action_idx == 0 else "KEY_O"
-                            elif call_state == "ACTIVE":
-                                key = "KEY_O"
-                            if key and self._keyboard_device:
-                                try:
-                                    import uinput
-                                    self._keyboard_device.emit_click(getattr(uinput, key))
-                                    logger.info("Phone key emitted: %s", key)
-                                except Exception as e:
-                                    logger.error("Failed to emit phone key %s: %s", key, e)
-                            self._phone_show_action = False
-                            self._phone_texts = self._phone_fields(self._last_phone_data)
-                            self._resolve()
+                    elif topic in (b'DIS_INPUT', b'WHEEL_CONTROL'):
+                        self._handle_wheel_control(topic, data)
 
             except zmq.Again:
                 err_count = 0
@@ -1192,6 +1206,7 @@ class DISController:
                     err_count = 0
                 else:
                     time.sleep(0.05)
+        top_status.close(0)
 
     def run(self):
         threading.Thread(target=self._listener, daemon=True, name="meta").start()

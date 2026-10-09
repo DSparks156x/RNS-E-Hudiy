@@ -15,7 +15,7 @@ def methods(file,class_name,names,namespace):
         if isinstance(fn,ast.FunctionDef) and fn.name in names:
             exec(compile(ast.Module(body=[fn],type_ignores=[]),str(file),'exec'),namespace)
     return namespace
-ns=methods(root/'dis_client/dis_display.py','DisplayEngine',['_check_nav_availability_pause','_leave_empty_context_page'],{'logger':logging.getLogger(__name__)})
+ns=methods(root/'dis_client/dis_display.py','DisplayEngine',['_check_nav_availability_pause','_leave_empty_context_page'],{'logger':logging.getLogger(__name__),'time':time})
 svc=methods(root/'dis_client/dis_service.py','DisService',['_presentation_control','claim_nav_screen'],{'logger':logging.getLogger(__name__),'DDPState':ddp.DDPState,'DDPError':ddp.DDPError,'DDPMessages':ddp.DDPMessages,'time':time})
 class PolicyTests(unittest.TestCase):
     def engine(self,nav=False,phone=False):
@@ -32,7 +32,7 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(self.commands,[]);self.assertTrue(e.user_paused)
     def test_route_can_claim_from_inactive_media_and_select_nav(self):
         e=self.engine(nav=True);ns['_check_nav_availability_pause'](e)
-        self.assertEqual(e.current_page_idx,1)
+        self.assertEqual(e.current_page_idx,0);self.assertEqual(e.pre_nav_app_name,'app_media')
         self.assertEqual(self.commands,[{'command':'resume'}]);self.assertTrue(e.content_auto_claimed)
     def test_connected_idle_phone_does_not_claim(self):
         e=self.engine(phone=False);ns['_check_nav_availability_pause'](e)
@@ -52,6 +52,11 @@ class PolicyTests(unittest.TestCase):
         e=self.engine(nav=True);e._send_draw=lambda p:False
         ns['_check_nav_availability_pause'](e)
         self.assertTrue(e.user_paused);self.assertTrue(e.boot_inactive_hold)
+    def test_cluster_selected_session_remains_present_after_context_ends(self):
+        e=self.engine();e.user_paused=False;e.boot_inactive_hold=False
+        e.cluster_selected_session=True;e.content_auto_claimed=True
+        ns['_check_nav_availability_pause'](e)
+        self.assertEqual(self.commands,[]);self.assertFalse(e.user_paused)
     def service(self):
         d=SimpleNamespace(state=ddp.DDPState.PAUSED,release_screen=Mock())
         return SimpleNamespace(ddp=d,presentation_requested=False,command_cache={},screen_is_active=False)

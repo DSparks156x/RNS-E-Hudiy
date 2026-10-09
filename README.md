@@ -15,6 +15,9 @@ A fork of Korni92's RNS-E-Hudiy with new features and tweaks to my own preferenc
 
 ### Hudiy DataView & Diagnostics
 *   **Dashboards**: Real-time dashboards for Engine, Transmission, and AWD.
+*   **Data & Logs**: Configurable named-value recordings, short graph review, CSV export,
+    and eight-slot DIS page configuration. The value picker browses the complete API
+    catalog by system and function.
 *   **VW TP2.0 Diagnostics**: Pull and clear DTCs directly from the UI, on some modules. Engine works, others somewhat. 
 *   **Measuring Groups**: View specific module measuring blocks.
 *   **Diagnostic Toggle**: Safety switch to stop all diagnostic activity to allow use of VCDS/Scanners. 
@@ -71,6 +74,65 @@ To edit the configuration, use the built-in Config Editor tool:
 
 Main configuration variables and descriptive guides are defined in the editor's schema.
 
+### Data & Logs and configurable DIS readings
+
+Open **Data & Logs**, between AWD and Diagnostics. Recording profiles select named
+values from the complete vehicle-data catalog. Browse by system and functional group,
+search all values, or view only the selected values. Catalog support does not guarantee
+that a particular controller currently supplies a reading; source status and freshness
+remain visible. Estimated and unverified providers require an explicit profile opt-in.
+
+**Start** records the selected profile independently of the visible DataView tab.
+**Mark** adds an event. **Stop & save** keeps the screen on Record, while **Stop & review**
+opens the recent section. Review offers short time windows, numeric traces grouped by
+unit, markers, and nonnumeric events. Invalid or stale samples produce gaps. Export CSV
+for longer analysis. The existing Haldex/raw CAN logger remains available on AWD and
+uses its original profiles.
+
+The **DIS pages** section edits eight slots per page, units, precision, icon and native
+font, plus the linked recording profile. Apply saves all page edits. The existing
+`car_info` entry in `display.center_display.applist` opens this configurable screen
+on native displays. Its position and inclusion remain controlled by that app list.
+With `display.center_display.high_resolution` disabled, the red DIS retains the
+five-line layout.
+On a native DIS, changing numbers and header text use cluster text
+commands; static icons and tiny units use a cached graphic layer.
+The DIS icon picker shows that same pixel artwork. Reading symbols remain within
+the existing ten-pixel column; unit legends occupy at most 9×11 physical pixels.
+After changing the DIS icon artwork or automatic rules, run
+`python tools/export_dis_reading_assets.py` before building DataView to keep its
+picker and automatic choices synchronized.
+
+Each new DIS slot chooses its own units here. The config editor's **Navigation &
+Legacy Units** section remains for navigation/acceleration speed and older DIS or
+boost-widget views; it does not override the new page slots.
+
+Double-click **MODE** to toggle the navigation wheel between its configured normal
+actions and DIS control. A native wheel symbol appears in the readings corner and
+phone status only while DIS owns the wheel. The selected header item is inverted. Scroll moves
+focus, click selects, and double-click the wheel goes back. On the readings page, select
+the page name, scroll through subpages, and click to confirm. The play arrow starts
+logging; while recording it becomes a stop square and a flag appears for markers.
+Focus cycles through page, start/stop, then flag when recording. These controls
+share the same recording session as the touchscreen. The stalk still cycles DIS apps;
+leaving an app returns the wheel to normal mode. Subpage changes retain DIS control.
+
+Phone behavior keeps the existing `display.phone.claim_on_phone` setting for automatic
+page showing and `display.phone.scroll_wheel_phone_menu` for automatic wheel takeover.
+Phone controls also work with calls shown only on the top display; the same wheel symbol
+indicates wheel ownership. Manual readings control takes priority over phone takeover.
+A manual MODE toggle overrides automatic takeover for the current call. Loss of the
+DIS service heartbeat returns the wheel to its configured normal mappings. Volume
+controls retain their existing mappings. Set `input_mappings.mfsw.double_click_ms` to
+adjust the click window (default 350 ms).
+
+Named recordings and shared page/profile configuration live in `~/logs/data-logs` by
+default (`data_logs.directory`): `workspace.json` holds configuration and `sessions/`
+holds session metadata and acquisition records. Updating the application does not
+replace these files. The DataView service hosts the recorder and DIS logging command
+endpoint; it must run even when logging is started from the wheel. See
+[vehicle data service](vehicle_data/README.md) for source policies and sample metadata.
+
 The `file_portal.firmware_targets` list controls upload destinations. Haldex images are
 validated and stored in `~/haldexfw`; PQ EPS images are independently validated and
 stored in `~/epsfw`. EPS accepts either a complete 384 KiB CPU-linear image or an exact
@@ -82,16 +144,14 @@ devices on the Pi network.
 
 ### Native white DIS graphics
 
-Native graphics are opt-in for white A3/TT DIS clusters. Merge these settings into
-`display.center_display` in your existing `config.json` to enable them:
+Use **Center display → High Resolution** for a white A3/TT DIS; disable it for a red
+DIS. This single setting selects the font metrics, Car Info layout, navigation
+graphics and cover-art resolution. In `display.center_display`:
 
 ```json
 {
-  "navigation": {
-    "high_resolution": true
-  },
+  "high_resolution": true,
   "coverart": {
-    "native_resolution": true,
     "native_preset": "legacy",
     "native_args": {},
     "native_render_order": "tiles",
@@ -100,8 +160,9 @@ Native graphics are opt-in for white A3/TT DIS clusters. Merge these settings in
 }
 ```
 
-Both resolution options default to `false`, preserving legacy graphics. Navigation
-uses the approved Maps SVG family as monochrome 72x72 icons and keeps distance,
+Older configs migrate from their existing font selection, or their former graphics
+flags when no font selection exists. The new setting always takes precedence.
+Navigation uses the approved Maps SVG family as monochrome 72x72 icons and keeps distance,
 street, and approach-bar overlays. Curated sources and provenance are in
 `dis_client/nav_icons_sources/`; the development-only
 `tools/generate_native_nav_icons.py` reproduces the packed masks. The runtime
@@ -122,22 +183,46 @@ does not measure when the LCD has finished updating.
 The Config Editor adds missing native options to older imports without changing
 existing preferences. Restart the DIS services after saving configuration changes.
 
+### Exhaust valve control and firmware
+
+The Hudiy bar includes an exhaust valve toggle next to Haldex and Android Auto
+reconnect. DataView **Modules → Exhaust valve controller** provides Open/Close
+and firmware updates. Upload a ZIP containing `can-update.json` and both native
+slot `.bin` images through **Files → Exhaust valve controller**, then refresh
+the firmware list. The controller restores its own target on power-up; the Pi
+sends valve commands only when requested. Commands and firmware transfers are
+reported as unconfirmed because the vehicle protocol has no return route.
+See [the SB2209 integration notes](flasher/EXHAUST_VALVE.md) for deployment
+generation tracking and transfer behavior.
+
 ### Collecting Android Auto / CarPlay API behavior
 
-Hudiy API diagnostics are captured automatically. No terminal commands are needed:
+Hudiy API diagnostics are always captured automatically. No configuration or
+terminal commands are needed:
 
 1. Connect Android Auto or CarPlay and use it normally: play/pause/change media,
    start and cancel a route, pass a few maneuvers, and place or receive a call.
-2. Open `/files` in DataView from a phone or computer connected to the Pi.
-3. Open **Hudiy API captures** and download `hudiy-api-events.log`. If the test
-   was especially long, download `hudiy-api-events-previous.log` too.
+2. Press **Save Logs** in the Hudiy menu.
+3. Download the saved log folder (`~/logs/YYYY-MM-DD/1`, then `2`, and so on).
+   It contains the recent service journals
+   and `hudiy-api-events_*.log` (plus `hudiy-api-events-previous_*.log` if rotated).
 4. Send the downloaded file unchanged. Each line records the provider, callback,
    raw protobuf fields and presence information, a bounded wire-data preview/hash,
    and the normalized data published to the rest of this project.
 
-The capture retains at most two bounded files (8 MB each by default). It can contain
+The capture retains at most two bounded files (8 MiB each). It can contain
 street names, media metadata, contact names, and phone numbers, so treat it as private.
-Configure it under `diagnostics.hudiy_api_capture`.
+There are no capture configuration options; older capture settings are ignored
+and removed during an update.
+
+The **Save Logs** action also snapshots both available raw capture files into
+the same dated, numbered folder as the recent service journals. All files in a
+save share its number, and each button press creates a new folder. A
+`hudiy_data_api_*.log` file is the service journal; the raw snapshots are named
+`hudiy-api-events_*.log` and `hudiy-api-events-previous_*.log`. These contain
+JSON-lines API events, including field presence and normalized results.
+The live capture files can also be downloaded from **Hudiy API captures** at
+DataView's `/files` page.
 
 ---
 

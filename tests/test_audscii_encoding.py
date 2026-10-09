@@ -57,6 +57,9 @@ class AudsciiEncodingTests(unittest.TestCase):
         self.assertEqual(icons.encode_audscii("Aé"),
                          bytes([icons.audscii_trans[65], icons.audscii_trans[233]]))
 
+    def test_logging_controls_use_captured_native_glyphs(self):
+        self.assertEqual(icons.encode_audscii('▶□⚑⊕'), bytes.fromhex('69 ab df 15'))
+
     def test_null_pause_and_scroll_tokens_remain_unchanged(self):
         self.assertEqual(icons.encode_audscii("\x00\x1c\x1e\x1f"),
                          bytes.fromhex("00 1c d7 65"))

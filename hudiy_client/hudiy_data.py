@@ -33,6 +33,7 @@ try:
     # Add root to path for dis_client
     sys.path.insert(0, os.path.join(script_dir, '..'))
     import dis_client.dis_image as dis_image
+    from dis_client.navigation_state import has_route_content, is_no_route
     from flasher.traffic import flashing_mode_enabled, toggle_flashing_mode
 except ImportError as e:
     print(f"FATAL: Could not import Hudiy client libraries: {e}")
@@ -68,7 +69,7 @@ CONN_STATE_MAP = {
 }
 
 MEDIA_SOURCE_MAP = {
-    0: "Paused",        # MEDIA_SOURCE_NONE
+    0: "None",          # MEDIA_SOURCE_NONE
     1: "Android",       # MEDIA_SOURCE_ANDROID_AUTO
     2: "CarPlay",       # MEDIA_SOURCE_AUTOBOX
     3: "Bluetooth",     # MEDIA_SOURCE_A2DP
@@ -84,17 +85,22 @@ PROJECTION_PROVIDER_MAP = {
 
 class HudiyEventHandler(ClientEventHandler):
     def __init__(self, safe_publisher, coverart_args=None, event_capture=None):
+        import threading
         super().__init__() 
         self.safe_pub = safe_publisher
         self.event_capture = event_capture
         self.coverart_args = coverart_args if isinstance(coverart_args, dict) else {}
-        self.last_sync_time = 0
-        self.periodic_sync_interval = 300
         
         self.running = True
 
         self.last_media = None
         self.last_coverart_hash = None
+        self._media_lock = threading.RLock()
+        self._pending_media_clear = None
+        self._pending_media_metadata = None
+        self._applying_media_clear = False
+        self.media_clear_delay = 1.0
+        self.media_partial_delay = 0.25
         
         # Initialize Data Objects
         self.current_media_data = {
@@ -107,11 +113,14 @@ class HudiyEventHandler(ClientEventHandler):
         }
         self.current_nav_data = {}
         self.nav_active = False
+        self.nav_api_active = False
         self.last_nav_state = None
         self.current_nav_source = 0
+        self._nav_route_cleared = False
         self.current_phone_data = {
             'connection_state': 'DISCONNECTED', 'name': '', 'state': 'IDLE', 
             'caller_name': '', 'caller_id': '', 'battery': 0, 'signal': 0,
+            'call_active': False,
             'timestamp': 0
         }
 
@@ -170,153 +179,204 @@ class HudiyEventHandler(ClientEventHandler):
     # --- Media Callbacks ---
     
     def on_media_metadata(self, client, message):
-        artist = message.artist or ''
-        title = message.title or ''
-        album = message.album or ''
-        new_meta = f"{artist}|{title}|{album}"
+        media_lock = getattr(self, "_media_lock", None)
+        if media_lock is not None:
+            media_lock.acquire()
+        try:
+            applying_deferred = getattr(self, '_applying_media_clear', False)
+            if not applying_deferred:
+                # Preserve every raw callback, including placeholders and
+                # intermediate metadata, before deciding what consumers see.
+                self._capture_api_event(
+                    'media_metadata', message,
+                    provider=self._provider_name(self.current_media_data.get('source_id', 0)),
+                    derived={'received_before_normalization': True},
+                )
+            artist = message.artist or ''
+            title = message.title or ''
+            album = message.album or ''
+            source = self.current_media_data.get('source_id', 0)
+            if (source == 0 and not getattr(message, 'coverart', None)
+                    and all(value.strip() == '-' for value in (artist, title, album))):
+                # Observed idle subscription snapshot. A real title '-' with
+                # meaningful artist/album or a known source remains intact.
+                artist = title = album = ''
+            has_meta = any(value.strip() for value in (artist, title, album))
+            if not applying_deferred and source in (1, 2):
+                if (not has_meta and any(self.current_media_data.get(key)
+                                        for key in ('artist', 'title', 'album'))):
+                    self._defer_media_clear(client, message, self.media_clear_delay)
+                    self._capture_api_event('media_metadata_deferred', derived={'reason': 'empty_metadata'})
+                    return
+                if has_meta and not title.strip():
+                    self._defer_media_clear(client, message, self.media_partial_delay)
+                    self._capture_api_event('media_metadata_deferred', derived={'reason': 'untitled_metadata'})
+                    return
+            pending = getattr(self, '_pending_media_clear', None)
+            if pending is not None:
+                pending.cancel()
+                self._pending_media_clear = None
+                self._pending_media_metadata = None
+            new_meta = f"{artist}|{title}|{album}"
         
-        src_label = self.current_media_data.get('source_label', 'Unknown')
-        logger.info(f"Media Metadata ({src_label}): {artist} - {title} [{album}]")
+            src_label = self.current_media_data.get('source_label', 'Unknown')
+            logger.info(f"Media Metadata ({src_label}): {artist} - {title} [{album}]")
 
-        self.current_media_data.update({
-            'artist': artist,
-            'title': title,
-            'album': album,
-            'duration': getattr(message, 'duration_label', '0:00'),
-            'timestamp': time.time()
-        })
-        self._capture_api_event(
-            'media_metadata', message,
-            provider=self._provider_name(self.current_media_data.get('source_id', 0)),
-            derived=self.current_media_data.copy(),
-        )
+            self.current_media_data.update({
+                'artist': artist,
+                'title': title,
+                'album': album,
+                'duration': getattr(message, 'duration_label', '0:00'),
+                'timestamp': time.time()
+            })
+            self.current_media_data['media_state'] = (
+                'NONE' if source == 0 else 'PLAYING' if self.current_media_data.get('playing')
+                else 'PAUSED' if has_meta else 'IDLE'
+            )
+            self._capture_api_event(
+                ('media_metadata_partial_applied' if has_meta else 'media_metadata_clear_applied')
+                if applying_deferred else 'media_metadata_applied',
+                provider=self._provider_name(self.current_media_data.get('source_id', 0)),
+                derived=self.current_media_data.copy(),
+            )
         
-        if new_meta != self.last_media:
-            is_new_track = True
-            logger.info(f"Track Change detected. Old: '{self.last_media}' -> New: '{new_meta}'")
-            self.last_media = new_meta
-        else:
-            is_new_track = False
-            logger.debug(f"Metadata match ('{new_meta}'). Not a new track.")
-            
-        self.publish_and_write_media(self.current_media_data)
-        
-        # --- Cover Art Processing ---
-        cover_art_bytes = getattr(message, 'coverart', None)
-        has_cover = bool(cover_art_bytes and len(cover_art_bytes) > 0)
-        
-        if is_new_track:
-            # New track started: Always reset hash so the first image arrival is processed,
-            # and if we don't have an image yet, send a clear message to reset the UI.
-            logger.info("New track started. Resetting cover art hash.")
-            self.last_coverart_hash = None
-            if not has_cover:
-                logger.info("No cover art in initial metadata message. Sending Clear UI signal.")
-                self.safe_pub.publish(b'HUDIY_COVERART', {'bitmap_hex': '', 'is_new_track': True, 'timestamp': time.time()})
-
-        if has_cover:
-            current_hash = hashlib.md5(cover_art_bytes).hexdigest()
-            
-            # Send if:
-            # 1. It's the first cover art we've seen for this track/metadata block.
-            # (last_coverart_hash is reset to None whenever is_new_track is True)
-            if self.last_coverart_hash is None:
-                logger.info(f"Processing NEW Cover Art ({len(cover_art_bytes)} bytes, hash: {current_hash}).")
-                try:
-                    with io.BytesIO(cover_art_bytes) as source, Image.open(source) as img:
-                        processed = dis_image.process_image(img, **self.coverart_args)
-                        bitmap = dis_image.image_to_bitmap(processed)
-                    
-                    cover_data = {
-                        'bitmap_hex': bitmap.hex(),
-                        'image_hex': bytes(cover_art_bytes).hex(),
-                        'is_new_track': is_new_track,
-                        'timestamp': time.time()
-                    }
-                    if self.safe_pub.publish(b'HUDIY_COVERART', cover_data):
-                        self.last_coverart_hash = current_hash
-                        logger.info(f"Queued Cover Art to DIS | New Track: {is_new_track}")
-                    else:
-                        logger.warning("Cover art publisher stopped; retaining hash for retry.")
-                except Exception as e:
-                    logger.error(f"Failed to process cover art: {e}")
-            elif self.last_coverart_hash != current_hash:
-                logger.info(f"Cover art hash CHANGED: {self.last_coverart_hash} -> {current_hash}. Republishing.")
-                # Reuse the publishing logic...
-                try:
-                    with io.BytesIO(cover_art_bytes) as source, Image.open(source) as img:
-                        processed = dis_image.process_image(img, **self.coverart_args)
-                        bitmap = dis_image.image_to_bitmap(processed)
-                    cover_data = { 'bitmap_hex': bitmap.hex(), 'image_hex': bytes(cover_art_bytes).hex(), 'is_new_track': False, 'timestamp': time.time() }
-                    if self.safe_pub.publish(b'HUDIY_COVERART', cover_data):
-                        self.last_coverart_hash = current_hash
-                    else:
-                        logger.warning("Cover art publisher stopped; retaining hash for retry.")
-                except Exception as e:
-                    logger.error(f"Failed to republish changed cover art: {e}")
+            if new_meta != self.last_media and (has_meta or self.last_media is not None):
+                is_new_track = True
+                logger.info(f"Track Change detected. Old: '{self.last_media}' -> New: '{new_meta}'")
+                self.last_media = new_meta
             else:
-                logger.debug(f"Skipping cover art (hash match: {current_hash} and not a new track).")
+                is_new_track = False
+                logger.debug(f"Metadata match ('{new_meta}'). Not a new track.")
+            
+            self.publish_and_write_media(self.current_media_data)
+        
+            # --- Cover Art Processing ---
+            cover_art_bytes = getattr(message, 'coverart', None)
+            has_cover = bool(cover_art_bytes and len(cover_art_bytes) > 0)
+        
+            if is_new_track:
+                # New track started: Always reset hash so the first image arrival is processed,
+                # and if we don't have an image yet, send a clear message to reset the UI.
+                logger.info("New track started. Resetting cover art hash.")
+                self.last_coverart_hash = None
+                if not has_cover:
+                    logger.info("No cover art in initial metadata message. Sending Clear UI signal.")
+                    self.safe_pub.publish(b'HUDIY_COVERART', {'bitmap_hex': '', 'is_new_track': True, 'timestamp': time.time()})
+
+            if has_cover:
+                current_hash = hashlib.md5(cover_art_bytes).hexdigest()
+            
+                # New tracks reset the hash, so both first and changed artwork
+                # share the same conversion and retry behavior.
+                if self.last_coverart_hash != current_hash:
+                    logger.info(f"Processing Cover Art ({len(cover_art_bytes)} bytes, hash: {current_hash}).")
+                    try:
+                        with io.BytesIO(cover_art_bytes) as source, Image.open(source) as img:
+                            processed = dis_image.process_image(img, **self.coverart_args)
+                            bitmap = dis_image.image_to_bitmap(processed)
+                    
+                        cover_data = {
+                            'bitmap_hex': bitmap.hex(),
+                            'image_hex': bytes(cover_art_bytes).hex(),
+                            'is_new_track': is_new_track,
+                            'timestamp': time.time()
+                        }
+                        if self.safe_pub.publish(b'HUDIY_COVERART', cover_data):
+                            self.last_coverart_hash = current_hash
+                            logger.info(f"Queued Cover Art to DIS | New Track: {is_new_track}")
+                        else:
+                            logger.warning("Cover art publisher stopped; retaining hash for retry.")
+                    except Exception as e:
+                        logger.error(f"Failed to process cover art: {e}")
+                else:
+                    logger.debug(f"Skipping cover art (hash match: {current_hash} and not a new track).")
+
+        finally:
+            if media_lock is not None:
+                media_lock.release()
 
     def on_media_status(self, client, message):
-        pos = getattr(message, 'position_label', '0:00')
+        media_lock = getattr(self, "_media_lock", None)
+        if media_lock is not None:
+            media_lock.acquire()
+        try:
+            pos = getattr(message, 'position_label', '0:00')
         
-        src_id = getattr(message, 'source', 0)
-        src_label = MEDIA_SOURCE_MAP.get(src_id, "None")
-        is_playing = bool(getattr(message, 'is_playing', False))
+            src_id = getattr(message, 'source', 0)
+            src_label = MEDIA_SOURCE_MAP.get(src_id, "None")
+            is_playing = bool(getattr(message, 'is_playing', False))
+            # NONE cannot be playing even if a provider leaves the raw flag set.
+            is_playing = is_playing and src_id != 0
         
-        if src_id != self.current_media_data.get('source_id'):
-            logger.info(f"SOURCE CHANGED: {src_label} ({src_id})")
+            if src_id != self.current_media_data.get('source_id'):
+                logger.info(f"SOURCE CHANGED: {src_label} ({src_id})")
+                if self._pending_media_clear is not None:
+                    self._pending_media_clear.cancel()
+                    self._pending_media_clear = None
+                    self._pending_media_metadata = None
 
-        if src_id == 0:
-            media_state = "NONE"
-        elif is_playing:
-            media_state = "PLAYING"
-        else:
-            has_meta = any((
-                self.current_media_data.get('title', ''),
-                self.current_media_data.get('artist', ''),
-                self.current_media_data.get('album', '')
-            ))
-            media_state = "PAUSED" if has_meta else "IDLE"
+            if src_id == 0:
+                media_state = "NONE"
+            elif is_playing:
+                media_state = "PLAYING"
+            else:
+                has_meta = any((
+                    self.current_media_data.get('title', ''),
+                    self.current_media_data.get('artist', ''),
+                    self.current_media_data.get('album', '')
+                ))
+                media_state = "PAUSED" if has_meta else "IDLE"
 
-        self.current_media_data.update({
-            'playing': is_playing,
-            'media_state': media_state,
-            'position': pos,
-            'source_id': src_id,
-            'source_label': src_label,
-            'timestamp': time.time()
-        })
-        self._capture_api_event(
-            'media_status', message,
-            provider=self._provider_name(src_id),
-            derived=self.current_media_data.copy(),
-        )
+            self.current_media_data.update({
+                'playing': is_playing,
+                'media_state': media_state,
+                'position': pos,
+                'source_id': src_id,
+                'source_label': src_label,
+                'timestamp': time.time()
+            })
+            self._capture_api_event(
+                'media_status', message,
+                provider=self._provider_name(src_id),
+                derived=self.current_media_data.copy(),
+            )
         
-        self.publish_and_write_media(self.current_media_data)
+            self.publish_and_write_media(self.current_media_data)
+
+        finally:
+            if media_lock is not None:
+                media_lock.release()
 
     # --- Projection Callback ---
     def on_projection_status(self, client, message):
-        was_active = self.current_media_data.get('projection_active', False)
-        active = bool(getattr(message, 'active', False))
-        logger.info(f"PROJECTION STATUS: {'Active' if active else 'Inactive'}")
-        self.current_media_data['projection_active'] = active
-        if not active and self.current_media_data.get('source_id', 0) == 0:
-            self.current_media_data['media_state'] = "NONE"
-        self._capture_api_event(
-            'projection_status', message,
-            provider=self._provider_name(self.current_media_data.get('source_id', 0)),
-            derived={'active': active},
-        )
-        self.publish_and_write_media(self.current_media_data)
-        # Rising edge: force re-subscription so server re-pushes current media/nav/phone state
-        if active and not was_active:
-            logger.info("Projection became active — forcing re-subscription for state refresh")
-            self._resubscribe(client)
+        media_lock = getattr(self, "_media_lock", None)
+        if media_lock is not None:
+            media_lock.acquire()
+        try:
+            was_active = self.current_media_data.get('projection_active', False)
+            active = bool(getattr(message, 'active', False))
+            logger.info(f"PROJECTION STATUS: {'Active' if active else 'Inactive'}")
+            self.current_media_data['projection_active'] = active
+            if not active and self.current_media_data.get('source_id', 0) == 0:
+                self.current_media_data['media_state'] = "NONE"
+            self._capture_api_event(
+                'projection_status', message,
+                provider=self._provider_name(self.current_media_data.get('source_id', 0)),
+                derived={'active': active},
+            )
+            self.publish_and_write_media(self.current_media_data)
+            # Rising edge: force re-subscription so server re-pushes current media/nav/phone state
+            if active and not was_active:
+                logger.info("Projection became active — forcing re-subscription for state refresh")
+                self._resubscribe(client)
+
+        finally:
+            if media_lock is not None:
+                media_lock.release()
 
     def publish_and_write_media(self, data: dict):
         try:
-            self.safe_pub.publish(b'HUDIY_MEDIA', data)
+            self.safe_pub.publish(b'HUDIY_MEDIA', data.copy())
         except Exception as e:
             logger.error(f"Failed to publish ZMQ media: {e}")
         try:
@@ -324,13 +384,55 @@ class HudiyEventHandler(ClientEventHandler):
                 json.dump(data, f, indent=2)
         except Exception: pass
 
+    def _defer_media_clear(self, client, message, delay=None):
+        """Apply the latest incomplete projection snapshot at a bounded deadline."""
+        import threading
+        self._pending_media_metadata = (client, message)
+        if self._pending_media_clear is not None:
+            return  # Partial/empty refreshes must not extend the grace forever.
+
+        def apply_clear():
+            with self._media_lock:
+                if self._pending_media_clear is not timer or not self.running:
+                    return
+                self._pending_media_clear = None
+                pending_client, pending_message = self._pending_media_metadata
+                self._pending_media_metadata = None
+                self._applying_media_clear = True
+                try:
+                    self.on_media_metadata(pending_client, pending_message)
+                finally:
+                    self._applying_media_clear = False
+
+        timer = threading.Timer(self.media_clear_delay if delay is None else delay, apply_clear)
+        timer.daemon = True
+        self._pending_media_clear = timer
+        timer.start()
+
+    def stop(self):
+        with self._media_lock:
+            self.running = False
+            if self._pending_media_clear is not None:
+                self._pending_media_clear.cancel()
+                self._pending_media_clear = None
+                self._pending_media_metadata = None
+
     # --- Nav/Phone Callbacks ---
     
     def on_navigation_maneuver_details(self, client, message):
-        desc = getattr(message, 'description', '')
+        desc = str(getattr(message, 'description', '') or '').strip()
         type_num = getattr(message, 'maneuver_type', 0)
         side_num = getattr(message, 'maneuver_side', 3)
+        # Proto2 enums default to their first member (LEFT) when absent.
+        if hasattr(message, 'HasField') and not message.HasField('maneuver_side'):
+            side_num = 3
         angle_num = getattr(message, 'maneuver_angle', 0)
+        # Proto2 optional uint32 defaults to0 even when absent. Preserve
+        # presence separately so a missing angle cannot become a back exit.
+        try:
+            angle_present = message.HasField('maneuver_angle') is True
+        except (AttributeError, ValueError, TypeError):
+            angle_present = False
         
         maneuver_text = MANEUVER_TYPE_MAP.get(type_num, 'N/A')
         side_text = MANEUVER_SIDE_MAP.get(side_num, 'N/A')
@@ -369,42 +471,63 @@ class HudiyEventHandler(ClientEventHandler):
             except Exception as e:
                 logger.error(f"Failed to save NAV icon: {e}")
 
-        # The distance currently cached belongs to the previous maneuver.  Do
-        # not publish it with the new maneuver details: auto-switching must wait
-        # for the matching distance callback before making a threshold decision.
-        self.current_nav_data.pop('distance', None)
-        self.current_nav_data.update({
+        # A changed maneuver cannot inherit its predecessor's distance.
+        # Identical details refreshes still refer to the matching distance.
+        details = {
             'description': desc,
             'maneuver_text': full_maneuver_text,
             'maneuver_type': type_num,
             'maneuver_side': side_num,
             'maneuver_angle': angle_num,
-            'timestamp': time.time()
-        })
+            'maneuver_angle_present': angle_present,
+        }
+        if any(self.current_nav_data.get(key) != value for key, value in details.items()):
+            self.current_nav_data.pop('distance', None)
+        self.current_nav_data.update(details, timestamp=time.time())
+        # Explicit route absence ends the old maneuver even if CarPlay stays
+        # ACTIVE. A known icon-only maneuver can await its first distance, but
+        # cannot lift a previously established route-end latch on its own.
+        if not has_route_content(self.current_nav_data):
+            if is_no_route(desc) or type_num not in MANEUVER_TYPE_MAP or type_num == 0:
+                self.current_nav_data = {}
+                self._nav_route_cleared = True
+        else:
+            self._nav_route_cleared = False
+        self._publish_navigation_state()
         self._capture_api_event(
             'navigation_maneuver_details', message,
             provider=self._provider_name(self.current_nav_source),
-            derived=self.current_nav_data.copy(),
+            derived=dict(self.current_nav_data, has_route=has_route_content(self.current_nav_data)),
         )
-        self.publish_and_write_nav(self.current_nav_data)
 
     def on_navigation_maneuver_distance(self, client, message):
         dist = getattr(message, 'label', '')
         logger.info(f"NAV DISTANCE: '{dist}'")
         self.current_nav_data['distance'] = dist
         self.current_nav_data['timestamp'] = time.time()
+        if is_no_route(dist):
+            self.current_nav_data = {}
+            self._nav_route_cleared = True
+        elif self._nav_route_cleared:
+            # A late distance belongs to the maneuver which was just cleared.
+            # Require new maneuver details to re-establish that route.
+            self.current_nav_data = {}
+        self._publish_navigation_state()
         self._capture_api_event(
             'navigation_maneuver_distance', message,
             provider=self._provider_name(self.current_nav_source),
-            derived=self.current_nav_data.copy(),
+            derived=dict(self.current_nav_data, has_route=has_route_content(self.current_nav_data)),
         )
-        self.publish_and_write_nav(self.current_nav_data)
 
     def on_navigation_status(self, client, message):
         source = getattr(message, 'source', 0)
         state = getattr(message, 'state', 2)  # 1=Active, 2=Inactive
+        if hasattr(message, 'HasField') and not message.HasField('state'):
+            state = 2  # Proto2's absent enum otherwise reads as ACTIVE.
         
-        active = (state == 1)
+        active = (state == 1 and source in (1, 2))
+        was_api_active = self.nav_api_active
+        previous_source = self.current_nav_source
         self.current_nav_source = source
         status_text = "Active" if active else "Inactive"
         
@@ -420,26 +543,45 @@ class HudiyEventHandler(ClientEventHandler):
         else:
             logger.debug(f"NAV STATUS: {status_text} (Source: {src_text})")
         
-        self.nav_active = active
-        
-        # If navigation just stopped, clear the cached maneuver data
+        # A provider switch cannot inherit the previous provider's route.
+        if previous_source not in (0, source):
+            self.current_nav_data = {}
+            self._nav_route_cleared = True
+        self.nav_api_active = active
         if not active:
             logger.info("Navigation Inactive: Clearing maneuver metadata.")
             self.current_nav_data = {}
-            self.publish_and_write_nav(self.current_nav_data)
-        
-        nav_status = {
-            'active': active,
-            'source': source,
-            'state': state,
-            'timestamp': time.time()
-        }
+            self._nav_route_cleared = True
+        elif not was_api_active or previous_source not in (0, source):
+            # A confirmed new session may start with icon-only details followed
+            # by distance. Repeated ACTIVE after an empty clear is not a start.
+            self._nav_route_cleared = False
+        nav_status = self._publish_navigation_state()
         self._capture_api_event(
             'navigation_status', message,
             provider=self._provider_name(source),
             derived=nav_status,
         )
-        self.publish_nav_status(nav_status)
+
+    def _publish_navigation_state(self):
+        """Publish coherent content/status snapshots for either projection provider."""
+        route = not self._nav_route_cleared and has_route_content(self.current_nav_data)
+        self.nav_active = bool(self.nav_api_active and route)
+        data = self.current_nav_data.copy()
+        data['has_route'] = route
+        self.publish_and_write_nav(data)
+        status = {
+            'active': self.nav_active,
+            'api_active': self.nav_api_active,
+            'has_route': route,
+            'source': self.current_nav_source,
+            'state': self.last_nav_state,
+            'timestamp': time.time(),
+        }
+        # Publish on content callbacks too: status may arrive before the first
+        # maneuver or stay ACTIVE after empty CarPlay details have cleared it.
+        self.publish_nav_status(status)
+        return status
 
     def publish_nav_status(self, data: dict):
         try:
@@ -448,7 +590,7 @@ class HudiyEventHandler(ClientEventHandler):
 
     def publish_and_write_nav(self, data: dict):
         try:
-            self.safe_pub.publish(b'HUDIY_NAV', data)
+            self.safe_pub.publish(b'HUDIY_NAV', data.copy())
         except Exception: pass
         try:
             with open('/tmp/current_nav.json', 'w') as f:
@@ -459,6 +601,8 @@ class HudiyEventHandler(ClientEventHandler):
     
     def on_phone_connection_status(self, client, message):
         state = CONN_STATE_MAP.get(message.state, 'DISCONNECTED')
+        if hasattr(message, 'HasField') and not message.HasField('state'):
+            state = 'DISCONNECTED'
         name = getattr(message, 'name', '')
         logger.info(f"PHONE CONN: {state}: {name}")
         
@@ -467,6 +611,10 @@ class HudiyEventHandler(ClientEventHandler):
             'name': name,
             'timestamp': time.time()
         })
+        if state == 'DISCONNECTED':
+            self.current_phone_data.update(
+                state='IDLE', call_active=False, caller_name='', caller_id='',
+                name='', battery=0, signal=0)
         self._capture_api_event(
             'phone_connection_status', message,
             derived=self.current_phone_data.copy(),
@@ -474,7 +622,7 @@ class HudiyEventHandler(ClientEventHandler):
         self.publish_and_write_phone(self.current_phone_data)
 
     def on_phone_levels_status(self, client, message):
-        battery = getattr(message, 'battery_level', 0)
+        battery = getattr(message, 'battery_level', getattr(message, 'bettery_level', 0))
         signal = getattr(message, 'signal_level', 0)
         
         self.current_phone_data.update({
@@ -496,8 +644,9 @@ class HudiyEventHandler(ClientEventHandler):
 
         self.current_phone_data.update({
             'state': state,
-            'caller_name': getattr(message, 'caller_name', ''),
-            'caller_id': getattr(message, 'caller_id', ''),
+            'call_active': state in ('INCOMING', 'ALERTING', 'ACTIVE'),
+            'caller_name': getattr(message, 'caller_name', '') if state != 'IDLE' else '',
+            'caller_id': getattr(message, 'caller_id', '') if state != 'IDLE' else '',
             'timestamp': time.time()
         })
         self._capture_api_event(
@@ -508,7 +657,7 @@ class HudiyEventHandler(ClientEventHandler):
 
     def publish_and_write_phone(self, data: dict):
         try:
-            self.safe_pub.publish(b'HUDIY_PHONE', data)
+            self.safe_pub.publish(b'HUDIY_PHONE', data.copy())
         except Exception: pass
         try:
             with open('/tmp/current_call.json', 'w') as f:
@@ -538,24 +687,27 @@ class SafePublisher:
         ctx = zmq.Context()
         pub = ctx.socket(zmq.PUB)
         try:
-            pub.bind(self.zmq_addr)
-            logger.info(f"SafePublisher bound to {self.zmq_addr}")
-        except Exception as e:
-            logger.critical(f"SafePublisher BIND FAILED: {e}")
-            return
-
-        while self.running:
             try:
-                topic, data = self.queue.get(timeout=1.0)
-                pub.send_multipart([topic, json.dumps(data).encode('utf-8')])
-                self.queue.task_done()
-            except Empty:
-                continue
+                pub.bind(self.zmq_addr)
+                logger.info(f"SafePublisher bound to {self.zmq_addr}")
             except Exception as e:
-                logger.error(f"SafePublisher error: {e}")
-
-        pub.close()
-        ctx.term()
+                logger.critical(f"SafePublisher BIND FAILED: {e}")
+                return
+            while self.running:
+                try:
+                    topic, data = self.queue.get(timeout=1.0)
+                except Empty:
+                    continue
+                try:
+                    pub.send_multipart([topic, json.dumps(data).encode('utf-8')])
+                except Exception as e:
+                    logger.error(f"SafePublisher error: {e}")
+                finally:
+                    self.queue.task_done()
+        finally:
+            self.running = False
+            pub.close(linger=0)
+            ctx.term()
 
     def stop(self):
         self.running = False
@@ -649,6 +801,9 @@ class TP2BridgeHandler(ClientEventHandler):
         req_act_haldex = hudiy_api.RegisterActionRequest()
         req_act_haldex.action = "toggle_haldex_mode"
         client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_haldex.SerializeToString())
+        req_act_valve = hudiy_api.RegisterActionRequest()
+        req_act_valve.action = "toggle_exhaust_valve"
+        client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_valve.SerializeToString())
         
         # 1.4 Register Toast Channel for Diagnostics Status Notifications
         req_toast = hudiy_api.RegisterToastChannelRequest()
@@ -836,6 +991,29 @@ class TP2BridgeHandler(ClientEventHandler):
             logger.info("Hudiy Action: Toggle Haldex Mode")
             mode_name = self.cycle_haldex_mode()
             self.show_toast(f"Haldex: {mode_name}", icon="all_inclusive")
+        elif message.action == "toggle_exhaust_valve":
+            self.show_toast(self.toggle_exhaust_valve(), icon="valve")
+
+    def toggle_exhaust_valve(self):
+        ctx = zmq.Context()
+        sock = ctx.socket(zmq.REQ)
+        sock.setsockopt(zmq.RCVTIMEO, 2500)
+        sock.setsockopt(zmq.SNDTIMEO, 1000)
+        sock.setsockopt(zmq.LINGER, 0)
+        try:
+            sock.connect(self.haldex_cmd_addr)
+            sock.send_json({'cmd': 'TOGGLE_VALVE'})
+            response = sock.recv_json()
+            if response.get('status') == 'ok':
+                endpoint = 'Open' if response.get('data', {}).get('target') == 100 else 'Closed'
+                return f'Exhaust: {endpoint} requested (unconfirmed)'
+            return response.get('message', 'Valve command failed')
+        except Exception as error:
+            logger.warning('Valve command failed: %s', error)
+            return 'Valve command unavailable'
+        finally:
+            sock.close()
+            ctx.term()
 
     def cycle_haldex_mode(self):
         ctx = zmq.Context()
@@ -955,12 +1133,7 @@ class HudiyData:
             if coverart_args:
                 logger.info(f"Loaded cover art processing overrides: {coverart_args}")
 
-        capture_settings = {}
-        if config:
-            diagnostics = config.get('diagnostics', {})
-            if isinstance(diagnostics, dict):
-                capture_settings = diagnostics.get('hudiy_api_capture', {})
-        self.api_event_capture = ApiEventCapture(capture_settings)
+        self.api_event_capture = ApiEventCapture()
         self.handler = HudiyEventHandler(
             self.safe_pub,
             coverart_args=coverart_args,
@@ -1106,6 +1279,7 @@ class HudiyData:
         finally:
             logger.info("Main loop finished. Cleaning up...")
             self.running = False
+            self.handler.stop()
             self.connection_manager.stop()
             self.safe_pub.stop()
             self._close_connection()

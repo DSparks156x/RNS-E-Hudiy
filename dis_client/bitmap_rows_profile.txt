@@ -1,48 +1,42 @@
 Native bitmap row grouping (opt-in)
 
-Defaults are unchanged: ddp_bitmap_rows_per_command=1 and
-ddp_bitmap_message_bytes=42. The two options do not change CAN frame gaps,
-negotiated TP2 ACK budgets, claim handling or whole-frame backpressure.
-Coalescing remains a separate disabled-by-default option. Grouping with
-coalescing enabled is rejected, from either config or the runtime flag.
+Bitmap application-message limits are internal transport policy: 105 bytes
+for white clusters, 42 bytes for red clusters. They do not change CAN frame
+gaps, negotiated TP2 ACK budgets, claim handling or whole-frame backpressure.
+The removed bitmap-message-size setting is no longer read by the driver or
+text layout. Old saved keys have no effect.
 
 The bounded opt-in bench profile is:
-  "ddp_bitmap_message_bytes": 105,
   "ddp_bitmap_rows_per_command": 8
-Merge these keys into the existing config; bitmap_rows_profile_example.json
-contains only these keys and is not a complete replacement configuration.
+Merge this key into the existing config; bitmap_rows_profile_example.json
+contains only this key and is not a complete replacement configuration.
+The default row count remains 1. Red clusters always use one-row commands.
+Grouping with coalescing enabled is rejected, from config or the runtime flag.
 
-The driver accepts only integer row counts1..12;13..22 are rejected.
-Every native55 record is bounded by min(application message budget,105),
-the encoded length field, and remaining bitmap height. Row count is clamped
-to that capacity. Widths not divisible by8 retain one-row records because
-their per-row padding bits cannot safely become pixels in the following row.
+The driver accepts only integer row counts 1..12; 13..22 are rejected.
+Every native 55 record is bounded by the internal message limit, the encoded
+length field and remaining bitmap height. Row count is clamped to capacity.
+Widths not divisible by 8 retain one-row records so padding cannot become
+pixels in the following row.
 
-Native single55 multi-row2/4/8 static patterns have been visually verified.
-The variable7/9/9/12/11 profile at105-byte application messages was visually
-correct at10fps. Its uncapped16.8 ACK/s run tore and yielded only a few actual
-LCD updates/s; transfer rate is not usable presentation FPS. Fixed rows22
-failed LCD correctness despite ACKs and is explicitly excluded.
+Native single-55 multi-row 2/4/8 static patterns have been visually verified.
+The variable 7/9/9/12/11 profile at 105-byte application messages was visually
+correct at 10fps. Its uncapped 16.8 ACK/s run tore and yielded only a few actual
+LCD updates/s; transfer rate is not usable presentation FPS. Fixed rows 22
+failed LCD correctness despite ACKs and remains excluded.
 
-The exact mechanism behind the22-row failure remains unproven: possible
-native signed length/command buffer restriction or long-command streaming
-across TP2 CONT boundaries. A105-byte native record cap alone does not prove
-correctness at a195-byte application budget, which can place a record across
-the105-byte TP2 block boundary. Therefore row counts greater than1 combined
-with message budgets greater than105 are rejected at startup and by the
-record builder. The configuration is not silently overridden. Budget195
-remains supported with row count1. Historical default1 remains available
-for other clusters and unverified configurations.
+The mechanism behind the 22-row failure remains unproven: possible native
+signed length/command-buffer restriction or long-command streaming across
+TP2 CONT boundaries. The fixed white limit avoids configurable larger
+application messages placing grouped records across the 105-byte boundary.
 
-The explicit draw_raw_bitmap_batch IPC command is also incompatible with
-multi-row grouping: the service publishes the matching frame NACK and
-sends no graphics for that batch. This prevents direct batch commands from
-bypassing the105-byte application-message constraint. Row count1 retains
-the existing batch path. Use normal draw_raw_bitmap/frame IPC for grouping.
+The explicit draw_raw_bitmap_batch IPC command is incompatible with multi-row
+grouping: the service publishes a matching frame NACK and sends no graphics.
+Row count 1 retains the existing batch path. Use normal draw_raw_bitmap/frame
+IPC for grouping.
 
-The installed service is RNS-E-Hudiy/dis_client/dis_service.py,
-with regression coverage in tests/test_bitmap_rows_per_command.py.
+The installed service is dis_client/dis_service.py, with regression coverage
+in tests/test_bitmap_message_budget.py and tests/test_bitmap_rows_per_command.py.
 No native J2534 batching, RAM enqueue fast path or variable-row optimizer is
-introduced by this option. These bench transport optimizations and measured
-FPS do not imply the same rate from ordinary production CAN adapters.
-
+introduced by row grouping. Bench transport measurements do not imply the
+same rate from ordinary production CAN adapters.

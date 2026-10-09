@@ -193,10 +193,12 @@ class CoverSourcePublishTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'cover.png'
             path.write_bytes(data)
-            bridge = SimpleNamespace(hudiy_pub=SimpleNamespace(send_multipart=Mock()))
+            bridge = SimpleNamespace(_publish=Mock())
             for new_track in (True, False):
                 self.send_image(bridge, str(path), is_new_track=new_track)
-                topic, raw = bridge.hudiy_pub.send_multipart.call_args.args[0]
+                socket_name, frames = bridge._publish.call_args.args
+                self.assertEqual(socket_name, 'hudiy_pub')
+                topic, raw = frames
                 payload = json.loads(raw)
                 self.assertEqual(topic, b'HUDIY_COVERART')
                 self.assertEqual(payload['image_hex'], data.hex())
@@ -210,10 +212,10 @@ class CoverSourcePublishTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'cover.png'
             path.write_bytes(png_bytes())
-            bridge = SimpleNamespace(hudiy_pub=SimpleNamespace(send_multipart=Mock()))
+            bridge = SimpleNamespace(_publish=Mock())
             self.dis_image.image_to_bitmap.side_effect = RuntimeError('bitmap failed')
             self.send_image(bridge, str(path), is_new_track=True)
-            bridge.hudiy_pub.send_multipart.assert_not_called()
+            bridge._publish.assert_not_called()
             self.socketio.emit.assert_called_once()
             self.assertIn('bitmap failed', self.socketio.emit.call_args.args[1]['text'])
             self.assert_sources_closed()

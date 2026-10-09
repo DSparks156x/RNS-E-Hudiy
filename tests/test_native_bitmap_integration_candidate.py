@@ -4,6 +4,7 @@ import logging
 import os
 from pathlib import Path
 import sys
+import time
 from types import SimpleNamespace
 import unittest
 
@@ -17,10 +18,12 @@ if not DEFAULT_SOURCE.exists():
 SOURCE = Path(os.environ.get('DIS_NATIVE_BITMAP_SOURCE', DEFAULT_SOURCE))
 TREE = ast.parse(SOURCE.read_text())
 NAMES = {'_native_bitmap_command', '_send_native_bitmap_frame', '_expand_draw_command',
-         '_reject_draw_commands', '_send_graphics', '_finish_frame', '_bitmap_message_budget',
-         'commit_frame', '_publish_frame_result', 'handle_redraw', '_coalesce_bitmap_commands'}
-NS = dict(logger=logging.getLogger(__name__), DDPError=RuntimeError,
-          DisMode=SimpleNamespace(WHITE='white'),
+         '_reject_draw_commands', '_send_graphics', '_finish_frame', '_graphics_message_budget', '_bitmap_message_budget',
+         'commit_frame', '_publish_frame_result', 'handle_redraw', '_coalesce_bitmap_commands',
+         '_validate_native_bar_retirement', '_stock_custom_transition', '_native_field_cache_bounded',
+         '_retire_native_bar_fields', '_coalesce_native_font_commands'}
+NS = dict(logger=logging.getLogger(__name__), DDPError=RuntimeError, time=time,
+          DisMode=SimpleNamespace(WHITE='white', RED='red'),
           zmq=SimpleNamespace(NOBLOCK=1, ZMQError=RuntimeError))
 exec(compile(ast.Module(body=[node for node in ast.walk(TREE) if isinstance(node, ast.FunctionDef)
     and node.name in NAMES], type_ignores=[]), str(SOURCE), 'exec'), NS)
@@ -63,6 +66,7 @@ class NativeBitmapIntegrationTests(unittest.TestCase):
             self.trace.append(('wire', list(payload)))
             return self.outcomes.pop(0) if self.outcomes else True
         self.s.ddp = SimpleNamespace(dis_mode='white', send_ddp_frame=transfer,
+            renderer_command_family=lambda:0x52, renderer_ready=lambda:True,
             poll_bus_events=lambda: None, send_keepalive_if_needed=lambda: None)
         self.s.status_pub = SimpleNamespace(send_string=lambda value, flags: self.results.append(value))
         self.s._presentation_control = lambda command: False

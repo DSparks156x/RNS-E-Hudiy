@@ -140,7 +140,7 @@ class NativeTileService(NativeBitmapIntegrationTests):
             compile_native_records(bytes(1536), render_order='tiles')
 
     def test_invalid_delta_options_are_rejected_before_writes(self):
-        for changes in (dict(delta='true'), dict(render_order='planes', delta=True)):
+        for changes in (dict(delta='true'), dict(render_order='bands', delta=True)):
             self.results.clear()
             self.assertEqual(self.s._expand_draw_command(dict(self.command, **changes)), [])
             self.assertEqual(self.results, ['DRAW_NACK 71'])
@@ -153,7 +153,7 @@ for name in vars(NativeBitmapIntegrationTests):
         setattr(NativeTileService, name, None)
 
 TREE = ast.parse((REPO/'dis_client/dis_display.py').read_text())
-NAMES = {'_draw', '_queue_ui_frame', '_ui_frame_waiting', 'force_redraw', '_handle_ui_frame_result'}
+NAMES = {'_prepare_text_group', '_draw', '_queue_ui_frame', '_ui_frame_waiting', 'force_redraw', '_handle_ui_frame_result'}
 NS = {'logger': logging.getLogger(__name__)}
 exec(compile(ast.Module(body=[n for n in ast.walk(TREE) if isinstance(n, ast.FunctionDef)
     and n.name in NAMES], type_ignores=[]), str(REPO/'dis_client/dis_display.py'), 'exec'), NS)
@@ -186,7 +186,7 @@ class NativeAppFrames(unittest.TestCase):
         self.assertEqual(self.e.frame_seq_counter, 21)
         envelope = self.e._send_draw.call_args.args[0]
         self.assertEqual([c['command'] for c in envelope['commands']],
-            ['clear', 'draw_native_bitmap', 'draw_text', 'draw_text'])
+            ['clear', 'draw_native_bitmap', 'update_text', 'update_text'])
 
     def test_new_icon_resends_unchanged_distance_and_street(self):
         self.e._draw()
@@ -194,7 +194,7 @@ class NativeAppFrames(unittest.TestCase):
         self.e.current_app.get_view.return_value = view('ff'*1536)
         self.e._draw()
         commands = self.e._send_draw.call_args.args[0]['commands']
-        self.assertEqual([c['command'] for c in commands], ['draw_native_bitmap', 'draw_text', 'draw_text'])
+        self.assertEqual([c['command'] for c in commands], ['draw_native_bitmap', 'update_text', 'update_text'])
 
     def test_dropped_envelope_leaves_no_optimistic_presentation(self):
         self.e._send_draw.return_value = False

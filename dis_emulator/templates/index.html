@@ -1240,6 +1240,15 @@
                     bCtx.fillStyle = 'black';
                     bCtx.fillRect(cmd.x || 0, (cmd.y || 0) + REG_Y, cmd.w || 64, cmd.h || 9);
                     break;
+                case 'update_text':
+                    if (cmd.clear_rect) {
+                        const r = cmd.clear_rect;
+                        bCtx.fillStyle = 'black';
+                        bCtx.fillRect(r.x, r.y + REG_Y, r.w, r.h);
+                    }
+                    if (cmd.text) drawText(cmd.text, cmd.x || 0, (cmd.y || 0) + REG_Y,
+                        cmd.flags == null ? 0x06 : cmd.flags);
+                    break;
                 case 'draw_text':
                     drawText(cmd.text, cmd.x || 0, (cmd.y || 0) + REG_Y, cmd.flags == null ? 0x06 : cmd.flags);
                     break;

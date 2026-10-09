@@ -37,6 +37,9 @@ audscii_unicode = {
     '▲': 0x1E,
     '▼': 0x1F,
     '▶': 0x69,
+    '□': 0xAB,
+    '⚑': 0xDF,
+    '⊕': 0x15,
     'α': 0xA1,
     'π': 0xA8,
     '€': 0xA9,
@@ -48,6 +51,8 @@ audscii_unicode = {
     'Ž': 0xCD,
     'ž': 0xFD,
 }
+
+WHEEL_CONTROL_GLYPH = '⊕'  # Captured native circle with hub/spokes (AUDSCII15).
 
 
 def encode_audscii(text: str) -> bytes:

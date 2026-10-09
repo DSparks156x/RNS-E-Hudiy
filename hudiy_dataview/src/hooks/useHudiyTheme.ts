@@ -93,19 +93,17 @@ export function useHudiyTheme(socket: Socket | null) {
     }, [socket]);
 
     useEffect(() => {
+        const updateColors = () => {
+            const colors = window.hudiy?.colorScheme;
+            if (!colors) return;
+            socket?.emit('log_theme', colors);
+            setTheme({ ...colors });
+        };
+
         const attachHudiyListeners = () => {
             if (!window.hudiy) return;
 
             const h = window.hudiy;
-
-            const updateColors = () => {
-                if (h.colorScheme) {
-                    if (socket) {
-                        socket.emit('log_theme', h.colorScheme);
-                    }
-                    setTheme({ ...h.colorScheme });
-                }
-            };
 
             const originalColorChanged = h.onColorSchemeChanged;
             const originalAttached = h.onAttached;
@@ -129,17 +127,20 @@ export function useHudiyTheme(socket: Socket | null) {
             };
         };
 
-        // Try attaching immediately in case it exists.
+        // useSocket starts with null. Reattach once it supplies the connection,
+        // and republish after reconnect so the portal's in-memory cache is current.
         const cleanup = attachHudiyListeners();
+        socket?.on('connect', updateColors);
 
         // If it was created later by our socket mock, we need to know. 
         // We handle that directly in the socket.on('status') block by calling setTheme, 
         // so we don't strictly need a mutation observer here.
 
         return () => {
+            socket?.off('connect', updateColors);
             if (cleanup) cleanup();
         };
-    }, []);
+    }, [socket]);
 
     return { theme };
 }

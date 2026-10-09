@@ -20,6 +20,7 @@ import threading
 import time
 import sys
 import io
+import queue
 from PIL import Image
 
 # Add dis_client to path for dis_image
@@ -55,7 +56,7 @@ def test_set_dis_state(data):
         bridge.current_dis_state = state
         logger.info(f"Emulator DIS state manually set to: {state}")
         # Immediate broadcast to feel responsive
-        bridge.status_pub.send_string(f"DIS_STATE {state}")
+        bridge._publish('status_pub', f"DIS_STATE {state}")
 
 @socketio.on('mock_input')
 def test_mock_input(data):
@@ -85,6 +86,9 @@ def test_custom_image(data):
 
 class EmulatorBridge:
     def __init__(self, config_path):
+        # Flask handlers and image workers may run on different threads. Only
+        # the bridge loop touches PUB sockets; producers enqueue messages.
+        self._publications = queue.SimpleQueue()
         try:
             with open(config_path) as f:
                 self.config = json.load(f)
@@ -185,6 +189,24 @@ class EmulatorBridge:
         ]
         self.current_track_idx = 0
 
+    def _publish(self, socket_name, message):
+        self._publications.put((socket_name, message))
+
+    def _drain_publications(self):
+        for _ in range(128):
+            try:
+                socket_name, message = self._publications.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                socket = getattr(self, socket_name)
+                if isinstance(message, str):
+                    socket.send_string(message, flags=zmq.NOBLOCK)
+                else:
+                    socket.send_multipart(message, flags=zmq.NOBLOCK)
+            except zmq.ZMQError as exc:
+                logger.warning("Mock publication failed: %s", exc)
+
     def send_mock_can(self, data):
         btn = data.get('btn')
         state = data.get('state')
@@ -210,7 +232,7 @@ class EmulatorBridge:
             'dlc': len(hex_data) // 2
         }
         try:
-            self.pub_socket.send_multipart([topic, json.dumps(msg).encode()])
+            self._publish('pub_socket', [topic, json.dumps(msg).encode()])
             logger.debug(f"Mocked CAN input sent: {btn} {state} to {topic}")
         except Exception as e:
             logger.error(f"Failed to send mock CAN: {e}")
@@ -219,7 +241,7 @@ class EmulatorBridge:
         topic = data.get('topic', '').encode('utf-8')
         payload = data.get('payload', {})
         try:
-            self.hudiy_pub.send_multipart([topic, json.dumps(payload).encode('utf-8')])
+            self._publish('hudiy_pub', [topic, json.dumps(payload).encode('utf-8')])
             logger.debug(f"Mocked Hudiy data sent to {topic}")
         except Exception as e:
             logger.error(f"Failed to send mock Hudiy: {e}")
@@ -285,7 +307,7 @@ class EmulatorBridge:
                 'is_new_track': is_new_track,
                 'timestamp': time.time()
             }
-            self.hudiy_pub.send_multipart([b'HUDIY_COVERART', json.dumps(cover_data).encode('utf-8')])
+            self._publish('hudiy_pub', [b'HUDIY_COVERART', json.dumps(cover_data).encode('utf-8')])
             logger.info(f"Emulator: Published Cover Art for {os.path.basename(path)}")
         except Exception as e:
             logger.error(f"Failed to process image {path}: {e}")
@@ -303,6 +325,7 @@ class EmulatorBridge:
         while True:
             try:
                 now = time.time()
+                self._drain_publications()
                 # Status Heartbeat (1s)
                 if now - last_status_time > 1.0:
                     self.status_pub.send_string(f"DIS_STATE {self.current_dis_state}")

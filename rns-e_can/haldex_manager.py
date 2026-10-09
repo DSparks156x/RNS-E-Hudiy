@@ -26,6 +26,7 @@ from typing import Optional, Dict, Any, List, Tuple
 import zmq
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flasher.traffic import flashing_mode_enabled
+from flasher.exhaust_valve import command as valve_command
 
 # --- Mode Constants ---
 MODE_STOCK = 0
@@ -196,6 +197,17 @@ class HaldexManager:
         self.inhibited: bool = False
         self.state_lock = threading.Lock()
         self.burst_lock = threading.Lock()
+        self.valve_tx = 0
+        self.valve_target = None
+        self.valve_intent_file = os.path.expanduser(self.config.get('exhaust_valve', {}).get(
+            'intent_file', '~/.hudiy/exhaust_valve_intent.json'))
+        try:
+            with open(self.valve_intent_file) as stream:
+                target = json.load(stream).get('target')
+            if type(target) is int and 0 <= target <= 100:
+                self.valve_target = target
+        except (OSError, ValueError, AttributeError):
+            pass
         self.diagnostic_owner = "recovery-required" if os.path.exists(os.path.expanduser("~/.hudiy/haldex_recovery_required.json")) else None
         if self.diagnostic_owner:
             self.inhibited = True
@@ -320,6 +332,46 @@ class HaldexManager:
                 'last_switch_time': self.last_switch_time,
                 'inhibited': self.inhibited
             }
+
+    def get_valve_status(self):
+        with self.state_lock:
+            return {'target': self.valve_target, 'confirmed': False,
+                    'status': 'sent_unconfirmed' if self.valve_target is not None else 'unknown',
+                    'inhibited': self.inhibited or flashing_mode_enabled()}
+
+    def set_valve(self, target=None):
+        # No startup replay or reconciliation: the valve owns remembered intent.
+        with self.burst_lock:
+            if self.inhibited or flashing_mode_enabled():
+                raise RuntimeError('Valve commands paused during flashing')
+            with self.state_lock:
+                if target is None:
+                    target = 0 if self.valve_target == 100 else 100
+            payload = valve_command(target, (self.valve_tx + 1) & 255)
+            self.valve_tx = (self.valve_tx + 1) & 255
+            # A socket owned by this command thread avoids sharing the Haldex
+            # PUSH socket between command and reconciliation workers.
+            sock = self.context.socket(zmq.PUSH)
+            sock.setsockopt(zmq.LINGER, 0)
+            sock.setsockopt(zmq.SNDTIMEO, 1000)
+            sock.connect(self.can_send_addr)
+            try:
+                for _ in range(3):
+                    sock.send_multipart([str(CAN_ID_MODE_CMD).encode(), payload.hex().encode()])
+                    time.sleep(0.02)  # Identical TX retries are deduplicated.
+            finally:
+                sock.close()
+            with self.state_lock:
+                self.valve_target = target
+            try:
+                os.makedirs(os.path.dirname(self.valve_intent_file), exist_ok=True)
+                temporary = self.valve_intent_file + '.tmp'
+                with open(temporary, 'w') as stream:
+                    json.dump({'target': target, 'confirmed': False}, stream)
+                os.replace(temporary, self.valve_intent_file)
+            except OSError:
+                logger.exception('Could not save last sent valve intent')
+            return self.get_valve_status()
 
     def _publish_status(self):
         """Publish status snapshot over ZMQ PUB."""
@@ -542,8 +594,14 @@ class HaldexManager:
                             else:
                                 self.inhibited = self.previous_inhibited
                                 self.diagnostic_owner = None
+                    elif cmd == 'GET_VALVE_STATUS':
+                        resp['data'] = self.get_valve_status()
                     elif self.diagnostic_owner and cmd not in ('STATUS', 'GET_STATUS'):
                         resp = {'status': 'error', 'message': 'Exclusive diagnostics in progress'}
+                    elif cmd in ('TOGGLE_VALVE', 'SET_VALVE'):
+                        if cmd == 'SET_VALVE' and 'target' not in req:
+                            raise ValueError('Missing valve target')
+                        resp['data'] = self.set_valve(req.get('target') if cmd == 'SET_VALVE' else None)
                     elif cmd == 'CYCLE':
                         resp['data'] = self.cycle_mode()
                     elif cmd == 'SET_MODE':

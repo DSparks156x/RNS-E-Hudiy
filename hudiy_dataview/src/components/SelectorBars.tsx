@@ -2,8 +2,8 @@ import { motion, useTransform } from 'framer-motion';
 import { useLiveValue } from './LiveText';
 
 interface SelectorBarsProps {
-  // We look into groupKey[0..3]
-  groupKey: string;
+  groupKey?: string;
+  valueIds?: string[];
   topLabels: string[];
   botLabels: string[];
 }
@@ -11,15 +11,18 @@ interface SelectorBarsProps {
 function SelectorBar({
   groupKey,
   index,
+  valueId,
   topLabel,
   botLabel,
 }: {
   groupKey: string;
   index: number;
+  valueId?: string;
   topLabel: string;
   botLabel: string;
 }) {
-  const mv = useLiveValue(groupKey, index, 0);
+  const mv = useLiveValue(groupKey, index, 0, valueId);
+  const displayValue = useTransform(mv, (value) => typeof value === 'number' ? `${value.toFixed(1)} mm` : '--');
 
   // Calculate the actual string percentages for motion styles
   // We need to multiply the boolean (0/100%) with the fillPct to get the right string.
@@ -67,18 +70,20 @@ function SelectorBar({
         />
       </div>
       <span className="bar-label-bot">{botLabel}</span>
+      <motion.span className="bar-value" style={{ fontSize: '10px', whiteSpace: 'nowrap' }}>{displayValue}</motion.span>
     </div>
   );
 }
 
-export function SelectorBars({ groupKey, topLabels, botLabels }: SelectorBarsProps) {
+export function SelectorBars({ groupKey = '', valueIds, topLabels, botLabels }: SelectorBarsProps) {
   return (
     <div className="bar-container">
       {[0, 1, 2, 3].map((i) => (
         <SelectorBar
           key={i}
           groupKey={groupKey}
-          index={i}
+          index={valueIds ? 0 : i}
+          valueId={valueIds?.[i]}
           topLabel={topLabels[i] ?? String(i + 1)}
           botLabel={botLabels[i] ?? ''}
         />

@@ -51,6 +51,30 @@ class NativeTilePacing(unittest.TestCase):
                 self.assertEqual(self.calls[-1], ([0x39], True))
                 self.assertEqual(self.fixture.results, ['DRAW_ACK 71'])
 
+    def test_bounded_icons_pause_once_per_message_and_preserve_settings_on_redraw(self):
+        command = dict(self.fixture.command, render_order='planes',
+                       update_rect=[6, 2, 72, 72], post_message_delay_s=.005)
+        with patch.object(service_fixture.time, 'sleep') as sleep:
+            self.fixture.expand_draw(command)
+        self.assertTrue(all(not paced for _, paced in self.calls[:-1]))
+        self.assertEqual(sleep.call_count, len(self.calls) - 1)
+        self.assertTrue(all(call.args == (.005,) for call in sleep.call_args_list))
+        cached = next(iter(self.service.command_cache.values()))
+        self.assertEqual(cached['post_message_delay_s'], .005)
+        self.calls.clear()
+        with patch.object(service_fixture.time, 'sleep') as sleep:
+            self.assertTrue(self.service.handle_redraw())
+        self.assertEqual(sleep.call_count, len(self.calls) - 1)
+
+    def test_invalid_message_delays_reject_before_any_drawing(self):
+        for delay in (True, -1, .101, '5', float('nan'), float('inf')):
+            with self.subTest(delay=delay):
+                self.fixture.results.clear()
+                self.assertEqual(self.service._expand_draw_command(
+                    dict(self.fixture.command, post_message_delay_s=delay)), [])
+                self.assertEqual(self.calls, [])
+                self.assertEqual(self.fixture.results, ['DRAW_NACK 71'])
+
     def test_trusted_delta_and_cached_redraw_keep_tile_pacing(self):
         self.fixture.expand_draw(self.command)
         self.calls.clear()

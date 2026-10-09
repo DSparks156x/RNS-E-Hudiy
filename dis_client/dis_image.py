@@ -387,7 +387,7 @@ def process_image(
             right_smear = right_avg.resize((right_gap, frame.size[1]), Image.Resampling.NEAREST)
             canvas.paste(right_smear, (right_start, offset_y))
     elif bg_fill == 'blur':
-        canvas = img.resize(target_size, Image.Resampling.LANCZOS)
+        canvas = img.convert('RGB').resize(target_size, Image.Resampling.LANCZOS)
         canvas = canvas.filter(ImageFilter.GaussianBlur(radius=3))
     elif bg_fill == 'black':
         canvas = Image.new("RGB", target_size, (0, 0, 0))

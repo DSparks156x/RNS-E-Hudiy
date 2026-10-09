@@ -3,6 +3,10 @@ import logging
 from PIL import Image
 import dis_image
 from .base import BaseApp
+try:
+    from ..display_resolution import high_resolution
+except ImportError:
+    from display_resolution import high_resolution
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +22,7 @@ class CoverArtApp(BaseApp):
         self.native_bitmap_hex = ''
         self.title = 'Now Playing'
         settings = self.config.get('display', {}).get('center_display', {}).get('coverart', {})
-        self.native_resolution = settings.get('native_resolution', False)
-        if not isinstance(self.native_resolution, bool):
-            raise ValueError('coverart.native_resolution must be a boolean')
+        self.high_resolution = high_resolution(self.config)
         self.native_preset = settings.get('native_preset', 'legacy')
         self.native_args = settings.get('native_args', {})
         if not isinstance(self.native_args, dict):
@@ -69,7 +71,7 @@ class CoverArtApp(BaseApp):
         if topic != b'HUDIY_COVERART':
             return
         self.bitmap_hex = data.get('bitmap_hex', '')
-        if not self.native_resolution:
+        if not self.high_resolution:
             return
         image_hex = data.get('image_hex', '')
         native_hex = data.get('native_bitmap_hex', '')
@@ -85,7 +87,7 @@ class CoverArtApp(BaseApp):
             logger.warning('Native cover unavailable; using legacy cover: %s', exc)
 
     def get_view(self):
-        if self.native_resolution and self.native_bitmap_hex:
+        if self.high_resolution and self.native_bitmap_hex:
             # Descriptor is separate: DisplayEngine skips all items with type.
             command = {'cmd': 'native_bitmap', 'data_hex': self.native_bitmap_hex,
                        'render_order': self.native_render_order}

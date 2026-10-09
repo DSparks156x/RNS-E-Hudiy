@@ -16,6 +16,6 @@ export default defineConfig({
         },
         outDir: 'static/js',
         emptyOutDir: false,
-        rollupOptions: { output: { entryFileNames: 'portal.js' } },
+        rollupOptions: { output: { entryFileNames: 'portal.js', assetFileNames: 'portal.[ext]' } },
     },
 });

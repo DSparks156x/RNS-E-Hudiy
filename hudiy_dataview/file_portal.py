@@ -23,6 +23,24 @@ from flask import abort, jsonify, request, send_file
 DEFAULT_UPLOAD_LIMIT = 16 * 1024 * 1024
 DEFAULT_ARCHIVE_LIMIT = 256 * 1024 * 1024
 SAFE_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
+THEME_COLOR = re.compile(r"^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
+
+
+def cache_hudiy_theme(app, theme: object) -> bool:
+    """Keep the last reported native palette for browsers outside Hudiy."""
+    if not isinstance(theme, Mapping):
+        return False
+    palette = {
+        key: value for key, value in theme.items()
+        if isinstance(key, str) and re.fullmatch(r"[a-z][A-Za-z0-9]{0,63}", key)
+        and isinstance(value, str) and THEME_COLOR.fullmatch(value)
+    }
+    if not palette:
+        return False
+    if isinstance(theme.get("darkThemeEnabled"), bool):
+        palette["darkThemeEnabled"] = theme["darkThemeEnabled"]
+    app.config["HUDIY_COLOR_SCHEME"] = palette
+    return True
 
 
 @dataclass(frozen=True)
@@ -88,6 +106,14 @@ def _configured_targets(config: Mapping) -> list[Collection]:
             "max_size_mb": 4,
         })
 
+    if "exhaust-valve" not in configured_ids:
+        configured.append({
+            "id": "exhaust-valve", "label": "Exhaust valve controller",
+            "description": "SB2209 can-update.json and both native slot .bin images",
+            "directory": config.get("exhaust_valve", {}).get("firmware_dir", "~/exhaustfw"),
+            "extensions": [".zip", ".json", ".bin"], "validator": "exhaust-valve", "max_size_mb": 1,
+        })
+
     targets = []
     for entry in configured:
         if not isinstance(entry, Mapping):
@@ -127,12 +153,7 @@ def build_collections(config: Mapping) -> list[Collection]:
     runtime_root = _expanded(portal.get("runtime_log_directory", "/var/log/rnse_control"))
     firmware_root = _expanded(config.get("haldex", {}).get("firmware_dir", "~/haldexfw"))
     eps_firmware_root = _expanded(config.get("eps", {}).get("firmware_dir", "~/epsfw"))
-    diagnostics = config.get("diagnostics", {})
-    capture_settings = diagnostics.get("hudiy_api_capture", {}) if isinstance(diagnostics, Mapping) else {}
-    if not isinstance(capture_settings, Mapping):
-        capture_settings = {}
-    capture_path = _expanded(str(capture_settings.get(
-        "path", "~/logs/hudiy-api/hudiy-api-events.log")))
+    capture_path = _expanded("~/logs/hudiy-api/hudiy-api-events.log")
     capture_root = os.path.dirname(capture_path)
     capture_extension = os.path.splitext(capture_path)[1].lower() or ".log"
 
@@ -223,6 +244,12 @@ def register_file_portal(app, config: Mapping,
         if upload_pin and request.headers.get("X-Hudiy-Pin", "") != upload_pin:
             return jsonify({"error": "The portal PIN is incorrect."}), 403
         return None
+
+    @app.get("/api/files/theme")
+    def portal_theme():
+        response = jsonify({"theme": app.config.get("HUDIY_COLOR_SCHEME")})
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     @app.get("/api/files")
     def portal_catalog():
@@ -335,10 +362,37 @@ def register_file_portal(app, config: Mapping,
             validator = validators.get(collection.validator or "")
             if collection.validator and validator is None:
                 return jsonify({"error": "The validator for this firmware target is unavailable."}), 503
-            if validator:
-                validator(temporary_path)
+            validation = validator(temporary_path) if validator else None
+            if collection.validator == 'exhaust-valve' and filename.lower().endswith('.zip'):
+                # A complete, validated trio installs as an immutable versioned
+                # directory, so subsequent updates can retain standard filenames.
+                destination = os.path.join(collection.directory, validation['artifact_id'])
+                staging = tempfile.mkdtemp(prefix='.bundle-', dir=collection.directory)
+                try:
+                    for name, contents in validation['files'].items():
+                        with open(os.path.join(staging, name), 'xb') as stream:
+                            stream.write(contents)
+                    if not os.path.exists(destination):
+                        os.rename(staging, destination)
+                finally:
+                    if os.path.exists(staging):
+                        for name in os.listdir(staging):
+                            os.unlink(os.path.join(staging, name))
+                        os.rmdir(staging)
+                return jsonify({'message': f'{filename} bundle is ready for {collection.label}.'}), 201
             destination = os.path.join(collection.directory, filename)
-            os.replace(temporary_path, destination)
+            # Publish the validated file atomically without overwriting a file
+            # that another upload installed while validation was running.
+            try:
+                if os.name == 'nt':
+                    # Windows rename already refuses an existing destination.
+                    os.rename(temporary_path, destination)
+                else:
+                    os.link(temporary_path, destination)
+            except FileExistsError:
+                return jsonify({"error": "A file with that name already exists."}), 409
+            if os.name != 'nt':
+                os.unlink(temporary_path)
             temporary_path = None
             return jsonify({
                 "message": f"{filename} is ready for {collection.label}.",

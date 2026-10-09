@@ -1,0 +1,73 @@
+Physical DIS bench console review and regression record
+=====================================================
+
+New isolated subfolder project; existing screen emulator unchanged.
+
+Uses full repository DisplayEngine constructor/run loop, actual apps and
+DisService. No fake READY/DRAW_ACK. Ordered PUSH/PULL control actions run on
+the engine thread with applied/pending feedback. Root alone owns J2534.
+
+Independent review corrected callback ordering, process/error telemetry,
+finite JSON including1e999, local preference/workspace paths, indefinite
+routines with Stop, exclusive HTTP/CAN-owner checks and inert host input.
+Real NACK stops routines and holds rejected drawing before automatic retries.
+A ready-service manual correction/page selection releases the hold; errors
+remain recorded.
+
+Physical inputs use production WheelControlRouter plus DisplayEngine gates.
+Double MODE toggles normal/DIS ownership; scroll/click never force ownership.
+Single MODE waits the configured double window, and pages/epochs cancel old
+gestures and reset ownership. Wiper rocker taps use the actual stalk handler.
+Normal host-keyboard actions are only recorded. Auto-phone/top-phone takeover
+is disabled in this local bench.
+
+DataView integration reuses vehicle_data.workspace.WorkspaceStore and
+hudiy_dataview.data_logs.DataLogs. Source workspace is validated/copied to
+the session; local saves cannot overwrite Pi/source configuration. Actual
+logging REP and recorder/file writer handle Start/Mark/Stop. Acquisition is
+submitted HUDIY_VALUES fixtures only; no vehicle broker/diagnostic workers.
+Background Car Info receives values. Configured wheel timing is reused.
+
+Production fixes discovered during full-client console testing:
+- Source24: bitmap text-first ordinary frames; native bytes unchanged.
+  Regrant still restores graphics before text.
+- Source25 f2dba3b82304ae1b: skip empty57 glyph record during recovery,
+  preserve desired blank cache and explicit clears. Physical reply0B 03 57
+  exposed the earlier header-only57 recovery bug. Service ce5a237e...
+- Source26 6b1dc5dae236407d: normal dictionary pages always bound48 rows
+  despite background route. Phone row-five clear height7, not9 overflowing
+  to50. Display11348812...; core runtime8 unchanged ce/4b. Navigation-list
+  frames stay identical. Guarded apply plus separate verification passed.
+
+Evidence history matters: physical_http_scenarios_v1.json was a negative
+run; its first checker printed false PASS by accepting readiness recovery
+after NACK. It is preserved and is not successful validation. The successor
+checker rejects every new NACK and waits for actual applied commands and
+completed frames/gestures.
+
+Fresh full-client bench tests on2026-10-08:
+- physical_http_scenarios_v2.json: PASS74 action/status records. Native,
+  bitmap high/normal,301/300/150/0/301m, media, phone, blank media, actual
+  double MODE both directions, delayed singleMODE normal, scroll ownership,
+  rocker page away/back. No new NACK; engine errors empty.
+- physical_dataview_v1.json: real wheel ->ReadingsApp ->logger START,
+  submitted90C oil sample, wheel MARK, wheel STOP; actual file readback
+ 10rows (nine samples including initial unavailable records, one marker),
+  finalized metadata, no NACK. Last completed draw sequence64.
+- Wheel/DataView successor13 focused offline checks plus seven console
+  unit checks PASS. Publisher17 workspace-only preservation/failure controls
+  PASS. NACK latch11 focused behavior controls PASS (current source binding
+  recorded in final project review).
+
+Independent final exact-file binding and publication records live under
+  RNSE hacking/analysis/bench_console_review/
+Runtime engine/input/wire/service logs live under
+  RNSE hacking/analysis/dis_bench/web_console_*/ (root staged tests), or
+  this project's runtime/<timestamp>/ (launcher sessions).
+Source snapshots and guard/rollback evidence live under
+  RNSE hacking/analysis/dis_protocol_driver_review/snapshots/.
+
+ACKs prove protocol/transport completion, not LCD pixel accuracy. Visual
+review still needs the physical cluster. This console exercises the full DIS
+client and local callbacks, not the complete Pi/HUDIY/Android Auto stack.
+No firmware flash, CD update or Pi deployment occurred.

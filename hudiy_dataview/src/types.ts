@@ -11,6 +11,21 @@ export interface DiagnosticMessage {
     data: DiagnosticValue[];
 }
 
+export interface VehicleValue {
+    version: number;
+    id: string;
+    value: number | string | null;
+    unit: string | null;
+    type?: 'number' | 'string' | 'bitfield' | 'status';
+    status: 'ok' | 'stale' | 'invalid' | 'unavailable' | 'paused';
+    timestamp: number | null;
+    age_ms: number | null;
+    max_age_ms: number | null;
+    sample_sequence: number;
+    source: { id: string; kind: 'diag' | 'ican' } | null;
+    quality: { valid: boolean; fresh: boolean; verified: boolean; estimated: boolean; reason: string | null };
+}
+
 /** A single module+group pair that a tab subscribes to. */
 export interface TabGroup {
     module: number;
@@ -21,7 +36,7 @@ export interface TabGroup {
 /** Maps tab IDs to their subscribed groups. */
 export type TabConfig = Record<string, TabGroup[]>;
 
-export type TabId = 'engine' | 'transmission' | 'awd' | 'diagnostics';
+export type TabId = 'engine' | 'transmission' | 'awd' | 'data_logs' | 'diagnostics';
 
 /** Key used to store/look up a diagnostic message: "mod:grp" */
 export function diagKey(module: number | string, group: number): string {

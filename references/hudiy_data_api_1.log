@@ -1,0 +1,91 @@
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,780 [INFO] (Hudiy) SafePublisher bound to ipc:///run/rnse_control/hudiy_stream.ipc
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,780 [INFO] (Hudiy) Loaded cover art processing overrides: {'contrast': 1.9, 'sharpen': 1.5, 'dither': 'fs', 'invert': False, 'no_enhance': False, 'bg_fill': 'black', 'grayscale_mode': 'smart', 'brightness': 1, 'gamma': 2.2, 'black_floor': 45, 'boldness': 0, 'diffusion': 0.85}
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,781 [INFO] (Hudiy) ConnectionManager Config Loaded: enabled=True, door_window=15.0s, manage_bt=True, manage_aa=True
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,781 [INFO] (Hudiy) THREADING Hudiy Data ACTIVE!
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,781 [INFO] (Hudiy) ConnectionManager: ZMQ subscriber connected to ipc:///run/rnse_control/base_events.ipc
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,781 [INFO] (Hudiy) ConnectionManager started.
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,782 [WARNING] (Hudiy) DATA Thread connection lost: [Errno 111] Connection refused
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,782 [ERROR] (Hudiy) TP2 Bridge Thread: [Errno 111] Connection refused
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,783 [INFO] (Hudiy) TP2 Bridge Reconnecting in 5s...
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,783 [INFO] (Hudiy) DATA Thread reconnecting in 5s...
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,783 [INFO] (Hudiy) TP2 Status Subscriber connected to ipc:///run/rnse_control/tp2_stream.ipc
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,788 [INFO] (Hudiy) ConnectionManager: Initial sync — Ignition/Radio ON. Setting ACTIVE_CONNECTED.
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,788 [INFO] (Hudiy) ConnectionManager: Enabling connections (Trigger: Initial Startup (Ignition/Radio ON))
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,788 [INFO] (Hudiy) BluetoothController: Setting Bluetooth power ON...
+Oct 07 22:27:59 raspberrypi python3[808]: 2026-10-07 22:27:59,814 [INFO] (Hudiy) BluetoothController: Bluetooth powered ON successfully.
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,784 [INFO] (Hudiy) TP2_BRIDGE Thread ACTIVE
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,784 [INFO] (Hudiy) ConnectionManager: Hudiy API client registered.
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,784 [INFO] (Hudiy) TP2 Bridge: Connected to ZMQ REQ ipc:///run/rnse_control/tp2_cmd.ipc
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,784 [INFO] (Hudiy) DATA Thread ACTIVE — subscriptions requested
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,785 [INFO] (Hudiy) TP2 Bridge Connected to Hudiy: v1.2
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,785 [INFO] (Hudiy) Client 'DATA' Connected - API v1.2
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,785 [INFO] (Hudiy) Client 'DATA': Subscribed to PROJECTION + MEDIA + NAVIGATION + PHONE
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,786 [INFO] (Hudiy) Action 'toggle_diagnostics' Registered: True
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,786 [INFO] (Hudiy) Action 'toggle_flashing_mode' Registered: True
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,786 [INFO] (Hudiy) Action 'update_rnse' Registered: True
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,786 [INFO] (Hudiy) NAV STATUS CHANGED: Inactive -> Inactive (Source: None, Raw: 0)
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,786 [INFO] (Hudiy) Navigation Inactive: Clearing maneuver metadata.
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,832 [INFO] (Hudiy) NAV MANEUVER: Unknown (Angle: 0) | Desc: ''
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,832 [INFO] (Hudiy) Action 'restore_configs' Registered: True
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,832 [INFO] (Hudiy) Action 'reboot_system' Registered: True
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,832 [INFO] (Hudiy) Action 'shutdown_system' Registered: True
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,832 [INFO] (Hudiy) NAV DISTANCE: ''
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,832 [INFO] (Hudiy) Action 'check_version' Registered: True
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,832 [INFO] (Hudiy) Action 'save_logs' Registered: True
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,832 [INFO] (Hudiy) Action 'toggle_haldex_mode' Registered: True
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,833 [INFO] (Hudiy) Diagnostics Toast Channel Registered. ID: 7
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,833 [INFO] (Hudiy) PHONE CONN: DISCONNECTED:
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,833 [INFO] (Hudiy) Notification Channel Registered. ID: 6
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,833 [INFO] (Hudiy) diagnostics Status Icon Registered. ID: 24
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,833 [INFO] (Hudiy) PHONE CALL: IDLE: Unknown
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,834 [INFO] (Hudiy) Updated Status Icon Visibility: True
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,834 [INFO] (Hudiy) Media Metadata (Paused): - - - [-]
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,834 [INFO] (Hudiy) Track Change detected. Old: 'None' -> New: '-|-|-'
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,835 [INFO] (Hudiy) New track started. Resetting cover art hash.
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,835 [INFO] (Hudiy) No cover art in initial metadata message. Sending Clear UI signal.
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,835 [INFO] (Hudiy) PROJECTION STATUS: Inactive
+Oct 07 22:28:04 raspberrypi python3[808]: 2026-10-07 22:28:04,876 [INFO] (Hudiy) flashing Status Icon Registered. ID: 25
+Oct 07 22:28:11 raspberrypi python3[808]: 2026-10-07 22:28:11,037 [INFO] (Hudiy) PROJECTION STATUS: Active
+Oct 07 22:28:11 raspberrypi python3[808]: 2026-10-07 22:28:11,037 [INFO] (Hudiy) Projection became active — forcing re-subscription for state refresh
+Oct 07 22:28:11 raspberrypi python3[808]: 2026-10-07 22:28:11,038 [INFO] (Hudiy) Client 'DATA': Subscribed to PROJECTION + MEDIA + NAVIGATION + PHONE
+Oct 07 22:28:11 raspberrypi python3[808]: 2026-10-07 22:28:11,038 [INFO] (Hudiy) Navigation Inactive: Clearing maneuver metadata.
+Oct 07 22:28:11 raspberrypi python3[808]: 2026-10-07 22:28:11,080 [INFO] (Hudiy) NAV MANEUVER: Unknown (Angle: 0) | Desc: ''
+Oct 07 22:28:11 raspberrypi python3[808]: 2026-10-07 22:28:11,080 [INFO] (Hudiy) NAV DISTANCE: ''
+Oct 07 22:28:11 raspberrypi python3[808]: 2026-10-07 22:28:11,080 [INFO] (Hudiy) PHONE CONN: DISCONNECTED:
+Oct 07 22:28:11 raspberrypi python3[808]: 2026-10-07 22:28:11,081 [INFO] (Hudiy) PHONE CALL: IDLE: Unknown
+Oct 07 22:28:11 raspberrypi python3[808]: 2026-10-07 22:28:11,081 [INFO] (Hudiy) Media Metadata (Paused): - - - [-]
+Oct 07 22:28:11 raspberrypi python3[808]: 2026-10-07 22:28:11,081 [INFO] (Hudiy) PROJECTION STATUS: Active
+Oct 07 22:28:18 raspberrypi python3[808]: 2026-10-07 22:28:18,530 [INFO] (Hudiy) Media Metadata (Paused):  -  []
+Oct 07 22:28:18 raspberrypi python3[808]: 2026-10-07 22:28:18,530 [INFO] (Hudiy) Track Change detected. Old: '-|-|-' -> New: '||'
+Oct 07 22:28:18 raspberrypi python3[808]: 2026-10-07 22:28:18,530 [INFO] (Hudiy) New track started. Resetting cover art hash.
+Oct 07 22:28:18 raspberrypi python3[808]: 2026-10-07 22:28:18,530 [INFO] (Hudiy) No cover art in initial metadata message. Sending Clear UI signal.
+Oct 07 22:28:18 raspberrypi python3[808]: 2026-10-07 22:28:18,576 [INFO] (Hudiy) Media Metadata (Paused):  -  []
+Oct 07 22:28:18 raspberrypi python3[808]: 2026-10-07 22:28:18,576 [INFO] (Hudiy) Media Metadata (Paused):  -  []
+Oct 07 22:28:18 raspberrypi python3[808]: 2026-10-07 22:28:18,576 [INFO] (Hudiy) Media Metadata (Paused):  -  []
+Oct 07 22:28:18 raspberrypi python3[808]: 2026-10-07 22:28:18,576 [INFO] (Hudiy) SOURCE CHANGED: CarPlay (2)
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,389 [INFO] (Hudiy) Media Metadata (CarPlay):  -  [IIII]
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,389 [INFO] (Hudiy) Track Change detected. Old: '||' -> New: '||IIII'
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,390 [INFO] (Hudiy) New track started. Resetting cover art hash.
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,390 [INFO] (Hudiy) No cover art in initial metadata message. Sending Clear UI signal.
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,390 [INFO] (Hudiy) Media Metadata (CarPlay): VIER, Machinedrum, Holly, Thys, Salvador Breed -  [IIII]
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,390 [INFO] (Hudiy) Track Change detected. Old: '||IIII' -> New: 'VIER, Machinedrum, Holly, Thys, Salvador Breed||IIII'
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,390 [INFO] (Hudiy) New track started. Resetting cover art hash.
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,390 [INFO] (Hudiy) No cover art in initial metadata message. Sending Clear UI signal.
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,391 [INFO] (Hudiy) Media Metadata (CarPlay): VIER, Machinedrum, Holly, Thys, Salvador Breed - THE SOURCE [IIII]
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,391 [INFO] (Hudiy) Track Change detected. Old: 'VIER, Machinedrum, Holly, Thys, Salvador Breed||IIII' -> New: 'VIER, Machinedrum, Holly, Thys, Salvador Breed|THE SOURCE|IIII'
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,391 [INFO] (Hudiy) New track started. Resetting cover art hash.
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,391 [INFO] (Hudiy) No cover art in initial metadata message. Sending Clear UI signal.
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,658 [INFO] (Hudiy) Media Metadata (CarPlay): VIER, Machinedrum, Holly, Thys, Salvador Breed - THE SOURCE [IIII]
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,659 [INFO] (Hudiy) Processing NEW Cover Art (400664 bytes, hash: 0fa88f44b8f111528bfb1dd31cd6353c).
+Oct 07 22:28:19 raspberrypi python3[808]: 2026-10-07 22:28:19,691 [INFO] (Hudiy) Published Cover Art to DIS | New Track: False
+Oct 07 22:28:28 raspberrypi python3[808]: 2026-10-07 22:28:28,141 [INFO] (Hudiy) PROJECTION STATUS: Inactive
+Oct 07 22:28:31 raspberrypi python3[808]: 2026-10-07 22:28:31,919 [INFO] (Hudiy) Hudiy Action: Save Logs
+Oct 07 22:28:31 raspberrypi python3[808]: 2026-10-07 22:28:31,919 [INFO] (Hudiy) Executing /home/pi/hudiy_client/../rns-e_can/save_logs.py...
+Oct 07 22:28:32 raspberrypi python3[1873]: Collecting logs for dis_display.service -> /home/pi/logs/2026-10-07/dis_display_1.log
+Oct 07 22:28:32 raspberrypi sudo[1874]:       pi : PWD=/home/pi/hudiy_client ; USER=root ; COMMAND=/usr/bin/journalctl -u dis_display.service --since '3 minutes ago'
+Oct 07 22:28:32 raspberrypi sudo[1874]: pam_unix(sudo:session): session opened for user root(uid=0) by (uid=1000)
+Oct 07 22:28:32 raspberrypi sudo[1874]: pam_unix(sudo:session): session closed for user root
+Oct 07 22:28:32 raspberrypi python3[1873]: Saved dis_display.service logs to /home/pi/logs/2026-10-07/dis_display_1.log
+Oct 07 22:28:32 raspberrypi python3[1873]: Collecting logs for hudiy_data_api.service -> /home/pi/logs/2026-10-07/hudiy_data_api_1.log
+Oct 07 22:28:32 raspberrypi sudo[1877]:       pi : PWD=/home/pi/hudiy_client ; USER=root ; COMMAND=/usr/bin/journalctl -u hudiy_data_api.service --since '3 minutes ago'
+Oct 07 22:28:32 raspberrypi sudo[1877]: pam_unix(sudo:session): session opened for user root(uid=0) by (uid=1000)

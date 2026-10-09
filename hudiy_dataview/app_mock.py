@@ -8,14 +8,17 @@ import time
 import threading
 import queue
 import logging
+import math
 import random
 import zmq.green as zmq
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 try:
-    from .file_portal import register_file_portal
+    from .file_portal import register_file_portal, cache_hudiy_theme
+    from .data_logs import register_data_logs
 except ImportError:
-    from file_portal import register_file_portal
+    from file_portal import register_file_portal, cache_hudiy_theme
+    from data_logs import register_data_logs
 
 # Compatibility fix for Flask 3.1.3+ with older Flask-SocketIO:
 # Flask 3.1.3 made RequestContext.session a property without a setter.
@@ -60,10 +63,95 @@ socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins='*',
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] (DataView) %(message)s')
 logger = logging.getLogger(__name__)
 
+# The same persisted recording/configuration endpoints as production; telemetry
+# below is explicitly tagged synthetic and never reaches vehicle transports.
+data_logs = register_data_logs(app, socketio, _cfg)
+_mock_value_clients = {}
+
+@app.get('/api/values/catalog')
+def mock_values_catalog():
+    from vehicle_data.catalog import CATALOG
+    return jsonify({'status': 'ok', 'values': list(CATALOG.values()), 'catalog': list(CATALOG.values())})
+
+@socketio.on('sync_values')
+def mock_sync_values(data):
+    values = data.get('values', []) if isinstance(data, dict) else []
+    _mock_value_clients[request.sid] = values
+    result = {'status': 'ok'}
+    emit('values_response', result)
+    return result
+
+@socketio.on('disconnect')
+def mock_values_disconnect():
+    _mock_value_clients.pop(request.sid, None)
+
+def mock_named_values():
+    import math
+    from vehicle_data.catalog import CATALOG
+    sequence = 0
+    while True:
+        sequence += 1
+        now = time.time()
+        signals = {
+            'engine.rpm': 1800+1200*math.sin(sequence/20),
+            'engine.coolant_temperature': 88+3*math.sin(sequence/40),
+            'engine.oil_temperature': 94+5*math.sin(sequence/35),
+            'engine.intake_temperature': 32+4*math.sin(sequence/16),
+            'engine.maf': 42+20*math.sin(sequence/20),
+            'engine.ignition_timing': 18+6*math.sin(sequence/8),
+            'engine.boost.actual_absolute': 1400+300*math.sin(sequence/20),
+            'engine.boost.spec_absolute': 1500+300*math.sin(sequence/20),
+        }
+        def samples(values):
+            result = []
+            for request_value in values:
+                value_id = request_value if isinstance(request_value, str) else request_value.get('id')
+                if value_id not in CATALOG:
+                    continue
+                result.append({'version': 1, 'id': value_id, 'value': signals.get(value_id),
+                               'type': CATALOG[value_id]['type'], 'unit': CATALOG[value_id].get('unit'),
+                               'status': 'ok' if value_id in signals else 'unavailable', 'timestamp': now,
+                               'max_age_ms': 2000, 'age_ms': 0, 'sample_sequence': sequence,
+                               'quality': {'valid': value_id in signals, 'fresh': True,
+                                           'verified': False, 'estimated': True,
+                                           'reason': 'Synthetic preview data'},
+                               'source': {'id': 'mock', 'kind': 'mock'}})
+            return result
+        for sid, values in list(_mock_value_clients.items()):
+            socketio.emit('values_batch', samples(values), to=sid)
+        with data_logs.lock:
+            values = list(data_logs.active['values']) if data_logs.active else []
+        data_logs.ingest({'client_id': data_logs.CLIENT_ID, 'values': samples(values)})
+        socketio.emit('data_logs_status', data_logs.status())
+        socketio.sleep(0.5)
+
 register_file_portal(app, _cfg, validators={
     'haldex': lambda path: None,
     'pq-eps': lambda path: None,
+    'exhaust-valve': lambda path: None,
 })
+
+_mock_valve_target = None
+
+@socketio.on('get_exhaust_valve')
+def mock_get_exhaust_valve():
+    emit('exhaust_valve_status', {'target': _mock_valve_target, 'confirmed': False,
+                                'inhibited': False, 'update_running': False})
+    emit('exhaust_valve_artifacts', [])
+
+@socketio.on('exhaust_valve_command')
+def mock_exhaust_valve_command(data):
+    global _mock_valve_target
+    target = data.get('target') if isinstance(data, dict) else None
+    if type(target) is not int or not 0 <= target <= 100:
+        emit('exhaust_valve_error', {'message': 'Invalid valve target', 'stopped': True})
+        return
+    _mock_valve_target = target
+    emit('exhaust_valve_status', {'target': target, 'confirmed': False, 'inhibited': False})
+
+@socketio.on('start_exhaust_valve_update')
+def mock_exhaust_valve_update(data):
+    emit('exhaust_valve_error', {'message': 'Firmware transfer is unavailable in mock mode', 'stopped': True})
 
 # Cache Busting
 @app.after_request
@@ -151,13 +239,13 @@ class Interpolator:
         with self._lock:
             for i, dv in enumerate(data):
                 raw = dv.get('value')
-                if not isinstance(raw, (int, float)):
-                    continue  # skip strings
-
                 key = self._make_key(module, group, i)
+                if not isinstance(raw, (int, float)) or not math.isfinite(raw):
+                    self._state.pop(key, None)
+                    continue  # A missing/text sample ends the numeric segment.
                 prev_state = self._state.get(key)
 
-                if prev_state is None:
+                if prev_state is None or prev_state.get('unit') != dv.get('unit'):
                     # First ever sample — seed everything
                     self._state[key] = {
                         'prev': float(raw),
@@ -165,6 +253,7 @@ class Interpolator:
                         'ema': float(raw),
                         't_update': now,
                         'source_interval': 0.6,
+                        'unit': dv.get('unit'),
                     }
                 else:
                     # EMA filter the new target to smooth out noise
@@ -184,6 +273,7 @@ class Interpolator:
                         'ema': ema,
                         't_update': now,
                         'source_interval': max(0.05, src_ivl),
+                        'unit': dv.get('unit'),
                     }
 
             # Store the full message structure for re-broadcasting
@@ -776,6 +866,7 @@ def handle_clear_dtcs(data):
 
 @socketio.on('log_theme')
 def handle_log_theme(theme_data):
+    cache_hudiy_theme(app, theme_data)
     logger.info("=== HUDIY THEME PAYLOAD ===")
     try:
         formatted = json.dumps(theme_data, indent=2)
@@ -864,6 +955,7 @@ def handle_add_logger_marker(data):
 
 
 if __name__ == '__main__':
+    socketio.start_background_task(mock_named_values)
     socketio.start_background_task(worker.run)
 
     logger.info("Starting Flask-SocketIO Server on port 5003")

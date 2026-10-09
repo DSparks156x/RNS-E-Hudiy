@@ -3,8 +3,10 @@ import { useLiveValue } from './LiveText';
 
 interface GaugeProps {
   id?: string;
-  groupKey: string;
-  index: number;
+  groupKey?: string;
+  index?: number;
+  valueId?: string;
+  markerValueId?: string;
   min: number;
   max: number;
   label: React.ReactNode[];
@@ -20,6 +22,7 @@ interface GaugeProps {
 interface MarkerProps {
   groupKey: string;
   index: number;
+  valueId?: string;
   min: number;
   max: number;
   baseSize: number;
@@ -30,12 +33,13 @@ interface MarkerProps {
   startAngleOffset: number;
 }
 
-function GaugeMarker({ groupKey, index, min, max, baseSize, radius, strokeWidth, circum, arcLength, startAngleOffset }: MarkerProps) {
-  const mv = useLiveValue(groupKey, index, min);
+function GaugeMarker({ groupKey, index, valueId, min, max, baseSize, radius, strokeWidth, circum, arcLength, startAngleOffset }: MarkerProps) {
+  const mv = useLiveValue(groupKey, index, min, valueId);
+  const opacity = useTransform(mv, val => Number.isFinite(typeof val === 'number' ? val : parseFloat(val)) ? 1 : 0);
 
   const tickLen = 3;
 
-  const rawOffset = useTransform(mv, (val) => {
+  const rawOffset = useTransform<number | string, number>(mv, (val) => {
     const num = typeof val === 'number' ? val : (isNaN(parseFloat(val)) ? min : parseFloat(val));
     const pct = Math.max(0, Math.min(1, (num - min) / (max - min)));
     const pos = arcLength * pct;
@@ -43,7 +47,7 @@ function GaugeMarker({ groupKey, index, min, max, baseSize, radius, strokeWidth,
   });
 
   // Same spring physics as the main arc so the tick animates smoothly
-  const dashoffset = useSpring(rawOffset, { stiffness: 150, damping: 25, restDelta: 0.001 });
+  const dashoffset = useSpring(rawOffset, { stiffness: 150, damping: 25, restDelta: 0.001, skipInitialAnimation: true });
 
   return (
     <motion.circle
@@ -55,14 +59,15 @@ function GaugeMarker({ groupKey, index, min, max, baseSize, radius, strokeWidth,
       strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeDasharray={`${tickLen} ${circum}`}
-      style={{ strokeDashoffset: dashoffset }}
+      style={{ strokeDashoffset: dashoffset, opacity }}
       transform={`rotate(${startAngleOffset} ${baseSize / 2} ${baseSize / 2})`}
     />
   );
 }
 
-export function Gauge({ groupKey, index, min, max, label, sizeClass = '', decimals = 1, markerGroupKey, markerIndex, markerDecimals = 1, deadzone }: GaugeProps) {
-  const mv = useLiveValue(groupKey, index, min);
+export function Gauge({ groupKey = '', index = 0, valueId, markerValueId, min, max, label, sizeClass = '', decimals = 1, markerGroupKey, markerIndex, markerDecimals = 1, deadzone }: GaugeProps) {
+  const mv = useLiveValue(groupKey, index, min, valueId);
+  if (markerValueId) { markerGroupKey = `value:${markerValueId}`; markerIndex = 0; }
 
   // SVG parameters (using a fixed 200x200 internal coordinate system)
   const baseSize = 200;
@@ -75,14 +80,15 @@ export function Gauge({ groupKey, index, min, max, label, sizeClass = '', decima
   const startAngleOffset = 150; // SVG 0 is right (3 o'clock). 210 degrees CCW is +150 deg CW.
 
   // Transform raw value into percentage fill [0, 1]
-  const rawPct = useTransform(mv, (val) => {
-    let num = typeof val === 'number' ? val : (isNaN(parseFloat(val)) ? 0 : parseFloat(val));
+  const rawPct = useTransform<number | string, number>(mv, (val) => {
+    let num = typeof val === 'number' ? val : parseFloat(val);
+    if (!Number.isFinite(num)) return 0;
     if (deadzone !== undefined && Math.abs(num) < deadzone) num = 0;
     return Math.max(0, Math.min(1, (num - min) / (max - min)));
   });
 
   // Apply a spring physics layer to the percentage so the needle moves smoothly
-  const pct = useSpring(rawPct, { stiffness: 150, damping: 25, restDelta: 0.001 });
+  const pct = useSpring(rawPct, { stiffness: 150, damping: 25, restDelta: 0.001, skipInitialAnimation: true });
 
   // Dashoffset: 0 means full visible arc, circum means hidden arc.
   const arcLength = circum * (angleRange / 360);
@@ -92,7 +98,7 @@ export function Gauge({ groupKey, index, min, max, label, sizeClass = '', decima
   // Center display
   const displayVal = useTransform(mv, (val) => {
     let num = typeof val === 'number' ? val : parseFloat(val);
-    if (isNaN(num)) return '--';
+    if (!Number.isFinite(num)) return '--';
     if (deadzone !== undefined && Math.abs(num) < deadzone) num = 0;
     return num.toFixed(decimals);
   });
@@ -100,11 +106,11 @@ export function Gauge({ groupKey, index, min, max, label, sizeClass = '', decima
   const showMarker = markerGroupKey !== undefined && markerIndex !== undefined;
 
   // Secondary value display (for the marker)
-  const markerMv = useLiveValue(markerGroupKey || '', markerIndex || 0, min);
+  const markerMv = useLiveValue(markerGroupKey || '', markerIndex || 0, min, markerValueId);
   const markerDisplayVal = useTransform(markerMv, (val) => {
     if (!showMarker) return '';
     const num = typeof val === 'number' ? val : parseFloat(val);
-    return isNaN(num) ? '--' : num.toFixed(markerDecimals);
+    return Number.isFinite(num) ? num.toFixed(markerDecimals) : '--';
   });
 
   return (
@@ -144,6 +150,7 @@ export function Gauge({ groupKey, index, min, max, label, sizeClass = '', decima
           <GaugeMarker
             groupKey={markerGroupKey!}
             index={markerIndex!}
+            valueId={markerValueId}
             min={min}
             max={max}
             baseSize={baseSize}

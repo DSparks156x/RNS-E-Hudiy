@@ -24,10 +24,11 @@ The dis_display.py in COLOR_DIS_BETA is at the moment only compatible with color
 
 ## Measured text layout
 
-`display.font_resolution` selects `native` (default, captured white-cluster
-advances) or `legacy` (the red-cluster reference tables). This setting is
-independent of high-resolution navigation icons and cover art. Legacy tables
-are available, but have not been verified on red hardware in this session.
+`display.center_display.high_resolution` selects the white-cluster fonts and
+high-resolution graphics when enabled, or the red-cluster fonts and legacy graphics
+when disabled. The same setting chooses the eight-value or five-line Car Info
+layout. Legacy tables are available, but have not been verified on red hardware in
+this session.
 
 `font_metrics.py` measures the actual encoded AUDSCII bytes in physical pixels.
 Both profiles use that unit, while graphics coordinates remain logical pixels

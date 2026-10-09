@@ -21,8 +21,6 @@ function applyHudiyColors(scheme) {
 if (window.hudiy && window.hudiy.colorScheme) {
   applyHudiyColors(window.hudiy.colorScheme);
 }
-// DEBUG: force dark mode
-document.documentElement.setAttribute('data-theme', 'dark');
 
 // Hook live theme changes + late attachment
 (function hookHudiy() {
