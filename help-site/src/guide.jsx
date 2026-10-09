@@ -7,11 +7,11 @@ import { howToGroup, howToTopics, HowToPages } from './HowToGuides';
 
 export const groups = [
   { id: 'start', title: 'OVERVIEW' },
-  howToGroup,
   { id: 'dis', title: 'CLUSTER DISPLAY' },
   { id: 'data', title: 'VEHICLE DATA' },
   { id: 'controls', title: 'CONTROLS & BEHAVIOR' },
   { id: 'setup', title: 'SETUP & TOOLS' },
+  howToGroup,
 ];
 export const topics = [
   { id: 'overview', group: 'start', title: 'What this adds', icon: '⌂', summary: 'Screens and features in this fork', keywords: 'overview capabilities features' },
