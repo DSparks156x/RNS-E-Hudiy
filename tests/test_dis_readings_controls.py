@@ -1,8 +1,10 @@
 import copy
 import ast
 import importlib.util
+import json
 from pathlib import Path
 import sys
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -74,6 +76,47 @@ class WheelControlsTests(unittest.TestCase):
         self.now += .5
         self.router.tick()
         self.assertEqual(self.normal, ['mode_long'])
+
+    def test_second_press_inside_window_can_release_after_deadline(self):
+        self.click()
+        self.now += .25
+        self.router.handle('mode')
+        self.now += .11
+        self.router.tick()
+        self.assertEqual(self.normal, [])
+        self.now += .04
+        self.router.handle('release')
+        self.assertEqual(self.router.owner, 'dis')
+        self.assertEqual(self.normal, [])
+        # Wheel back uses the same gesture timing once DIS owns the wheel.
+        self.click('click')
+        self.now += .25
+        self.router.handle('click')
+        self.now += .15
+        self.router.handle('release')
+        self.assertEqual(self.events[-1][0], 'back')
+        self.assertNotIn('select', [event[0] for event in self.events])
+
+    def test_second_press_after_window_is_two_singles(self):
+        self.click()
+        self.now += .4
+        self.click()
+        self.now += .4
+        self.router.tick()
+        self.assertEqual(self.normal, ['mode_short', 'mode_short'])
+        self.assertEqual(self.router.owner, 'normal')
+
+    def test_holding_second_press_does_not_emit_first_short_or_toggle(self):
+        self.click()
+        self.now += .25
+        for _ in range(5):
+            self.router.handle('mode')
+            self.now += .05
+        self.router.handle('release')
+        self.now += .4
+        self.router.tick()
+        self.assertEqual(self.normal, ['mode_long'])
+        self.assertEqual(self.router.owner, 'normal')
 
     def test_page_change_or_timeout_drops_owner_and_pending_select(self):
         self.double()
@@ -311,6 +354,60 @@ class ReadingsTests(unittest.TestCase):
 
 
 class KeyboardRawFrameTests(unittest.TestCase):
+    def test_old_config_double_mode_publishes_dis_control_and_input_without_rebinding(self):
+        spec = importlib.util.spec_from_file_location('test_keyboard_old_config', ROOT / 'rns-e_can/can_keyboard_control.py')
+        keyboard = importlib.util.module_from_spec(spec)
+        with patch.dict(sys.modules, {'uinput': SimpleNamespace()}):
+            spec.loader.exec_module(keyboard)
+        cfg = json.loads((ROOT / 'config.json').read_text())
+        cfg['input_mappings']['mfsw'].pop('double_click_ms', None)
+        for key in ('input_control_stream', 'dis_top_status', 'dis_display_status'):
+            cfg['interfaces']['zmq'].pop(key, None)
+        cfg['input_mappings']['mfsw']['phone_alt'] = {
+            'short_press': {'mode': 'KEY_P'}, 'long_press': {'mode': 'KEY_O'}}
+        keyboard.parse_key = lambda key: key
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'config.json'
+            path.write_text(json.dumps(cfg))
+            self.assertTrue(keyboard.load_and_initialize_config(path))
+        self.assertEqual(keyboard.CONFIG['wheel_double_click_ms'], 350)
+        self.assertEqual(keyboard.CONFIG['zmq_display_status'],
+                         'ipc:///run/rnse_control/dis_display_status.ipc')
+        self.assertEqual(keyboard.CONFIG['mfsw_map']['mode_short'], 'KEY_ENTER')
+        self.assertEqual(keyboard.CONFIG['mfsw_map']['mode_long'], 'KEY_ESC')
+        keyboard.WHEEL_CONTEXT_ID = 99
+        events, pressed, now = [], [], [10.0]
+        keyboard.INPUT_PUB = SimpleNamespace(send_multipart=lambda parts, **kw:
+            events.append((parts[0], json.loads(parts[1]))))
+        keyboard.press_key = pressed.append
+        state = keyboard.ControlState()
+        state.wheel.clock = lambda: now[0]
+        state.wheel.context('app_car_info', True, context_id=99)
+        events.clear()
+        def frame(command):
+            keyboard.handle_mfsw_message({'dlc':2, 'data_hex':f'00{command:02x}'}, state)
+        frame(0x1c)
+        frame(0)
+        now[0] += .25
+        frame(0x1c)
+        now[0] += .15
+        frame(0)
+        self.assertEqual(state.wheel.owner, 'dis')
+        self.assertEqual(events[-1][0], b'WHEEL_CONTROL')
+        self.assertEqual(events[-1][1]['owner'], 'dis')
+        for _ in range(3):
+            frame(0x0c)
+        frame(0)
+        frame(0x08)
+        frame(0)
+        now[0] += .4
+        state.wheel.tick()
+        inputs = [payload for topic, payload in events if topic == b'DIS_INPUT']
+        self.assertEqual([item['event'] for item in inputs], ['next', 'select'])
+        self.assertTrue(all(item['app'] == 'app_car_info' and item['control_epoch'] == 99
+                            for item in inputs))
+        self.assertEqual(pressed, [])
+
     def test_volume_is_normal_in_dis_mode_and_release_repeat_deduplicates(self):
         spec = importlib.util.spec_from_file_location('test_keyboard_isolated', ROOT / 'rns-e_can/can_keyboard_control.py')
         keyboard = importlib.util.module_from_spec(spec)

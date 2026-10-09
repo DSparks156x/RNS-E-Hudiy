@@ -29,6 +29,13 @@
     ],
     "items": [
         {
+            "categories": ["Hudiy"],
+            "iconFontFamily": "Material Symbols Rounded",
+            "iconName": "manage_accounts",
+            "action": "hudiy_manager",
+            "label": "RNS-E Manager"
+        },
+        {
             "categories": [
                 "Phone"
             ],

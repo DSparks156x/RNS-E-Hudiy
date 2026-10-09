@@ -1,6 +1,13 @@
 {
     "applications": [
         {
+            "action": "hudiy_manager",
+            "url": "http://localhost:5004",
+            "allowBackground": false,
+            "controlAudioFocus": false,
+            "audioStreamCategory": "NONE"
+        },
+        {
             "action": "hudiy_diagnostics",
             "url": "http://localhost:5003",
             "allowBackground": false,

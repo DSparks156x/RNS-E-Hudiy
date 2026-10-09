@@ -351,9 +351,14 @@ class DDPProtocol:
         self._initial_application_handshake = False
         self._opening_response_scope = False
         self._initial_mode_request_scope = None
+        self._initial_mode_response_record = None
+        self._initial_mode_records = {}
+        self._initial_mode_replies = deque()
+        self._initial_mode_generation = 0
+        self._initial_mode_reply_count = 0
+        self._initial_discovery_phase = 3
         self._geometry_compatibility_scope = None
         self._geometry_compatibility_records = {}
-        self._observed_white_compound_fork_record = None
         self.cluster_capabilities = None
         self.capability_record = None
         self.geometry_record = None
@@ -464,21 +469,22 @@ class DDPProtocol:
         self.cluster_capabilities = observed.selected
         if observed.decoded is not None:
             self.capability_record = list(observed.decoded.raw)
+        if getattr(self, '_initial_application_handshake', False):
+            item['mode_generation'] = self._initial_mode_generation
+            self._initial_discovery_phase = 5
         self._capability_generation = item['generation'] + 1
         item['generation'] = self._capability_generation
-        if getattr(self, '_initial_application_handshake', False):
-            # The existing RED/WHITE profile already sends the queued20.
-            item['result'] = 'initialization-profile'
-            return
-        self.screen_released_by_cluster = True
-        self._last_window_status = None
-        self._last_screen_status = None
-        self._application_request_invalidated = True
+        if not getattr(self, '_initial_application_handshake', False):
+            self.screen_released_by_cluster = True
+            self._last_window_status = None
+            self._last_screen_status = None
+            self._application_request_invalidated = True
+            self._application_setup_pending = True
+            # Invalidate a graphics block even if already paused/initializing.
+            self.state_generation = getattr(self, 'state_generation', 0) + 1
+            if self.state in (DDPState.READY, DDPState.PAUSED):
+                self._set_state(DDPState.PAUSED)
         self._application_setup_pending = True
-        # Invalidate a graphics block even if already paused/initializing.
-        self.state_generation = getattr(self, 'state_generation', 0) + 1
-        if self.state in (DDPState.READY, DDPState.PAUSED):
-            self._set_state(DDPState.PAUSED)
         if not hasattr(self, '_deferred_capability_setups'):
             self._deferred_capability_setups = deque()
         if len(self._deferred_capability_setups) >= 32:
@@ -486,7 +492,8 @@ class DDPProtocol:
             # A raw recovery sentinel closes safely in the polling worker.
             self._application_recovery_request = observed.raw
             return
-        item['full'] = getattr(self, 'application_setup_full', None) is True
+        item['full'] = (not getattr(self, '_initial_application_handshake', False)
+                        and getattr(self, 'application_setup_full', None) is True)
         self._deferred_capability_setups.append(item)
 
     def renderer_command_family(self):
@@ -903,25 +910,9 @@ class DDPProtocol:
         # Store this exact complete record, never authorize a matching future
         #payload or all traffic in an initialization mode/phase.
         scope = getattr(self, '_geometry_compatibility_scope', None)
-        # The observed white opening layout has a seven-byte52-family
-        #capability prefix followed by one of the declared five-byte geometries.
-        #Capability metadata varies by cluster; an exact bench fingerprint
-        #rejects other units before setup. Keep the full09 observation and bind
-        #this opening role to this received object, never to arbitrary09 tails.
-        if (scope == 'white common configuration/fork'
+        if (scope is not None and len(data) == 6 and data[1] == 0x30
                 and getattr(self, '_initial_application_handshake', False)
-                and self.state == DDPState.INITIALIZING
-                and self.dis_mode == DisMode.WHITE
                 and getattr(self, '_application_mode', None) == 1
-                and len(data) == 13 and data[1:3] == [0x09, 0x20]
-                and data[8:] in ([0x30,0x39,0x00,0x30,0x00],
-                                [0x30,0x39,0x00,0x32,0x00])):
-            self._observed_white_compound_fork_record = data
-        if scope == 'white common configuration/fork' and data[1:2] == [9]:
-            self._geometry_compatibility_scope = None
-            scope = None
-        if (scope is not None and data[1:2] == [0x30]
-                and getattr(self, '_initial_application_handshake', False)
                 and self.state == DDPState.INITIALIZING):
             records = getattr(self, '_geometry_compatibility_records', None)
             if records is None:
@@ -930,7 +921,6 @@ class DDPProtocol:
                 self.close_session()
                 raise DDPHandshakeError('Opening-profile geometry reservation bound exceeded')
             records[id(data)] = data
-            self._geometry_compatibility_scope = None
         elif not mode_compatibility:
             self._observe_application_payload(data[1:], receive_token=token)
         if data[1:] == DDPMessages.CMD_REINIT_REQ and self.state == DDPState.READY:
@@ -1081,8 +1071,17 @@ class DDPProtocol:
                 if not self._data_inbox:
                     continue
                 data = self._data_inbox.popleft()
+            modes = getattr(self, '_initial_mode_records', {})
+            initial_mode_response = modes.pop(id(data), None) is data
+            self._initial_mode_response_record = data if initial_mode_response else None
             records = getattr(self, '_geometry_compatibility_records', {})
             geometry_compatibility = records.pop(id(data), None) is data
+            if geometry_compatibility:
+                # Optional standalone telemetry only at the causative startup
+                #discovery/setup boundary. It never advances negotiation.
+                self.geometry_record = list(data[1:])
+                logger.debug('Optional opening geometry: %s', data[1:])
+                continue
             if (self._is_ignored_application_record(data[1:])
                     and not self._accept_opening_response(data[1:])):
                 # A15 prefetched during the first opening boundary may still
@@ -1090,8 +1089,7 @@ class DDPProtocol:
                 continue
             if (len(data) > 1 and (data[1] < 0x20 and data[1] % 2 == 0
                                   or self._is_unhandled_high_request(data[1:]) and not geometry_compatibility)
-                    and not (getattr(self, '_initial_application_handshake', False)
-                             and data[1:] == [0, 1])):
+                    and not initial_mode_response):
                 # Queries may arrive during initialization response waits.
                 # Mode/reset changes invalidate that old exchange; reopening
                 #is safer than consuming its response as a new configuration.
@@ -1130,26 +1128,39 @@ class DDPProtocol:
                     and self.state == DDPState.INITIALIZING)
 
     def _reserve_initial_mode_record(self, data):
-        """One exact00 01 at each observed opening/fork response role."""
+        """Queue real mode replies during bounded announcement/discovery.
+
+        Native8055A670 updates mode at RX and queues01 for EVERY valid00.
+        Repeated mode1 discovery is not an ignored fork or transport restart.
+        Once20 is submitted, an interrupted setup retains host closure policy.
+        """
         scope = getattr(self, '_initial_mode_request_scope', None)
-        if not (scope is not None and getattr(self, '_initial_application_handshake', False)
-                and self.state == DDPState.INITIALIZING):
+        if (scope not in ('first-response', 'discovery')
+                or not getattr(self, '_initial_application_handshake', False)
+                or self.state != DDPState.INITIALIZING):
             return False
-        if data[1:] == [0, 1]:
-            self._initial_mode_request_scope = None
-            return True
-        if scope == 'fork' and data[1:2] in ([9], [0x30]):
-            self._initial_mode_request_scope = None
-        return False
+        if len(data) < 3 or data[1] != 0 or data[2] not in (1, 2):
+            return False
+        if scope == 'discovery' and data[2] != 1:
+            return False
+        if len(self._initial_mode_records) >= 32 or len(self._initial_mode_replies) >= 32:
+            raise DDPHandshakeError('Initial mode request queue exceeds32 host bound')
+        self._application_mode = data[2]
+        self._application_submode = 0
+        self._initial_mode_generation += 1
+        self._initial_discovery_phase = 3 if data[2] == 1 else 10
+        self._initial_mode_records[id(data)] = data
+        self._initial_mode_replies.append(data)
+        return True
 
     @staticmethod
     def _is_unhandled_high_request(payload):
-        """8055A42C→8055A82E: even20..DF except known2E."""
+        """8055A42Câ†’8055A82E: even20..DF except known2E."""
         return bool(payload and 0x20 <= payload[0] < 0xE0
                     and payload[0] % 2 == 0 and payload[0] != 0x2E)
 
-    def _expect_profile_geometry(self, label):
-        """One30 at an explicit opening-profile boundary, including ACK prefetch."""
+    def _allow_opening_geometry(self, label):
+        """Optional standalone30 telemetry at the startup discovery/setup boundary."""
         if not (getattr(self, '_initial_application_handshake', False)
                 and self.state == DDPState.INITIALIZING):
             raise DDPHandshakeError('Geometry compatibility requires an explicit opening profile')
@@ -1413,134 +1424,91 @@ class DDPProtocol:
 
     # --- Initialization (Step 2) ---
 
-    def _get_init_payloads(self) -> dict:
-        """Returns the correct set of payloads based on self.dis_mode."""
-        PL_LOG_3 = [0x00, 0x01]
-        PL_LOG_5 = [0x00, 0x01]
-        PL_LOG_23_COMMON = [0x21, 0x3B, 0xA0, 0x00]
 
-        if self.dis_mode == DisMode.WHITE:
-            logger.debug("Using WHITE DIS payload set.")
-            return {
-                "PL_LOG_3": PL_LOG_3,
-                "PL_LOG_5": PL_LOG_5,
-                "PL_LOG_11": [0x09, 0x20, 0x0B, 0x50, 0x0A, 0x24, 0x50],
-                "PL_LOG_11_ALT": [0x09, 0x20, 0x0B, 0x50, 0x09, 0x24, 0x4A], # Alternate White Cluster
-                "PL_LOG_14": [0x30, 0x39, 0x00, 0x30, 0x00],
-                "PL_LOG_14_ALT": [0x30, 0x39, 0x00, 0x32, 0x00], # Alternate White Cluster
-                "PL_LOG_18": [0x09, 0x20, 0x0B, 0x50, 0x0A, 0x24, 0x50],
-                "PL_LOG_18_ALT": [0x09, 0x20, 0x0B, 0x50, 0x09, 0x24, 0x4A], # Alternate White Cluster
-                "PL_LOG_21": [0x30, 0x39, 0x00, 0x30, 0x00],
-                "PL_LOG_21_ALT": [0x30, 0x39, 0x00, 0x32, 0x00], # Alternate White Cluster
-                "PL_LOG_23": PL_LOG_23_COMMON,
-                "PL_LOG_27": [0x21, 0x3B, 0xA0, 0x00]
-            }
-        else: # DisMode.RED
-            logger.debug("Using RED DIS payload set.")
-            return {
-                "PL_LOG_3": PL_LOG_3,
-                "PL_LOG_5": PL_LOG_5,
-                "PL_LOG_11": [0x09, 0x20, 0x0B, 0x50, 0x00, 0x32, 0x44],
-                "PL_LOG_14": [0x30, 0x33, 0x00, 0x31, 0x00],
-                "PL_LOG_23": PL_LOG_23_COMMON,
-                # Other payloads not needed for the shorter Red path
-                "PL_LOG_18": [],
-                "PL_LOG_21": [],
-                "PL_LOG_27": []
-            }
+    def _reply_initial_modes(self):
+        """Submit every pending01; decide discovery from latest received state.
+
+        Retiring unsent20 from an older mode epoch is stricter HOST correlation
+        policy: native retains its control queue. Keep family metadata intact,
+        but require fresh09 after the newer mode request before host setup.
+        """
+        pending = self._deferred_capability_setups
+        kept = deque()
+        for item in pending:
+            if item.get('mode_generation') != self._initial_mode_generation:
+                item['result'] = 'superseded-before-send-by-mode-request'
+            else:
+                kept.append(item)
+        self._deferred_capability_setups = kept
+        while self._initial_mode_replies:
+            self._initial_mode_reply_count += 1
+            if self._initial_mode_reply_count > 32:
+                raise DDPHandshakeError('Initial mode requests exceeded32 host replies')
+            record = self._initial_mode_replies.popleft()
+            self.send_data_packet([1, record[2], 0])
+            # Replying during a preceding ACK prefetch may precede the consumer
+            #reading this exact00 object. Retire it by identity, never skip a
+            #matching future mode request after the discovery role ends.
+            self._initial_mode_records.pop(id(record), None)
+            self._data_inbox = deque(data for data in self._data_inbox if data is not record)
+            if record[2] != 1:
+                raise DDPHandshakeError('Initial mode2 has no supported renderer')
+        kept = deque()
+        for item in self._deferred_capability_setups:
+            if item.get('mode_generation') != self._initial_mode_generation:
+                item['result'] = 'superseded-before-send-by-mode-request'
+            else:
+                kept.append(item)
+        self._deferred_capability_setups = kept
 
     def _init_common_start(self):
-        """Sends the first 4 packets common to all handshakes."""
-        # Arm before the causative send: its ACK wait may prefetch the15
-        #welcome. This one first-response role is an observed peer exception,
-        #not native normal receive or a general INITIALIZING exemption.
+        """Native15 announcement, real00/01 events, then adaptive discovery."""
         self._opening_response_scope = True
         self._initial_mode_request_scope = 'first-response'
         try:
-            self.send_data_packet([0x15, 0x01, 0x01, 0x02, 0x00, 0x00])
-            logger.info("Init Step 1 (Capabilities Query) sent!")
+            self.send_data_packet([0x15, 1, 1, 2, 0, 0])
+            logger.info('Application session announcement sent')
             data = self._recv_and_ack_data(1000)
         finally:
             self._opening_response_scope = False
-            self._initial_mode_request_scope = None
-        if not data:
-             raise DDPHandshakeError("Init Step 1 timeout: No response from cluster.")
-        
-        # Detection: Standard mode responds with 0x09 (Nav), High-Res uses 0x15 (Telem)
-        if len(data) < 2:
-            raise DDPHandshakeError("Truncated initialization capabilities response")
-        if data[1] == 0x15:
-            logger.info("Detected HIGH-RES (Telem/Phone) Mode via 0x15 response.")
-        elif not self.payload_is(data, self.PL["PL_LOG_3"]):
-            raise DDPHandshakeError(f"Unexpected application start response: {data}")
-        
-        logger.info("Init 2/x passed!")
+        if data is None:
+            raise DDPHandshakeError('Timed out awaiting initial application mode request')
+        payload = data[1:]
+        if len(payload) >= 2 and payload[0] == 0 and payload[1] in (1, 2):
+            logger.info('Initial application mode%u requested', payload[1])
+        elif payload and payload[0] == 0x15:
+            logger.info('Observed startup welcome15 compatibility response')
+            self._application_mode = 1
+            self._application_submode = 0
+            self._initial_mode_replies.append([0, 0, 1])
+        else:
+            raise DDPHandshakeError(f'Unsupported application opening response: {payload}')
+        self._initial_mode_request_scope = 'discovery'
+        self._allow_opening_geometry('initial discovery/setup compatibility')
+        self._reply_initial_modes()
+        if self._initial_discovery_phase != 5 or not self._deferred_capability_setups:
+            self._exchange_application([8], [9])
+        # A mode after09 may already have been prefetched at the same ACK wait.
+        #Reply to it and require a capability observed in its current mode epoch.
+        while self._initial_mode_replies:
+            self._reply_initial_modes()
+            if self._initial_discovery_phase != 5 or not self._deferred_capability_setups:
+                self._exchange_application([8], [9])
+        self._initial_mode_request_scope = None
 
-        if self.dis_mode == DisMode.WHITE:
-            self._expect_profile_geometry('white common configuration/fork')
-        self._initial_mode_request_scope = 'fork'
-        self.send_data_packet([0x01, 0x01, 0x00]) # Step 3
-        self._application_mode = 1
-        logger.info("Init 3/x passed!")
 
-        if self.dis_mode == DisMode.RED:
-            self._expect_profile_geometry('red common capability query/geometry')
-        self.send_data_packet([0x08]) # Step 4
-        logger.info("Init 4/x passed!")
-
-    def _run_init_steps(self, steps):
-        """Run an observed handshake profile, validating each receive boundary.
-
-        Transport ACKs/status interruptions are handled by the shared receiver;
-        the profile describes only application records and their wire order.
-        """
-        for step_index, (label, outbound, expected_names) in enumerate(steps):
-            exchange = dict(command=tuple(outbound) if outbound is not None else None,
-                            expected=tuple(tuple(self.PL.get(name) or ()) for name in expected_names),
-                            profile_step=label, attempt=1,
-                            timeout_ms=0 if outbound is not None else 1000,
-                            result='pending', response=None)
-            self.last_application_exchange = exchange
-            if not hasattr(self, 'application_exchange_history'):
-                self.application_exchange_history = deque(maxlen=32)
-            self.application_exchange_history.append(exchange)
-            if self.state == DDPState.DISCONNECTED:
-                exchange['result'] = 'session-closed'
-                raise DDPHandshakeError(f"Session closed before {label}")
-            if outbound is not None:
-                if outbound[0] == 0x20:
-                    self._initial_setup_request_boundary = self._application_receive_boundary()
-                if (getattr(self, '_initial_application_handshake', False)
-                        and outbound[0] == 0x20):
-                    self._initial_setup_request_generation = getattr(self, '_capability_generation', 0)
-                if step_index + 1 < len(steps):
-                    next_label, next_outbound, next_names = steps[step_index + 1]
-                    if next_outbound is None and any(
-                            (self.PL.get(name) or [])[:1] == [0x30] for name in next_names):
-                        self._expect_profile_geometry(next_label)
-                try:
-                    self.send_data_packet(list(outbound))
-                except DDPError as exc:
-                    exchange.update(result='send-error', error=str(exc))
-                    raise
-                exchange['result'] = 'sent'
+    def _close_opening_geometry_role(self):
+        """Retire only exact optional objects already received during setup."""
+        self._geometry_compatibility_scope = None
+        records = getattr(self, '_geometry_compatibility_records', {})
+        kept = deque()
+        for data in self._data_inbox:
+            if records.pop(id(data), None) is data:
+                self.geometry_record = list(data[1:])
             else:
-                try:
-                    data = self._recv_and_ack_data(1000)
-                except DDPError as exc:
-                    exchange.update(result='receive-error', error=str(exc))
-                    raise
-                if self.state == DDPState.DISCONNECTED:
-                    exchange['result'] = 'session-closed'
-                    raise DDPHandshakeError(f"Session closed during {label}")
-                exchange['response'] = tuple(data[1:]) if data is not None else None
-                if not any(self.payload_is(data, self.PL.get(name))
-                           for name in expected_names):
-                    exchange['result'] = 'timeout' if data is None else 'unexpected-response'
-                    raise DDPHandshakeError(
-                        f"{label}: expected {expected_names}, received {data}")
-                exchange['result'] = 'accepted'
-            logger.info("Initialization %s complete", label)
+                kept.append(data)
+        self._data_inbox = kept
+        records.clear()
 
     def _exchange_application(self, command, expected, *, send_first=True):
         """Bounded host request/response tracking; no native tick/ms inference.
@@ -1563,6 +1531,8 @@ class DDPProtocol:
                         and command[0] == 0x20):
                     self._initial_setup_request_generation = getattr(self, '_capability_generation', 0)
                 try:
+                    if command == [8] and getattr(self, '_initial_application_handshake', False):
+                        self._initial_discovery_phase = 4
                     self.send_data_packet(list(command))
                 except DDPError as exc:
                     exchange.update(result='send-error', error=str(exc))
@@ -1584,6 +1554,14 @@ class DDPProtocol:
                     break
                 payload = data[1:]
                 exchange['response'] = tuple(payload)
+                if (expected[0] == 9 and getattr(self, '_initial_application_handshake', False)
+                        and getattr(self, '_initial_mode_response_record', None) is data):
+                    self._initial_mode_response_record = None
+                    self._reply_initial_modes()
+                    if self._initial_discovery_phase != 5 or not self._deferred_capability_setups:
+                        self._initial_discovery_phase = 4
+                        self.send_data_packet([8])
+                    continue
                 if payload and payload[0] == 0x30:
                     if len(payload) != 5:
                         exchange['result'] = 'malformed-geometry'
@@ -1599,11 +1577,19 @@ class DDPProtocol:
                     continue
                 # Native09 mode1/len>=6 schedules20 even if the format byte
                 #is unknown; the last valid typed family is retained separately.
-                capability_response = (expected and expected[0] == 0x09
-                    and payload and payload[0] == 0x09
-                    and CapabilityObservation.parse(payload,
-                        getattr(self, '_application_mode', None),
-                        getattr(self, 'cluster_capabilities', None)).eligible)
+                capability_response = False
+                if expected[0] == 0x09 and payload and payload[0] == 0x09:
+                    try:
+                        capability_response = CapabilityObservation.parse(payload,
+                            getattr(self, '_application_mode', None),
+                            getattr(self, 'cluster_capabilities', None)).eligible
+                    except ValueError as exc:
+                        exchange.update(result='malformed-capabilities', error=str(exc))
+                        raise DDPHandshakeError('Invalid capability response bound') from exc
+                    if not capability_response:
+                        # Native short/wrong-mode09 does not advance phase4.
+                        #Keep the same bounded wait, rather than invent setup.
+                        continue
                 matches = capability_response if expected[0] == 0x09 else self.payload_is(data, list(expected))
                 if matches:
                     if capability_response:
@@ -1611,52 +1597,40 @@ class DDPProtocol:
                         #offline/adapter receiver did not invoke the observer.
                         #Eligible unknown formats retain old typed data without
                         #inventing a family.
-                        self.payload_is(data, list(expected))
+                        if self._application_record_token(data) is None:
+                            # An adapter that skipped the receive observer needs
+                            #this fallback. Do not replay older observed09 over a
+                            #newer format already selected during ACK prefetch.
+                            self.payload_is(data, list(expected))
+                    if capability_response and getattr(self, '_initial_application_handshake', False):
+                        if self._initial_discovery_phase != 5 or not self._deferred_capability_setups:
+                            # A newer00 superseded this received09. The actual
+                            #mode object still needs its01 reply; do not use old09.
+                            continue
                     exchange['result'] = 'accepted'
                     return True
+                if expected[0] == 0x21 and payload and payload[0] == 0x21:
+                    if not self._application_record_after_boundary(data,
+                            getattr(self, '_initial_setup_request_boundary', None)):
+                        exchange['result'] = 'stale-setup-ignored'
+                        continue
+                    # Native80554906 requeues20 on rejected21 priority. Retain
+                    #the three-attempt host bound, never publish invalid setup.
+                    exchange['result'] = 'invalid-setup-retry'
+                    break
                 exchange['result'] = 'unexpected-response'
                 raise DDPHandshakeError(f'Expected application{expected}, received{payload}')
-            exchange['result'] = 'timeout'
+            if exchange['result'] != 'invalid-setup-retry':
+                exchange['result'] = 'timeout'
         raise DDPHandshakeError(f'Application command{command} exhausted three response deadlines')
 
-    def _init_path_b_white(self, capability_query_pending=False):
-        """Observed short white-cluster initialization profile."""
-        # Common start already sends08 before consuming the geometry fork.
-        # Its09 remains outstanding; sending08 again can leave a second09
-        # queued where the later20 exchange expects21.
-        self._exchange_application([8], [9], send_first=not capability_query_pending)
-        self._exchange_application([0x20,0x3B,0xA0,0], [0x21,0x3B,0xA0,0])
-
-    def _init_path_c_white(self):
-        """Observed long white-cluster profile, including geometry variants."""
-        self._run_init_steps([
-            ('white configuration', (0x01, 0x01, 0), ()),
-            ('white geometry', None, ('PL_LOG_14', 'PL_LOG_14_ALT')),
-            ('white capability query', (0x08,), ()),
-            ('white capabilities', None, ('PL_LOG_18', 'PL_LOG_18_ALT')),
-            ('white application setup', (0x20, 0x3B, 0xA0, 0), ()),
-            ('white geometry confirmation', None, ('PL_LOG_21', 'PL_LOG_21_ALT')),
-            ('white application confirmation', None, ('PL_LOG_23',)),
-            ('white application repeat', (0x20, 0x3B, 0xA0, 0), ()),
-            ('white application repeat confirmation', None, ('PL_LOG_27',)),
-            ('white initial release', (0x33,), ()),
-            ('white final release', (0x33,), ()),
-        ])
-
-    def _init_path_red(self):
-        """Observed red-cluster short profile."""
-        self._run_init_steps([
-            ('red geometry', None, ('PL_LOG_14',)),
-            ('red application setup', (0x20, 0x3B, 0xA0, 0), ()),
-            ('red application confirmation', None, ('PL_LOG_23',)),
-            ('red initial release', (0x33,), ()),
-        ])
 
     def _require_initialization_confirmation(self, error_generation):
         """Host publication guard, including records prefetched at final ACKs."""
         if (self.state != DDPState.INITIALIZING
                 or getattr(self, 'application_error_generation', 0) != error_generation
-                or getattr(self, 'cluster_capabilities', None) is None
+                or getattr(self, '_application_mode', None) != 1
+                or getattr(self, '_capability_generation', 0) == 0
                 or getattr(self, 'application_setup_record', None) is None
                 or getattr(self, '_application_setup_pending', False)
                 or getattr(self, '_confirmed_capability_generation', None)
@@ -1665,7 +1639,7 @@ class DDPProtocol:
 
     def perform_initialization(self) -> bool:
         """
-        Performs the complex DDP initialization handshake (Step 2).
+        Configure the application from native mode/capability/setup transitions.
         This must be called after a session is active (Step 1).
         """
         logger.info(f"Starting DDP Step 2 Initialization for {self.dis_mode.name} DIS...")
@@ -1682,59 +1656,27 @@ class DDPProtocol:
              self._set_state(DDPState.DISCONNECTED)
              return False
 
-        # Get correct payloads for our DIS type
-        self.PL = self._get_init_payloads()
         self._initial_application_handshake = True
 
         try:
-            # --- Common Start ---
             self._init_common_start()
-
-            # --- Handshake Fork ---
-            # Wait for the packet that determines which path to take
-            data = self._recv_and_ack_data(1000)
+            # 8055A4EE queues20 for each eligible09. The normal consumer reads
+            #format/company only; opaque tail bytes and geometry are irrelevant.
+            if not self._deferred_capability_setups:
+                raise DDPHandshakeError('Opening has no eligible capability response')
+            if (self.state != DDPState.INITIALIZING
+                    or self.application_error_generation != initial_error_generation):
+                raise DDPHandshakeError('Opening interrupted before capability setup')
+            if not self._reconfigure_application(publish=False):
+                raise DDPHandshakeError('Initial capability setup failed')
             self._initial_mode_request_scope = None
-            if data is None: raise DDPHandshakeError("Timed out waiting for handshake fork packet.")
-            
-            # Handle out-of-order PL_LOG_5 (seen in some logs)
-            if self.payload_is(data, self.PL["PL_LOG_5"]):
-                logger.info("Handshake Fork: Got out-of-order packet (PL 00 01). Accepting.")
-                data = self._recv_and_ack_data(1000)
-                if data is None: raise DDPHandshakeError("Timed out after out-of-order packet.")
-
-            logger.info('Initialization fork payload: %s',
-                        ' '.join(f'{byte:02X}' for byte in data[1:]))
-
-            # Exact complete record reserved at its common-fork receive
-            #boundary. Its09 is already observed, so use the existing short
-            #white20/21 exchange without another01/08 or geometry wait.
-            compound = getattr(self, '_observed_white_compound_fork_record', None)
-            self._observed_white_compound_fork_record = None
-            if compound is data:
-                logger.info('White opening: combined capability/geometry reply; using direct setup')
-                self.geometry_record = list(data[8:])
-                self._exchange_application([0x20,0x3B,0xA0,0], [0x21,0x3B,0xA0,0])
-
-            # --- Path B (White Short) ---
-            elif self.payload_is(data, self.PL["PL_LOG_14"]) and self.dis_mode == DisMode.WHITE:
-                self._geometry_compatibility_scope = None
-                self._init_path_b_white(capability_query_pending=True)
-            
-            # --- Path C (White Long) or Path Red ---
-            elif self.payload_is(data, self.PL["PL_LOG_11"]) or self.payload_is(data, self.PL.get("PL_LOG_11_ALT")):
-                if self.payload_is(data, self.PL.get("PL_LOG_11_ALT")):
-                    logger.info("Handshake Fork: Got PL_LOG_11 (ALT)")
-                else:
-                    logger.info("Handshake Fork: Got PL_LOG_11 (Regular)")
-                if self.dis_mode == DisMode.RED:
-                    self._init_path_red()
-                else:
-                    self._geometry_compatibility_scope = None
-                    self._init_path_c_white()
-            
-            else:
-                raise DDPHandshakeError(f"Handshake fork failed. Got unhandled packet {data}")
-
+            self._initial_mode_response_record = None
+            self._require_initialization_confirmation(initial_error_generation)
+            self._close_opening_geometry_role()
+            # Initial control setup has no selected display owner. Native21's
+            #source-intent0 path queues one33; later service claims remain fresh.
+            self.send_data_packet([0x33])
+            self.screen_released_by_cluster = True
             self._require_initialization_confirmation(initial_error_generation)
 
             # --- Final Keep-Alive Exchange ---
@@ -1750,8 +1692,9 @@ class DDPProtocol:
             
             logger.info(f"DDP Initialization COMPLETE")
             status = getattr(self, '_last_window_status', None)
-            self._set_state(DDPState.PAUSED if status is not None
-                            and status.outcome in ('fault', 'unavailable')
+            self._set_state(DDPState.PAUSED if
+                            getattr(self, 'cluster_capabilities', None) is None
+                            or (status is not None and status.outcome in ('fault', 'unavailable'))
                             else DDPState.READY)
             self.last_ka_sent = time.time()
             self._last_ka_sent_monotonic = time.monotonic()
@@ -1774,16 +1717,14 @@ class DDPProtocol:
             self._initial_application_handshake = False
             self._opening_response_scope = False
             self._initial_mode_request_scope = None
+            self._initial_mode_records.clear()
+            self._initial_mode_replies.clear()
             self._initial_setup_request_generation = None
             self._initial_setup_request_boundary = None
             self._geometry_compatibility_scope = None
             self._geometry_compatibility_records = {}
-            self._observed_white_compound_fork_record = None
             if self.state == DDPState.READY and not getattr(self, 'was_handshake_assumed', False):
                  self.was_handshake_assumed = False # Handshake was clean
-            # Clean up payload dict
-            if hasattr(self, 'PL'):
-                del self.PL
 
     # --- Main Loop Functions ---
 
@@ -1903,7 +1844,7 @@ class DDPProtocol:
         self.last_unknown_application_record = tuple(payload)
         logger.warning('Unhandled application record%s; transport ACK does not mean application acceptance', payload)
 
-    def _reconfigure_application(self):
+    def _reconfigure_application(self, *, publish=True):
         """Native eligible09 schedules20; require21 for EACH queued request.
 
         Queue32, age10s and at most32 requests per drain are bounded host
@@ -1926,8 +1867,12 @@ class DDPProtocol:
                 queued_at=time.monotonic(), result='pending', raw=None))
         self._set_state(DDPState.INITIALIZING)
         self._servicing_capability_setups = True
+        error_generation = getattr(self, 'application_error_generation', 0)
+        request_generation = getattr(self, '_application_request_generation', 0)
         item = None
         try:
+            if getattr(self, '_application_recovery_request', None) is not None:
+                raise DDPHandshakeError('Capability setup blocked by pending recovery')
             completed = 0
             while pending:
                 item = pending[0]
@@ -1935,19 +1880,27 @@ class DDPProtocol:
                     raise DDPHandshakeError('Capability setup exceeded bounded host drain/deadline')
                 priority = 0x10 if item['full'] else 0xA0
                 self._exchange_application([0x20,0x3B,priority,0], [0x21,0x3B,priority,0])
-                if self.state == DDPState.DISCONNECTED:
-                    raise DDPHandshakeError('Session closed during capability setup')
+                if (self.state != DDPState.INITIALIZING
+                        or getattr(self, 'application_error_generation', 0) != error_generation
+                        or getattr(self, '_application_request_generation', 0) != request_generation
+                        or getattr(self, '_application_recovery_request', None) is not None
+                        or getattr(self, '_application_mode', None) != 1):
+                    raise DDPHandshakeError('Capability setup interrupted by error/mode/reset')
                 pending.popleft()
                 item['result'] = 'setup-confirmed'
                 self._confirmed_capability_generation = item['generation']
                 completed += 1
+            if (getattr(self, '_application_recovery_request', None) is not None
+                    or self._confirmed_capability_generation != self._capability_generation):
+                raise DDPHandshakeError('Capability setup lacks latest complete generation')
             self._application_setup_pending = False
             self._application_request_invalidated = False
-            status = getattr(self, '_last_window_status', None)
-            self._set_state(DDPState.PAUSED if
-                            getattr(self, 'cluster_capabilities', None) is None
-                            or (status is not None and status.outcome in ('fault', 'unavailable'))
-                            else DDPState.READY)
+            if publish:
+                status = getattr(self, '_last_window_status', None)
+                self._set_state(DDPState.PAUSED if
+                                getattr(self, 'cluster_capabilities', None) is None
+                                or (status is not None and status.outcome in ('fault', 'unavailable'))
+                                else DDPState.READY)
             return True
         except DDPError as exc:
             if item is not None:

@@ -17,6 +17,9 @@ export default defineConfig(({ mode }) => ({
                     if (pathname === '/files' || pathname === '/files/') {
                         request.url = `/files.html${query ? `?${query}` : ''}`;
                     }
+                    if (pathname === '/manage' || pathname === '/manage/') {
+                        request.url = `/manage.html${query ? `?${query}` : ''}`;
+                    }
                     next();
                 });
             },
@@ -33,6 +36,12 @@ export default defineConfig(({ mode }) => ({
     server: {
         port: 5173,
         proxy: {
+            '/api/manage': {
+                target: 'http://localhost:5004',
+                // Preserve the dev Host so the manager's same-origin check
+                // can validate writes without weakening production guards.
+                changeOrigin: false,
+            },
             '/socket.io': {
                 target: 'http://localhost:5003',
                 ws: true,           // proxy WebSocket upgrades

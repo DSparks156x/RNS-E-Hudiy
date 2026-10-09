@@ -1,3 +1,5 @@
+import { TouchTextInput } from '../components/touchKeyboard/TouchTextInput';
+import { ConfigUploadPanel } from '../ConfigUploadPanel';
 import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { collectionGroup, FileGroup, folderFiles, PortalCatalog, PortalFile, validateFile, visibleFiles } from '../filePortalModel';
 
@@ -109,7 +111,9 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
     } catch (error) { setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Upload failed.' }); }
     finally { setUploading(false); }
   };
+  const [configurationOpen, setConfigurationOpen] = useState(false);
   const selectGroup = (next: FileGroup) => {
+    setConfigurationOpen(false);
     setGroup(next); setSearch(''); setActiveCollection(collections.find(collection => collectionGroup(collection) === next)?.id || '');
   };
   return <section className="file-portal tab-content">
@@ -121,10 +125,10 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
         <button className="portal-icon-button" onClick={() => { setMessage(null); void refresh(); }} aria-label="Refresh files" disabled={loading}><Icon name="refresh" /></button>
       </div>
     </header>
-    <nav className="portal-groups" aria-label="File categories">{GROUPS.map(item => <button key={item.id} aria-pressed={group === item.id}
-      className={group === item.id ? 'active' : ''} onClick={() => selectGroup(item.id)}>{item.label}<span>{collections.filter(c => collectionGroup(c) === item.id).reduce((sum, c) => sum + c.count, 0)}</span></button>)}</nav>
+    <nav className="portal-groups" aria-label="File categories">{GROUPS.map(item => <button key={item.id} aria-pressed={!configurationOpen && group === item.id}
+      className={!configurationOpen && group === item.id ? 'active' : ''} onClick={() => selectGroup(item.id)}>{item.label}<span>{collections.filter(c => collectionGroup(c) === item.id).reduce((sum, c) => sum + c.count, 0)}</span></button>)}<button aria-pressed={configurationOpen} className={configurationOpen ? 'active' : ''} onClick={() => setConfigurationOpen(true)}>Configuration</button></nav>
     <div className="portal-scroll pretty-scroll">
-      <p className="portal-group-description">{GROUPS.find(item => item.id === group)?.description}</p>
+      {configurationOpen ? <ConfigUploadPanel /> : <><p className="portal-group-description">{GROUPS.find(item => item.id === group)?.description}</p>
       <div className={`portal-workspace${showUpload && group === 'controllers' ? ' has-upload' : ''}`}>
         <div className="portal-browser">
           <aside className="portal-collections" aria-label="Collections"><span className="portal-field-label">Collections</span>
@@ -135,7 +139,7 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
             <div className="collection-summary"><div><h2>{currentCollection?.label || 'Files'}</h2><p>{currentCollection?.description || 'Your device files appear here.'}</p></div>
               {currentCollection?.archive_url && <a className="portal-bundle-button" href={currentCollection.archive_url}><Icon name="download" /><span>Collection ZIP</span></a>}
             </div>
-            <div className="portal-list-tools"><label className="portal-search"><Icon name="search" /><input type="search" aria-label="Search files" placeholder="Search files" value={search} onChange={event => setSearch(event.target.value)} /></label>
+            <div className="portal-list-tools"><label className="portal-search"><Icon name="search" /><TouchTextInput touchOnly type="search" aria-label="Search files" placeholder="Search files" value={search} onValueChange={setSearch} /></label>
               <select aria-label="Sort files" value={sort} onChange={event => setSort(event.target.value)}><option value="date">Newest first</option><option value="name">Name A–Z</option><option value="size">Largest first</option></select></div>
             <div className="portal-file-list pretty-scroll" aria-busy={loading}>
               {loading && <div className="portal-empty" role="status">Loading device files…</div>}
@@ -158,13 +162,13 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
             onDragOver={event => { event.preventDefault(); if (!uploading) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}>
             <Icon name="upload" /><strong>{selectedFile?.name || 'Choose or drop a file'}</strong><span>{selectedFile ? formatSize(selectedFile.size) : `${currentTarget?.extensions.join(', ') || 'Configured types'} · up to ${formatSize(currentTarget?.max_size || 0)}`}</span></button>
           <input ref={inputRef} className="portal-file-input" type="file" accept={currentTarget?.extensions.join(',')} onChange={onFileInput} disabled={uploading} />
-          {catalog?.pin_required && <label className="portal-pin-label">Upload PIN<input className="portal-pin" type="password" autoComplete="off" value={pin} disabled={uploading} onChange={event => setPin(event.target.value)} /></label>}
+          {catalog?.pin_required && <label className="portal-pin-label">Upload PIN<TouchTextInput touchOnly className="portal-pin" type="password" aria-label="Upload PIN" inputMode="numeric" autoComplete="off" value={pin} disabled={uploading} onValueChange={setPin} /></label>}
           {validation && <p className="portal-validation" role="alert">{validation}</p>}
           {uploading && <div className="portal-progress" role="progressbar" aria-label="File upload" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><span style={{ width: `${progress}%` }} /></div>}
           <button className="portal-primary-button" disabled={!selectedFile || uploading || !!validation || !selectedTarget || (catalog?.pin_required && !pin)} onClick={() => void upload()}>{uploading ? `Uploading ${progress}%` : 'Validate & save'}</button>
           <p className="portal-safety-note">Firmware is checked for the selected target before saving. Uploading does not start a flash.</p>
         </article>}
-      </div>
+      </div></>}
     </div>
     {message && <div className={`portal-message ${message.type}`} role={message.type === 'error' ? 'alert' : 'status'}><span>{message.text}</span><button className="portal-icon-button" aria-label="Dismiss message" onClick={() => setMessage(null)}><Icon name="close" /></button></div>}
   </section>;

@@ -1,0 +1,496 @@
+{
+  "data": "Synthetic route inputs; production render commands, not road footage.",
+  "display": "128x96 physical center pixels, nearest-neighbor enlarged 4x",
+  "preview_palette": {
+    "background_rgb": [
+      0,
+      0,
+      0
+    ],
+    "ink_rgb": [
+      255,
+      255,
+      255
+    ]
+  },
+  "duration_ms": 1800,
+  "samples": [
+    {
+      "id": "straight-far",
+      "label": "Straight \u00b7 1.2 km",
+      "input": {
+        "description": "Continue onto Oak Ave",
+        "distance": "1.2 km",
+        "maneuver_type": 14,
+        "maneuver_side": 3
+      },
+      "images": {
+        "stock": "nav-showcase-stock-straight-far.png",
+        "bitmap": "nav-showcase-bitmap-straight-far.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": false,
+      "icon_key": "STRAIGHT"
+    },
+    {
+      "id": "left-far",
+      "label": "Left turn \u00b7 500 m",
+      "input": {
+        "description": "Turn left onto Main St",
+        "distance": "500 m",
+        "maneuver_type": 4,
+        "maneuver_side": 1
+      },
+      "images": {
+        "stock": "nav-showcase-stock-left-far.png",
+        "bitmap": "nav-showcase-bitmap-left-far.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": false,
+      "icon_key": "TURN_LEFT"
+    },
+    {
+      "id": "left-approach",
+      "label": "Left turn \u00b7 250 m",
+      "input": {
+        "description": "Turn left onto Main St",
+        "distance": "250 m",
+        "maneuver_type": 4,
+        "maneuver_side": 1
+      },
+      "images": {
+        "stock": "nav-showcase-stock-left-approach.png",
+        "bitmap": "nav-showcase-bitmap-left-approach.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "TURN_LEFT"
+    },
+    {
+      "id": "left-close",
+      "label": "Left turn \u00b7 30 m",
+      "input": {
+        "description": "Turn left onto Main St",
+        "distance": "30 m",
+        "maneuver_type": 4,
+        "maneuver_side": 1
+      },
+      "images": {
+        "stock": "nav-showcase-stock-left-close.png",
+        "bitmap": "nav-showcase-bitmap-left-close.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "TURN_LEFT"
+    },
+    {
+      "id": "right",
+      "label": "Right turn \u00b7 100 m",
+      "input": {
+        "description": "Turn right onto Pine St",
+        "distance": "100 m",
+        "maneuver_type": 4,
+        "maneuver_side": 2
+      },
+      "images": {
+        "stock": "nav-showcase-stock-right.png",
+        "bitmap": "nav-showcase-bitmap-right.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "TURN_RIGHT"
+    },
+    {
+      "id": "slight-left",
+      "label": "Slight left \u00b7 200 m",
+      "input": {
+        "description": "Keep left onto Cedar Rd",
+        "distance": "200 m",
+        "maneuver_type": 3,
+        "maneuver_side": 1
+      },
+      "images": {
+        "stock": "nav-showcase-stock-slight-left.png",
+        "bitmap": "nav-showcase-bitmap-slight-left.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "TURN_SLIGHT_LEFT"
+    },
+    {
+      "id": "slight-right",
+      "label": "Slight right \u00b7 150 m",
+      "input": {
+        "description": "Keep right onto Elm Rd",
+        "distance": "150 m",
+        "maneuver_type": 3,
+        "maneuver_side": 2
+      },
+      "images": {
+        "stock": "nav-showcase-stock-slight-right.png",
+        "bitmap": "nav-showcase-bitmap-slight-right.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "TURN_SLIGHT_RIGHT"
+    },
+    {
+      "id": "sharp-left",
+      "label": "Sharp left \u00b7 100 m",
+      "input": {
+        "description": "Turn left onto Birch Rd",
+        "distance": "100 m",
+        "maneuver_type": 5,
+        "maneuver_side": 1
+      },
+      "images": {
+        "stock": "nav-showcase-stock-sharp-left.png",
+        "bitmap": "nav-showcase-bitmap-sharp-left.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "TURN_SHARP_LEFT"
+    },
+    {
+      "id": "sharp-right",
+      "label": "Sharp right \u00b7 60 m",
+      "input": {
+        "description": "Turn right onto Ash Rd",
+        "distance": "60 m",
+        "maneuver_type": 5,
+        "maneuver_side": 2
+      },
+      "images": {
+        "stock": "nav-showcase-stock-sharp-right.png",
+        "bitmap": "nav-showcase-bitmap-sharp-right.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "TURN_SHARP_RIGHT"
+    },
+    {
+      "id": "ramp-on-left",
+      "label": "Ramp on left \u00b7 200 m",
+      "input": {
+        "description": "Highway ramp",
+        "distance": "200 m",
+        "maneuver_type": 7,
+        "maneuver_side": 1
+      },
+      "images": {
+        "stock": "nav-showcase-stock-ramp-on-left.png",
+        "bitmap": "nav-showcase-bitmap-ramp-on-left.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "RAMP_ON_LEFT"
+    },
+    {
+      "id": "ramp-on-right",
+      "label": "Ramp on right \u00b7 150 m",
+      "input": {
+        "description": "Highway ramp",
+        "distance": "150 m",
+        "maneuver_type": 7,
+        "maneuver_side": 2
+      },
+      "images": {
+        "stock": "nav-showcase-stock-ramp-on-right.png",
+        "bitmap": "nav-showcase-bitmap-ramp-on-right.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "RAMP_ON_RIGHT"
+    },
+    {
+      "id": "ramp-off-left",
+      "label": "Ramp off left \u00b7 100 m",
+      "input": {
+        "description": "Left exit",
+        "distance": "100 m",
+        "maneuver_type": 8,
+        "maneuver_side": 1
+      },
+      "images": {
+        "stock": "nav-showcase-stock-ramp-off-left.png",
+        "bitmap": "nav-showcase-bitmap-ramp-off-left.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "RAMP_OFF_LEFT"
+    },
+    {
+      "id": "ramp-off-right",
+      "label": "Ramp off right \u00b7 60 m",
+      "input": {
+        "description": "Right exit",
+        "distance": "60 m",
+        "maneuver_type": 8,
+        "maneuver_side": 2
+      },
+      "images": {
+        "stock": "nav-showcase-stock-ramp-off-right.png",
+        "bitmap": "nav-showcase-bitmap-ramp-off-right.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "RAMP_OFF_RIGHT"
+    },
+    {
+      "id": "fork-left",
+      "label": "Fork left \u00b7 250 m",
+      "input": {
+        "description": "Keep left onto West Rd",
+        "distance": "250 m",
+        "maneuver_type": 9,
+        "maneuver_side": 1
+      },
+      "images": {
+        "stock": "nav-showcase-stock-fork-left.png",
+        "bitmap": "nav-showcase-bitmap-fork-left.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "FORK_LEFT"
+    },
+    {
+      "id": "fork-right",
+      "label": "Fork right \u00b7 150 m",
+      "input": {
+        "description": "Keep right onto East Rd",
+        "distance": "150 m",
+        "maneuver_type": 9,
+        "maneuver_side": 2
+      },
+      "images": {
+        "stock": "nav-showcase-stock-fork-right.png",
+        "bitmap": "nav-showcase-bitmap-fork-right.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "FORK_RIGHT"
+    },
+    {
+      "id": "u-turn",
+      "label": "U-turn \u00b7 60 m",
+      "input": {
+        "description": "U-turn",
+        "distance": "60 m",
+        "maneuver_type": 6,
+        "maneuver_side": 1
+      },
+      "images": {
+        "stock": "nav-showcase-stock-u-turn.png",
+        "bitmap": "nav-showcase-bitmap-u-turn.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "TURN_U_TURN_COUNTERCLOCKWISE"
+    },
+    {
+      "id": "roundabout-enter",
+      "label": "Enter roundabout \u00b7 250 m",
+      "input": {
+        "description": "Roundabout",
+        "distance": "250 m",
+        "maneuver_type": 11,
+        "maneuver_side": 3
+      },
+      "images": {
+        "stock": "nav-showcase-stock-roundabout-enter.png",
+        "bitmap": "nav-showcase-bitmap-roundabout-enter.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "ROUNDABOUT_COUNTERCLOCKWISE"
+    },
+    {
+      "id": "roundabout-45",
+      "label": "Roundabout \u00b7 45\u00b0 exit \u00b7 200 m",
+      "input": {
+        "description": "First exit",
+        "distance": "200 m",
+        "maneuver_type": 13,
+        "maneuver_side": 2,
+        "maneuver_angle": 45,
+        "maneuver_angle_present": true
+      },
+      "images": {
+        "stock": "nav-showcase-stock-roundabout-45.png",
+        "bitmap": "nav-showcase-bitmap-roundabout-45.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "ROUNDABOUT_SHARP_RIGHT_COUNTERCLOCKWISE"
+    },
+    {
+      "id": "roundabout-90",
+      "label": "Roundabout \u00b7 90\u00b0 exit \u00b7 150 m",
+      "input": {
+        "description": "East Rd",
+        "distance": "150 m",
+        "maneuver_type": 13,
+        "maneuver_side": 2,
+        "maneuver_angle": 90,
+        "maneuver_angle_present": true
+      },
+      "images": {
+        "stock": "nav-showcase-stock-roundabout-90.png",
+        "bitmap": "nav-showcase-bitmap-roundabout-90.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "ROUNDABOUT_RIGHT_COUNTERCLOCKWISE"
+    },
+    {
+      "id": "roundabout-135",
+      "label": "Roundabout \u00b7 135\u00b0 exit \u00b7 100 m",
+      "input": {
+        "description": "Oak Ave",
+        "distance": "100 m",
+        "maneuver_type": 13,
+        "maneuver_side": 2,
+        "maneuver_angle": 135,
+        "maneuver_angle_present": true
+      },
+      "images": {
+        "stock": "nav-showcase-stock-roundabout-135.png",
+        "bitmap": "nav-showcase-bitmap-roundabout-135.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "ROUNDABOUT_SLIGHT_RIGHT_COUNTERCLOCKWISE"
+    },
+    {
+      "id": "roundabout-180",
+      "label": "Roundabout \u00b7 straight exit \u00b7 60 m",
+      "input": {
+        "description": "North Rd",
+        "distance": "60 m",
+        "maneuver_type": 13,
+        "maneuver_side": 2,
+        "maneuver_angle": 180,
+        "maneuver_angle_present": true
+      },
+      "images": {
+        "stock": "nav-showcase-stock-roundabout-180.png",
+        "bitmap": "nav-showcase-bitmap-roundabout-180.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "ROUNDABOUT_STRAIGHT_COUNTERCLOCKWISE"
+    },
+    {
+      "id": "roundabout-225",
+      "label": "Roundabout \u00b7 225\u00b0 exit \u00b7 100 m",
+      "input": {
+        "description": "West Rd",
+        "distance": "100 m",
+        "maneuver_type": 13,
+        "maneuver_side": 2,
+        "maneuver_angle": 225,
+        "maneuver_angle_present": true
+      },
+      "images": {
+        "stock": "nav-showcase-stock-roundabout-225.png",
+        "bitmap": "nav-showcase-bitmap-roundabout-225.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "ROUNDABOUT_SLIGHT_LEFT_COUNTERCLOCKWISE"
+    },
+    {
+      "id": "roundabout-270",
+      "label": "Roundabout \u00b7 270\u00b0 exit \u00b7 60 m",
+      "input": {
+        "description": "South Rd",
+        "distance": "60 m",
+        "maneuver_type": 13,
+        "maneuver_side": 2,
+        "maneuver_angle": 270,
+        "maneuver_angle_present": true
+      },
+      "images": {
+        "stock": "nav-showcase-stock-roundabout-270.png",
+        "bitmap": "nav-showcase-bitmap-roundabout-270.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "ROUNDABOUT_LEFT_COUNTERCLOCKWISE"
+    },
+    {
+      "id": "roundabout-315",
+      "label": "Roundabout \u00b7 315\u00b0 exit \u00b7 30 m",
+      "input": {
+        "description": "Birch Rd",
+        "distance": "30 m",
+        "maneuver_type": 13,
+        "maneuver_side": 2,
+        "maneuver_angle": 315,
+        "maneuver_angle_present": true
+      },
+      "images": {
+        "stock": "nav-showcase-stock-roundabout-315.png",
+        "bitmap": "nav-showcase-bitmap-roundabout-315.png"
+      },
+      "stock_fallback": false,
+      "bar_visible": true,
+      "icon_key": "ROUNDABOUT_SHARP_LEFT_COUNTERCLOCKWISE"
+    },
+    {
+      "id": "merge",
+      "label": "Merge right \u00b7 200 m",
+      "input": {
+        "description": "Merge onto Highway",
+        "distance": "200 m",
+        "maneuver_type": 10,
+        "maneuver_side": 2
+      },
+      "images": {
+        "stock": "nav-showcase-stock-merge.png",
+        "bitmap": "nav-showcase-bitmap-merge.png"
+      },
+      "stock_fallback": true,
+      "bar_visible": true,
+      "icon_key": "MERGE_RIGHT"
+    },
+    {
+      "id": "destination",
+      "label": "Destination on right \u00b7 10 m",
+      "input": {
+        "description": "Destination",
+        "distance": "10 m",
+        "maneuver_type": 19,
+        "maneuver_side": 2
+      },
+      "images": {
+        "stock": "nav-showcase-stock-destination.png",
+        "bitmap": "nav-showcase-bitmap-destination.png"
+      },
+      "stock_fallback": true,
+      "bar_visible": true,
+      "icon_key": "DESTINATION_RIGHT"
+    }
+  ],
+  "bar_limit_m": 300,
+  "approach_threshold_m": 500,
+  "return_threshold_m": 1000,
+  "road_side": "right",
+  "units": "metric",
+  "source_sha256": {
+    "dis_client/apps/nav.py": "f8f7806fcb23874e80d595d3d2fa75f9264d9e358317eea79d5de2f55aab452b",
+    "dis_client/enhanced_navigation.py": "2711775925a5fff8c0f123eed51b1e5b6c734640c8d2b21544f307bd3e3b4555",
+    "dis_client/navigation_state.py": "5e74e7ba5f0eb491d6b476b49a19c13fb3370c2c429bfe1674568eb495a7d64c",
+    "dis_client/nav_icons.py": "8e63ca14183cd98934c217fae4ea48f2bd2671de2f2c780918dd5f1c2afbceab",
+    "dis_client/nav_icons_data.py": "fc7c45638c46dfe458b5bf0649488b03a7000cb4b435290341e8332f0bbb7665",
+    "dis_client/icons.py": "832bb04ef13b050e8795b57e58d5718ea0d4200886df80c6331224531288115f",
+    "dis_client/stock_mono_frame.py": "3f1b04b7e8c47d5daf5e8d97de2e682a0a05fed755896f72b1ab162c167b3188",
+    "dis_client/stock_mono_catalog.json": "16e4d97bcb93e92742a1b8e963eeaf77b3a382c4b540fafc8dbef47cf58024c8",
+    "dis_client/apps/base.py": "7135e350aab111de37f331d5abe5ea4089040c6610dc084a3b40bbb47a56d712",
+    "dis_client/font_metrics.py": "f44185695210148d32c6274545423ce0852c6e9962a05eb5970f6e229a0b37dc",
+    "dis_client/display_resolution.py": "2f8017903d72b6b8f7e130d19ea8a8248e467fd6a57800880307115e0290e58f",
+    "dis_emulator/static/native_font_data.js": "633442a8e0fc2d06c5b8359aa4641f1db943f72effafec56d30352ca8996c68a",
+    "help-site/scripts/render_dis.py": "22aac0f7deb9208b8d242160ebbfb81eb013a983e8941e888ae5c98e962b7a16",
+    "help-site/scripts/render_navigation_showcase.py": "2c66954b105313186e160f4f0e51d08eeb332e6d29b036548f1a239c4563fff3"
+  }
+}

@@ -145,7 +145,7 @@ echo -e "${YELLOW}? Step 2: Downloading Project Files...${NC}"
 STAGING_DIR="$REAL_HOME/.cache/rns-e-hudiy-installer"
 TEMP_DIR="$STAGING_DIR" # Retain the existing source-path name below.
 STAGING_PARENT=$(dirname "$STAGING_DIR")
-SPARSE_PATHS=(rns-e_can hudiy_client dis_client tp2 hudiy_dataview vehicle_data flasher config/hudiy)
+SPARSE_PATHS=(rns-e_can hudiy_client dis_client tp2 hudiy_dataview hudiy_manager vehicle_data flasher config/hudiy)
 
 mkdir -p "$STAGING_PARENT"
 
@@ -275,6 +275,7 @@ install_folder "hudiy_client" || exit 1
 install_folder "dis_client" || exit 1
 install_folder "tp2" || exit 1
 install_folder "hudiy_dataview" || exit 1
+install_folder "hudiy_manager" || exit 1
 install_folder "vehicle_data" || exit 1
 install_folder "flasher" || exit 1
 
@@ -340,6 +341,21 @@ try:
                 after_haldex = next((index + 1 for index, item in enumerate(shortcuts)
                                      if isinstance(item, dict) and item.get('action') == 'toggle_haldex_mode'), len(shortcuts))
                 shortcuts.insert(after_haldex, valve)
+                updated = True
+    menu_key = {'applications.json': 'applications', 'applications_menu.json': 'items'}.get(os.path.basename(sys.argv[1]))
+    if menu_key and isinstance(target.get(menu_key), list):
+        manager = next((item for item in source.get(menu_key, [])
+                        if isinstance(item, dict) and item.get('action') == 'hudiy_manager'), None)
+        if manager and not any(isinstance(item, dict) and item.get('action') == 'hudiy_manager'
+                               for item in target[menu_key]):
+            target[menu_key].append(manager)
+            updated = True
+        if menu_key == 'items' and isinstance(target.get('categories'), list):
+            category = next((item for item in source.get('categories', [])
+                             if isinstance(item, dict) and item.get('label') == 'Hudiy'), None)
+            if category and not any(isinstance(item, dict) and item.get('label') == 'Hudiy'
+                                    for item in target['categories']):
+                target['categories'].append(category)
                 updated = True
     if updated:
         with open(sys.argv[3], 'w') as f: json.dump(target, f, indent=4)
@@ -438,6 +454,7 @@ chown -R $REAL_USER:$REAL_USER "$REAL_HOME/hudiy_client"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/dis_client"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/tp2"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/hudiy_dataview"
+chown -R $REAL_USER:$REAL_USER "$REAL_HOME/hudiy_manager"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/flasher"
 chown $REAL_USER:$REAL_USER "$REAL_HOME/config.json"
 chmod +x "$REAL_HOME/hudiy_client/update_rnse.sh"
@@ -645,6 +662,53 @@ TimeoutStopSec=5
 [Install]
 WantedBy=multi-user.target"
 
+# Manager stays available while DataView is stopped.
+write_service "hudiy_manager.service" "[Unit]
+Description=RNS-E Manager
+After=network.target
+
+[Service]
+User=${REAL_USER}
+Group=${REAL_USER}
+SupplementaryGroups=systemd-journal
+WorkingDirectory=${REAL_HOME}/hudiy_manager
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 ${REAL_HOME}/hudiy_manager/app.py
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target"
+
+# Approved service-only permissions for the independent Manager app.
+MANAGER_SUDOERS=$(mktemp)
+if ! python3 - "$REAL_HOME" "$REAL_USER" "$MANAGER_SUDOERS" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from hudiy_manager.service_permissions import render_sudoers
+Path(sys.argv[3]).write_text(render_sudoers(sys.argv[2]), encoding='utf-8')
+PY
+then
+    rm -f "$MANAGER_SUDOERS"
+    echo "Could not prepare Manager service permissions."
+    exit 1
+fi
+if visudo -cf "$MANAGER_SUDOERS"; then
+    if ! install -o root -g root -m 0440 "$MANAGER_SUDOERS" /etc/sudoers.d/rnse-manager; then
+        rm -f "$MANAGER_SUDOERS"
+        echo "Could not install Manager service permissions."
+        exit 1
+    fi
+else
+    rm -f "$MANAGER_SUDOERS"
+    echo "Manager service permissions failed validation."
+    exit 1
+fi
+rm -f "$MANAGER_SUDOERS"
+
 # 1.7 hudiy_status_service (CAN Status Service)
 write_service "hudiy_status_service.service" "[Unit]
 Description=Vehicle Values and CAN Status Service
@@ -845,7 +909,7 @@ $SYSTEMCTL enable --now systemd-networkd
 echo "   Enabling and Starting Application Services..."
 $SYSTEMCTL enable --now can_handler.service can_base_function.service tp2_worker.service \
                         can_keyboard_control.service dark_mode_api.service hudiy_data_api.service \
-                        hudiy_dataview.service hudiy_status_service.service dis_top_display.service \
+                        hudiy_dataview.service hudiy_manager.service hudiy_status_service.service dis_top_display.service \
                         haldex_manager.service
 
 # Start delayed services non-blocking

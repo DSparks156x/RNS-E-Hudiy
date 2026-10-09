@@ -137,7 +137,7 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
         
         CONFIG = {
             'zmq_address': zmq_cfg.get('can_raw_stream'),
-            'zmq_display_status': zmq_cfg.get('dis_display_status'),
+            'zmq_display_status': zmq_cfg.get('dis_display_status', 'ipc:///run/rnse_control/dis_display_status.ipc'),
             'zmq_metric_stream': zmq_cfg.get('metric_stream'),
             'zmq_input_control_stream': zmq_cfg.get('input_control_stream', 'ipc:///run/rnse_control/input_control_stream.ipc'),
             'zmq_top_status': zmq_cfg.get('dis_top_status', 'ipc:///run/rnse_control/dis_top_status.ipc'),
@@ -176,6 +176,9 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
             'extended_press_count': mmi_cfg.get('extended_long_press_message_count', 30),
         }
         logger.info("Configuration loaded and processed successfully.")
+        logger.info('MODE double-click enabled: command=0x%02X, window=%sms; '
+                    'single/hold retain configured bindings',
+                    CONFIG['mfsw_cmds'].get('mode_press', 0), CONFIG['wheel_double_click_ms'])
         return True
     except (KeyError, ValueError) as e:
         logger.critical(f"FATAL: Configuration is missing a key or has an invalid value: {e}", exc_info=True)
@@ -196,6 +199,7 @@ def initialize_zmq_subscriber():
         ZMQ_SUB_SOCKET.set(zmq.RCVTIMEO, 1000)
         ZMQ_SUB_SOCKET.connect(CONFIG['zmq_address'])
         if CONFIG.get('zmq_display_status'):
+            logger.info('Subscribing to DIS wheel context at %s', CONFIG['zmq_display_status'])
             ZMQ_SUB_SOCKET.connect(CONFIG['zmq_display_status'])
             ZMQ_SUB_SOCKET.setsockopt_string(zmq.SUBSCRIBE, "DIS_DISPLAY_STATUS")
         if CONFIG.get('zmq_metric_stream'):

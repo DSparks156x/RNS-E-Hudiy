@@ -14,11 +14,15 @@ import time
 import logging
 import signal
 import sys
+from pathlib import Path
 from datetime import datetime
 import pytz
 from typing import Optional, List, Dict, Any
 import asyncio
 import aiozmq
+from rnse_control import RnseBrightnessController
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from flasher.traffic import flashing_mode_enabled
 import subprocess
 try:
     from gpiozero import Button
@@ -211,6 +215,10 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
         zmq_config = interfaces_cfg.get('zmq', {})
         can_ids = cfg.get('can_ids', {})
         car_tz = pytz.timezone(CONFIG['car_time_zone'])
+        brightness = RnseBrightnessController.from_config(cfg.get('rnse', {}))
+        light_id = can_ids.get('light_status')
+        if brightness.settings.enabled and light_id is None:
+            raise KeyError('can_ids.light_status is required for RNS-E auto brightness')
         
         CONFIG.update({
             'can_interface': can_config.get('infotainment', 'can0'),
@@ -218,7 +226,9 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
             'zmq_publish_address': zmq_config.get('can_raw_stream'),
             'zmq_send_address': zmq_config.get('send_address'),
             'zmq_base_publish_address': zmq_config.get('system_events'),
+            'rnse_brightness': brightness,
             'can_ids': {
+                'light_status': int(light_id, 16) if light_id is not None else None,
                 'tv_presence': int(can_ids.get('tv_presence', '0x602'), 16),
                 'time_data': int(can_ids.get('time_data', '0x623'), 16),
                 'ignition_status': int(can_ids.get('ignition_status', '0x2C3'), 16),
@@ -239,6 +249,9 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
 
         log_level = logging.DEBUG if debug_mode else logging.INFO
         logger.setLevel(log_level)
+        if brightness.settings.enabled:
+            logger.info('RNS-E auto brightness enabled: day=%s, night=%s; waiting for vehicle lights and active radio.',
+                        brightness.settings.day_brightness, brightness.settings.night_brightness)
             
         logger.info("Configuration for base functions loaded successfully.")
         return True
@@ -372,6 +385,26 @@ def publish_power_status(state: AppState):
         except Exception as e:
             logger.error(f"Failed to publish POWER_STATUS: {e}")
 
+def handle_rnse_light_status_message(msg: Dict[str, Any]):
+    """Observe the existing vehicle light signal; periodic reconciliation queues TX."""
+    brightness = CONFIG.get('rnse_brightness')
+    if brightness is None or not brightness.settings.enabled:
+        return
+    try:
+        dlc = msg.get('dlc', 0)
+        if type(dlc) is not int or not 2 <= dlc <= 8:
+            return
+        payload = bytes.fromhex(msg.get('data_hex', ''))
+        if len(payload) != dlc:
+            return
+        if brightness.observe_lights(payload[1] > 0):
+            status = brightness.status()
+            logger.info('RNS-E auto brightness: %s, vehicle mode=%s, requested native level=%s',
+                        status.state, status.mode, status.desired_level)
+    except (TypeError, ValueError) as exc:
+        logger.warning('Could not parse RNS-E light status: %s', exc)
+
+
 def handle_door_status_message(msg: Dict[str, Any], state: AppState):
     """Handle door / latch status message (0x470 mBSG_Kombi)."""
     if msg.get('dlc', 0) < 2:
@@ -437,8 +470,12 @@ def handle_nav_nm_message(msg: Dict[str, Any], state: AppState):
         payload = bytes.fromhex(data_hex)
         # Bit 12: SleepInd (bit 4 of byte 1)
         sleep_ind = bool((payload[1] >> 4) & 1)
+        was_active = state.is_radio_active()
         state.nav_sleep_ind = sleep_ind
         state.last_nav_nm_time = time.time()
+        brightness = CONFIG.get('rnse_brightness')
+        if brightness and (sleep_ind or not was_active):
+            brightness.force_reapply()
         logger.debug(f"Nav NM SleepInd: {sleep_ind}")
         publish_power_status(state)
     except Exception as e:
@@ -543,6 +580,21 @@ class GpioShutdownMonitor:
         return False
 
 # --- Async Tasks ---
+def reconcile_rnse_brightness(state: AppState):
+    """Queue a changed target once; no brightness heartbeat or applied-state claim."""
+    brightness = CONFIG.get('rnse_brightness')
+    if brightness is None or not brightness.settings.enabled:
+        return
+    inhibited = (state.can_listen_only or state.desired_listen_only
+                 or state.listen_only_transition_in_progress
+                 or flashing_mode_enabled())
+    command = brightness.pending_command(state.is_radio_active(), inhibited)
+    if command is not None and send_can_message(command.arbitration_id, command.payload.hex()):
+        brightness.mark_queued(command)
+        logger.info('Queued RNS-E %s brightness %s via CAN %03X: %s',
+                    command.mode, command.level, command.arbitration_id, command.payload.hex())
+
+
 async def send_periodic_messages_task(state: AppState):
     logger.info("Periodic sender task started.")
     while RUNNING:
@@ -554,6 +606,7 @@ async def send_periodic_messages_task(state: AppState):
                 and not state.listen_only_transition_in_progress
             ):
                 send_can_message(CONFIG['can_ids']['tv_presence'], "0912302020202020")
+            reconcile_rnse_brightness(state)
             await asyncio.sleep(0.5)
         except asyncio.CancelledError:
             break
@@ -581,6 +634,11 @@ async def listen_for_can_messages_task(state: AppState):
         if FEATURES.get('time_sync', {}).get('enabled', False):
             sub_stream.transport.subscribe(time_topic.encode('utf-8'))
             logger.info(f"Subscribing to time sync topic: {time_topic}")
+
+        if CONFIG['rnse_brightness'].settings.enabled:
+            light_topic = f"CAN_{CONFIG['can_ids']['light_status']:03X}"
+            sub_stream.transport.subscribe(light_topic.encode('utf-8'))
+            logger.info(f"Subscribing to RNS-E brightness light topic: {light_topic}")
             
         # Always subscribe to power status (Ignition/Key) because other services (e.g., dis_service, tp2_worker) rely on POWER_STATUS
         sub_stream.transport.subscribe(power_topic.encode('utf-8'))
@@ -594,8 +652,11 @@ async def listen_for_can_messages_task(state: AppState):
         pw_mgmt = FEATURES.get('power_management', {})
         if pw_mgmt.get('listen_only_mode', {}).get('enabled', False):
             sub_stream.transport.subscribe(gw_nm_topic.encode('utf-8'))
+            logger.info(f"Subscribing to gateway NM topic: {gw_nm_topic}")
+        if (pw_mgmt.get('listen_only_mode', {}).get('enabled', False)
+                or CONFIG['rnse_brightness'].settings.enabled):
             sub_stream.transport.subscribe(nav_nm_topic.encode('utf-8'))
-            logger.info(f"Subscribing to NM topics: {gw_nm_topic}, {nav_nm_topic}")
+            logger.info(f"Subscribing to radio NM topic: {nav_nm_topic}")
 
         while RUNNING:
             msg = await sub_stream.read()
@@ -621,6 +682,8 @@ async def listen_for_can_messages_task(state: AppState):
                 logger.debug(f"Received CAN message ID={can_id:03X}: {msg_dict}")
                 
                 # Dispatch to handlers
+                if can_id == CONFIG['can_ids']['light_status']:
+                    handle_rnse_light_status_message(msg_dict)
                 if can_id == CONFIG['can_ids']['time_data']:
                     await handle_time_data_message(msg_dict, state)
                 elif can_id == CONFIG['can_ids']['ignition_status']:

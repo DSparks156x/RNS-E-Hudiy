@@ -1,0 +1,67 @@
+Physical bench validation -- 2026-10-08
+
+Loaded protocol SHA256:84a1f56d058a5f9095bb6f7a1a364d09a591493d002c7ad5dcbe5de77f542e5f
+The complete production DisService and DisplayEngine ran through the bench
+console, real local ZMQ and the sole Scanmatik J2534 owner at500000bit/s.
+This tests the powered white bench cluster, not the installed car at100000bit/s.
+
+Three warm starts, each one active-open attempt and one completed native setup:
+20261008_213922_838691 -- six scenes acknowledged; ACK sequences 2,3,10,16,22,28
+20261008_214023_932945 -- six scenes acknowledged; ACK sequences 3,4,11,18,24,30
+20261008_214107_583081 -- six scenes acknowledged; ACK sequences 2,3,10,16,22,28
+
+Observed application sequence on all three runs (hex):
+TX15 01 01 02 00 00; RX00 01; TX01 01 00; TX08;
+RX09 20 0B 50 08 0B 50 30 39 00 32 00 (one12-byte record);
+TX20 3B A0 00; RX21 3B A0 00; TX33; finalTP A3/A1; READY.
+No repeated setup20 or double release33, geometry dependency, or application
+initialization failure was observed. First claim received53 84(unavailable),
+then53 05(available), peer2E/reply2F, and a new claim53 85(granted). The service
+recovered ownership without reopeningTP. InitialDRAW_NACK is retained in the
+log; it precedes ownership availability and is not counted as a passed scene.
+
+All18 explicit scene checks received physicalDRAW_ACK with serviceREADY,
+engineunpaused, no pending frame and applied state matching last queued state:
+media, native navigation opening,200m approach bar,50m bar update, media return,
+right-turn navigation100m. Pixel appearance was not assessed by this test.
+
+Discovery mode-repeat coverage and limits:
+The preceding cc3fe controller's first physical startup exposed repeated00
+during08, which triggered an unnecessary reconnect. Both review findings in
+its replacement were fixed: exact00 object retirement only after01ACK, and
+retiring old unsent capability work again after the entire mode-reply drain.
+Latest warm physical starts did not repeat00, so its varied timing is covered
+by the998framed main/mode vectors and independent native/replay evidence, not
+claimed to have been elicited on these three warm hardware runs.
+
+Native fidelity limits are explicit in NATIVE_HANDSHAKE_CONTROLLER.txt:
+unsent old-mode setup retirement is stricter host policy; a mode change after
+first20 closes/reopens the transaction; initialmode2 is answered then closed
+as an unsupported renderer profile. This is a native-based mode1 controller,
+not a claim to support every nativephase10 transition or unknown renderer.
+
+The first two tested owners closed cooperatively, with adapter_closed and
+sources_unchanged=true, both wake/IPC workers stopped before another owner
+started. The final owner remains running with wake traffic and native NAV
+'BENCH TEST COMPLETE', right turn100m. Console:http://127.0.0.1:8766/
+Final runtime:dis_emulator/bench_cluster/runtime/20261008_214107_583081
+
+Reproduction evidence retained in RNSE hacking/analysis/native_handshake_controller/:
+bench_results.json -- loaded source identities, ordered application records,
+                     actual draw ACKs and closed-owner status
+bench_captures/<session>/opening_wire.jsonl -- rawCAN includingTP controls
+bench_captures/<session>/source_and_events.json and driver.log -- snapshots
+bench_display_cycle_<timestamp>.json -- all six HTTP/engine scene states
+revision1/ -- initial controller results retained separately
+tests/REVIEW_NOTES.md and source-bound reports -- independent tests
+The live runtime logs continue; preserved captures are bounded snapshots.
+
+Installed portable targeted suite:63tests/1003framed scenarios PASS.
+No source changes followed this run. There are known stale failures in the
+separate old transport fixture suite; see controller notes rather than treating
+this targeted result as a claim that every repository test passes.
+
+The previous9aa3395e combined-reply correction was user-confirmed in the car.
+This latest controller has bench validation and captured-car replay coverage,
+but has not been deployed to or physically tested in the car. No Git commit,
+push, firmware flash or Pi deployment was performed in this controller step.

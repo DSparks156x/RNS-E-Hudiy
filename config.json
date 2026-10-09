@@ -3,6 +3,13 @@
   "repo": "https://github.com/DSparks156x/RNS-E-Hudiy",
   "config_restore_repo": "https://github.com/DSparks156x/RNS-E-Hudiy",
   "config_restore_branch": "testing",
+  "rnse": {
+    "auto_brightness": {
+      "enabled": false,
+      "day_brightness": 10,
+      "night_brightness": 1
+    }
+  },
   "interfaces": {
     "can": {
       "infotainment": "can0",
@@ -223,14 +230,14 @@
       }
     },
     "tv_simulation": {
-      "enabled": false
+      "enabled": true
     },
     "mmi_controls": true,
     "mfsw_controls": true,
     "source_controls": false,
     "system_actions": true,
     "car_time_zone": "America/Denver",
-    "debug_mode": false,
+    "debug_mode": true,
     "log_saver": {
       "services": [
         "dis_display.service",

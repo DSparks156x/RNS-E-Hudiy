@@ -6,6 +6,15 @@ A fork of Korni92's RNS-E-Hudiy with new features and tweaks to my own preferenc
 
 ## Features
 
+### RNS-E Manager
+
+Edit integration and Hudiy configuration, control project services and read
+recent logs on the head unit. The Files portal also accepts validated config
+replacements with backups. See [Manager usage](hudiy_manager/README.md).
+
+Automatic RNS-E brightness follows vehicle day/night state with configurable
+levels from 0–10, separately from Hudiy’s theme switching.
+
 ### DIS (Driver Information System)
 *   **Contextual Display**: Shows navigation, now playing, and phone info from Hudiy API. 
 *   **Smart Auto-Switching**: Automatically switches to the Navigation tab when a maneuver is active or approaching (~200m).
@@ -82,6 +91,15 @@ search all values, or view only the selected values. Catalog support does not gu
 that a particular controller currently supplies a reading; source status and freshness
 remain visible. Estimated and unverified providers require an explicit profile opt-in.
 
+Names and searches open a built-in touch keyboard sized for an 800×400 screen.
+New page/profile dialogs open it automatically. QWERTY, Shift/Caps, numbers and
+symbols, cursor arrows, Select all, Clear and hold-to-delete support editing without
+a physical keyboard. **Done** applies the text to the field; **Cancel** discards the
+keyboard edit. The form's **Save** or **Apply** still saves the configuration.
+The keyboard uses the current Hudiy palette and enforces page/profile name limits.
+The file portal also offers touch entry for searches and upload PINs; desktop mouse
+and keyboard entry there continues to use normal inputs.
+
 **Start** records the selected profile independently of the visible DataView tab.
 **Mark** adds an event. **Stop & save** keeps the screen on Record, while **Stop & review**
 opens the recent section. Review offers short time windows, numeric traces grouped by
@@ -125,6 +143,13 @@ A manual MODE toggle overrides automatic takeover for the current call. Loss of 
 DIS service heartbeat returns the wheel to its configured normal mappings. Volume
 controls retain their existing mappings. Set `input_mappings.mfsw.double_click_ms` to
 adjust the click window (default 350 ms).
+
+MODE single press and hold retain their configured key mappings; double-click
+needs no new binding or config restore. The second press must start within the
+click window and can be released after it. The old `input_mappings.mfsw.phone_alt`
+overrides are ignored by the shared wheel router. The keyboard service logs MODE
+double-click recognition, wheel ownership changes, and unavailable DIS contexts
+to `journalctl -u can_keyboard_control.service`.
 
 Named recordings and shared page/profile configuration live in `~/logs/data-logs` by
 default (`data_logs.directory`): `workspace.json` holds configuration and `sessions/`

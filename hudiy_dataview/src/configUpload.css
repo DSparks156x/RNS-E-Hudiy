@@ -1,0 +1,4 @@
+.config-upload-card{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:14px;padding:24px!important}
+.config-upload-card .collection-summary{padding:0}.config-upload-card input[type=file]{width:100%;min-width:0;min-height:48px;color:var(--on-surface);font:inherit}
+.config-upload-card input[type=file]::file-selector-button{border:0;border-radius:20px;padding:12px 18px;margin-right:12px;background:var(--primary-container);color:var(--on-primary-container);font:inherit;cursor:pointer}
+.config-upload-card .portal-select{width:100%;min-height:48px}.config-upload-actions{display:flex;gap:12px;flex-wrap:wrap}.config-upload-card p{overflow-wrap:anywhere}

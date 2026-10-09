@@ -54,6 +54,36 @@ class InstallerConfigMigrationTests(unittest.TestCase):
         self.assertEqual(result, 2)
         self.assertEqual(updated, old)
 
+    def test_manager_application_is_added_without_replacing_existing_apps(self):
+        old = {'applications': [{'action': 'personal_app', 'url': 'http://localhost:7777'}]}
+        new = json.loads((ROOT / 'config/hudiy/applications.json').read_text())
+        result, updated = self.migrate('applications.json', old, new)
+        self.assertEqual(result, 0)
+        self.assertEqual(updated['applications'][0], old['applications'][0])
+        self.assertEqual(updated['applications'][1]['action'], 'hudiy_manager')
+        self.assertEqual(self.migrate('applications.json', updated, new)[0], 2)
+
+    def test_manager_menu_preserves_custom_entries_and_adds_hudiy_category(self):
+        old = {'categories': [{'label': 'Personal'}], 'items': [{'action': 'personal_app', 'label': 'Mine'}]}
+        new = json.loads((ROOT / 'config/hudiy/applications_menu.json').read_text())
+        result, updated = self.migrate('applications_menu.json', old, new)
+        self.assertEqual(result, 0)
+        self.assertEqual(updated['items'][0], old['items'][0])
+        self.assertEqual(updated['items'][1]['action'], 'hudiy_manager')
+        self.assertEqual([item['label'] for item in updated['categories']], ['Personal', 'Hudiy'])
+        self.assertEqual(self.migrate('applications_menu.json', updated, new)[0], 2)
+
+    def test_existing_manager_customization_is_preserved(self):
+        old = {'applications': [{'action': 'hudiy_manager', 'url': 'http://localhost:7777', 'allowBackground': True}]}
+        new = json.loads((ROOT / 'config/hudiy/applications.json').read_text())
+        self.assertEqual(self.migrate('applications.json', old, new), (2, old))
+
+    def test_brightness_defaults_do_not_replace_existing_levels(self):
+        old = {'rnse': {'auto_brightness': {'enabled': True, 'night_brightness': 3}}}
+        new = json.loads((ROOT / 'config.json').read_text())
+        _, updated = self.migrate('config.json', old, new)
+        self.assertEqual(updated['rnse']['auto_brightness'], {'enabled': True, 'day_brightness': 10, 'night_brightness': 3})
+
 
 if __name__ == '__main__':
     unittest.main()

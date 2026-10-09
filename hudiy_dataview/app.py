@@ -113,6 +113,10 @@ register_file_portal(app, _cfg, validators={
     'exhaust-valve': validate_upload,
 })
 
+from hudiy_manager.config_store import ConfigStore
+from hudiy_manager.routes import register_management_configs
+register_management_configs(app, ConfigStore(_base_dir))
+
 # Cache Busting
 @app.after_request
 def add_header(response):

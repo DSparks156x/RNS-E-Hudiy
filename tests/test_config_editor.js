@@ -124,6 +124,20 @@ test('unknown select choices remain selected and imported labels are escaped',()
   const choice=field(ctx,'display.center_display.navigation.icon_style');assert.equal(choice.input.value,'future-style');assert.equal(choice.input.children[0].value,'future-style');
   const malicious=allFields(ctx).find(item=>item.search.includes('<img'));assert.doesNotMatch(malicious.group.innerHTML,/<img/);assert.match(malicious.group.innerHTML,/&lt;img/);
 });
+
+test('bundled RNS-E brightness settings use confirmed integer levels from zero to ten',()=>{
+  const ctx=editor();ctx.initialize();
+  assert.deepEqual(plain(vm.runInContext('currentConfig.rnse.auto_brightness',ctx)),{enabled:false,day_brightness:10,night_brightness:5});
+  const brightness=field(ctx,'rnse.auto_brightness.day_brightness');
+  for(const invalid of ['-1','11','5.5']){
+    brightness.input.onchange({target:{value:invalid}});
+    assert.equal(vm.runInContext('currentConfig.rnse.auto_brightness.day_brightness',ctx),10);
+    assert.equal(ctx.document.getElementById('export-config').disabled,true);
+  }
+  brightness.input.onchange({target:{value:'0'}});
+  assert.equal(vm.runInContext('currentConfig.rnse.auto_brightness.day_brightness',ctx),0);
+  assert.equal(ctx.document.getElementById('export-config').disabled,false);
+});
 test('source URLs validate repository names and encode slash-containing branches',()=>{
   const ctx=editor();const selected=ctx.repositorySelection('https://github.com/DSparks156x/RNS-E-Hudiy.git','feature/ui');assert.equal(selected.rawUrl,'https://raw.githubusercontent.com/DSparks156x/RNS-E-Hudiy/feature%2Fui/config.json');assert.equal(selected.pageUrl,'https://github.com/DSparks156x/RNS-E-Hudiy/tree/feature%2Fui');
   for(const repo of ['owner/repo/other','file:///x','https://evil.test/a/b','owner'])assert.throws(()=>ctx.repositorySelection(repo,'testing'));

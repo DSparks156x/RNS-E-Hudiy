@@ -1,4 +1,8 @@
 [build]
   base = "help-site"
-  command = "npm run build"
+  command = "npm run check && npm run build"
   publish = "dist"
+  ignore = "node ./scripts/netlify-ignore.mjs"
+
+[build.environment]
+  NODE_VERSION = "22"

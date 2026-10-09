@@ -3,7 +3,11 @@
 This module is independent of uinput and ZeroMQ so timing and ownership can be
 tested without vehicle hardware. Volume/PTT remain in the keyboard service.
 """
+import logging
 import time
+
+
+logger = logging.getLogger(__name__)
 
 
 class WheelControlRouter:
@@ -79,6 +83,8 @@ class WheelControlRouter:
         if owner != self.owner:
             self.owner = owner
             self._clear_gestures()
+            logger.info('Wheel control changed to %s (app=%s, target=%s)',
+                        owner, self.app, self.target)
         self._emit('mode')
 
     def context(self, app, ready, now=None, context_id=None, controllable=True):
@@ -94,6 +100,8 @@ class WheelControlRouter:
         self.context_id = context_id
         self.controllable = bool(controllable)
         if changed:
+            logger.info('DIS wheel context: app=%s, ready=%s, controllable=%s, epoch=%s',
+                        self.app, self.ready, self.controllable, self.context_id)
             self._clear_gestures()
             self._set_owner('normal')
         self._auto_phone()
@@ -109,6 +117,9 @@ class WheelControlRouter:
 
     def toggle(self):
         if not self.supported and not self.top_supported:
+            logger.warning('MODE toggle unavailable: app=%s, ready=%s, controllable=%s, '
+                           'top_ready=%s, phone_active=%s', self.app, self.ready,
+                           self.controllable, self.top_ready, self.phone_active)
             self._set_owner('normal')
             return
         desired = 'normal' if self.owner == 'dis' else 'dis'
@@ -132,7 +143,10 @@ class WheelControlRouter:
                 self._clear_gestures()
                 self._set_owner('normal')
         for button, deadline in list(self.pending.items()):
-            if now >= deadline:
+            # A second press that began inside the window remains a candidate
+            # until release (or a long press). Do not fire the first click while
+            # that second press is still down.
+            if now >= deadline and button != self.pressed:
                 self.pending.pop(button, None)
                 if button == 'mode':
                     self.normal('mode_short')
@@ -171,6 +185,7 @@ class WheelControlRouter:
             if button in self.pending:
                 self.pending.pop(button, None)
                 if button == 'mode':
+                    logger.info('MODE double-click recognized')
                     self.toggle()
                 elif self.owner == 'dis':
                     self._emit('back')

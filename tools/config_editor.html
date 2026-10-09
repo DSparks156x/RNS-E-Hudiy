@@ -367,6 +367,9 @@ const IMAGE_HELP = {
 };
 SCHEMA['display.center_display.coverart.args'].detailedHelp = Object.entries(IMAGE_HELP).map(([key, help]) => key + ': ' + help).join('\n\n');
 for (const [key, help] of Object.entries(IMAGE_HELP)) SCHEMA['display.center_display.coverart.args.' + key] = {help};
+SCHEMA['rnse.auto_brightness.enabled'] = {label:'Automatic RNS-E brightness',type:'boolean',help:'Set RNS-E screen brightness from vehicle day/night state. Sends a brightness command when the light state changes or the radio wakes. This is separate from Hudiy and Android Auto theme switching.'};
+SCHEMA['rnse.auto_brightness.day_brightness'] = {label:'Day brightness',type:'number',integer:true,min:0,max:10,help:'RNS-E screen brightness in daytime: 0 is the lowest level and 10 is the highest. Used only when automatic RNS-E brightness is enabled.'};
+SCHEMA['rnse.auto_brightness.night_brightness'] = {label:'Night brightness',type:'number',integer:true,min:0,max:10,help:'RNS-E screen brightness when the vehicle reports night mode: 0 is the lowest level and 10 is the highest. Used only when automatic RNS-E brightness is enabled.'};
 function metadataFor(path) {
   if (path === 'display.font_resolution') return {help: 'Legacy cluster compatibility marker. The value legacy selects the red DIS font/layout behavior. Preserve this for a red cluster; the center_display.high_resolution setting controls artwork resolution separately.', type: 'text'};
   if (path === 'display.center_display.navigation.high_resolution') return {help: 'Legacy navigation artwork-resolution flag used by older branches. Current configs use display.center_display.high_resolution for shared artwork resolution; this flag can still provide a fallback when the shared setting is absent. Preserved on export.'};
@@ -379,7 +382,7 @@ function metadataFor(path) {
   if (action) {
     const device = action[1] === 'mmi' ? 'RNS-E' : 'steering wheel';
     const duration = {short_press: 'short press', long_press: 'long press', extended_press: 'extended press'}[action[3]];
-    return {...known, help: `Action for ${device} ${duration} (${action[4]}). ${action[2] ? 'Overrides the normal mapping while the phone context is active. ' : ''}${action[3] === 'extended_press' ? 'Enter a shell command run on the Pi; features.system_actions must be enabled.' : 'Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.'}`, type: 'json-value'};
+    return {...known, help: `Action for ${device} ${duration} (${action[4]}). ${action[2] ? 'Legacy phone override ignored by the current shared wheel router; preserved for older versions. ' : ''}${action[3] === 'extended_press' ? 'Enter a shell command run on the Pi; features.system_actions must be enabled.' : 'Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.'}`, type: 'json-value'};
   }
   if (path.startsWith('input_mappings.mfsw.commands.') && !known) return {help: 'Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.', type: 'text'};
   return known || {help: 'Custom setting from the loaded configuration. Its behavior depends on the selected branch or extension. The editor preserves its JSON type and value.'};
@@ -494,6 +497,9 @@ const BUNDLED_CONFIG = {
   "repo": "https://github.com/DSparks156x/RNS-E-Hudiy",
   "config_restore_repo": "https://github.com/DSparks156x/RNS-E-Hudiy",
   "config_restore_branch": "testing",
+  "rnse": {
+    "auto_brightness": {"enabled": false, "day_brightness": 10, "night_brightness": 5}
+  },
   "interfaces": {
     "can": {
       "infotainment": "can0",
@@ -845,6 +851,7 @@ const BUNDLED_CONFIG = {
   }
 };
 const SECTIONS = [
+  {id:'rnse', title:'RNS-E', root:'rnse', description:'Control the head unit itself, including screen brightness over CAN.'},
   {id:'core', title:'Updates', keys:['branch','repo','config_restore_repo','config_restore_branch'], description:'Where the Pi gets code updates and replacement configuration.'},
   {id:'display', title:'Cluster display', root:'display', description:'Center DIS apps, the two top lines, units and scrolling. DataView manages named-value pages under Data & Logs.'},
   {id:'io', title:'Buttons & wheel', root:'input_mappings', description:'RNS-E and steering-wheel input patterns, press durations and actions.'},

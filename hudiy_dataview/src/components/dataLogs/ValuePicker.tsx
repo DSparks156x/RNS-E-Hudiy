@@ -1,3 +1,4 @@
+import { TouchTextInput } from '../touchKeyboard/TouchTextInput';
 import { useMemo, useState } from 'react';
 import { catalogMatches, CatalogValue, groupOrder, systemName, systemOrder, unitText, valueGroup } from './model';
 import { Icon } from './Icons';
@@ -20,7 +21,7 @@ export function ValuePicker({ catalog, selected, single = false, minSelected = 0
   const heading = searching ? 'Search · all systems' : chosen ? 'Selected values' : group ? `${system} / ${group}` : system === 'All' ? 'All API values' : system;
   let lastSection = '';
   return <div className="dl-picker">
-    <div className="dl-toolbar"><button className="dl-button dl-icon" onClick={onCancel} aria-label="Cancel value selection"><Icon name="back" /></button><h2>{title}</h2><input aria-label="Search all API values" placeholder="Search all values" value={query} onChange={e => setQuery(e.target.value)} />{!single && <button className="dl-button dl-primary" disabled={draft.length < minSelected} onClick={() => onDone(draft)}>Done · {draft.length}</button>}</div>
+    <div className="dl-toolbar"><button className="dl-button dl-icon" onClick={onCancel} aria-label="Cancel value selection"><Icon name="back" /></button><h2>{title}</h2><TouchTextInput aria-label="Search all API values" placeholder="Search all values" value={query} onValueChange={setQuery} />{!single && <button className="dl-button dl-primary" disabled={draft.length < minSelected} onClick={() => onDone(draft)}>Done · {draft.length}</button>}</div>
     <div className="dl-catalog-layout">
       <aside className="dl-box dl-systems pretty-scroll" aria-label="Value systems">{['All', ...systems].map(s => <button key={s} className={`dl-system ${!searching && !chosen && system === s ? 'active' : ''}`} onClick={() => { setSystem(s); setGroup(null); setChosen(false); setQuery(''); }}><span>{s}</span><small>{s === 'All' ? catalog.length : catalog.filter(v => systemName(v.id) === s).length}</small></button>)}</aside>
       <section className="dl-box dl-catalog-detail"><div className="dl-catalog-context">{group && !searching && !chosen && <button className="dl-button dl-icon" aria-label="Back to value groups" onClick={() => setGroup(null)}><Icon name="back" /></button>}<div className="dl-fill"><strong>{heading}</strong><small>{showGroups ? `${base.length} values · ${groups.length} groups` : `${rows.length} values`}</small></div><button className={`dl-button ${chosen ? 'dl-primary' : ''}`} onClick={() => setChosen(!chosen)}>{chosen ? 'Browse' : `Selected · ${draft.length}`}</button></div>

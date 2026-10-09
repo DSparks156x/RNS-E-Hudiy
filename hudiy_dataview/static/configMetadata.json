@@ -1,0 +1,1555 @@
+{
+  "schema": {
+    "branch": {
+      "label": "update branch",
+      "help": "Update track selected by the Pi installer: testing and main follow their branches. Other tracks, including release and beta, prefer the latest matching track-* tag, then the branch, then main if the reference is missing. This is independent of the source picker above.",
+      "type": "text",
+      "options": [
+        "testing",
+        "release",
+        "beta"
+      ],
+      "detailedHelp": "testing and main follow their branch directly.\n\nrelease, beta and other track names first select the latest version-sorted tag matching track-*. Without a matching tag, the installer tries that branch. If the selected reference does not exist, it falls back to main.\n\nThe source picker above reads config.json from the exact branch or reference you choose; it does not resolve update-track tags.",
+      "order": 0
+    },
+    "repo": {
+      "label": "update repo",
+      "help": "GitHub repository URL used by the Pi updater. Use the full https://github.com/owner/repository URL.",
+      "type": "text",
+      "order": 1
+    },
+    "config_restore_repo": {
+      "help": "Repository from which the installer restores a replacement config.json when you request a config reset.",
+      "type": "text",
+      "label": "Config restore repo",
+      "order": 2
+    },
+    "config_restore_branch": {
+      "help": "Branch used for a requested config reset. Normal updates preserve your existing config.",
+      "type": "text",
+      "options": [
+        "testing",
+        "release",
+        "beta"
+      ],
+      "detailedHelp": "Reference from which a requested config reset downloads config.json. Use the branch or tag that contains the replacement config you want. The current installer keeps your existing config during normal updates.",
+      "label": "Config restore branch",
+      "order": 3
+    },
+    "display.center_display.enabled": {
+      "help": "Enable or disable the cluster display service.",
+      "type": "boolean",
+      "label": "Enabled",
+      "order": 50
+    },
+    "display.center_display.high_resolution": {
+      "label": "High Resolution",
+      "help": "Selects existing high or normal artwork and other app/font layouts. An explicit Stock or Bitmap navigation icon choice uses the white DIS layout with the native approach bar at either artwork resolution. Keep a saved legacy font profile for a red DIS.",
+      "type": "boolean",
+      "order": 52
+    },
+    "display.center_display.mode": {
+      "label": "Default App",
+      "help": "Center DIS app selected at startup. car_info uses named-value pages on the white DIS and the legacy vehicle summary on the red DIS.",
+      "type": "select",
+      "options": [
+        "nav",
+        "media",
+        "phone",
+        "car_info",
+        "acceleration_test"
+      ],
+      "order": 51
+    },
+    "display.center_display.applist": {
+      "label": "Configured Applications",
+      "help": "Ordered JSON list of apps available when cycling the center display. Keep the app IDs: nav, media, phone, car_info, acceleration_test; coverart can also be selected.",
+      "options": [
+        "nav",
+        "media",
+        "phone",
+        "car_info",
+        "acceleration_test",
+        "coverart"
+      ],
+      "order": 49
+    },
+    "display.center_display.navigation.native_render_order": {
+      "label": "Navigation Icon Rendering",
+      "help": "Planes draw the icon quickly and then refine it. Tiles finish each small area before moving on.",
+      "type": "select",
+      "options": [
+        "planes",
+        "tiles"
+      ],
+      "order": 59
+    },
+    "display.center_display.navigation.icon_style": {
+      "label": "Navigation Icons",
+      "help": "Stock uses native font icons without numeric distance. Bitmap uses the existing high or normal artwork and numeric next-maneuver distance. Both use the native approach bar and full-width street on a white DIS.",
+      "type": "select",
+      "options": [
+        "stock",
+        "bitmap"
+      ]
+    },
+    "display.center_display.navigation.native_message_delay_ms": {
+      "label": "Icon Drawing Pause (ms)",
+      "help": "Increase this pause if native icons show stray pixels.",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "order": 60
+    },
+    "display.center_display.navigation.auto_switch": {
+      "help": "Temporarily show navigation when a maneuver approaches. Each new maneuver gets a five-second preview; manually choosing another page suppresses that maneuver’s automatic approach switch.",
+      "type": "boolean",
+      "label": "Auto switch",
+      "order": 54
+    },
+    "display.center_display.navigation.auto_switch_approach_threshold": {
+      "help": "Distance to the maneuver, in meters, at which navigation takes over the center display. The example uses 500 m.",
+      "type": "number",
+      "label": "Auto switch approach threshold",
+      "order": 55
+    },
+    "display.center_display.navigation.auto_switch_return_threshold": {
+      "help": "Distance to a later maneuver, in meters, beyond which the previous app can return after the approach sequence. Keep this larger than the approach threshold to avoid switching back and forth.",
+      "type": "number",
+      "label": "Auto switch return threshold",
+      "order": 56
+    },
+    "display.center_display.navigation.approach_bar_max_distance": {
+      "help": "Distance in meters used to scale the native maneuver-approach bar. This controls the bar’s visual range, independently of automatic page switching.",
+      "type": "number",
+      "label": "Approach bar max distance",
+      "order": 57
+    },
+    "display.center_display.navigation.claim_on_nav": {
+      "help": "Auto-claim center display when a route starts and release when it ends.",
+      "type": "boolean",
+      "label": "Claim on nav",
+      "order": 58
+    },
+    "display.center_display.coverart": {
+      "label": "Album Cover Art"
+    },
+    "display.center_display.coverart.brief": {
+      "help": "Show briefly on track start (5s).",
+      "type": "boolean",
+      "label": "Brief",
+      "order": 61
+    },
+    "display.center_display.coverart.native_preset": {
+      "label": "Native Image Preset",
+      "help": "legacy uses existing Processing Args at native resolution; balanced uses ordered dither; photo uses error diffusion; text uses a crisp threshold.",
+      "type": "select",
+      "options": [
+        "legacy",
+        "balanced",
+        "photo",
+        "text"
+      ],
+      "order": 63
+    },
+    "display.center_display.coverart.native_args": {
+      "label": "Native Processing Overrides",
+      "type": "json",
+      "help": "JSON object of overrides for the selected native preset. Empty uses its defaults. With legacy, these override Processing Args. Dimensions stay 128x96.",
+      "order": 64
+    },
+    "display.center_display.coverart.native_render_order": {
+      "label": "Native Draw Order",
+      "help": "tiles completes small regions before moving on. planes draws the base then subpixel layers; bands completes horizontal strips. All produce the same target pixels.",
+      "type": "select",
+      "options": [
+        "tiles",
+        "planes",
+        "bands"
+      ],
+      "order": 65
+    },
+    "display.center_display.coverart.native_delta": {
+      "label": "Native Changed Tiles",
+      "help": "Send only changed tiles after an acknowledged image. Requires tiles draw order. Disabled sends a full snapshot for each cover.",
+      "type": "boolean",
+      "order": 66
+    },
+    "display.center_display.coverart.args": {
+      "label": "Processing Args",
+      "type": "json",
+      "help": "JSON object of legacy image-processing overrides. Used by the legacy preset; the other native presets use their own defaults plus native_args. Open the help button for each processing argument.",
+      "detailedHelp": "contrast: Contrast multiplier; 1 leaves contrast unchanged.\n\nsharpen: Sharpening multiplier; 1 leaves sharpness unchanged.\n\ndither: Monochrome dither method, e.g. fs for Floyd–Steinberg.\n\ninvert: Invert the final monochrome pixels.\n\nno_enhance: Skip automatic enhancement before conversion.\n\nbg_fill: Background color used when fitting the image.\n\ngrayscale_mode: Grayscale conversion strategy; smart uses luminance processing.\n\nbrightness: Brightness multiplier; 1 leaves brightness unchanged.\n\ngamma: Gamma applied during grayscale processing.\n\nblack_floor: Shadow cutoff (0–255) used before monochrome conversion.\n\nboldness: Pixel expansion amount for strengthening fine features.\n\ndiffusion: Error-diffusion strength for dithered output.",
+      "order": 62
+    },
+    "display.center_display.acceleration_test": {
+      "label": "Acceleration Test"
+    },
+    "display.center_display.acceleration_test.auto_reset_on_stop": {
+      "label": "Auto Reset on Stop",
+      "help": "Resets acceleration timers when stopped for configured delay.",
+      "type": "boolean",
+      "order": 67
+    },
+    "display.center_display.acceleration_test.auto_reset_delay": {
+      "label": "Auto Reset Delay",
+      "help": "Delay in seconds before auto reset when stopped.",
+      "type": "number",
+      "order": 68
+    },
+    "display.center_display.acceleration_test.tolerance_display": {
+      "label": "Show Tolerance",
+      "help": "Show measurement uncertainty (±X.XXs) in header",
+      "type": "boolean",
+      "order": 69
+    },
+    "display.center_display.acceleration_test.line_1": {
+      "label": "Line 1",
+      "help": "Formatting: #-# (speed), #/# (distance), or 'speed'",
+      "type": "text",
+      "options": [
+        "0-60",
+        "0-100",
+        "60-130",
+        "1/4",
+        "1/8",
+        "speed"
+      ],
+      "detailedHelp": "Configure this line in 3 ways:\n\n1. Speed-to-Speed: e.g. '0-60', '0-100', '60-130' (uses Configure Speed Units setting)\n2. Distance Timer: e.g. '1/4' (quarter mile) or '1000' (feet). Distances below 10 assume Miles/KM based on units, above 10 assume Feet/Meters.\n3. Live Speed: enter 'speed' to show current velocity",
+      "order": 70
+    },
+    "display.center_display.acceleration_test.line_2": {
+      "label": "Line 2",
+      "help": "Formatting: #-#, #/#, or 'speed'",
+      "type": "text",
+      "options": [
+        "0-60",
+        "0-100",
+        "60-130",
+        "1/4",
+        "1/8",
+        "speed"
+      ],
+      "detailedHelp": "Configure this line in 3 ways:\n\n1. Speed-to-Speed: e.g. '0-60', '0-100', '60-130' (uses Configure Speed Units setting)\n2. Distance Timer: e.g. '1/4' (quarter mile) or '1000' (feet). Distances below 10 assume Miles/KM based on units, above 10 assume Feet/Meters.\n3. Live Speed: enter 'speed' to show current velocity",
+      "order": 71
+    },
+    "display.center_display.acceleration_test.line_3": {
+      "label": "Line 3",
+      "help": "Formatting: #-#, #/#, or 'speed'",
+      "type": "text",
+      "options": [
+        "0-60",
+        "0-100",
+        "60-130",
+        "1/4",
+        "1/8",
+        "speed"
+      ],
+      "detailedHelp": "Configure this line in 3 ways:\n\n1. Speed-to-Speed: e.g. '0-60', '0-100', '60-130' (uses Configure Speed Units setting)\n2. Distance Timer: e.g. '1/4' (quarter mile) or '1000' (feet). Distances below 10 assume Miles/KM based on units, above 10 assume Feet/Meters.\n3. Live Speed: enter 'speed' to show current velocity",
+      "order": 72
+    },
+    "display.center_display.acceleration_test.line_4": {
+      "label": "Line 4",
+      "help": "Formatting: #-#, #/#, or 'speed'",
+      "type": "text",
+      "options": [
+        "0-60",
+        "0-100",
+        "60-130",
+        "1/4",
+        "1/8",
+        "speed"
+      ],
+      "detailedHelp": "Configure this line in 3 ways:\n\n1. Speed-to-Speed: e.g. '0-60', '0-100', '60-130' (uses Configure Speed Units setting)\n2. Distance Timer: e.g. '1/4' (quarter mile) or '1000' (feet). Distances below 10 assume Miles/KM based on units, above 10 assume Feet/Meters.\n3. Live Speed: enter 'speed' to show current velocity",
+      "order": 73
+    },
+    "display.road_side": {
+      "help": "Side of the road you drive on.",
+      "type": "select",
+      "options": [
+        "left",
+        "right"
+      ],
+      "label": "Road side",
+      "order": 74
+    },
+    "display.top_display.enabled": {
+      "help": "Enable or disable top display service.",
+      "type": "boolean",
+      "label": "Enabled",
+      "order": 88
+    },
+    "display.top_display.applist": {
+      "label": "Configured Applications",
+      "help": "Top-line app priority, highest first. The first app with active content wins: phone for a call, nav for guidance, media for playback.",
+      "options": [
+        "phone",
+        "nav",
+        "media"
+      ],
+      "order": 87
+    },
+    "display.top_display.media_line1_mode": {
+      "label": "Media Line 1 Mode",
+      "help": "Formatting: key-key-key (title, artist, album, source)",
+      "type": "text",
+      "options": [
+        "title",
+        "artist",
+        "album",
+        "source",
+        "title-artist"
+      ],
+      "order": 89
+    },
+    "display.top_display.media_line2_mode": {
+      "label": "Media Line 2 Mode",
+      "help": "Formatting: key-key-key (title, artist, album, source)",
+      "type": "text",
+      "options": [
+        "title",
+        "artist",
+        "album",
+        "source",
+        "title-artist"
+      ],
+      "order": 90
+    },
+    "display.top_display.media_line1_alt_mode": {
+      "label": "Media Line 1 Alt Mode",
+      "help": "Displayed when center display is already showing media. Formatting: key-key-key (title, artist, album, source)",
+      "type": "text",
+      "options": [
+        "title",
+        "artist",
+        "album",
+        "source",
+        "title-artist"
+      ],
+      "order": 91
+    },
+    "display.top_display.phone_line1_mode": {
+      "label": "Phone Line 1 Mode",
+      "help": "Formatting: key-key-key (caller, state, name, connection, battery, signal)",
+      "type": "text",
+      "options": [
+        "caller",
+        "state",
+        "name",
+        "connection"
+      ],
+      "order": 92
+    },
+    "display.top_display.phone_line2_mode": {
+      "label": "Phone Line 2 Mode",
+      "help": "Formatting: key-key-key (caller, state, name, connection, battery, signal)",
+      "type": "text",
+      "options": [
+        "caller",
+        "state",
+        "name",
+        "connection"
+      ],
+      "order": 93
+    },
+    "display.top_display.nav_line1_mode": {
+      "label": "Nav Line 1 Mode",
+      "help": "Formatting: key-key-key (description, maneuver, distance)",
+      "type": "text",
+      "options": [
+        "description",
+        "maneuver",
+        "distance"
+      ],
+      "order": 94
+    },
+    "display.top_display.nav_line2_mode": {
+      "label": "Nav Line 2 Mode",
+      "help": "Formatting: key-key-key (description, maneuver, distance)",
+      "type": "text",
+      "options": [
+        "description",
+        "maneuver",
+        "distance"
+      ],
+      "order": 95
+    },
+    "display.units": {
+      "label": "Navigation & Legacy Units",
+      "help": "Global overrides for navigation, acceleration tests, the red DIS Car Info screen and the older boost widget. Configure each new DIS reading's units in DataView → Data & Logs → DIS pages."
+    },
+    "display.units.speed": {
+      "label": "Navigation & Acceleration Speed",
+      "help": "mph/miles or km/h/km for navigation and acceleration tests. car follows the vehicle's unit setting.",
+      "type": "select",
+      "options": [
+        "imperial",
+        "metric",
+        "car"
+      ],
+      "order": 75
+    },
+    "display.units.ambient_temp": {
+      "help": "Ambient temperature override: imperial = °F, metric = °C, car = the vehicle’s temperature unit setting.",
+      "type": "select",
+      "options": [
+        "imperial",
+        "metric",
+        "car"
+      ],
+      "label": "Ambient temp",
+      "order": 76
+    },
+    "display.units.boost": {
+      "label": "Legacy Boost Units",
+      "help": "Boost units for the red DIS Car Info screen and older boost widget. New DIS pages choose units per slot.",
+      "type": "select",
+      "options": [
+        "imperial",
+        "metric",
+        "car"
+      ],
+      "order": 77
+    },
+    "display.units.cartemp": {
+      "label": "Legacy Temperature Units",
+      "help": "Oil/coolant temperature units for the red DIS Car Info screen. New DIS pages choose units per slot.",
+      "type": "select",
+      "options": [
+        "imperial",
+        "metric",
+        "car"
+      ],
+      "order": 79
+    },
+    "display.units.boost_mode": {
+      "label": "Legacy Boost Pressure Mode",
+      "help": "Absolute pressure or pressure minus atmosphere for the red DIS Car Info screen and older boost widget. New DIS pages select the desired value from the catalog.",
+      "type": "select",
+      "options": [
+        "absolute",
+        "relative"
+      ],
+      "order": 78
+    },
+    "display.text_scrolling.continuous": {
+      "help": "Wrap long text into a repeating loop. Disabled scrolling moves to the end and then returns to the beginning.",
+      "type": "boolean",
+      "label": "Continuous",
+      "order": 80
+    },
+    "display.text_scrolling.continuous_gap": {
+      "help": "Number of spaces between the end and beginning of a continuously scrolling line.",
+      "label": "Continuous gap",
+      "order": 81
+    },
+    "display.text_scrolling.speed_ms": {
+      "help": "Milliseconds between scrolling steps. Larger values scroll more slowly.",
+      "type": "number",
+      "label": "Speed ms",
+      "order": 82
+    },
+    "display.text_scrolling.line_offset_ms": {
+      "help": "Milliseconds of additional delay between lines so they do not all start scrolling together.",
+      "label": "Line offset ms",
+      "order": 85
+    },
+    "display.text_scrolling.start_delay_ms": {
+      "help": "Milliseconds to hold a long line at its beginning before scrolling starts.",
+      "label": "Start delay ms",
+      "order": 83
+    },
+    "display.text_scrolling.end_delay_ms": {
+      "help": "Milliseconds to hold a line at its end before restarting non-continuous scrolling.",
+      "label": "End delay ms",
+      "order": 84
+    },
+    "display.phone.scroll_wheel_phone_menu": {
+      "label": "Automatic Phone Wheel Control",
+      "help": "Automatically enter DIS wheel control for the visible center phone page or top-only phone display. Double-click MODE to return to normal wheel mappings for the current call. Manual readings control takes priority. Page showing is configured separately.",
+      "type": "boolean",
+      "order": 96
+    },
+    "display.phone.claim_on_phone": {
+      "help": "Auto-claim center display on incoming/active phone calls and release when ended.",
+      "type": "boolean",
+      "label": "Claim on phone",
+      "order": 97
+    },
+    "input_mappings.mfsw.double_click_ms": {
+      "label": "Wheel Double-click Window (ms)",
+      "help": "MODE double-click toggles DIS control. In DIS control, wheel double-click goes back. Single-click actions wait for this window.",
+      "type": "number",
+      "min": 150,
+      "max": 800,
+      "order": 176
+    },
+    "interfaces.zmq.input_control_stream": {
+      "label": "DIS Wheel Events",
+      "help": "The keyboard service publishes shared wheel ownership and semantic DIS input events here.",
+      "type": "text",
+      "order": 16
+    },
+    "interfaces.zmq.dis_top_status": {
+      "label": "Top DIS Control Status",
+      "help": "Top phone display visibility and readiness for shared wheel routing.",
+      "type": "text",
+      "order": 17
+    },
+    "interfaces.zmq.data_logs_command": {
+      "label": "Shared Logging Commands",
+      "help": "DataView receives DIS Start, Mark, Stop and status commands here.",
+      "type": "text",
+      "order": 18
+    },
+    "data_logs": {
+      "label": "Named-value Recordings",
+      "help": "Recording profiles and DIS pages are edited in DataView → Data & Logs. The existing data_logger section still controls raw CAN/debug logging."
+    },
+    "data_logs.directory": {
+      "label": "Recording Directory",
+      "help": "Stores workspace.json and named-value sessions. Existing raw/debug logs keep their own directory.",
+      "type": "text",
+      "order": 42
+    },
+    "data_logs.queue_size": {
+      "label": "Recording Writer Queue",
+      "help": "Maximum queued samples. Queue losses are reported in recording status.",
+      "type": "number",
+      "min": 100,
+      "order": 43
+    },
+    "features.day_night_mode": {
+      "help": "Automatically sets day/night in Hudiy. Hudiy state propagates to AA/Carplay",
+      "type": "boolean",
+      "label": "Day night mode",
+      "order": 98
+    },
+    "features.source_controls": {
+      "help": "Auto Pause/Resume when switching from/to tv source.",
+      "type": "boolean",
+      "label": "Source controls",
+      "order": 124
+    },
+    "features.debug_mode": {
+      "help": "Enable detailed logging for troubleshooting.",
+      "type": "boolean",
+      "label": "Debug mode",
+      "order": 127
+    },
+    "features.car_time_zone": {
+      "help": "IANA timezone used to interpret the local time sent by the car, for example America/Denver or Europe/London.",
+      "type": "text",
+      "label": "Car time zone",
+      "order": 126
+    },
+    "features.time_sync.threshold_minutes": {
+      "help": "Absolute clock difference in minutes that triggers synchronization. 0.1 means six seconds.",
+      "type": "number",
+      "label": "Threshold minutes",
+      "order": 102
+    },
+    "features.power_management.auto_shutdown": {
+      "label": "Ignition Auto Shutdown"
+    },
+    "features.power_management.auto_shutdown.delay_seconds": {
+      "help": "Wait time before shutdown (sec).",
+      "type": "number",
+      "label": "Delay seconds",
+      "order": 105
+    },
+    "features.power_management.listen_only_mode": {
+      "label": "Infotainment CAN Listen Only Mode",
+      "help": "puts infotainment can interface into listen only after off."
+    },
+    "features.power_management.gpio_shutdown": {
+      "help": "shuts down the pi based on GPIO."
+    },
+    "features.power_management.gpio_shutdown.active_low": {
+      "help": "gpiozero input polarity: enabled means low is the active Button state; disabled means high is active. The service derives the wake signal from this state and shuts down when that wake signal is OFF.",
+      "label": "Active low",
+      "order": 111
+    },
+    "features.power_management.connection_management": {
+      "label": "AA & Bluetooth Connection Manager",
+      "help": "Controls Android Auto and Bluetooth/BLE connections based on ignition, door open, and radio power states."
+    },
+    "features.power_management.connection_management.connect_on_ignition": {
+      "help": "Allow connections when ignition is ON.",
+      "type": "boolean",
+      "label": "Connect on ignition",
+      "order": 114
+    },
+    "features.power_management.connection_management.connect_on_radio": {
+      "help": "Allow connections when RNS-E radio is ON without ignition.",
+      "type": "boolean",
+      "label": "Connect on radio",
+      "order": 115
+    },
+    "features.power_management.connection_management.door_open_window_seconds": {
+      "help": "Fast connection window duration when door opens (sec).",
+      "type": "number",
+      "label": "Door open window seconds",
+      "order": 116
+    },
+    "features.power_management.connection_management.unlock_wake_window_seconds": {
+      "help": "Fast connection window duration on unlock/wake (sec).",
+      "type": "number",
+      "label": "Unlock wake window seconds",
+      "order": 117
+    },
+    "features.power_management.connection_management.manage_bluetooth": {
+      "help": "Toggle Bluetooth/BLE adapter power automatically.",
+      "type": "boolean",
+      "label": "Manage bluetooth",
+      "order": 118
+    },
+    "features.power_management.connection_management.manage_android_auto": {
+      "help": "Dispatch connect/disconnect to Hudiy Android Auto.",
+      "type": "boolean",
+      "label": "Manage android auto",
+      "order": 119
+    },
+    "features.power_management.connection_management.disconnect_delay_seconds": {
+      "help": "Delay before disconnecting when ignition/radio turns off (sec).",
+      "type": "number",
+      "label": "Disconnect delay seconds",
+      "order": 120
+    },
+    "input_mappings.mmi": {
+      "label": "RNS-E (MMI)"
+    },
+    "input_mappings.mmi.cooldown_period": {
+      "help": "Min time between distinct button events (sec).",
+      "type": "number",
+      "label": "Cooldown period",
+      "order": 145
+    },
+    "input_mappings.mmi.long_press_message_count": {
+      "help": "Messages needed to trigger Long Press.",
+      "type": "number",
+      "label": "Long press message count",
+      "order": 146
+    },
+    "input_mappings.mmi.extended_long_press_message_count": {
+      "help": "Messages needed to trigger Extended Press.",
+      "type": "number",
+      "label": "Extended long press message count",
+      "order": 147
+    },
+    "input_mappings.mmi.short_press.1,0": {
+      "label": "Previous Track",
+      "help": "Action for RNS-E short press (1,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 149
+    },
+    "input_mappings.mmi.short_press.2,0": {
+      "label": "Next Track",
+      "help": "Action for RNS-E short press (2,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 150
+    },
+    "input_mappings.mmi.short_press.0,16": {
+      "label": "Knob Press",
+      "help": "Action for RNS-E short press (0,16). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 153
+    },
+    "input_mappings.mmi.short_press.64,0": {
+      "label": "Top Left Quad",
+      "help": "Action for RNS-E short press (64,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 151
+    },
+    "input_mappings.mmi.short_press.128,0": {
+      "label": "Bottom Left Quad",
+      "help": "Action for RNS-E short press (128,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 152
+    },
+    "input_mappings.mmi.short_press.0,32": {
+      "label": "Knob CCW",
+      "help": "Action for RNS-E short press (0,32). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 154
+    },
+    "input_mappings.mmi.short_press.0,64": {
+      "label": "Knob CW",
+      "help": "Action for RNS-E short press (0,64). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 155
+    },
+    "input_mappings.mmi.short_press.0,2": {
+      "label": "Return",
+      "help": "Action for RNS-E short press (0,2). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 156
+    },
+    "input_mappings.mmi.short_press.0,1": {
+      "label": "Setup",
+      "help": "Action for RNS-E short press (0,1). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 157
+    },
+    "input_mappings.mmi.long_press.1,0": {
+      "label": "Previous Track",
+      "help": "Action for RNS-E long press (1,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 158
+    },
+    "input_mappings.mmi.long_press.2,0": {
+      "label": "Next Track",
+      "help": "Action for RNS-E long press (2,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 159
+    },
+    "input_mappings.mmi.long_press.0,16": {
+      "label": "Knob Press",
+      "help": "Action for RNS-E long press (0,16). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 162
+    },
+    "input_mappings.mmi.long_press.64,0": {
+      "label": "Top Left Quad",
+      "help": "Action for RNS-E long press (64,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 160
+    },
+    "input_mappings.mmi.long_press.128,0": {
+      "label": "Bottom Left Quad",
+      "help": "Action for RNS-E long press (128,0). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 161
+    },
+    "input_mappings.mmi.long_press.0,2": {
+      "label": "Return",
+      "help": "Action for RNS-E long press (0,2). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 165
+    },
+    "input_mappings.mmi.long_press.0,1": {
+      "label": "Setup",
+      "help": "Action for RNS-E long press (0,1). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "order": 166
+    },
+    "input_mappings.mmi.extended_press.1,0": {
+      "label": "Previous Track",
+      "help": "Action for RNS-E extended press (1,0). Enter a shell command run on the Pi; features.system_actions must be enabled.",
+      "type": "json-value",
+      "order": 167
+    },
+    "input_mappings.mmi.extended_press.2,0": {
+      "label": "Next Track",
+      "help": "Action for RNS-E extended press (2,0). Enter a shell command run on the Pi; features.system_actions must be enabled.",
+      "type": "json-value",
+      "order": 168
+    },
+    "input_mappings.mmi.extended_press.0,16": {
+      "label": "Knob Press",
+      "help": "Action for RNS-E extended press (0,16). Enter a shell command run on the Pi; features.system_actions must be enabled.",
+      "type": "json-value",
+      "order": 171
+    },
+    "input_mappings.mmi.extended_press.64,0": {
+      "label": "Top Left Quad",
+      "help": "Action for RNS-E extended press (64,0). Enter a shell command run on the Pi; features.system_actions must be enabled.",
+      "type": "json-value",
+      "order": 169
+    },
+    "input_mappings.mmi.extended_press.128,0": {
+      "label": "Bottom Left Quad",
+      "help": "Action for RNS-E extended press (128,0). Enter a shell command run on the Pi; features.system_actions must be enabled.",
+      "type": "json-value",
+      "order": 170
+    },
+    "input_mappings.mmi.extended_press.0,2": {
+      "label": "Return",
+      "help": "Action for RNS-E extended press (0,2). Enter a shell command run on the Pi; features.system_actions must be enabled.",
+      "type": "json-value",
+      "order": 174
+    },
+    "input_mappings.mmi.extended_press.0,1": {
+      "label": "Setup",
+      "help": "Action for RNS-E extended press (0,1). Enter a shell command run on the Pi; features.system_actions must be enabled.",
+      "type": "json-value",
+      "order": 175
+    },
+    "interfaces.can": {
+      "label": "CAN interfaces"
+    },
+    "interfaces.can.infotainment": {
+      "help": "SocketCAN interface for infotainment.",
+      "label": "Infotainment",
+      "order": 7
+    },
+    "interfaces.can.diagnostic": {
+      "help": "SocketCAN interface used for diagnostics",
+      "detailedHelp": "This is the interface diagnostic functions are done on. It does not necessarily have to be the OBD2 port CANbus. It should work over infotainment on most gateways as far as im aware.",
+      "label": "Diagnostic",
+      "order": 8
+    },
+    "interfaces.zmq.dis_display_status": {
+      "label": "DIS Display Status ZMQ",
+      "help": "ZeroMQ publication address for center-DIS presentation and app state, used to coordinate wheel ownership and top-line content.",
+      "order": 15
+    },
+    "interfaces.zmq.can_raw_stream": {
+      "label": "CAN Raw Stream ZMQ",
+      "help": "ZeroMQ publication address for received SocketCAN frames, consumed by keyboard, vehicle-state and diagnostic services.",
+      "order": 9
+    },
+    "interfaces.zmq.send_address": {
+      "label": "CAN Send Address ZMQ",
+      "help": "ZeroMQ command address for outgoing CAN frames. CAN consumers send requests here; the CAN service writes them onto the bus.",
+      "order": 10
+    },
+    "interfaces.zmq.system_events": {
+      "label": "System Events ZMQ",
+      "help": "ZeroMQ publication address for shared vehicle power events such as ignition, radio state and door wake transitions.",
+      "order": 11
+    },
+    "interfaces.zmq.dis_draw": {
+      "label": "DIS Draw ZMQ",
+      "help": "ZeroMQ address for DIS drawing commands sent by display apps to the cluster drawing service.",
+      "order": 13
+    },
+    "interfaces.zmq.dis_status": {
+      "label": "DIS Status ZMQ",
+      "help": "ZeroMQ address for the cluster drawing service’s session/status events, used by the display coordinator.",
+      "order": 14
+    },
+    "interfaces.zmq.tp2_stream": {
+      "label": "TP2 Stream ZMQ",
+      "help": "ZeroMQ publication address for TP2 diagnostic session responses and measuring-group data.",
+      "order": 19
+    },
+    "interfaces.zmq.tp2_command": {
+      "label": "TP2 Command ZMQ",
+      "help": "ZeroMQ command address for diagnostic-worker requests such as opening a session and reading a measuring group.",
+      "order": 20
+    },
+    "interfaces.zmq.metric_stream": {
+      "label": "Metric Stream ZMQ",
+      "help": "ZeroMQ publication address for Hudiy API data including media, phone and navigation state. DIS and DataView consume these updates.",
+      "order": 12
+    },
+    "features.log_saver.services": {
+      "label": "Log Saver Services",
+      "help": "List of systemd services to save logs for.",
+      "order": 128
+    },
+    "features.log_saver.minutes": {
+      "label": "Log Duration (Minutes)",
+      "help": "How far back to save logs in minutes.",
+      "type": "number",
+      "order": 129
+    },
+    "features.log_saver.log_directory": {
+      "label": "Log Directory",
+      "help": "Path where logs will be saved. Supports relative ~/ paths.",
+      "type": "text",
+      "order": 130
+    },
+    "file_portal": {
+      "label": "File Portal"
+    },
+    "file_portal.upload_pin": {
+      "label": "Upload PIN",
+      "help": "Optional PIN required when uploading firmware from a phone. Leave empty to allow uploads from any device on the Pi network.",
+      "type": "text",
+      "order": 44
+    },
+    "file_portal.archive_limit_mb": {
+      "label": "Maximum Bundle Size (MB)",
+      "help": "Maximum uncompressed size allowed by Download All.",
+      "type": "number",
+      "order": 45
+    },
+    "file_portal.runtime_log_directory": {
+      "label": "Live Service Log Directory",
+      "help": "Directory containing current file-based service logs.",
+      "type": "text",
+      "order": 46
+    },
+    "file_portal.firmware_targets": {
+      "label": "Firmware Targets",
+      "help": "JSON list of firmware upload targets. Each object defines id, label, description, directory, extensions, validator and max_size_mb. Supported validators: haldex and pq-eps. Extensions are a list such as [\".bin\"]. Keep each target’s directory aligned with its controller firmware_dir.",
+      "type": "json-array",
+      "order": 47
+    },
+    "ddp_bitmap_message_bytes": {
+      "help": "Maximum bytes in each DDP bitmap message (13–195). Larger messages reduce command overhead. Multi-row commands require 105 or fewer bytes. Default example: 105.",
+      "type": "number",
+      "min": 13,
+      "max": 195,
+      "integer": true
+    },
+    "diagnostics.enabled": {
+      "help": "Enable the diagnostic worker used to read ECU measuring groups. CAN-derived readings can still be available independently.",
+      "label": "Enabled",
+      "order": 23
+    },
+    "diagnostics.values.diagnostic_hz": {
+      "help": "Default requested frequency, in Hz, for diagnostic values without an explicit polling period. Actual delivery depends on ECU and bus capacity.",
+      "label": "Diagnostic hz",
+      "order": 24
+    },
+    "diagnostics.values.ican_hz": {
+      "help": "Default requested frequency, in Hz, for infotainment CAN values without an explicit polling period.",
+      "label": "Ican hz",
+      "order": 25
+    },
+    "diagnostics.values.lease_seconds": {
+      "help": "Seconds before the shared value broker expires a client’s requests when the client stops renewing its interest.",
+      "label": "Lease seconds",
+      "order": 26
+    },
+    "haldex.enabled": {
+      "help": "Enable the Haldex control manager. Mode changes require compatible controller firmware; this setting does not flash firmware.",
+      "label": "Enabled",
+      "order": 27
+    },
+    "haldex.default_mode": {
+      "help": "Startup mode: null restores the last saved mode, 0 = Stock, 1 = Performance, 2 = Competition. A fixed mode disables saving mode changes as the next startup choice.",
+      "type": "json-value",
+      "label": "Default mode",
+      "order": 28
+    },
+    "haldex.burst_count": {
+      "help": "Number of CAN frames sent in a Haldex mode command burst. Repeated frames help the controller receive the requested mode.",
+      "label": "Burst count",
+      "order": 29
+    },
+    "haldex.burst_interval_ms": {
+      "help": "Pause in milliseconds between frames in each Haldex mode command burst.",
+      "label": "Burst interval ms",
+      "order": 30
+    },
+    "haldex.persistence_file": {
+      "help": "JSON file storing the last requested Haldex mode when default_mode is null. The Pi service must be able to write here.",
+      "label": "Persistence file",
+      "order": 31
+    },
+    "haldex.firmware_dir": {
+      "help": "Directory containing Haldex firmware available in DataView and the file portal. A leading ~ expands to the Pi service user’s home directory.",
+      "label": "Firmware dir",
+      "order": 32
+    },
+    "eps.firmware_dir": {
+      "help": "Directory containing steering controller images or datasets for the EPS tools. A leading ~ expands on the Pi.",
+      "label": "Firmware dir",
+      "order": 33
+    },
+    "exhaust_valve.firmware_dir": {
+      "help": "Directory used for exhaust-valve firmware images. The flashing tools inspect candidate firmware before deployment.",
+      "label": "Firmware dir",
+      "order": 34
+    },
+    "exhaust_valve.installed_generation_floor": {
+      "help": "Minimum deployed exhaust-control firmware generation assumed when no deployment record exists. Keep this aligned with the firmware actually installed.",
+      "label": "Installed generation floor",
+      "order": 35
+    },
+    "exhaust_valve.generation_file": {
+      "help": "Deployment record used to track installed exhaust-control firmware generation and determine supported commands.",
+      "label": "Generation file",
+      "order": 36
+    },
+    "exhaust_valve.intent_file": {
+      "help": "JSON persistence file for the requested exhaust-valve behavior, restored by the Haldex manager.",
+      "label": "Intent file",
+      "order": 37
+    },
+    "data_logger.default_profile": {
+      "help": "Default raw/debug recording profile. The current logger implements the haldex profile, falling back to it for unknown profile names.",
+      "label": "Default profile",
+      "order": 38
+    },
+    "data_logger.log_directory": {
+      "help": "Directory for raw/debug sessions, separate from named-value recordings under data_logs.directory. Supports ~ on the Pi.",
+      "label": "Log directory",
+      "order": 39
+    },
+    "data_logger.queue_size": {
+      "help": "Maximum queued raw/debug records before the writer falls behind. Runtime enforces at least 100; dropped records are reported.",
+      "label": "Queue size",
+      "order": 40
+    },
+    "data_logger.profiles.haldex.measuring_groups": {
+      "help": "Additional diagnostic groups for raw Haldex sessions. JSON list of objects: module (hex address), groups (list of group numbers), low_priority_groups (optional list), value_count (default 4). An empty list uses the built-in profile groups.",
+      "type": "json-array",
+      "label": "Measuring groups",
+      "order": 41
+    },
+    "openpilot.enabled": {
+      "help": "Reserved setting. Openpilot integration is disabled in the current runtime because its CAN identifiers conflict with Haldex control; enabling this setting does not activate it.",
+      "label": "Enabled",
+      "order": 48
+    },
+    "display.center_display.start_inactive": {
+      "help": "Start with the original cluster presentation until HUDiy display ownership is requested. Useful when you want the factory screen visible at boot.",
+      "label": "Start inactive",
+      "order": 53
+    },
+    "display.text_centering": {
+      "help": "Center short text in the DIS text area. Long text uses the scrolling settings instead.",
+      "label": "Text centering",
+      "order": 86
+    },
+    "features.sync_android_auto": {
+      "help": "When day/night synchronization runs, explicitly set Android Auto’s appearance mode as well as Hudiy’s common/system mode. Disabled uses the common mode alone; this does not connect or disconnect Android Auto.",
+      "label": "Sync android auto",
+      "order": 99
+    },
+    "features.mmi_controls": {
+      "help": "Translate RNS-E buttons and knob events into the configured keyboard mappings.",
+      "label": "Mmi controls",
+      "order": 122
+    },
+    "features.mfsw_controls": {
+      "help": "Translate multifunction steering-wheel events into keyboard actions. DIS wheel ownership uses these events for phone and readings controls.",
+      "label": "Mfsw controls",
+      "order": 123
+    },
+    "features.system_actions": {
+      "help": "Allow MMI extended-press mappings to run system commands such as saving logs, rebooting or shutting down.",
+      "label": "System actions",
+      "order": 125
+    },
+    "features.time_sync.enabled": {
+      "help": "Set the Pi clock from the vehicle’s CAN time message when its drift exceeds the configured threshold.",
+      "label": "Enabled",
+      "order": 100
+    },
+    "features.time_sync.data_format": {
+      "help": "Vehicle time-message encoding. old_logic decodes BCD time/date fields; new_logic decodes binary fields. Match your vehicle’s transmitted format.",
+      "type": "select",
+      "options": [
+        "old_logic",
+        "new_logic"
+      ],
+      "label": "Data format",
+      "order": 101
+    },
+    "features.power_management.auto_shutdown.enabled": {
+      "help": "Enable automatic Pi shutdown after the selected power-state trigger persists for the delay.",
+      "label": "Enabled",
+      "order": 103
+    },
+    "features.power_management.auto_shutdown.trigger": {
+      "help": "Power-state transition that starts the shutdown timer: ignition_off or key_pulled. A return to the active state cancels the timer; an active GPIO wake signal holds off shutdown.",
+      "type": "select",
+      "options": [
+        "ignition_off",
+        "key_pulled"
+      ],
+      "label": "Trigger",
+      "order": 104
+    },
+    "features.power_management.listen_only_mode.enabled": {
+      "help": "Place the infotainment SocketCAN interface into listen-only mode after the vehicle bus is ready to sleep, avoiding transmissions that keep it awake.",
+      "label": "Enabled",
+      "order": 106
+    },
+    "features.power_management.listen_only_mode.delay_seconds": {
+      "help": "Seconds to wait after the sleep-ready condition before switching the CAN interface to listen-only.",
+      "label": "Delay seconds",
+      "order": 107
+    },
+    "features.power_management.listen_only_mode.fallback_seconds": {
+      "help": "Seconds since ignition turned OFF before forcing the sleep-ready state, even if network-management frames still arrive. This is a fallback for vehicles that keep transmitting.",
+      "label": "Fallback seconds",
+      "order": 108
+    },
+    "features.power_management.gpio_shutdown.enabled": {
+      "help": "Watch the configured GPIO and shut down the Pi when its shutdown level persists for the delay.",
+      "label": "Enabled",
+      "order": 109
+    },
+    "features.power_management.gpio_shutdown.pin": {
+      "help": "BCM GPIO number of the shutdown input. This is a GPIO number, not a physical header-pin number.",
+      "label": "Pin",
+      "order": 110
+    },
+    "features.power_management.gpio_shutdown.delay_seconds": {
+      "help": "Seconds the GPIO must remain at its shutdown level before the Pi shuts down.",
+      "label": "Delay seconds",
+      "order": 112
+    },
+    "features.power_management.connection_management.enabled": {
+      "help": "Automatically manage Hudiy Android Auto and Bluetooth connections using ignition, radio and wake events.",
+      "label": "Enabled",
+      "order": 113
+    },
+    "features.tv_simulation.enabled": {
+      "help": "Transmit TV tuner presence frames so the RNS-E can select the TV source used by the video interface.",
+      "label": "Enabled",
+      "order": 121
+    },
+    "input_mappings.mmi.scroll_commands": {
+      "help": "MMI byte pairs treated as immediate rotary events. These bypass press-duration handling; the matching short-press mapping chooses the keyboard key.",
+      "label": "Scroll commands",
+      "order": 148
+    },
+    "input_mappings.mfsw.commands.release": {
+      "help": "Two-byte steering-wheel release pattern. Keep this as a JSON array of hex strings, matching the vehicle CAN payload.",
+      "label": "Release",
+      "order": 185
+    },
+    "input_mappings.source.tv_mode_identifier": {
+      "help": "Hex source-state byte identifying TV mode. Source controls pause playback when leaving TV and resume when returning.",
+      "label": "Tv mode identifier",
+      "order": 204
+    },
+    "input_mappings.source.play_key": {
+      "help": "Keyboard key emitted on returning to the TV source when features.source_controls is enabled.",
+      "label": "Play key",
+      "order": 205
+    },
+    "input_mappings.source.pause_key": {
+      "help": "Keyboard key emitted on leaving the TV source when features.source_controls is enabled.",
+      "label": "Pause key",
+      "order": 206
+    },
+    "interfaces.zmq.haldex_command": {
+      "help": "Local ZeroMQ endpoint accepting Haldex and exhaust-control requests from DataView.",
+      "label": "Haldex command",
+      "order": 21
+    },
+    "interfaces.zmq.haldex_status": {
+      "help": "Local ZeroMQ endpoint publishing requested and observed Haldex state to DataView and other consumers.",
+      "label": "Haldex status",
+      "order": 22
+    },
+    "can_ids.light_status": {
+      "help": "Vehicle light state used for Hudiy day/night mode. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Light status",
+      "order": 131
+    },
+    "can_ids.time_data": {
+      "help": "Vehicle clock and date used for Pi clock synchronization. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Time data",
+      "order": 132
+    },
+    "can_ids.ignition_status": {
+      "help": "Ignition and key state used by power and connection management. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Ignition status",
+      "order": 133
+    },
+    "can_ids.door_status": {
+      "help": "Door state used for connection wake windows. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Door status",
+      "order": 134
+    },
+    "can_ids.gateway_nm_status": {
+      "help": "Gateway network-management state used to detect bus sleep. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Gateway nm status",
+      "order": 135
+    },
+    "can_ids.nav_nm_status": {
+      "help": "RNS-E network-management state used to track radio activity. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Nav nm status",
+      "order": 136
+    },
+    "can_ids.tv_presence": {
+      "help": "TV tuner presence frames transmitted by TV simulation. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Tv presence",
+      "order": 137
+    },
+    "can_ids.fis_line1": {
+      "help": "First factory top-DIS text line. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Fis line1",
+      "order": 138
+    },
+    "can_ids.fis_line2": {
+      "help": "Second factory top-DIS text line. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Fis line2",
+      "order": 139
+    },
+    "can_ids.media_status": {
+      "help": "Factory media source status. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Media status",
+      "order": 140
+    },
+    "can_ids.nav_status": {
+      "help": "Factory navigation status. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Nav status",
+      "order": 141
+    },
+    "can_ids.mmi": {
+      "help": "RNS-E button and rotary input frames. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Mmi",
+      "order": 142
+    },
+    "can_ids.mfsw": {
+      "help": "Multifunction steering-wheel input frames. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Mfsw",
+      "order": 143
+    },
+    "can_ids.source": {
+      "help": "Selected RNS-E source state. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "type": "text",
+      "label": "Source",
+      "order": 144
+    },
+    "display.center_display.coverart.args.contrast": {
+      "help": "Contrast multiplier; 1 leaves contrast unchanged."
+    },
+    "display.center_display.coverart.args.sharpen": {
+      "help": "Sharpening multiplier; 1 leaves sharpness unchanged."
+    },
+    "display.center_display.coverart.args.dither": {
+      "help": "Monochrome dither method, e.g. fs for Floyd–Steinberg."
+    },
+    "display.center_display.coverart.args.invert": {
+      "help": "Invert the final monochrome pixels."
+    },
+    "display.center_display.coverart.args.no_enhance": {
+      "help": "Skip automatic enhancement before conversion."
+    },
+    "display.center_display.coverart.args.bg_fill": {
+      "help": "Background color used when fitting the image."
+    },
+    "display.center_display.coverart.args.grayscale_mode": {
+      "help": "Grayscale conversion strategy; smart uses luminance processing."
+    },
+    "display.center_display.coverart.args.brightness": {
+      "help": "Brightness multiplier; 1 leaves brightness unchanged."
+    },
+    "display.center_display.coverart.args.gamma": {
+      "help": "Gamma applied during grayscale processing."
+    },
+    "display.center_display.coverart.args.black_floor": {
+      "help": "Shadow cutoff (0–255) used before monochrome conversion."
+    },
+    "display.center_display.coverart.args.boldness": {
+      "help": "Pixel expansion amount for strengthening fine features."
+    },
+    "display.center_display.coverart.args.diffusion": {
+      "help": "Error-diffusion strength for dithered output."
+    },
+    "rnse.auto_brightness.enabled": {
+      "label": "Automatic RNS-E brightness",
+      "type": "boolean",
+      "help": "Set RNS-E screen brightness from vehicle day/night state. Sends a brightness command when the light state changes or the radio wakes. This is separate from Hudiy and Android Auto theme switching.",
+      "order": 4
+    },
+    "rnse.auto_brightness.day_brightness": {
+      "label": "Day brightness",
+      "type": "number",
+      "integer": true,
+      "min": 0,
+      "max": 10,
+      "help": "RNS-E screen brightness in daytime: 0 is the lowest level and 10 is the highest. Used only when automatic RNS-E brightness is enabled.",
+      "order": 5
+    },
+    "rnse.auto_brightness.night_brightness": {
+      "label": "Night brightness",
+      "type": "number",
+      "integer": true,
+      "min": 0,
+      "max": 10,
+      "help": "RNS-E screen brightness when the vehicle reports night mode: 0 is the lowest level and 10 is the highest. Used only when automatic RNS-E brightness is enabled.",
+      "order": 6
+    },
+    "input_mappings.mmi.long_press.0,32": {
+      "help": "Action for RNS-E long press (0,32). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "0,32",
+      "order": 163
+    },
+    "input_mappings.mmi.long_press.0,64": {
+      "help": "Action for RNS-E long press (0,64). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "0,64",
+      "order": 164
+    },
+    "input_mappings.mmi.extended_press.0,32": {
+      "help": "Action for RNS-E extended press (0,32). Enter a shell command run on the Pi; features.system_actions must be enabled.",
+      "type": "json-value",
+      "label": "0,32",
+      "order": 172
+    },
+    "input_mappings.mmi.extended_press.0,64": {
+      "help": "Action for RNS-E extended press (0,64). Enter a shell command run on the Pi; features.system_actions must be enabled.",
+      "type": "json-value",
+      "label": "0,64",
+      "order": 173
+    },
+    "input_mappings.mfsw.commands.scroll_up": {
+      "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
+      "type": "text",
+      "label": "Scroll up",
+      "order": 177
+    },
+    "input_mappings.mfsw.commands.scroll_down": {
+      "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
+      "type": "text",
+      "label": "Scroll down",
+      "order": 178
+    },
+    "input_mappings.mfsw.commands.mode_press": {
+      "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
+      "type": "text",
+      "label": "Mode press",
+      "order": 179
+    },
+    "input_mappings.mfsw.commands.volume_scroll_up": {
+      "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
+      "type": "text",
+      "label": "Volume scroll up",
+      "order": 180
+    },
+    "input_mappings.mfsw.commands.volume_scroll_down": {
+      "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
+      "type": "text",
+      "label": "Volume scroll down",
+      "order": 181
+    },
+    "input_mappings.mfsw.commands.ptt_press": {
+      "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
+      "type": "text",
+      "label": "Ptt press",
+      "order": 182
+    },
+    "input_mappings.mfsw.commands.scroll_click": {
+      "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
+      "type": "text",
+      "label": "Scroll click",
+      "order": 183
+    },
+    "input_mappings.mfsw.commands.volume_scroll_click": {
+      "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
+      "type": "text",
+      "label": "Volume scroll click",
+      "order": 184
+    },
+    "input_mappings.mfsw.short_press.scroll_up": {
+      "help": "Action for steering wheel short press (scroll_up). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Scroll up",
+      "order": 186
+    },
+    "input_mappings.mfsw.short_press.scroll_down": {
+      "help": "Action for steering wheel short press (scroll_down). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Scroll down",
+      "order": 187
+    },
+    "input_mappings.mfsw.short_press.mode": {
+      "help": "Action for steering wheel short press (mode). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Mode",
+      "order": 188
+    },
+    "input_mappings.mfsw.short_press.ptt": {
+      "help": "Action for steering wheel short press (ptt). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Ptt",
+      "order": 189
+    },
+    "input_mappings.mfsw.short_press.scroll_click": {
+      "help": "Action for steering wheel short press (scroll_click). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Scroll click",
+      "order": 190
+    },
+    "input_mappings.mfsw.short_press.volume_scroll_up": {
+      "help": "Action for steering wheel short press (volume_scroll_up). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Volume scroll up",
+      "order": 191
+    },
+    "input_mappings.mfsw.short_press.volume_scroll_down": {
+      "help": "Action for steering wheel short press (volume_scroll_down). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Volume scroll down",
+      "order": 192
+    },
+    "input_mappings.mfsw.short_press.volume_scroll_click": {
+      "help": "Action for steering wheel short press (volume_scroll_click). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Volume scroll click",
+      "order": 193
+    },
+    "input_mappings.mfsw.long_press.mode": {
+      "help": "Action for steering wheel long press (mode). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Mode",
+      "order": 194
+    },
+    "input_mappings.mfsw.long_press.ptt": {
+      "help": "Action for steering wheel long press (ptt). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Ptt",
+      "order": 195
+    },
+    "input_mappings.mfsw.long_press.scroll_click": {
+      "help": "Action for steering wheel long press (scroll_click). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Scroll click",
+      "order": 196
+    },
+    "input_mappings.mfsw.long_press.volume_scroll_up": {
+      "help": "Action for steering wheel long press (volume_scroll_up). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Volume scroll up",
+      "order": 197
+    },
+    "input_mappings.mfsw.long_press.volume_scroll_down": {
+      "help": "Action for steering wheel long press (volume_scroll_down). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Volume scroll down",
+      "order": 198
+    },
+    "input_mappings.mfsw.long_press.volume_scroll_click": {
+      "help": "Action for steering wheel long press (volume_scroll_click). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Volume scroll click",
+      "order": 199
+    },
+    "input_mappings.mfsw.phone_alt.short_press.mode": {
+      "help": "Action for steering wheel short press (mode). Legacy phone override ignored by the current shared wheel router; preserved for older versions. Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Mode",
+      "order": 200
+    },
+    "input_mappings.mfsw.phone_alt.short_press.ptt": {
+      "help": "Action for steering wheel short press (ptt). Legacy phone override ignored by the current shared wheel router; preserved for older versions. Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Ptt",
+      "order": 201
+    },
+    "input_mappings.mfsw.phone_alt.long_press.mode": {
+      "help": "Action for steering wheel long press (mode). Legacy phone override ignored by the current shared wheel router; preserved for older versions. Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Mode",
+      "order": 202
+    },
+    "input_mappings.mfsw.phone_alt.long_press.ptt": {
+      "help": "Action for steering wheel long press (ptt). Legacy phone override ignored by the current shared wheel router; preserved for older versions. Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
+      "type": "json-value",
+      "label": "Ptt",
+      "order": 203
+    }
+  },
+  "sections": [
+    {
+      "id": "rnse",
+      "title": "RNS-E",
+      "root": "rnse",
+      "description": "Control the head unit itself, including screen brightness over CAN."
+    },
+    {
+      "id": "core",
+      "title": "Updates",
+      "keys": [
+        "branch",
+        "repo",
+        "config_restore_repo",
+        "config_restore_branch"
+      ],
+      "description": "Where the Pi gets code updates and replacement configuration."
+    },
+    {
+      "id": "display",
+      "title": "Cluster display",
+      "root": "display",
+      "description": "Center DIS apps, the two top lines, units and scrolling. DataView manages named-value pages under Data & Logs."
+    },
+    {
+      "id": "io",
+      "title": "Buttons & wheel",
+      "root": "input_mappings",
+      "description": "RNS-E and steering-wheel input patterns, press durations and actions."
+    },
+    {
+      "id": "features",
+      "title": "Power & integration",
+      "root": "features",
+      "description": "Day/night mode, vehicle time, connection management and shutdown behavior."
+    },
+    {
+      "id": "diagnostics",
+      "title": "Vehicle readings",
+      "root": "diagnostics",
+      "description": "Diagnostic worker and shared vehicle-value request rates."
+    },
+    {
+      "id": "haldex",
+      "title": "Haldex AWD",
+      "root": "haldex",
+      "description": "Startup mode, mode-command delivery and controller firmware storage."
+    },
+    {
+      "id": "eps",
+      "title": "Steering firmware",
+      "root": "eps",
+      "description": "Storage for EPS controller images and steering datasets."
+    },
+    {
+      "id": "exhaust",
+      "title": "Exhaust valve",
+      "root": "exhaust_valve",
+      "description": "Firmware generation tracking and persisted valve intent."
+    },
+    {
+      "id": "recordings",
+      "title": "Named-value recordings",
+      "root": "data_logs",
+      "description": "Storage and writer capacity for DataView → Data & Logs sessions. Profiles and DIS pages live in workspace.json."
+    },
+    {
+      "id": "logger",
+      "title": "Raw / debug logging",
+      "root": "data_logger",
+      "description": "Raw CAN and measuring-group recording for engineering and troubleshooting."
+    },
+    {
+      "id": "files",
+      "title": "File portal",
+      "root": "file_portal",
+      "description": "Downloads, firmware upload destinations and upload access settings."
+    },
+    {
+      "id": "net",
+      "title": "Service interfaces",
+      "root": "interfaces",
+      "description": "SocketCAN devices and ZeroMQ addresses. Keep endpoint changes consistent across services."
+    },
+    {
+      "id": "can",
+      "title": "CAN identifiers",
+      "root": "can_ids",
+      "description": "Vehicle frame identifiers. Keep the hex string format and match the vehicle’s bus."
+    },
+    {
+      "id": "transport",
+      "title": "Display transport",
+      "keys": [
+        "ddp_bitmap_message_bytes"
+      ],
+      "description": "Low-level limits for drawing cluster bitmaps."
+    },
+    {
+      "id": "openpilot",
+      "title": "Optional integration",
+      "root": "openpilot",
+      "description": "Reserved integration settings."
+    }
+  ]
+}

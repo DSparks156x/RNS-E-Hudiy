@@ -1,0 +1,262 @@
+[
+  {
+    "id": "straight-far",
+    "label": "Straight \u00b7 1.2 km",
+    "images": {
+      "stock": "nav-showcase-stock-straight-far.png",
+      "bitmap": "nav-showcase-bitmap-straight-far.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": false
+  },
+  {
+    "id": "left-far",
+    "label": "Left turn \u00b7 500 m",
+    "images": {
+      "stock": "nav-showcase-stock-left-far.png",
+      "bitmap": "nav-showcase-bitmap-left-far.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": false
+  },
+  {
+    "id": "left-approach",
+    "label": "Left turn \u00b7 250 m",
+    "images": {
+      "stock": "nav-showcase-stock-left-approach.png",
+      "bitmap": "nav-showcase-bitmap-left-approach.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "left-close",
+    "label": "Left turn \u00b7 30 m",
+    "images": {
+      "stock": "nav-showcase-stock-left-close.png",
+      "bitmap": "nav-showcase-bitmap-left-close.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "right",
+    "label": "Right turn \u00b7 100 m",
+    "images": {
+      "stock": "nav-showcase-stock-right.png",
+      "bitmap": "nav-showcase-bitmap-right.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "slight-left",
+    "label": "Slight left \u00b7 200 m",
+    "images": {
+      "stock": "nav-showcase-stock-slight-left.png",
+      "bitmap": "nav-showcase-bitmap-slight-left.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "slight-right",
+    "label": "Slight right \u00b7 150 m",
+    "images": {
+      "stock": "nav-showcase-stock-slight-right.png",
+      "bitmap": "nav-showcase-bitmap-slight-right.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "sharp-left",
+    "label": "Sharp left \u00b7 100 m",
+    "images": {
+      "stock": "nav-showcase-stock-sharp-left.png",
+      "bitmap": "nav-showcase-bitmap-sharp-left.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "sharp-right",
+    "label": "Sharp right \u00b7 60 m",
+    "images": {
+      "stock": "nav-showcase-stock-sharp-right.png",
+      "bitmap": "nav-showcase-bitmap-sharp-right.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "ramp-on-left",
+    "label": "Ramp on left \u00b7 200 m",
+    "images": {
+      "stock": "nav-showcase-stock-ramp-on-left.png",
+      "bitmap": "nav-showcase-bitmap-ramp-on-left.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "ramp-on-right",
+    "label": "Ramp on right \u00b7 150 m",
+    "images": {
+      "stock": "nav-showcase-stock-ramp-on-right.png",
+      "bitmap": "nav-showcase-bitmap-ramp-on-right.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "ramp-off-left",
+    "label": "Ramp off left \u00b7 100 m",
+    "images": {
+      "stock": "nav-showcase-stock-ramp-off-left.png",
+      "bitmap": "nav-showcase-bitmap-ramp-off-left.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "ramp-off-right",
+    "label": "Ramp off right \u00b7 60 m",
+    "images": {
+      "stock": "nav-showcase-stock-ramp-off-right.png",
+      "bitmap": "nav-showcase-bitmap-ramp-off-right.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "fork-left",
+    "label": "Fork left \u00b7 250 m",
+    "images": {
+      "stock": "nav-showcase-stock-fork-left.png",
+      "bitmap": "nav-showcase-bitmap-fork-left.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "fork-right",
+    "label": "Fork right \u00b7 150 m",
+    "images": {
+      "stock": "nav-showcase-stock-fork-right.png",
+      "bitmap": "nav-showcase-bitmap-fork-right.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "u-turn",
+    "label": "U-turn \u00b7 60 m",
+    "images": {
+      "stock": "nav-showcase-stock-u-turn.png",
+      "bitmap": "nav-showcase-bitmap-u-turn.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "roundabout-enter",
+    "label": "Enter roundabout \u00b7 250 m",
+    "images": {
+      "stock": "nav-showcase-stock-roundabout-enter.png",
+      "bitmap": "nav-showcase-bitmap-roundabout-enter.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "roundabout-45",
+    "label": "Roundabout \u00b7 45\u00b0 exit \u00b7 200 m",
+    "images": {
+      "stock": "nav-showcase-stock-roundabout-45.png",
+      "bitmap": "nav-showcase-bitmap-roundabout-45.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "roundabout-90",
+    "label": "Roundabout \u00b7 90\u00b0 exit \u00b7 150 m",
+    "images": {
+      "stock": "nav-showcase-stock-roundabout-90.png",
+      "bitmap": "nav-showcase-bitmap-roundabout-90.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "roundabout-135",
+    "label": "Roundabout \u00b7 135\u00b0 exit \u00b7 100 m",
+    "images": {
+      "stock": "nav-showcase-stock-roundabout-135.png",
+      "bitmap": "nav-showcase-bitmap-roundabout-135.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "roundabout-180",
+    "label": "Roundabout \u00b7 straight exit \u00b7 60 m",
+    "images": {
+      "stock": "nav-showcase-stock-roundabout-180.png",
+      "bitmap": "nav-showcase-bitmap-roundabout-180.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "roundabout-225",
+    "label": "Roundabout \u00b7 225\u00b0 exit \u00b7 100 m",
+    "images": {
+      "stock": "nav-showcase-stock-roundabout-225.png",
+      "bitmap": "nav-showcase-bitmap-roundabout-225.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "roundabout-270",
+    "label": "Roundabout \u00b7 270\u00b0 exit \u00b7 60 m",
+    "images": {
+      "stock": "nav-showcase-stock-roundabout-270.png",
+      "bitmap": "nav-showcase-bitmap-roundabout-270.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "roundabout-315",
+    "label": "Roundabout \u00b7 315\u00b0 exit \u00b7 30 m",
+    "images": {
+      "stock": "nav-showcase-stock-roundabout-315.png",
+      "bitmap": "nav-showcase-bitmap-roundabout-315.png"
+    },
+    "stock_fallback": false,
+    "bar_visible": true
+  },
+  {
+    "id": "merge",
+    "label": "Merge right \u00b7 200 m",
+    "images": {
+      "stock": "nav-showcase-stock-merge.png",
+      "bitmap": "nav-showcase-bitmap-merge.png"
+    },
+    "stock_fallback": true,
+    "bar_visible": true
+  },
+  {
+    "id": "destination",
+    "label": "Destination on right \u00b7 10 m",
+    "images": {
+      "stock": "nav-showcase-stock-destination.png",
+      "bitmap": "nav-showcase-bitmap-destination.png"
+    },
+    "stock_fallback": true,
+    "bar_visible": true
+  }
+]

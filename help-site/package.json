@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "sync-tools": "node scripts/sync-tools.mjs --refresh",
     "build": "node scripts/sync-tools.mjs && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "check": "node --test tests/*.test.mjs"

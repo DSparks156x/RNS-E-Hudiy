@@ -1,0 +1,112 @@
+Native application handshake controller -- 2026-10-08
+
+The user confirmed the preceding combined-reply correction worked in the car.
+That car-tested source (9aa3395e5f6735e1aeb32fd4ff3299a51ac719c31dab5f5445cdd739eb10616c)
+is preserved in RNSE hacking/analysis/native_handshake_controller/baseline/.
+This replacement removes the remaining fingerprint/path decision, PL_LOG tables,
+and short/long initialization transcript runners.
+
+Native control sequence, initial mode1 and no selected display:
+  TX15 01 01 02 00 00 -- session announcement from local14
+  RX00 01             -- real peer mode request; native allows trailing bytes
+  TX01 01 00          -- reply after mode/subtype changed at RECEIVE time
+  TX08                -- capability query, omitted if an early eligible09
+                         already queued setup during the preceding ACK wait
+  RX09 ...            -- mode1, length6..128; tail opaque, no geometry required
+  TX20 3B A0 00       -- fresh tracked setup for each eligible09
+  RX21 ...            -- matching priority or native FFFF sentinel
+  TX33                -- one release for the host's initial no-display intent
+  TXA3/RXA1           -- retained final peer-liveness check, then control readiness
+
+Native evidence:
+80559EA8/80559F7C allocate/open and inject local14.8055A670/8055ACA8 handle14
+and build15,8055A670 handles00.8055AB02 submits01 and queues08 in phase3/mode1.
+8055A4EE selects/retains family and queues20 on every eligible09; only format
+and company are read.8055AE42 builds20.80554870/80554906 validate21 and either
+retry20 or configure then claim/release according to local source intent.
+Joined native oracle PASS38fixtures/674invocations/209822SHinstructions:
+analysis/car_handshake_regression/handshake_protocol_audit/NATIVE_CONTROLLER_GUIDANCE.md
+and startup_joined_native.txt. Real instructions include builders, queue/ring,
+consumer, timer and pointer registration; fixture transport completions/open
+endpoint/kernel event/logger do not prove physical delivery or kernel timing.
+
+Behavior and safeguards:
+- Capability format20 ->52; format10/company03 ->7A; other format10 ->5A.
+  Unknown format retains the prior known family. Unknown-first still completes
+  control setup and stays PAUSED with its renderer disabled. This does not add
+  generic5A rendering or expand the existing restricted7A renderer.
+- All capability tails, including the car's twelve-byte09 record ending in
+  30 39 00 32 00, remain ONE raw application record. No second message, geometry
+  interpretation or dimensions are invented from that tail.
+- Standalone five-byte30 is optional observed compatibility telemetry only
+  during initial01/08/20 response roles. It never selects or advances setup.
+  Role closes before33. Exact already-received reserved objects are retired;
+  new30 at33/finalA3/runtime follows native unknown-request0B0130 handling.
+  Metadata can differ with actual receive timing; control outcome does not rely
+  on metadata. The four-outstanding-object bound remains explicit host policy.
+- Valid initialmode2 is answered01 02 00 and closed as an unsupported initial
+  renderer profile. Nativephase10 does not query08 or force mode1. Runtime mode
+  handling remains separate. Mode1 repeats during discovery are handled as described below; mode changes
+  after the first20 and resets close the interrupted transaction.
+- Each20 captures its causal receive boundary and capability generation.
+  Previously received21 cannot confirm it. New09 queues newsetup, never silently
+  confirms an old generation. Invalidfresh21 retries fresh20, bounded to three
+  host attempts/1000ms waits. These host times are not inferred native ticks.
+- Errors, malformed status, reset/reopen, pending recovery and capability FIFO
+  overflow cannot publishREADY. Queueoverflow handling now also closes safely
+  in shared runtime reconfiguration instead of publishing an older generation.
+- Initial setup does not publishREADY during the queue drain. Terminal guards
+  run after setup, releaseACK and finalkeepalive. Screen claims remain the
+  display service's responsibility; READY is not proof of display ownership.
+
+Repeated mode requests during discovery:
+- Every real00 is reserved by receive-object identity, changes mode/subtype at
+  RECEIVE time, and gets its own01 reply in FIFO order on the same TP session.
+  Only that exact received object is retired AFTER its01 transport ACK.
+- Discovery phase advances at receive time. Early eligible09 after the latest00
+  permits20 without another08. A newer00 requires fresh09; already received older
+  records cannot overwrite the family selected by a newer record.
+- Stricter host policy retires UNSENT setup work from an older mode generation.
+  Native retains that control queue and can send the old20 first. This difference
+  is deliberate and documented; it is not presented as identical native behavior.
+- Reply FIFO is bounded to32. After the first20 submission, a mode change still
+  closes/reopens the interrupted transaction. Partial graphics-block safety and
+  transport generation guards remain intact. Initialmode2 remains unsupported.
+- Additional native oracle PASS5fixtures/111calls/37766SHinstructions and final
+  independent repeated-mode replay review are in REPEATED_MODE_FINAL_REVIEW.md
+  under the audit folder. Physical testing of the preceding cc3fe controller
+  exposed the repeated00 path; this revision addresses it directly.
+
+Changes and tests:
+The32-method main suite covers964framed scenarios, including every
+capability length6..128, all256format/company values, all16RX sequence starts,
+both ACK orders, early00+09, known/unknown families, optionalgeometry roles,
+renewals, fresh/stale/missing/invalid/FFFF21, errors/status/modes/sessionclose,
+release/finalcontrol interruptions and runtime FIFOoverflow. Final sourcebound
+independent reviews found no remaining actionable delta defect.
+A12-method mode-event suite adds34framed scenarios, for44tests/998vectors.
+Portable packaged regression run adds captured bench/car wire checks, content
+requests and framing/zero-gap tests:63tests/1003scenarios PASS. CAN constructors
+are denied; peer replies, timing and physical send/receive edges are synthetic.
+
+The separate old50-test transport/state run has the same16failures/1error before
+and after this change. Those older fixtures use mismatched RX sequence numbers,
+missing applicationmode/setup or old FREE assumptions; they do not establish
+additional regressions. Baseline/candidate reports are retained explicitly.
+Obsolete initialization transcript tests were replaced by the new native suite;
+content-request fixtures now supply actual configured setup and typed status.
+
+Run targeted portable checks from the RNS-E-Hudiy repo:
+  python -m unittest discover -s tests -p test_native_handshake_controller.py -v
+  python -m unittest discover -s tests -p test_opening_mode_events.py -v
+  python -m unittest discover -s tests -p test_ddp_white_opening_compatibility.py -v
+  python -m unittest discover -s tests -p test_ddp_init_profiles.py -v
+
+Source SHA256:84a1f56d058a5f9095bb6f7a1a364d09a591493d002c7ad5dcbe5de77f542e5f
+Review, baseline, native proof, tests and publication manifest are retained under
+RNSE hacking/analysis/native_handshake_controller/ and the linked audit folder.
+Physical validation: three warm starts completed setup in one attempt each;
+18 media/navigation/approach scenes received physicalDRAW_ACK. Startup screen
+unavailability and2E recovery completed without aTP reconnect. See
+BENCH_RESULTS.txt for source-bound captures, scope and remaining car validation.
+No Pi deployment or Git push is implied by local publication.

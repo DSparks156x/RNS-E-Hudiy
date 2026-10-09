@@ -1,5 +1,5 @@
 import { createContext, useContext, useId, useState } from 'react';
-import config from '../../config.json';
+import config from '../data/control-defaults.json';
 import './rnse-faceplate.css';
 
 // Physical positions follow the Audi RNS-E quick reference; actions come from

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { DemoImage, Figure, FeatureDemo, Note, PageHead, Related, Section, Settings, SourceLink, Steps, Table, ConfigLaunch } from './ui';
 import { WheelExplainer } from './WheelExplainer';
 import RnseFaceplate from './RnseFaceplate';
+import { NavigationShowcase } from './NavigationShowcase';
+import { howToGroup, howToTopics, HowToPages } from './HowToGuides';
 
 export const groups = [
   { id: 'start', title: 'OVERVIEW' },
@@ -9,6 +11,7 @@ export const groups = [
   { id: 'data', title: 'VEHICLE DATA' },
   { id: 'controls', title: 'CONTROLS & BEHAVIOR' },
   { id: 'setup', title: 'SETUP & TOOLS' },
+  howToGroup,
 ];
 export const topics = [
   { id: 'overview', group: 'start', title: 'What this adds', icon: '⌂', summary: 'Screens and features in this fork', keywords: 'overview capabilities features' },
@@ -28,6 +31,7 @@ export const topics = [
   { id: 'configuration', group: 'setup', title: 'Configuration helper', icon: '⚙', summary: 'Load, edit and export the selected branch config', keywords: 'repo branch config.json settings import download' },
   { id: 'files', group: 'data', title: 'File portal', icon: '▤', summary: 'Firmware uploads, drive recordings and debug-log downloads', keywords: 'binary bin file upload PIN ZIP archive folders CSV download Save Logs API readout' },
   { id: 'tools', group: 'setup', title: 'Developer tools', icon: '↗', summary: 'Artwork, text, themes, emulation and CAN tools', keywords: 'AUDSCII bitmap GIF image tester DHU bench catalog measuring inspector' },
+  ...howToTopics,
 ];
 
 function Overview() {
@@ -92,14 +96,13 @@ function Readings() { return <>
 
 function Navigation() { return <>
   <PageHead location="CLUSTER DISPLAY / NAVIGATION" title="Navigation on the DIS">Turn instructions from Hudiy appear in the cluster with street text and a maneuver approach bar. You can select navigation yourself or let it interrupt another page near a turn.</PageHead>
-  <FeatureDemo src="dis-navigation-approach.gif" caption="White/native DIS: bitmap maneuver artwork, next-turn distance, street text and the approach bar changing as the turn gets closer." title="What the display shows"><p>The maneuver icon is the next instruction supplied by Hudiy. On the white/native DIS, the approach bar gives a visual distance cue; bitmap mode also shows the numeric distance.</p><p>The street line uses the available width. It scrolls when the instruction does not fit. Distance formatting follows your navigation units.</p></FeatureDemo>
+  <Section title="Stock icons & bitmap artwork"><NavigationShowcase/><p>The street line scrolls when the instruction does not fit. Distance formatting follows your navigation units. The instructions available depend on what the Hudiy navigation source sends.</p><p>On the native white DIS, <code>display.center_display.navigation.icon_style</code> selects <code>stock</code> or <code>bitmap</code>. If that optional key is absent, the renderer uses bitmap unless the older renderer setting selects stock. The red display uses its legacy layout.</p></Section>
   <Section title="Automatic switching, step by step"><Steps items={[
     ['A maneuver arrives or changes', 'Navigation gets a five-second preview. This lets you see the next instruction even while another app is selected.'],
     ['You reach the approach distance', 'Navigation stays in front. The current config starts this at 500 m from the maneuver.'],
     ['The next maneuver is farther away', 'Once distance retreats beyond the return threshold—1000 m in the current config—the approach interruption resets.'],
     ['You choose another page manually', 'That maneuver’s approach switching is suppressed until the maneuver changes or distance retreats. The page does not immediately yank you back.'],
   ]}/><p>Bringing up navigation near a maneuver and claiming the cluster for the whole route are separate settings.</p></Section>
-  <Section title="Stock or bitmap icons"><div className="visual-grid"><Figure src="dis-navigation-stock.png" pixel caption="White/native DIS, stock mode: cluster glyph and approach bar, without the numeric distance field."/><Figure src="dis-navigation.png" pixel caption="White/native DIS, bitmap mode: project maneuver artwork and numeric next-turn distance."/></div><p>The artwork catalog covers turns, forks, ramps, merges, roundabouts and destinations. Which instructions you actually see depends on what the Hudiy navigation source sends.</p></Section>
   <Settings rows={[
     ['display.center_display.navigation.auto_switch', 'Enable maneuver previews and approach interruptions.'],
     ['display.center_display.navigation.auto_switch_approach_threshold', 'Distance in meters at which navigation stays in front.'],
@@ -214,7 +217,7 @@ function Recordings() { return <>
   <PageHead location="VEHICLE DATA / DATA & LOGS" title="Record, review & export">Record only the values you choose. Add markers during the drive, inspect the result on the touchscreen, or export the entire recording as CSV.</PageHead>
   <Figure src="dataview-record.jpg" caption="Record: select a profile, choose values, start recording and add markers without leaving the screen."/>
   <Section title="Make a recording profile"><Steps items={[
-    ['Open Data & Logs → Record', 'Choose an existing profile from the dropdown or use + to create one. Profile settings names it and sets estimated/unverified provider opt-ins.'],
+    ['Open Data & Logs → Record', 'Choose an existing profile from the dropdown. + creates a profile using the current selection’s values, so it is useful for making a variation. Profile settings names it and sets estimated/unverified provider opt-ins.'],
     ['Choose values', 'Browse system → function/group, or search across all systems. Selected shows only the values already chosen. Read provider labels when picking an estimated or unverified value.'],
     ['Start and add markers', 'Start records the selected profile. Mark adds a timestamped event. Recording continues even if you switch to another dashboard tab.'],
     ['Stop & save or Stop & review', 'Stop & save leaves you on Record. Stop & review saves the session and opens its recent section.'],
@@ -229,7 +232,8 @@ function Recordings() { return <>
     ['Events', 'Search nonnumeric readings and unavailable/error status changes.'],
     ['CSV', 'Export the full session, even when the on-screen review reaches its sample limit.'],
   ]}/><p>Stale and invalid samples produce gaps. They do not become a flat line that looks like a steady measurement.</p></Section>
-  <Section title="Start it from the DIS"><p>Choose a page’s <strong>Log:</strong> profile in the DIS editor. The cluster play/stop/flag controls operate this same session. DataView’s service stays responsible for the recorder, independently of whichever tab is visible.</p><a className="text-button inline-link" href="#readings">Set up a readings page →</a></Section>
+  <Section title="What the saved session contains"><p>Starting a session captures its profile and catalog metadata. Later profile edits do not rewrite an old recording. The live footer reports dropped rows: those rows were not saved. Restarting the DataView service does not resume a running session.</p><a className="text-button inline-link" href="#record-a-run">Choose values and interpret the recording →</a></Section>
+  <Section title="Start it from the DIS"><p>Choose a page’s <strong>Log:</strong> profile in the DIS editor. The cluster play/stop/flag controls operate this same session. DataView’s service stays responsible for the recorder, independently of whichever tab is visible.</p><a className="text-button inline-link" href="#build-readings">Build a readings page →</a></Section>
   <Section title="Two recorders, different jobs"><Table headings={['Recorder', 'Where / what it records']} rows={[
     ['Data & Logs', 'Chosen named values and shared DIS profiles. Review graphs/events and export the complete recording. Stored under data_logs.directory.'],
     ['AWD Drive Logger', 'Older Haldex fused and Raw CAN profiles for engineering/debugging. Understeer, Oversteer and Launch markers. Uses data_logger and its separate directory.'],
@@ -242,14 +246,19 @@ function Diagnostics() { return <>
   <Figure src="dataview-diagnostics.jpg" caption="Diagnostics module picker. Supported controller workflows open from their module; the exhaust controller has its own tile."/>
   <Section title="Read fault codes"><Steps items={[
     ['Choose a module', 'Open Diagnostics and tap Engine, Auto Trans, AWD or another listed module. This is a module picker, not proof that every listed ECU supports every operation.'],
-    ['Read DTCs', 'The fault list shows decimal/hex code and decoded status. Freeze-frame fields are decoded when supported; otherwise the raw bytes remain visible.'],
+    ['Read DTCs and wait for the response', 'The initial “No fault codes found” label appears before a read has completed too; it is not evidence of a clean ECU. The returned fault list shows decimal/hex code and decoded status. Freeze-frame fields are decoded when supported; otherwise the raw bytes remain visible.'],
     ['Clear DTCs when appropriate', 'The clear operation is separate from reading. Check the module’s response and read again to see its current state.'],
   ]}/><p>Engine is the most established path. Support on other controllers varies.</p></Section>
   <Section title="Inspect measuring groups"><Figure src="dataview-diagnostics-engine.jpg" caption="Engine measuring groups 3, 20 and 115: three independent selectors, returned fields and units. Values and empty fault list are synthetic."/><Steps items={[
     ['Tap Grp 1, Grp 2 or Grp 3', 'Enter a group number with the keypad. The selected module supplies the values.'],
-    ['Compare the returned fields', 'The screen shows up to three groups at once. Group numbers and field meanings depend on the controller.'],
-    ['Switch modules as needed', 'Group selections are remembered per module while the UI is running.'],
+    ['Compare the returned fields', 'The screen shows up to three groups at once, with four fields per group. Group numbers and field meanings depend on the controller.'],
+    ['Free a selector or switch modules', 'Clear a group number in the keypad to release that selector. Group selections are remembered per module while the UI is running.'],
   ]}/></Section>
+  <Section title="Engine group examples"><Table headings={['Group', 'What to compare']} rows={[
+    ['3', 'Engine speed, mass air flow and ignition timing.'],
+    ['20', 'Timing retard for the four cylinders.'],
+    ['115', 'Requested versus actual absolute boost pressure.'],
+  ]}/><p>These are catalog examples for supported engine ECUs. Read the returned labels and units rather than assuming a group means the same thing on every controller.</p></Section>
   <Section title="Use another scanner"><p>Disable diagnostics using the Hudiy diagnostic action/toggle before connecting VCDS or another scanner. This stops the project’s diagnostic activity so the other tool can use the link.</p><p>Passive CAN readings can still be available when diagnostics is off. A CAN-derived temperature and an ECU measuring-group value do not necessarily come from the same source.</p></Section>
   <Related links={[[ 'controllers', 'Controller tools', 'Haldex Gen4, PQ EPS and exhaust workflows.' ],['dataview','Dashboards','Normal live Engine, Transmission and AWD views.']]}/>
 </>; }
@@ -263,6 +272,12 @@ function Controllers() { return <>
     ['Choose the transfer or readout coverage', 'Selected sectors determine which firmware areas are written or read. Supported 320 KiB images are patched and their checksums repaired by the workflow.'],
     ['Hold to Flash, or read the selected sectors', 'Writing shows progress and recovery status. Readouts can be cancelled with two taps; their reports describe which sectors were captured.'],
   ]}/><p>A Haldex readout is not automatically a full backup: unread addresses contain <code>FF</code> padding. Keep the coverage report with the image.</p><SourceLink source="references/HALDEX_READOUT.md">Readout details</SourceLink></Section>
+  <Section title="Read Haldex firmware without uploading anything"><Steps items={[
+    ['Query the controller', 'Open Diagnostics → AWD → Flash Controller and use Query Controller. No input firmware file is needed for a readout.'],
+    ['Select the sectors to capture', 'Choose the coverage, then Read Controller firmware. A cancelled or failed operation can still produce a report; that does not mean the entire image was captured.'],
+    ['Keep the BIN and report together', 'The report records coverage and checksum results. Unread addresses contain FF padding, so compare its coverage before calling the image a full backup. Download both from the file portal.'],
+    ['Exit Flashing Mode when permitted', 'Readout enters the same persistent Flashing Mode as other controller operations. Turn it off through Hudiy after completion when the workflow permits.'],
+  ]}/></Section>
   <Section title="PQ EPS steering" id="eps-tools"><p><strong>Open:</strong> Diagnostics → Steering Assist → Flash Controller.</p><Figure src="dataview-eps.jpg" caption="PQ EPS with a sample 4 KiB dataset. The input locks the region to the steering dataset; live revision determines whether the action is allowed."/><Table headings={['Input / operation', 'Purpose']} rows={[
     ['384 KiB CPU-linear image', 'Full supported EPS firmware image.'],
     ['Exact 4 KiB steering dataset', 'Steering dataset transfer, distinct from a full firmware update.'],
@@ -341,7 +356,7 @@ function Setup() { return <>
   <PageHead location="SETUP / INSTALLATION" title="Install & update">RNS-E Hudiy runs with Hudiy on a Raspberry Pi connected to the vehicle CAN and the RNS-E video input. Use the project installation instructions for the exact hardware setup.</PageHead>
   <Steps items={[
     ['Check the hardware and existing setup', 'Confirm the video interface, Pi/CAN wiring, cluster type and supported controllers. Back up the existing config and Hudiy settings.'],
-    ['Choose the repository and update track', 'The current defaults are DSparks156x/RNS-E-Hudiy and testing. Testing follows that branch; release/beta prefer their latest matching version tag, then a branch/main fallback.'],
+    ['Choose the repository and update track', 'The current defaults are DSparks156x/RNS-E-Hudiy and testing. Testing follows that branch; release/beta prefer their latest matching version tag, then the literal branch. A missing reference cancels the update.'],
     ['Run the updater/installer on the Pi', 'Follow the project README. The installer configures dependencies, CAN interfaces and systemd services, and adds missing config fields while preserving existing preferences.'],
     ['Configure the car-specific choices', 'CAN device names, enabled displays, default app/order, button mappings, connection behavior and power wiring. Export your edits from the config helper.'],
     ['Restart affected services and check the result', 'Verify Hudiy data arrives, the DIS shows the chosen app, and DataView opens. Capture service logs if an input or display does not behave as expected.'],
@@ -431,4 +446,4 @@ function Tools() { return <>
   <Related links={[[ 'configuration', 'Configuration helper', 'Edit the installed project’s settings.' ],['files','Files & support logs','Pi downloads, uploads and captures.']]}/>
 </>; }
 
-export const Pages = { overview: Overview, readings: Readings, navigation: Navigation, media: Media, phone: Phone, acceleration: Acceleration, 'top-display': TopDisplay, dataview: Dashboards, recordings: Recordings, diagnostics: Diagnostics, controllers: Controllers, controls: Controls, power: Power, setup: Setup, configuration: Configuration, files: Files, tools: Tools };
+export const Pages = { overview: Overview, readings: Readings, navigation: Navigation, media: Media, phone: Phone, acceleration: Acceleration, 'top-display': TopDisplay, dataview: Dashboards, recordings: Recordings, diagnostics: Diagnostics, controllers: Controllers, controls: Controls, power: Power, setup: Setup, configuration: Configuration, files: Files, tools: Tools, ...HowToPages };
