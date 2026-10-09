@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 from unittest.mock import Mock, patch
 
@@ -125,6 +126,45 @@ class SaveAPICaptureTests(unittest.TestCase):
                               f'tp2_worker_{index}.log'])
             self.assertEqual(json.loads((bundle / f'hudiy-api-events_{index}.log').read_text())['sequence'], index)
         self.assertEqual([call.args[0].index for call in client.set_event_handler.call_args_list], [1, 2])
+
+    def test_simultaneous_button_saves_preserve_first_bundle_after_restart(self):
+        self.config['features'] = {'log_saver': {
+            'services': ['tp2_worker.service'], 'log_directory': str(self.destination)}}
+        (self.root / 'config.json').write_text(json.dumps(self.config))
+        self.capture.write_bytes(b'{"sequence":1}\n')
+        date = self.destination / '2026-10-08'
+        first = date / '1'
+        first.mkdir(parents=True)
+        original = first / 'tp2_worker_1.log'
+        original.write_text('first bundle\n', encoding='utf-8')
+        ready = threading.Barrier(2)
+        failures = []
+        def journal(*args, **kwargs):
+            ready.wait(timeout=3)
+            return Mock(returncode=0, stdout='new journal\n')
+        def save():
+            try:
+                SAVE_LOGS.main()
+            except Exception as error:
+                failures.append(error)
+        with patch.object(SAVE_LOGS, 'Client', None), \
+                patch.object(SAVE_LOGS, 'datetime') as clock, \
+                patch.object(SAVE_LOGS.os.path, 'expanduser',
+                             side_effect=lambda value: str(self.root) if value == '~' else value), \
+                patch.object(SAVE_LOGS.subprocess, 'run', side_effect=journal):
+            clock.now.return_value.strftime.return_value = '2026-10-08'
+            workers = [threading.Thread(target=save) for _ in range(2)]
+            for worker in workers:
+                worker.start()
+            for worker in workers:
+                worker.join(timeout=5)
+                self.assertFalse(worker.is_alive())
+        self.assertEqual(failures, [])
+        self.assertEqual(original.read_text(encoding='utf-8'), 'first bundle\n')
+        self.assertEqual(sorted(path.name for path in date.iterdir()), ['1', '2', '3'])
+        for index in (2, 3):
+            self.assertEqual((date / str(index) / f'tp2_worker_{index}.log').read_text(), 'new journal\n')
+            self.assertEqual((date / str(index) / f'hudiy-api-events_{index}.log').read_bytes(), b'{"sequence":1}\n')
 
 
 if __name__ == '__main__':

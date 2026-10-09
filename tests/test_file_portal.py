@@ -157,6 +157,8 @@ class FilePortalTests(unittest.TestCase):
     def test_archive_contains_relative_paths(self):
         response = self.client.get("/api/files/archive/service_logs")
         self.assertEqual(response.status_code, 200)
+        self.assertIn("rnse-service_logs-", response.headers["Content-Disposition"])
+        self.assertNotIn("tp2_worker.log", response.headers["Content-Disposition"])
         with zipfile.ZipFile(io.BytesIO(response.data)) as archive:
             self.assertEqual(archive.namelist(), ["2026-09-17/1/tp2_worker.log"])
 
@@ -164,6 +166,71 @@ class FilePortalTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(all_logs.data)) as archive:
             self.assertIn("drive_logs/drive.csv", archive.namelist())
             self.assertIn("runtime_logs/can_handler.log", archive.namelist())
+
+    def test_saved_service_folders_have_individual_bundles(self):
+        folder = os.path.join(self.service_logs, "2026-09-17", "1")
+        with open(os.path.join(folder, "can_handler.log"), "wb") as handle:
+            handle.write(b"CAN output")
+        other = os.path.join(self.service_logs, "2026-09-17", "2")
+        os.makedirs(other)
+        with open(os.path.join(other, "can_handler.log"), "wb") as handle:
+            handle.write(b"next capture")
+        collections = {item["id"]: item for item in self.client.get("/api/files").get_json()["collections"]}
+        groups = collections["service_logs"]["groups"]
+        self.assertEqual([group["path"] for group in groups], ["2026-09-17/2", "2026-09-17/1"])
+        self.assertEqual(groups[1]["count"], 2)
+        self.assertEqual(groups[1]["total_size"], len(b"worker outputCAN output"))
+        self.assertEqual(groups[1]["date"], "2026-09-17")
+        response = self.client.get(groups[1]["archive_url"])
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("rnse-service_logs-2026-09-17-1-", response.headers["Content-Disposition"])
+        self.assertNotIn("tp2_worker.log", response.headers["Content-Disposition"])
+        with zipfile.ZipFile(io.BytesIO(response.data)) as archive:
+            self.assertEqual(archive.namelist(), ["2026-09-17/1/can_handler.log", "2026-09-17/1/tp2_worker.log"])
+            self.assertEqual(archive.read("2026-09-17/1/can_handler.log"), b"CAN output")
+
+    def test_logs_sort_by_recording_date_and_numeric_sequence(self):
+        for relative, modified in [("2026-09-18/haldex_0002.csv", 500),
+                                   ("2026-09-18/haldex_0010.csv", 100),
+                                   ("2026-09-17/haldex_0020.csv", 999999),
+                                   ("haldex_20260916_235959_123456.csv", 9999999)]:
+            path = os.path.join(self.logs, *relative.split("/"))
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as handle:
+                handle.write(b"timestamp,rpm\n")
+            os.utime(path, (modified, modified))
+        os.utime(os.path.join(self.logs, "drive.csv"), (0, 0))
+        collections = {item["id"]: item for item in self.client.get("/api/files").get_json()["collections"]}
+        files = collections["drive_logs"]["files"]
+        self.assertEqual([item["path"] for item in files[:4]], [
+            "2026-09-18/haldex_0010.csv", "2026-09-18/haldex_0002.csv",
+            "2026-09-17/haldex_0020.csv", "haldex_20260916_235959_123456.csv"])
+        self.assertEqual(files[3]["date"], "2026-09-16")
+        self.assertEqual(files[0]["folder"], "2026-09-18")
+        self.assertEqual(files[0]["sequence"], 10)
+        self.assertIsNone(files[3]["sequence"])
+
+    def test_catalog_keeps_every_file_in_large_folder(self):
+        folder = os.path.join(self.logs, "2026-09-18")
+        os.makedirs(folder)
+        for sequence in range(1, 502):
+            with open(os.path.join(folder, f"haldex_{sequence:04d}.csv"), "wb") as handle:
+                handle.write(b"timestamp,rpm\n")
+        collections = {item["id"]: item for item in self.client.get("/api/files").get_json()["collections"]}
+        self.assertEqual(collections["drive_logs"]["count"], 502)
+        self.assertEqual(len(collections["drive_logs"]["files"]), 502)
+        self.assertEqual(collections["drive_logs"]["groups"][0]["count"], 501)
+
+    def test_folder_bundle_rejects_escape_missing_and_prefix_sibling(self):
+        for path in ("../", "missing", "2026-09-17/11"):
+            self.assertEqual(self.client.get("/api/files/archive/service_logs/" + path).status_code, 404)
+        self.assertEqual(self.client.get("/api/files/archive/all_logs/2026-09-17").status_code, 404)
+
+    def test_folder_bundle_keeps_collection_size_limit(self):
+        from hudiy_dataview.file_portal import DEFAULT_ARCHIVE_LIMIT
+        with patch("hudiy_dataview.file_portal.os.path.getsize", return_value=DEFAULT_ARCHIVE_LIMIT + 1):
+            response = self.client.get("/api/files/archive/service_logs/2026-09-17/1")
+        self.assertEqual(response.status_code, 413)
 
 
 if __name__ == "__main__":

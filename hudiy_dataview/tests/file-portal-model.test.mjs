@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
 const source = await readFile(new URL('../src/filePortalModel.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2020}}).outputText;
-const {collectionGroup,visibleFiles,validateFile} = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+const {collectionGroup,visibleFiles,folderFiles,validateFile} = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 test('all backend collection types have a reachable group', () => {
   assert.equal(collectionGroup({id:'drive_logs',kind:'logs'}),'recordings');
   for(const id of ['service_logs','runtime_logs','hudiy_api','flash_logs','future_log']) assert.equal(collectionGroup({id,kind:'logs'}),'debug');
@@ -23,6 +23,30 @@ test('upload rejects wrong type, empty or oversized file, preserving server vali
   assert.match(validateFile({name:'firmware.txt',size:1},target),/\.bin/);
   assert.match(validateFile({name:'firmware.bin',size:1025},target),/exceeds/);
   assert.match(validateFile({name:'firmware.bin',size:0},target),/empty/);
+});
+
+test('recording dates take precedence over copied file modification times and numbers sort naturally', () => {
+  const files = [
+    {name:'daily_0002.csv',path:'2026-10-08/daily_0002.csv',modified:100,size:1,sequence:2},
+    {name:'daily_0010.csv',path:'2026-10-08/daily_0010.csv',modified:90,size:1,sequence:10},
+    {name:'daily_20261007_120000.csv',path:'daily_20261007_120000.csv',modified:9999999999,size:1},
+  ];
+  assert.deepEqual(visibleFiles(files,'','date').map(file=>file.name),['daily_0010.csv','daily_0002.csv','daily_20261007_120000.csv']);
+  assert.deepEqual(visibleFiles(files,'','name').map(file=>file.name),['daily_0002.csv','daily_0010.csv','daily_20261007_120000.csv']);
+  assert.deepEqual(folderFiles(visibleFiles(files,'','date'), [], 'date', true).map(folder=>folder.label), ['2026-10-08','2026-10-07']);
+});
+
+test('folder bundles remain available with a filtered search and newest session folders appear first', () => {
+  const files = visibleFiles([
+    {name:'dis.log',path:'2026-10-08/2/dis.log',size:10,modified:200},
+    {name:'dis.log',path:'2026-10-08/10/dis.log',size:10,modified:100},
+    {name:'tp2.log',path:'2026-10-07/1/tp2.log',size:10,modified:300},
+  ], 'dis', 'date');
+  const groups = [{path:'2026-10-08/10',archive_url:'/bundle/10'}];
+  const folders = folderFiles(files,groups);
+  assert.deepEqual(folders.map(folder=>folder.path),['2026-10-08/10','2026-10-08/2']);
+  assert.equal(folders[0].archive_url,'/bundle/10');
+  assert.deepEqual(folders[0].files.map(file=>file.name),['dis.log']);
 });
 test('capture catalog allows uploads to only the three real built-in firmware targets', async () => {
   const fixture = await readFile(new URL('../../help-site/scripts/capture-file-portal.jsx', import.meta.url), 'utf8');

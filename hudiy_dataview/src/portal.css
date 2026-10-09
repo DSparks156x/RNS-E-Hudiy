@@ -54,6 +54,14 @@
 .portal-container .portal-file-name small { font-size:10px; line-height:1.25; }
 .portal-file-path { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .portal-list-count { margin:10px 0 0; font-size:10px; color:var(--on-surface-variant); }
+.portal-folder { padding:12px 0; border-bottom:1px solid var(--outline-variant); }
+.portal-folder:last-child { border-bottom:0; }
+.portal-folder-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.portal-folder-heading > span { display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-width:0; }
+.portal-folder-heading strong { font-size:13px; overflow-wrap:anywhere; }
+.portal-folder-heading small { font-size:10px; color:var(--on-surface-variant); }
+.portal-folder summary { cursor:pointer; padding:12px 4px; font-size:11px; color:var(--primary); }
+.portal-folder summary:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
 .portal-container .portal-card-heading { gap:10px; margin:0 0 22px; }
 .portal-container .portal-card-heading h2 { flex:1; font-size:18px; font-weight:600; }
 .portal-container .portal-card-heading .portal-icon-button { width:32px; height:32px; flex-basis:32px; }

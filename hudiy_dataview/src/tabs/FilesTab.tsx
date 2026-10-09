@@ -1,5 +1,5 @@
 import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { collectionGroup, FileGroup, PortalCatalog, validateFile, visibleFiles } from '../filePortalModel';
+import { collectionGroup, FileGroup, folderFiles, PortalCatalog, PortalFile, validateFile, visibleFiles } from '../filePortalModel';
 
 export interface FilesTabProps {
   loadCatalog?: () => Promise<PortalCatalog>;
@@ -31,7 +31,7 @@ export const formatSize = (bytes: number) => bytes < 1024 ? `${bytes} B`
   : bytes < 1024 ** 2 ? `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`
   : `${(bytes / 1024 ** 2).toFixed(bytes < 10 * 1024 ** 2 ? 1 : 0)} MB`;
 const formatDate = (timestamp: number) => new Intl.DateTimeFormat(undefined, {
-  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
 }).format(new Date(timestamp * 1000));
 function Icon({ name }: { name: 'download' | 'upload' | 'folder' | 'refresh' | 'search' | 'close' }) {
   const paths = {
@@ -85,6 +85,11 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
   const uploadTargets = collections.filter(collection => collection.upload);
   const currentTarget = uploadTargets.find(target => target.id === selectedTarget);
   const files = useMemo(() => visibleFiles(currentCollection?.files || [], search, sort), [currentCollection, search, sort]);
+  const folders = useMemo(() => folderFiles(files, currentCollection?.groups, sort, currentCollection?.kind === 'logs'), [files, currentCollection, sort]);
+  const fileRow = (file: PortalFile) => <a className="portal-file-row" href={file.download_url} key={`${currentCollection?.id}:${file.path}`} aria-label={`Download ${file.path}`}>
+    <span className="portal-file-type">{file.name.split('.').pop()?.slice(0, 4).toUpperCase()}</span>
+    <span className="portal-file-name"><strong>{file.name}</strong><small>{formatDate(file.modified)} · {formatSize(file.size)}</small>{file.path !== file.name && <small className="portal-file-path">{file.path}</small>}</span>
+    <span className="portal-download-icon"><Icon name="download" /></span></a>;
   const validation = selectedFile && currentTarget ? validateFile(selectedFile, currentTarget) : null;
   const chooseFile = (file: File | null) => { setSelectedFile(file); setMessage(null); };
   const onFileInput = (event: ChangeEvent<HTMLInputElement>) => chooseFile(event.target.files?.[0] || null);
@@ -135,10 +140,11 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
             <div className="portal-file-list pretty-scroll" aria-busy={loading}>
               {loading && <div className="portal-empty" role="status">Loading device files…</div>}
               {!loading && !files.length && <div className="portal-empty">{search ? 'No files match this search.' : 'No files in this collection yet.'}</div>}
-              {!loading && files.map(file => <a className="portal-file-row" href={file.download_url} key={`${currentCollection?.id}:${file.path}`} aria-label={`Download ${file.name}`}>
-                <span className="portal-file-type">{file.name.split('.').pop()?.slice(0, 4).toUpperCase()}</span>
-                <span className="portal-file-name"><strong>{file.name}</strong><small>{formatDate(file.modified)} · {formatSize(file.size)}</small>{file.path !== file.name && <small className="portal-file-path">{file.path}</small>}</span>
-                <span className="portal-download-icon"><Icon name="download" /></span></a>)}
+              {!loading && folders.map(folder => folder.label ? <div className="portal-folder" key={`${currentCollection?.id}:${folder.key}`}>
+                <div className="portal-folder-heading"><span><Icon name="folder" /><strong>{folder.label}</strong><small>{folder.files.length} {folder.files.length === 1 ? 'file' : 'files'}</small></span>
+                  {folder.archive_url && <a className="portal-bundle-button" href={folder.archive_url} aria-label={`Download ${folder.path} ZIP`}><Icon name="download" /><span>Folder ZIP</span></a>}</div>
+                <details key={`${currentCollection?.id}:${folder.key}:${!!search}`} open={search ? true : undefined}><summary>Browse files</summary>{folder.files.map(fileRow)}</details>
+              </div> : folder.files.map(fileRow))}
             </div>
             {!loading && <p className="portal-list-count">{files.length} of {currentCollection?.count || 0} {currentCollection?.count === 1 ? 'file' : 'files'}</p>}
           </article>

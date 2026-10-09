@@ -1,8 +1,11 @@
 import csv
 import sys
 import tempfile
+import threading
 import unittest
+from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +28,81 @@ from hudiy_dataview.data_logger import (  # noqa: E402
 
 
 class DataLoggerTests(unittest.TestCase):
+    def test_default_logs_use_date_folders_and_continue_after_restart(self):
+        with tempfile.TemporaryDirectory() as temporary, \
+                patch('hudiy_dataview.data_logger.datetime') as clock:
+            clock.now.return_value = datetime(2026, 10, 8, 12)
+            day = Path(temporary) / '2026-10-08'
+            day.mkdir()
+            original = day / 'haldex_0001.csv'
+            original.write_text('first recording\n', encoding='utf-8')
+            (day / 'raw_can_0003.csv').write_text('third recording\n', encoding='utf-8')
+            config = {'data_logger': {'log_directory': temporary}}
+            recorder = DataLogger(config)
+            status = recorder.start_recording('haldex')
+            self.assertEqual(Path(status['output_path']), day / 'haldex_0004.csv')
+            self.assertTrue(Path(status['output_path']).exists())
+            recorder.stop_recording()
+            recorder = DataLogger(config)
+            status = recorder.start_recording('raw_can')
+            self.assertEqual(Path(status['output_path']), day / 'raw_can_0005.csv')
+            recorder.stop_recording()
+            (day / 'raw_can_0005.csv').unlink()
+            recorder = DataLogger(config)
+            status = recorder.start_recording('haldex')
+            self.assertEqual(Path(status['output_path']), day / 'haldex_0006.csv')
+            recorder.stop_recording()
+            clock.now.return_value = datetime(2026, 10, 9, 0)
+            status = recorder.start_recording('raw_can')
+            self.assertEqual(Path(status['output_path']), Path(temporary) / '2026-10-09/raw_can_0001.csv')
+            recorder.stop_recording()
+            self.assertEqual(original.read_text(encoding='utf-8'), 'first recording\n')
+
+    def test_simultaneous_recorders_reserve_distinct_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            recorders = [DataLogger({'data_logger': {'log_directory': temporary}}) for _ in range(2)]
+            ready = threading.Barrier(2)
+            failures, paths = [], []
+            for recorder in recorders:
+                allocator = recorder._default_output_path
+                def synchronized_allocator(profile, allocator=allocator, first=[True]):
+                    path = allocator(profile)
+                    if first[0]:
+                        first[0] = False
+                        ready.wait(timeout=3)
+                    return path
+                recorder._default_output_path = synchronized_allocator
+            def record(recorder, profile):
+                try:
+                    paths.append(recorder.start_recording(profile)['output_path'])
+                    recorder.ingest_can(0x6DA, bytes.fromhex('d041100020003000'))
+                    self.assertEqual(recorder.stop_recording()['rows_written'], 1)
+                except Exception as error:
+                    failures.append(error)
+            threads = [threading.Thread(target=record, args=(recorder, profile))
+                       for recorder, profile in zip(recorders, ('raw_can', 'haldex'))]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=5)
+                self.assertFalse(thread.is_alive())
+            self.assertEqual(failures, [])
+            self.assertEqual(len(set(paths)), 2)
+            self.assertEqual(sorted(Path(path).stem.rsplit('_', 1)[1] for path in paths), ['0001', '0002'])
+            for path in paths:
+                with open(path, newline='', encoding='utf-8') as handle:
+                    self.assertEqual(len(list(csv.DictReader(handle))), 1)
+
+    def test_explicit_existing_log_is_rejected_without_truncation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'first.csv'
+            path.write_text('preserve me', encoding='utf-8')
+            recorder = DataLogger()
+            with self.assertRaisesRegex(ValueError, 'Refusing to overwrite'):
+                recorder.start_recording(output_path=str(path))
+            self.assertFalse(recorder.get_status()['recording'])
+            self.assertEqual(path.read_text(encoding='utf-8'), 'preserve me')
+
     def test_haldex_profile_uses_new_state_id_and_decodes_it(self):
         self.assertEqual(HALDEX_STATE_ID, 0x6DA)
         self.assertIn('raw_0x6da', HALDEX_PROFILE.columns)

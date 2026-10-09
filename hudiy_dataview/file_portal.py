@@ -14,6 +14,7 @@ import tempfile
 import time
 import zipfile
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Callable, Iterable, Mapping, Optional
 from urllib.parse import quote
 
@@ -217,13 +218,58 @@ def _walk(collection: Collection):
 
 def _file_item(collection: Collection, relative_path: str, path: str) -> dict:
     stat = os.stat(path)
+    folder = relative_path.rpartition("/")[0]
+    number = re.search(r"_(\d+)\.[^.]+$", os.path.basename(path))
+    folder_number = folder.rsplit("/", 1)[-1]
+    # Legacy timestamp filenames end in microseconds; only interpret a suffix
+    # as a capture number when its recording lives in a date folder.
+    sequence = (int(number.group(1)) if number and re.search(r"(?:^|/)\d{4}-\d{2}-\d{2}(?:/|$)", folder)
+                else int(folder_number) if folder_number.isdigit() else None)
+    date = None
+    for match in re.finditer(r"(?<!\d)(\d{4})-?(\d{2})-?(\d{2})(?!\d)", relative_path):
+        try:
+            date = datetime.strptime("".join(match.groups()), "%Y%m%d").strftime("%Y-%m-%d")
+            break
+        except ValueError:
+            continue
     return {
         "name": os.path.basename(path),
         "path": relative_path,
         "size": stat.st_size,
         "modified": int(stat.st_mtime),
+        "folder": folder,
+        "date": date or datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d"),
+        "sequence": sequence,
         "download_url": f"/api/files/download/{collection.id}/{quote(relative_path)}",
     }
+
+
+def _natural_path(path: str) -> tuple:
+    return tuple((1, int(part)) if part.isdigit() else (0, part.lower())
+                 for part in re.split(r"(\d+)", path))
+
+
+def _log_sort(item: dict) -> tuple:
+    return item["date"], item["sequence"] or 0, item["modified"], _natural_path(item["path"])
+
+
+def _folder_groups(collection: Collection, files: list[dict]) -> list[dict]:
+    groups = {}
+    for item in files:
+        folder = item["folder"]
+        if not folder:
+            continue
+        group = groups.setdefault(folder, {
+            "path": folder, "name": folder.rsplit("/", 1)[-1], "date": item["date"],
+            "count": 0, "total_size": 0, "modified": 0,
+            "archive_url": f"/api/files/archive/{collection.id}/{quote(folder)}",
+        })
+        group["count"] += 1
+        group["total_size"] += item["size"]
+        group["modified"] = max(group["modified"], item["modified"])
+        group["date"] = max(group["date"], item["date"])
+    return sorted(groups.values(), key=lambda group:
+                  (group["date"], _natural_path(group["path"])), reverse=True)
 
 
 def register_file_portal(app, config: Mapping,
@@ -265,7 +311,8 @@ def register_file_portal(app, config: Mapping,
             except OSError:
                 files = []
                 total = 0
-            files.sort(key=lambda item: item["modified"], reverse=True)
+            files.sort(key=_log_sort if collection.kind == "logs" else
+                       lambda item: (item["modified"], item["path"]), reverse=True)
             result.append({
                 "id": collection.id,
                 "label": collection.label,
@@ -277,7 +324,8 @@ def register_file_portal(app, config: Mapping,
                 "count": len(files),
                 "total_size": total,
                 "archive_url": f"/api/files/archive/{collection.id}" if files else None,
-                "files": files[:500],
+                "files": files,
+                "groups": _folder_groups(collection, files),
             })
         has_logs = any(item["kind"] == "logs" and item["count"] for item in result)
         return jsonify({
@@ -297,8 +345,11 @@ def register_file_portal(app, config: Mapping,
         return send_file(path, as_attachment=True, download_name=os.path.basename(path))
 
     @app.get("/api/files/archive/<collection_id>")
-    def portal_archive(collection_id: str):
+    @app.get("/api/files/archive/<collection_id>/<path:relative_path>")
+    def portal_archive(collection_id: str, relative_path: str = ""):
         if collection_id == "all_logs":
+            if relative_path:
+                abort(404)
             members = [
                 (f"{collection.id}/{relative_path}", path)
                 for collection in collections.values() if collection.kind == "logs"
@@ -308,7 +359,16 @@ def register_file_portal(app, config: Mapping,
             collection = collections.get(collection_id)
             if not collection:
                 abort(404)
+            if relative_path:
+                folder = _safe_path(collection, relative_path)
+                if not os.path.isdir(folder) or os.path.islink(folder):
+                    abort(404)
+                relative_path = os.path.relpath(folder, collection.directory).replace(os.sep, "/")
             members = list(_walk(collection))
+            if relative_path:
+                members = [(name, path) for name, path in members if name.startswith(relative_path + "/")]
+                if not members:
+                    abort(404)
         try:
             total = sum(os.path.getsize(path) for _, path in members)
         except OSError:
@@ -317,12 +377,13 @@ def register_file_portal(app, config: Mapping,
             return jsonify({"error": "This collection is too large to bundle at once."}), 413
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
-            for relative_path, path in members:
-                bundle.write(path, relative_path)
+            for member_name, path in members:
+                bundle.write(path, member_name)
         archive.seek(0)
         stamp = time.strftime("%Y%m%d-%H%M%S")
+        folder_name = "-" + relative_path.replace("/", "-") if relative_path else ""
         return send_file(archive, mimetype="application/zip", as_attachment=True,
-                         download_name=f"rnse-{collection_id}-{stamp}.zip")
+                         download_name=f"rnse-{collection_id}{folder_name}-{stamp}.zip")
 
     @app.post("/api/files/upload/<collection_id>")
     def portal_upload(collection_id: str):

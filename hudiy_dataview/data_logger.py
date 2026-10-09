@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import queue
+import re
 import struct
 import threading
 import time
@@ -414,6 +415,7 @@ class DataLogger:
         self._profile = self.profiles[self.default_profile]
         self._state: Dict[str, Any] = {}
         self._output_path = ""
+        self._output_handle = None
         self._started_at = 0.0
         self._last_error = ""
         self._stats = self._new_stats()
@@ -484,8 +486,38 @@ class DataLogger:
             self._capture_thread = None
 
     def _default_output_path(self, profile_name: str) -> str:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        return os.path.join(self.log_directory, f"{profile_name}_{timestamp}.csv")
+        directory = os.path.join(self.log_directory, datetime.now().strftime("%Y-%m-%d"))
+        os.makedirs(directory, exist_ok=True)
+        # Keep hidden reservation files as high-water marks after CSV deletion.
+        # All profiles share the day's recording numbers.
+        numbers = []
+        for filename in os.listdir(directory):
+            match = (re.fullmatch(r".+_([0-9]+)\.csv", filename)
+                     or re.fullmatch(r"\.recording_([0-9]+)", filename))
+            if match:
+                numbers.append(int(match.group(1)))
+        number = max(numbers, default=0) + 1
+        return os.path.join(directory, f"{profile_name}_{number:04d}.csv")
+
+    def _open_output(self, profile_name: str, output_path: Optional[str]):
+        while True:
+            path = os.path.abspath(os.path.expanduser(
+                output_path or self._default_output_path(profile_name)))
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            try:
+                if not output_path:
+                    number = re.search(r"_([0-9]+)\.csv$", path).group(1)
+                    reservation = os.path.join(os.path.dirname(path), f".recording_{number}")
+                    # A shared exclusive marker prevents two different profiles
+                    # from claiming the same day number in separate processes.
+                    with open(reservation, "x", encoding="utf-8"):
+                        pass
+                return path, open(path, "x", newline="", encoding="utf-8")
+            except FileExistsError:
+                if output_path:
+                    raise ValueError(f"Refusing to overwrite existing log: {path}") from None
+                # Another recorder reserved this number after our scan. Rescan
+                # and reserve the next file before reporting a successful Start.
 
     def start_recording(self, profile_name: Optional[str] = None,
                         output_path: Optional[str] = None) -> Dict[str, Any]:
@@ -507,10 +539,7 @@ class DataLogger:
             self._stats = self._new_stats()
             self._started_at = time.time()
             self._last_error = ""
-            self._output_path = os.path.abspath(os.path.expanduser(
-                output_path or self._default_output_path(name)))
-            if os.path.exists(self._output_path):
-                raise ValueError(f"Refusing to overwrite existing log: {self._output_path}")
+            self._output_path, self._output_handle = self._open_output(name, output_path)
             self._write_queue = queue.Queue(maxsize=self.queue_size)
             self._stop_queued = False
             self._recording = True
@@ -521,6 +550,8 @@ class DataLogger:
             try:
                 self._writer_thread.start()
             except Exception:
+                self._output_handle.close()
+                self._output_handle = None
                 self._recording = False
                 self._writer_thread = None
                 self._write_queue = None
@@ -555,6 +586,7 @@ class DataLogger:
         with self._lock:
             self._write_queue = None
             self._writer_thread = None
+            self._output_handle = None
             logger.info("Data logger stopped rows=%d output=%s",
                         self._stats["rows_written"], self._output_path)
             return self.get_status()
@@ -664,8 +696,9 @@ class DataLogger:
     def _writer_worker(self, output_path: str, columns: Sequence[str],
                        write_queue: queue.Queue) -> None:
         try:
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            with open(output_path, "x", newline="", encoding="utf-8") as handle:
+            # Start already reserved this file exclusively. Lifecycle locking
+            # keeps ownership until this worker has drained and closed it.
+            with self._output_handle as handle:
                 writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
                 writer.writeheader()
                 last_flush = time.monotonic()

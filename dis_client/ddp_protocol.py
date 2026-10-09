@@ -903,16 +903,19 @@ class DDPProtocol:
         # Store this exact complete record, never authorize a matching future
         #payload or all traffic in an initialization mode/phase.
         scope = getattr(self, '_geometry_compatibility_scope', None)
-        # Bench session20261007_01 delivered this exact12-byte record in
-        #one segmented message. Preserve its full09 observation; this marker
-        #selects an observed opening role, never splits arbitrary09 tails.
+        # The observed white opening layout has a seven-byte52-family
+        #capability prefix followed by one of the declared five-byte geometries.
+        #Capability metadata varies by cluster; an exact bench fingerprint
+        #rejects other units before setup. Keep the full09 observation and bind
+        #this opening role to this received object, never to arbitrary09 tails.
         if (scope == 'white common configuration/fork'
                 and getattr(self, '_initial_application_handshake', False)
                 and self.state == DDPState.INITIALIZING
                 and self.dis_mode == DisMode.WHITE
                 and getattr(self, '_application_mode', None) == 1
-                and data[1:] == [0x09,0x20,0x0B,0x50,0x08,0x0B,0x50,
-                                 0x30,0x39,0x00,0x32,0x00]):
+                and len(data) == 13 and data[1:3] == [0x09, 0x20]
+                and data[8:] in ([0x30,0x39,0x00,0x30,0x00],
+                                [0x30,0x39,0x00,0x32,0x00])):
             self._observed_white_compound_fork_record = data
         if scope == 'white common configuration/fork' and data[1:2] == [9]:
             self._geometry_compatibility_scope = None
@@ -1699,12 +1702,16 @@ class DDPProtocol:
                 data = self._recv_and_ack_data(1000)
                 if data is None: raise DDPHandshakeError("Timed out after out-of-order packet.")
 
+            logger.info('Initialization fork payload: %s',
+                        ' '.join(f'{byte:02X}' for byte in data[1:]))
+
             # Exact complete record reserved at its common-fork receive
             #boundary. Its09 is already observed, so use the existing short
             #white20/21 exchange without another01/08 or geometry wait.
             compound = getattr(self, '_observed_white_compound_fork_record', None)
             self._observed_white_compound_fork_record = None
             if compound is data:
+                logger.info('White opening: combined capability/geometry reply; using direct setup')
                 self.geometry_record = list(data[8:])
                 self._exchange_application([0x20,0x3B,0xA0,0], [0x21,0x3B,0xA0,0])
 

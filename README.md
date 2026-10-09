@@ -246,8 +246,11 @@ Managed via `systemd` services:
 *   `dis_service` & `dis_display`: DIS rendering and logic.
 *   `hudiy_dataview/data_logger.py`: profile-driven session logging built into DataView. The
     `haldex` profile produces fused Haldex/relevant-ICAN/measuring-group CSV snapshots; `raw_can`
-    records arbitrary CAN traffic one frame per row. Logs default to `~/logs` and can be
-    extended by registering another `LogProfile`.
+    records arbitrary CAN traffic one frame per row. Logs default to
+    `~/logs/YYYY-MM-DD/profile_0001.csv`, with daily recording numbers reserved before
+    capture starts. The Files portal groups recordings and service captures by folder,
+    lists the newest dates first, and offers a ZIP download for each folder. Logging
+    can be extended by registering another `LogProfile`.
 *   `tp2_worker`: Diagnostics over TP2. currently not over the can handler. 
 *   `hudiy_dataview`: Provides Hudiy Dataview app
 *   `hudiy_status_service`: Decodes some of the status messages on the infotainment bus that contain various pieces of data (RPM/Boost/Coolant/Oil/Ambient/Bat Voltage)
