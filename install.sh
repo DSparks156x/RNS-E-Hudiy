@@ -345,12 +345,16 @@ try:
                 updated = True
     menu_key = {'applications.json': 'applications', 'applications_menu.json': 'items'}.get(os.path.basename(sys.argv[1]))
     if menu_key and isinstance(target.get(menu_key), list):
-        manager = next((item for item in source.get(menu_key, [])
-                        if isinstance(item, dict) and item.get('action') == 'hudiy_manager'), None)
-        if manager and not any(isinstance(item, dict) and item.get('action') == 'hudiy_manager'
-                               for item in target[menu_key]):
-            target[menu_key].append(manager)
-            updated = True
+        required_actions = ['hudiy_manager']
+        if menu_key == 'items':
+            required_actions.extend(['hudiy_diagnostics', 'update_hudiy'])
+        for action in required_actions:
+            entry = next((item for item in source.get(menu_key, [])
+                          if isinstance(item, dict) and item.get('action') == action), None)
+            if entry and not any(isinstance(item, dict) and item.get('action') == action
+                                 for item in target[menu_key]):
+                target[menu_key].append(entry)
+                updated = True
         if menu_key == 'items' and isinstance(target.get('categories'), list):
             category = next((item for item in source.get('categories', [])
                              if isinstance(item, dict) and item.get('label') == 'Hudiy'), None)
@@ -459,6 +463,7 @@ chown -R $REAL_USER:$REAL_USER "$REAL_HOME/hudiy_manager"
 chown -R $REAL_USER:$REAL_USER "$REAL_HOME/flasher"
 chown $REAL_USER:$REAL_USER "$REAL_HOME/config.json"
 chmod +x "$REAL_HOME/hudiy_client/update_rnse.sh"
+chmod +x "$REAL_HOME/hudiy_client/update_hudiy.sh"
 chmod +x "$REAL_HOME/hudiy_client/restore_configs.sh"
 
 echo -e "${GREEN}? Project files installed and cleaned.${NC}"

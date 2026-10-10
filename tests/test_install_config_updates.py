@@ -70,6 +70,8 @@ class InstallerConfigMigrationTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(updated['items'][0], old['items'][0])
         self.assertEqual(updated['items'][1]['action'], 'hudiy_manager')
+        self.assertEqual(updated['items'][2]['action'], 'hudiy_diagnostics')
+        self.assertEqual(updated['items'][3]['action'], 'update_hudiy')
         self.assertEqual([item['label'] for item in updated['categories']], ['Personal', 'Hudiy'])
         self.assertEqual(self.migrate('applications_menu.json', updated, new)[0], 2)
 
@@ -77,6 +79,21 @@ class InstallerConfigMigrationTests(unittest.TestCase):
         old = {'applications': [{'action': 'hudiy_manager', 'url': 'http://localhost:7777', 'allowBackground': True}]}
         new = json.loads((ROOT / 'config/hudiy/applications.json').read_text())
         self.assertEqual(self.migrate('applications.json', old, new), (2, old))
+
+    def test_existing_dataview_menu_customization_is_preserved(self):
+        new = json.loads((ROOT / 'config/hudiy/applications_menu.json').read_text())
+        old = {'categories': new['categories'], 'items': [
+            {'action': 'hudiy_diagnostics', 'label': 'My Data', 'categories': ['Hudiy']},
+            next(item for item in new['items'] if item['action'] == 'hudiy_manager'),
+            next(item for item in new['items'] if item['action'] == 'update_hudiy')]}
+        self.assertEqual(self.migrate('applications_menu.json', old, new), (2, old))
+
+    def test_existing_hudiy_update_button_keeps_custom_label_icon_and_position(self):
+        new = json.loads((ROOT / 'config/hudiy/applications_menu.json').read_text())
+        custom = {'action': 'update_hudiy', 'label': 'My Update', 'iconName': 'custom', 'categories': ['Personal']}
+        old = {'categories': new['categories'], 'items': [custom] + [
+            item for item in new['items'] if item['action'] in ('hudiy_manager', 'hudiy_diagnostics')]}
+        self.assertEqual(self.migrate('applications_menu.json', old, new), (2, old))
 
     def test_brightness_defaults_do_not_replace_existing_levels(self):
         old = {'rnse': {'auto_brightness': {'enabled': True, 'night_brightness': 3}}}

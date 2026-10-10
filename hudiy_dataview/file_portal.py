@@ -7,9 +7,11 @@ directory, while allowing more firmware targets to be added in config later.
 
 from __future__ import annotations
 
-import io
 import os
 import re
+import stat
+import threading
+import uuid
 import tempfile
 import time
 import zipfile
@@ -23,9 +25,245 @@ from flask import abort, jsonify, request, send_file
 
 DEFAULT_UPLOAD_LIMIT = 16 * 1024 * 1024
 DEFAULT_ARCHIVE_LIMIT = 256 * 1024 * 1024
+ARCHIVE_CHUNK_SIZE = 256 * 1024
+ARCHIVE_JOB_TTL = 300
+ARCHIVE_JOB_RETENTION = 2
+ARCHIVE_MEMBER_LIMIT = 10000
+ARCHIVE_SIZE_ERROR = "This collection is too large to bundle at once."
+ARCHIVE_READ_ERROR = "A file changed or temporary storage is unavailable. Try again."
 SAFE_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 THEME_COLOR = re.compile(r"^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 
+
+class _ArchiveLimitExceeded(Exception):
+    pass
+
+
+
+def _write_archive(archive, members, archive_limit, progress=None):
+    """Snapshot each source length, never follow a replaced symlink, and yield."""
+    sizes = [os.path.getsize(path) for _, path in members]
+    total = sum(sizes)
+    if total > archive_limit or len(members) > ARCHIVE_MEMBER_LIMIT:
+        raise _ArchiveLimitExceeded
+    copied = 0
+    snapshot_total = 0
+    if progress:
+        progress(0, total, None)
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED,
+                         compresslevel=1) as bundle:
+        for index, (member_name, path) in enumerate(members):
+            before = os.stat(path, follow_symlinks=False)
+            if not stat.S_ISREG(before.st_mode):
+                raise OSError("An archive source is no longer a regular file")
+            with open(path, "rb") as source:
+                snapshot = os.fstat(source.fileno())
+                # Check identity separately from the length snapshot. This also
+                # catches a source replaced by a symlink between stat and open.
+                identity = os.stat(source.fileno())
+                if (before.st_dev, before.st_ino) != (identity.st_dev, identity.st_ino):
+                    raise OSError("An archive source changed while opening")
+                remaining = snapshot.st_size
+                total += remaining - sizes[index]
+                snapshot_total += remaining
+                if total > archive_limit or snapshot_total > archive_limit:
+                    raise _ArchiveLimitExceeded
+                if progress:
+                    progress(copied, total, member_name)
+                info = zipfile.ZipInfo.from_file(path, member_name)
+                info.file_size = remaining
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info._compresslevel = 1
+                with bundle.open(info, "w", force_zip64=remaining >= zipfile.ZIP64_LIMIT) as output:
+                    while remaining:
+                        chunk = source.read(min(ARCHIVE_CHUNK_SIZE, remaining))
+                        if not chunk:
+                            raise OSError("A log was truncated while preparing its archive")
+                        output.write(chunk)
+                        remaining -= len(chunk)
+                        copied += len(chunk)
+                        if progress:
+                            progress(copied, total, member_name)
+                        # threading and sleep are cooperative under the mock
+                        # server's gevent monkey patch. Yield after bounded work
+                        # in both runtimes so polling and telemetry stay live.
+                        time.sleep(0.001)
+    return archive.tell()
+
+
+class _ArchiveJobs:
+    """One lazy worker and a bounded set of expiring disk-backed results."""
+
+    def __init__(self, prepare, archive_limit, logger):
+        self.prepare = prepare
+        self.archive_limit = archive_limit
+        self.logger = logger
+        self.lock = threading.Lock()
+        self.wake = threading.Event()
+        self.jobs = {}
+        self.active = None
+        self.worker = None
+        self.stopped = False
+
+    def _discard(self, job):
+        if job["downloads"]:
+            job["expired"] = True
+            return False
+        if job["path"]:
+            try:
+                os.unlink(job["path"])
+            except FileNotFoundError:
+                pass
+            except OSError:
+                # Retry temporary storage failures at the next worker wake.
+                job["expired"] = True
+                return False
+        self.jobs.pop(job["id"], None)
+        return True
+
+    def _cleanup(self):
+        now = time.monotonic()
+        for job in list(self.jobs.values()):
+            if job["finished"] is not None and (job["expired"] or now - job["finished"] >= ARCHIVE_JOB_TTL):
+                self._discard(job)
+
+    def _payload(self, job):
+        return {key: job[key] for key in ("id", "state", "percent", "bytes_processed", "total_bytes", "current_file", "error")} | {
+            "status_url": f"/api/files/archive-jobs/{job['id']}",
+            "download_url": f"/api/files/archive-jobs/{job['id']}/download" if job["state"] == "ready" else None,
+        }
+
+    def start(self, collection_id, relative_path):
+        with self.lock:
+            self._cleanup()
+            if self.active or self.stopped:
+                return None
+            completed = [job for job in self.jobs.values() if job["finished"] is not None]
+            while len(completed) >= ARCHIVE_JOB_RETENTION:
+                removable = next((job for job in completed if not job["downloads"]), None)
+                if removable is None or not self._discard(removable):
+                    return None
+                completed.remove(removable)
+            job_id = uuid.uuid4().hex
+            job = {"id": job_id, "state": "queued", "percent": 0,
+                   "bytes_processed": 0, "total_bytes": 0, "current_file": None,
+                   "error": None, "path": None, "size": 0, "name": None,
+                   "finished": None, "expired": False, "downloads": 0,
+                   "collection_id": collection_id, "relative_path": relative_path}
+            self.jobs[job_id] = job
+            self.active = job_id
+            if self.worker is None:
+                self.worker = threading.Thread(target=self._run, name="portal-archive", daemon=True)
+                self.worker.start()
+            self.wake.set()
+            return self._payload(job)
+
+    def status(self, job_id):
+        with self.lock:
+            self._cleanup()
+            job = self.jobs.get(job_id)
+            return self._payload(job) if job and not job["expired"] else None
+
+    def _progress(self, job, processed, total, current):
+        with self.lock:
+            job.update(bytes_processed=processed, total_bytes=total, current_file=current,
+                       percent=min(99, int(processed * 100 / total)) if total else 0)
+
+    def _run(self):
+        while True:
+            with self.lock:
+                self._cleanup()
+                if self.stopped or (self.active is None and not self.jobs):
+                    self.worker = None
+                    return
+                job = self.jobs.get(self.active)
+                self.wake.clear()
+                if job:
+                    job["state"] = "preparing"
+            if not job:
+                self.wake.wait(min(30, ARCHIVE_JOB_TTL))
+                continue
+            try:
+                members, folder = self.prepare(job["collection_id"], job["relative_path"])
+                with tempfile.NamedTemporaryFile(mode="w+b", prefix="hudiy-archive-", suffix=".zip", delete=False) as archive:
+                    with self.lock:
+                        job["path"] = archive.name
+                    size = _write_archive(archive, members, self.archive_limit,
+                                          lambda processed, total, current: self._progress(job, processed, total, current))
+                stamp = time.strftime("%Y%m%d-%H%M%S")
+                folder_name = "-" + folder.replace("/", "-") if folder else ""
+                with self.lock:
+                    job.update(state="ready", percent=100, size=size, current_file=None,
+                               name=f"rnse-{job['collection_id']}{folder_name}-{stamp}.zip")
+            except Exception as error:
+                self.logger.warning("Portal archive preparation failed: %s", error)
+                with self.lock:
+                    job.update(state="error", error=ARCHIVE_SIZE_ERROR if isinstance(error, _ArchiveLimitExceeded) else ARCHIVE_READ_ERROR)
+                    if job["path"]:
+                        try:
+                            os.unlink(job["path"])
+                            job["path"] = None
+                        except OSError:
+                            job["expired"] = True
+            finally:
+                with self.lock:
+                    job["finished"] = time.monotonic()
+                    self.active = None
+                    if self.stopped:
+                        self._discard(job)
+
+    def download(self, job_id):
+        with self.lock:
+            self._cleanup()
+            job = self.jobs.get(job_id)
+            if not job or job["expired"]:
+                return None, 404
+            if job["state"] != "ready" or job["downloads"] >= 4:
+                return None, 409
+            try:
+                archive = open(job["path"], "rb")
+            except OSError:
+                job.update(state="error", error=ARCHIVE_READ_ERROR)
+                return None, 409
+            job["downloads"] += 1
+        released = False
+
+        def close():
+            nonlocal released
+            with self.lock:
+                if released:
+                    return
+                released = True
+                archive.close()
+                job["downloads"] -= 1
+                self._cleanup()
+                self.wake.set()
+
+        try:
+            response = send_file(archive, mimetype="application/zip", as_attachment=True,
+                                 download_name=job["name"])
+            response.content_length = job["size"]
+            # Include release in iterable.close: WSGI direct passthrough does
+            # not always run Response.call_on_close callbacks.
+            from werkzeug.wsgi import ClosingIterator
+            response.response = ClosingIterator(response.response, close)
+            response.call_on_close(close)
+            return response, 200
+        except BaseException:
+            close()
+            raise
+
+    def close(self):
+        """Stop the worker and release idle results (also useful to app tests)."""
+        with self.lock:
+            self.stopped = True
+            for job in list(self.jobs.values()):
+                if job["finished"] is not None:
+                    self._discard(job)
+            self.wake.set()
+            worker = self.worker
+        if worker:
+            worker.join(timeout=5)
 
 def cache_hudiy_theme(app, theme: object) -> bool:
     """Keep the last reported native palette for browsers outside Hudiy."""
@@ -344,9 +582,7 @@ def register_file_portal(app, config: Mapping,
             abort(404)
         return send_file(path, as_attachment=True, download_name=os.path.basename(path))
 
-    @app.get("/api/files/archive/<collection_id>")
-    @app.get("/api/files/archive/<collection_id>/<path:relative_path>")
-    def portal_archive(collection_id: str, relative_path: str = ""):
+    def archive_members(collection_id: str, relative_path: str = ""):
         if collection_id == "all_logs":
             if relative_path:
                 abort(404)
@@ -369,21 +605,83 @@ def register_file_portal(app, config: Mapping,
                 members = [(name, path) for name, path in members if name.startswith(relative_path + "/")]
                 if not members:
                     abort(404)
+        return members, relative_path
+
+    jobs = _ArchiveJobs(archive_members, archive_limit, app.logger)
+    app.extensions["file_portal_archive_jobs"] = jobs
+
+    @app.post("/api/files/archive/<collection_id>")
+    @app.post("/api/files/archive/<collection_id>/<path:relative_path>")
+    def portal_archive_start(collection_id: str, relative_path: str = ""):
+        # Validate paths promptly; enumeration and file IO belong to the worker.
+        if collection_id == "all_logs":
+            if relative_path:
+                abort(404)
+        else:
+            collection = collections.get(collection_id)
+            if not collection:
+                abort(404)
+            if relative_path:
+                folder = _safe_path(collection, relative_path)
+                if not os.path.isdir(folder) or os.path.islink(folder):
+                    abort(404)
+        job = jobs.start(collection_id, relative_path)
+        if job is None:
+            return jsonify({"error": "Another archive is being prepared or downloaded. Try again shortly."}), 409
+        response = jsonify(job)
+        response.headers["Cache-Control"] = "no-store"
+        return response, 202
+
+    @app.get("/api/files/archive-jobs/<job_id>")
+    def portal_archive_status(job_id: str):
+        job = jobs.status(job_id)
+        if job is None:
+            abort(404)
+        response = jsonify(job)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.get("/api/files/archive-jobs/<job_id>/download")
+    def portal_archive_job_download(job_id: str):
+        response, status = jobs.download(job_id)
+        if status == 404:
+            abort(404)
+        if status != 200:
+            return jsonify({"error": "This archive is not ready to download. Try again shortly."}), status
+        return response
+
+    @app.get("/api/files/archive/<collection_id>")
+    @app.get("/api/files/archive/<collection_id>/<path:relative_path>")
+    def portal_archive(collection_id: str, relative_path: str = ""):
+        members, relative_path = archive_members(collection_id, relative_path)
+        archive = None
         try:
-            total = sum(os.path.getsize(path) for _, path in members)
+            # Legacy direct URLs remain available with fast compression and
+            # bounded temporary disk storage, sharing the job copy safeguards.
+            if sum(os.path.getsize(path) for _, path in members) > archive_limit or len(members) > ARCHIVE_MEMBER_LIMIT:
+                raise _ArchiveLimitExceeded
+            archive = tempfile.TemporaryFile(mode="w+b")
+            size = _write_archive(archive, members, archive_limit)
+            archive.seek(0)
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            folder_name = "-" + relative_path.replace("/", "-") if relative_path else ""
+            response = send_file(archive, mimetype="application/zip", as_attachment=True,
+                                 download_name=f"rnse-{collection_id}{folder_name}-{stamp}.zip")
+            response.content_length = size
+            response.call_on_close(archive.close)
+            return response
+        except _ArchiveLimitExceeded:
+            if archive is not None:
+                archive.close()
+            return jsonify({"error": ARCHIVE_SIZE_ERROR}), 413
         except OSError:
-            return jsonify({"error": "A file changed while the bundle was being prepared. Try again."}), 409
-        if total > archive_limit:
-            return jsonify({"error": "This collection is too large to bundle at once."}), 413
-        archive = io.BytesIO()
-        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
-            for member_name, path in members:
-                bundle.write(path, member_name)
-        archive.seek(0)
-        stamp = time.strftime("%Y%m%d-%H%M%S")
-        folder_name = "-" + relative_path.replace("/", "-") if relative_path else ""
-        return send_file(archive, mimetype="application/zip", as_attachment=True,
-                         download_name=f"rnse-{collection_id}{folder_name}-{stamp}.zip")
+            if archive is not None:
+                archive.close()
+            return jsonify({"error": ARCHIVE_READ_ERROR}), 409
+        except BaseException:
+            if archive is not None:
+                archive.close()
+            raise
 
     @app.post("/api/files/upload/<collection_id>")
     def portal_upload(collection_id: str):

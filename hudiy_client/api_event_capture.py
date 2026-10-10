@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import threading
+import tempfile
 import time
 import uuid
 from datetime import datetime, timezone
@@ -105,7 +106,7 @@ class ApiEventCapture:
     """Append callback events to a portal-visible, two-file rotating capture."""
 
     DEFAULT_PATH = "~/logs/hudiy-api/hudiy-api-events.log"
-    MAX_SIZE_MB = 8
+    MAX_SIZE_MB = 2
 
     def __init__(self):
         # Always use the same location as Save Logs and the file portal. Older
@@ -118,6 +119,11 @@ class ApiEventCapture:
         self._sequence = 0
         self._lock = threading.Lock()
 
+        # Older versions could leave oversized files behind after a failed
+        # rotation. Keep the newest complete JSON lines within each file's cap.
+        self._bound_existing_file(self.path)
+        self._bound_existing_file(self.previous_path)
+
         self.record("capture_started", derived={
             "capture_path": self.path,
             "max_size_mb": self.MAX_SIZE_MB,
@@ -125,13 +131,54 @@ class ApiEventCapture:
         })
         logger.info("Hudiy API event capture initialized: %s", self.path)
 
-    def _rotate_if_needed(self, incoming_bytes: int) -> None:
+    def _bound_existing_file(self, path: str) -> bool:
+        try:
+            size = os.path.getsize(path)
+            if size <= self.max_bytes:
+                return True
+            with open(path, "rb") as capture_file:
+                capture_file.seek(-self.max_bytes, os.SEEK_END)
+                tail = capture_file.read(self.max_bytes)
+            # The first line may start before the retained tail. Drop it to
+            # preserve valid JSON-lines, then keep the newest complete lines.
+            first_line_end = tail.find(b"\n")
+            bounded = tail[first_line_end + 1:] if first_line_end >= 0 else b""
+            # A crash can leave a partial final line. Keep through the last
+            # newline so every retained record remains independently parseable.
+            last_line_end = bounded.rfind(b"\n")
+            bounded = bounded[:last_line_end + 1] if last_line_end >= 0 else b""
+            directory = os.path.dirname(path) or "."
+            fd, temporary_path = tempfile.mkstemp(prefix=".hudiy-api-", dir=directory)
+            try:
+                with os.fdopen(fd, "wb") as capture_file:
+                    capture_file.write(bounded)
+                    capture_file.flush()
+                    os.fsync(capture_file.fileno())
+                os.replace(temporary_path, path)
+            finally:
+                if os.path.exists(temporary_path):
+                    os.remove(temporary_path)
+            logger.warning("Trimmed oversized Hudiy API capture file: %s", path)
+            return True
+        except FileNotFoundError:
+            return True
+        except OSError as exc:
+            logger.warning("Could not bound Hudiy API capture file %s: %s", path, exc)
+            return False
+
+    def _rotate_if_needed(self, incoming_bytes: int) -> bool:
+        if incoming_bytes > self.max_bytes:
+            logger.warning("Dropping oversized Hudiy API capture event (%d bytes)", incoming_bytes)
+            return False
         try:
             current_size = os.path.getsize(self.path)
-        except OSError:
+        except FileNotFoundError:
             current_size = 0
+        except OSError as exc:
+            logger.warning("Could not inspect Hudiy API capture: %s", exc)
+            return False
         if current_size + incoming_bytes <= self.max_bytes:
-            return
+            return True
         try:
             if os.path.exists(self.previous_path):
                 os.remove(self.previous_path)
@@ -139,6 +186,8 @@ class ApiEventCapture:
                 os.replace(self.path, self.previous_path)
         except OSError as exc:
             logger.warning("Could not rotate Hudiy API capture: %s", exc)
+            return False
+        return True
 
     def record(self, event: str, message: Any = None, *, provider: str = "unknown",
                derived: Optional[Mapping[str, Any]] = None,
@@ -175,7 +224,11 @@ class ApiEventCapture:
                 # Retry on later callbacks after a temporary directory/write
                 # failure instead of disabling diagnostics until a restart.
                 os.makedirs(os.path.dirname(self.path), exist_ok=True)
-                self._rotate_if_needed(len(encoded))
+                if not (self._bound_existing_file(self.path)
+                        and self._bound_existing_file(self.previous_path)):
+                    return
+                if not self._rotate_if_needed(len(encoded)):
+                    return
                 with open(self.path, "ab") as capture_file:
                     capture_file.write(encoded)
                     capture_file.flush()

@@ -241,7 +241,7 @@
     },
     "tv_simulation": {
       "enabled": true,
-      "payload": "0912302020202020"
+      "payload": "0112302020202020"
     },
     "mmi_controls": true,
     "mfsw_controls": true,

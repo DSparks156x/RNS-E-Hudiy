@@ -801,6 +801,10 @@ class TP2BridgeHandler(ClientEventHandler):
         req_act_update.action = "update_rnse"
         client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_update.SerializeToString())
 
+        req_act_hudiy_update = hudiy_api.RegisterActionRequest()
+        req_act_hudiy_update.action = "update_hudiy"
+        client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_hudiy_update.SerializeToString())
+
         req_act_restore = hudiy_api.RegisterActionRequest()
         req_act_restore.action = "restore_configs"
         client.send(hudiy_api.MESSAGE_REGISTER_ACTION_REQUEST, 0, req_act_restore.SerializeToString())
@@ -929,7 +933,7 @@ class TP2BridgeHandler(ClientEventHandler):
                 self.show_toast(f"Diagnostics {status_str}")
             else:
                 self.check_status_now(client)
-        elif message.action == "update_rnse" or message.action == "restore_configs":
+        elif message.action in ("update_rnse", "update_hudiy", "restore_configs"):
             logger.info(f"Hudiy Action: {message.action}")
             import subprocess
             
@@ -944,6 +948,8 @@ class TP2BridgeHandler(ClientEventHandler):
             
             if message.action == "update_rnse":
                 updater_script = os.path.join(script_dir, "update_rnse.sh")
+            elif message.action == "update_hudiy":
+                updater_script = os.path.join(script_dir, "update_hudiy.sh")
             else:
                 updater_script = os.path.join(script_dir, "restore_configs.sh")
             

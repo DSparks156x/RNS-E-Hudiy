@@ -263,6 +263,11 @@ Updating will add any new options to all config files, and back up old ones.
 ```bash
 sudo ./hudiy_client/update_rnse.sh
 ```
+**Update Hudiy** quits Hudiy, opens a fullscreen terminal, waits for internet
+access, then runs Hudiy's installed updater at `~/.hudiy/share/updater`. This
+updates Hudiy itself separately from the RNS-E package. Hudiy's updater handles
+the update interaction; see [Hudiy updating](https://github.com/wiboma/hudiy#updating).
+
 Configs can be overwritten using the restore configs button, or run the restore configs script directly.  It will **replace** all config files and create backups. 
 Config restore uses the configured repo/branch, it can be your own config reference. 
 

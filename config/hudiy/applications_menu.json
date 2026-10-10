@@ -36,6 +36,13 @@
             "label": "RNS-E Manager"
         },
         {
+            "categories": ["Hudiy"],
+            "iconFontFamily": "Material Symbols Rounded",
+            "iconName": "query_stats",
+            "action": "hudiy_diagnostics",
+            "label": "DataView"
+        },
+        {
             "categories": [
                 "Phone"
             ],
@@ -160,6 +167,13 @@
             "iconName": "update",
             "action": "update_rnse",
             "label": "Update RNS-E stuff"
+        },
+        {
+            "categories": ["Hudiy"],
+            "iconFontFamily": "Material Symbols Rounded",
+            "iconName": "system_update",
+            "action": "update_hudiy",
+            "label": "Update Hudiy"
         },
         {
             "categories": [

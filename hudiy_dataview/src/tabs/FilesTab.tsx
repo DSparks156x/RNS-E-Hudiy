@@ -2,6 +2,7 @@ import { TouchTextInput } from '../components/touchKeyboard/TouchTextInput';
 import { ConfigUploadPanel } from '../ConfigUploadPanel';
 import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { collectionGroup, FileGroup, folderFiles, PortalCatalog, PortalFile, validateFile, visibleFiles } from '../filePortalModel';
+import { ArchiveJobStatus, prepareArchive } from '../archiveDownload';
 
 export interface FilesTabProps {
   loadCatalog?: () => Promise<PortalCatalog>;
@@ -66,7 +67,11 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('date');
   const [showUpload, setShowUpload] = useState(initialGroup === 'controllers');
+  const [archive, setArchive] = useState<{ label: string; status: ArchiveJobStatus | null; error: string | null; busy: boolean; url: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const archiveController = useRef<AbortController | null>(null);
+  const downloadedArchive = useRef<string | null>(null);
+  const archiveLinkRef = useRef<HTMLAnchorElement>(null);
   const requestId = useRef(0);
   const refresh = async () => {
     const request = ++requestId.current; setLoading(true);
@@ -80,7 +85,28 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
       if (request === requestId.current) setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Could not load files.' });
     } finally { if (request === requestId.current) setLoading(false); }
   };
-  useEffect(() => { void refresh(); return () => { requestId.current++; }; }, [fetchCatalog]);
+  useEffect(() => { void refresh(); return () => { requestId.current++; archiveController.current?.abort(); }; }, [fetchCatalog]);
+  useEffect(() => {
+    const url = archive?.status?.state === 'ready' ? archive.status.download_url : null;
+    if (url && downloadedArchive.current !== url) {
+      downloadedArchive.current = url;
+      archiveLinkRef.current?.click();
+    }
+  }, [archive]);
+  const startArchive = async (url: string, label: string) => {
+    if (archive?.busy) return;
+    archiveController.current?.abort();
+    const controller = new AbortController(); archiveController.current = controller;
+    setArchive({ url, label, status: null, error: null, busy: true });
+    try {
+      const status = await prepareArchive({ archiveUrl: url, signal: controller.signal,
+        onStatus: next => { if (!controller.signal.aborted) setArchive({ url, label, status: next, error: null, busy: true }); } });
+      if (!controller.signal.aborted) setArchive({ url, label, status, error: null, busy: false });
+    } catch (error) {
+      if (!controller.signal.aborted) setArchive(previous => previous ? { ...previous, busy: false,
+        error: error instanceof Error ? error.message : 'ZIP preparation failed.' } : null);
+    }
+  };
   const collections = catalog?.collections || [];
   const groupCollections = collections.filter(collection => collectionGroup(collection) === group);
   const currentCollection = groupCollections.find(collection => collection.id === activeCollection) || groupCollections[0];
@@ -120,11 +146,21 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
     <header className="portal-header">
       <div className="portal-brand"><span className="portal-brand-icon"><Icon name="folder" /></span><div><h1>Files</h1><p>Recordings, logs & controller libraries</p></div></div>
       <div className="portal-header-actions">
-        {catalog?.all_logs_archive_url && <a className="portal-text-button" href={catalog.all_logs_archive_url}><Icon name="download" />All logs ZIP</a>}
+        {catalog?.all_logs_archive_url && <button className="portal-text-button" onClick={() => void startArchive(catalog.all_logs_archive_url!, 'All logs ZIP')} disabled={archive?.busy}><Icon name="download" />All logs ZIP</button>}
         <button className="portal-primary-button portal-upload-open" onClick={() => { selectGroup('controllers'); setShowUpload(true); }} disabled={loading}><Icon name="upload" />Upload file</button>
         <button className="portal-icon-button" onClick={() => { setMessage(null); void refresh(); }} aria-label="Refresh files" disabled={loading}><Icon name="refresh" /></button>
       </div>
     </header>
+    {archive && <section className={`portal-archive-status${archive.error ? ' failed' : archive.status?.state === 'ready' ? ' ready' : ''}`} aria-live="polite" aria-atomic="true">
+      <div className="portal-archive-status-heading"><strong>{archive.error ? `${archive.label} failed` : archive.status?.state === 'ready' ? `${archive.label} is ready` : `Preparing ${archive.label}`}</strong>
+        {archive.busy && <span>{archive.status?.state === 'queued' ? 'Waiting for a worker…' : 'Compressing files…'}</span>}
+      </div>
+      {archive.busy && <><div className="portal-archive-progress" role="progressbar" aria-label={`${archive.label} preparation`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={archive.status?.percent || 0}><span style={{ width: `${Math.max(0, Math.min(100, archive.status?.percent || 0))}%` }} /></div>
+        <div className="portal-archive-details"><span>{formatSize(archive.status?.bytes_processed || 0)} of {formatSize(archive.status?.total_bytes || 0)} · {Math.max(0, Math.min(100, archive.status?.percent || 0))}%</span>{archive.status?.current_file && <span className="portal-archive-file">{archive.status.current_file}</span>}</div></>}
+      {archive.error && <div className="portal-archive-result"><span role="alert">{archive.error}</span><button className="portal-primary-button" onClick={() => void startArchive(archive.url, archive.label)}>Retry ZIP</button></div>}
+      {archive.status?.state === 'ready' && !archive.error && <a className="portal-bundle-button portal-archive-download" href={archive.status.download_url || undefined}><Icon name="download" />Download ZIP</a>}
+      {archive.status?.state === 'ready' && <a ref={archiveLinkRef} className="portal-archive-auto-download" href={archive.status.download_url || undefined} aria-hidden="true" tabIndex={-1} download />}
+    </section>}
     <nav className="portal-groups" aria-label="File categories">{GROUPS.map(item => <button key={item.id} aria-pressed={!configurationOpen && group === item.id}
       className={!configurationOpen && group === item.id ? 'active' : ''} onClick={() => selectGroup(item.id)}>{item.label}<span>{collections.filter(c => collectionGroup(c) === item.id).reduce((sum, c) => sum + c.count, 0)}</span></button>)}<button aria-pressed={configurationOpen} className={configurationOpen ? 'active' : ''} onClick={() => setConfigurationOpen(true)}>Configuration</button></nav>
     <div className="portal-scroll pretty-scroll">
@@ -137,7 +173,7 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
           </aside>
           <article className="portal-card library-card">
             <div className="collection-summary"><div><h2>{currentCollection?.label || 'Files'}</h2><p>{currentCollection?.description || 'Your device files appear here.'}</p></div>
-              {currentCollection?.archive_url && <a className="portal-bundle-button" href={currentCollection.archive_url}><Icon name="download" /><span>Collection ZIP</span></a>}
+              {currentCollection?.archive_url && <button className="portal-bundle-button" onClick={() => void startArchive(currentCollection.archive_url!, `${currentCollection.label} ZIP`)} disabled={archive?.busy}><Icon name="download" /><span>Collection ZIP</span></button>}
             </div>
             <div className="portal-list-tools"><label className="portal-search"><Icon name="search" /><TouchTextInput touchOnly type="search" aria-label="Search files" placeholder="Search files" value={search} onValueChange={setSearch} /></label>
               <select aria-label="Sort files" value={sort} onChange={event => setSort(event.target.value)}><option value="date">Newest first</option><option value="name">Name A–Z</option><option value="size">Largest first</option></select></div>
@@ -146,7 +182,7 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
               {!loading && !files.length && <div className="portal-empty">{search ? 'No files match this search.' : 'No files in this collection yet.'}</div>}
               {!loading && folders.map(folder => folder.label ? <div className="portal-folder" key={`${currentCollection?.id}:${folder.key}`}>
                 <div className="portal-folder-heading"><span><Icon name="folder" /><strong>{folder.label}</strong><small>{folder.files.length} {folder.files.length === 1 ? 'file' : 'files'}</small></span>
-                  {folder.archive_url && <a className="portal-bundle-button" href={folder.archive_url} aria-label={`Download ${folder.path} ZIP`}><Icon name="download" /><span>Folder ZIP</span></a>}</div>
+                  {folder.archive_url && <button className="portal-bundle-button" onClick={() => void startArchive(folder.archive_url!, `${folder.path} ZIP`)} disabled={archive?.busy} aria-label={`Prepare ${folder.path} ZIP`}><Icon name="download" /><span>Folder ZIP</span></button>}</div>
                 <details key={`${currentCollection?.id}:${folder.key}:${!!search}`} open={search ? true : undefined}><summary>Browse files</summary>{folder.files.map(fileRow)}</details>
               </div> : folder.files.map(fileRow))}
             </div>

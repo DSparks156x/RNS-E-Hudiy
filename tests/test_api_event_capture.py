@@ -107,14 +107,74 @@ class ApiEventCaptureTests(unittest.TestCase):
             path = Path(directory) / "hudiy-api-events.log"
             with patch.object(ApiEventCapture, "DEFAULT_PATH", str(path)):
                 capture = ApiEventCapture()
-            # Set a small test-only limit to trigger both rotations quickly.
-            capture.max_bytes = 1
+            # Leave room for one record so the second forces rotation.
+            path.write_bytes(b"")
+            capture.max_bytes = 500
             capture.record("first", _Message())
             capture.record("second", _Message())
             current = [json.loads(line) for line in path.read_text().splitlines()]
             previous = [json.loads(line) for line in Path(capture.previous_path).read_text().splitlines()]
             self.assertEqual([entry['event'] for entry in current], ['second'])
             self.assertEqual([entry['event'] for entry in previous], ['first'])
+
+    def test_default_limit_is_two_mib_per_file(self):
+        self.assertEqual(ApiEventCapture.MAX_SIZE_MB, 2)
+
+    def test_oversized_event_is_dropped(self):
+        with tempfile.TemporaryDirectory(dir=SCRATCH) as directory:
+            path = Path(directory) / "hudiy-api-events.log"
+            with patch.object(ApiEventCapture, "DEFAULT_PATH", str(path)):
+                capture = ApiEventCapture()
+            capture.max_bytes = 512
+            path.write_bytes(b"")
+            capture.record("too_large", derived={"payload": "x" * 512})
+            entries = [json.loads(line) for line in path.read_text().splitlines()]
+            self.assertEqual(entries, [])
+
+    def test_failed_rotation_drops_incoming_event(self):
+        with tempfile.TemporaryDirectory(dir=SCRATCH) as directory:
+            path = Path(directory) / "hudiy-api-events.log"
+            with patch.object(ApiEventCapture, "DEFAULT_PATH", str(path)):
+                capture = ApiEventCapture()
+            capture.max_bytes = path.stat().st_size + 1
+            original = path.read_bytes()
+            with patch("hudiy_client.api_event_capture.os.replace", side_effect=OSError("rotation failed")) as replace:
+                capture.record("must_be_dropped")
+            replace.assert_called_once()
+            self.assertEqual(path.read_bytes(), original)
+            self.assertFalse(Path(capture.previous_path).exists())
+
+    def test_preexisting_oversized_files_keep_only_complete_recent_lines(self):
+        with tempfile.TemporaryDirectory(dir=SCRATCH) as directory:
+            path = Path(directory) / "hudiy-api-events.log"
+            previous_path = Path(directory) / "hudiy-api-events-previous.log"
+            huge_line = b'{"event":"' + b'x' * (ApiEventCapture.MAX_SIZE_MB * 1024 * 1024) + b'"}\n'
+            path.write_bytes(huge_line + b'{"event":"new"}\n{"unfinished":')
+            previous_path.write_bytes(huge_line + b'{"event":"recent"}\n')
+            with patch.object(ApiEventCapture, "DEFAULT_PATH", str(path)):
+                capture = ApiEventCapture()
+            for file_path in (path, previous_path):
+                payload = file_path.read_bytes()
+                self.assertLessEqual(len(payload), capture.max_bytes)
+                for line in payload.splitlines():
+                    json.loads(line)
+            self.assertIn(b'"new"', path.read_bytes())
+            self.assertIn(b'"recent"', previous_path.read_bytes())
+
+    def test_failed_startup_trim_retries_before_writing(self):
+        with tempfile.TemporaryDirectory(dir=SCRATCH) as directory:
+            path = Path(directory) / "hudiy-api-events.log"
+            huge_line = b'{"event":"' + b'x' * (ApiEventCapture.MAX_SIZE_MB * 1024 * 1024) + b'"}\n'
+            path.write_bytes(huge_line + b'{"event":"recent"}\n')
+            original_size = path.stat().st_size
+            with patch.object(ApiEventCapture, "DEFAULT_PATH", str(path)), \
+                 patch("hudiy_client.api_event_capture.os.replace", side_effect=OSError("trim failed")):
+                capture = ApiEventCapture()
+            self.assertEqual(path.stat().st_size, original_size)
+            self.assertFalse(Path(capture.previous_path).exists())
+            capture.record("recovered")
+            self.assertLessEqual(path.stat().st_size, capture.max_bytes)
+            self.assertTrue(all(json.loads(line) for line in path.read_text().splitlines()))
 
 
 if __name__ == "__main__":

@@ -57,7 +57,7 @@ cached levels, and only live call states assert `call_active`.
 fields, provider/context information, and normalized results in bounded rotating
 JSON-lines logs at `~/logs/hudiy-api/hudiy-api-events.log`. Capture always starts
 with the data API service, requires no configuration, and retains a current and
-previous file bounded to 8 MiB each. **Save Logs** copies both complete captures
+previous file bounded to 2 MiB each. **Save Logs** copies both complete captures
 alongside the service journals into `~/logs/YYYY-MM-DD/<save number>/` (or the
 configured Save Logs directory). DataView's file portal includes these saved
 folders and the live captures. Every raw media

@@ -228,9 +228,99 @@ class FilePortalTests(unittest.TestCase):
 
     def test_folder_bundle_keeps_collection_size_limit(self):
         from hudiy_dataview.file_portal import DEFAULT_ARCHIVE_LIMIT
-        with patch("hudiy_dataview.file_portal.os.path.getsize", return_value=DEFAULT_ARCHIVE_LIMIT + 1):
+        with patch("hudiy_dataview.file_portal.os.path.getsize", return_value=DEFAULT_ARCHIVE_LIMIT + 1), \
+                patch("hudiy_dataview.file_portal.tempfile.TemporaryFile") as temporary:
             response = self.client.get("/api/files/archive/service_logs/2026-09-17/1")
         self.assertEqual(response.status_code, 413)
+        temporary.assert_not_called()
+
+    def test_archive_uses_uncompressed_temporary_file_and_closes_after_download(self):
+        handles = []
+        original = tempfile.TemporaryFile
+
+        def tracked_temporary(*args, **kwargs):
+            handle = original(*args, **kwargs)
+            handles.append(handle)
+            return handle
+
+        with patch("hudiy_dataview.file_portal.tempfile.TemporaryFile", side_effect=tracked_temporary):
+            response = self.client.get("/api/files/archive/all_logs", buffered=False)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(len(handles), 1)
+            self.assertFalse(handles[0].closed)
+            self.assertTrue(os.path.isfile(handles[0].name))
+            contents = response.get_data()
+            self.assertEqual(response.content_length, len(contents))
+            with zipfile.ZipFile(io.BytesIO(contents)) as archive:
+                self.assertTrue(archive.infolist())
+                self.assertTrue(all(item.compress_type == zipfile.ZIP_STORED for item in archive.infolist()))
+            response.close()
+            self.assertTrue(handles[0].closed)
+
+    def test_archive_temporary_file_closes_on_disconnect(self):
+        handle = tempfile.TemporaryFile(mode="w+b")
+        with patch("hudiy_dataview.file_portal.tempfile.TemporaryFile", return_value=handle):
+            response = self.client.get("/api/files/archive/service_logs", buffered=False)
+            self.assertFalse(handle.closed)
+            response.close()
+        self.assertTrue(handle.closed)
+
+    def test_archive_temporary_file_closes_on_read_error(self):
+        handle = tempfile.TemporaryFile(mode="w+b")
+        with patch("hudiy_dataview.file_portal.tempfile.TemporaryFile", return_value=handle), \
+                patch("hudiy_dataview.file_portal.zipfile.ZipFile.open", side_effect=OSError("file removed")):
+            response = self.client.get("/api/files/archive/service_logs")
+        self.assertEqual(response.status_code, 409)
+        self.assertTrue(handle.closed)
+
+    def test_archive_copies_only_initial_length_of_growing_live_log(self):
+        path = os.path.join(self.api_logs, "hudiy-api-events.log")
+        with open(path, "rb") as source:
+            initial = source.read()
+        original = os.fstat
+        grown = []
+
+        def grow_after_snapshot(descriptor):
+            snapshot = original(descriptor)
+            if not grown:
+                with open(path, "ab") as source:
+                    source.write(b"appended after snapshot\n")
+                grown.append(True)
+            return snapshot
+
+        with patch("hudiy_dataview.file_portal.os.fstat", side_effect=grow_after_snapshot):
+            response = self.client.get("/api/files/archive/hudiy_api")
+        self.assertEqual(response.status_code, 200)
+        with zipfile.ZipFile(io.BytesIO(response.get_data())) as archive:
+            self.assertEqual(archive.read("hudiy-api-events.log"), initial)
+        response.close()
+
+    def test_archive_rechecks_size_limit_when_file_grows_before_copy(self):
+        from hudiy_dataview.file_portal import DEFAULT_ARCHIVE_LIMIT
+        handle = tempfile.TemporaryFile(mode="w+b")
+        with patch("hudiy_dataview.file_portal.tempfile.TemporaryFile", return_value=handle), \
+                patch("hudiy_dataview.file_portal.os.fstat") as stat:
+            stat.return_value.st_size = DEFAULT_ARCHIVE_LIMIT + 1
+            response = self.client.get("/api/files/archive/service_logs")
+        self.assertEqual(response.status_code, 413)
+        self.assertTrue(handle.closed)
+
+    def test_archive_rejects_log_truncated_during_copy(self):
+        handle = tempfile.TemporaryFile(mode="w+b")
+        with patch("hudiy_dataview.file_portal.tempfile.TemporaryFile", return_value=handle), \
+                patch("hudiy_dataview.file_portal.os.fstat") as stat:
+            stat.return_value.st_size = len(b"worker output") + 1
+            response = self.client.get("/api/files/archive/service_logs")
+        self.assertEqual(response.status_code, 409)
+        self.assertTrue(handle.closed)
+
+    def test_archive_temporary_file_closes_when_response_creation_fails(self):
+        handle = tempfile.TemporaryFile(mode="w+b")
+        with patch("hudiy_dataview.file_portal.tempfile.TemporaryFile", return_value=handle), \
+                patch("hudiy_dataview.file_portal.send_file", side_effect=RuntimeError("response failed")):
+            with self.assertRaisesRegex(RuntimeError, "response failed"):
+                self.client.get("/api/files/archive/service_logs")
+        self.assertTrue(handle.closed)
 
 
 if __name__ == "__main__":
