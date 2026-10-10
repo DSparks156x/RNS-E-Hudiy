@@ -633,12 +633,11 @@ def reconcile_rnse_brightness(state: AppState):
     inhibited = (state.can_listen_only or state.desired_listen_only
                  or state.listen_only_transition_in_progress
                  or flashing_mode_enabled())
-    command = brightness.pending_command(state.is_radio_active(), inhibited)
-    if command is not None and send_can_message(command.arbitration_id, command.payload.hex()):
-        brightness.mark_queued(command)
-        logger.info('Queued RNS-E %s dial=%s LCD=%s source=%s via CAN %03X: %s',
-                    command.mode, command.level, command.lcd_brightness, command.source,
-                    command.arbitration_id, command.payload.hex())
+    for command in brightness.pending_commands(state.is_radio_active(), inhibited):
+        if send_can_message(command.arbitration_id, command.payload.hex()):
+            brightness.mark_queued(command)
+            logger.info('Queued RNS-E %s command via CAN %03X: %s',
+                        command.kind, command.arbitration_id, command.payload.hex())
 
 
 def observe_rnse_adc_message(can_id, message):
