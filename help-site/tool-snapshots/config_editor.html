@@ -46,7 +46,7 @@ let currentConfig = {};
             "display.center_display.mode": { label: "Default App", help: "Initial display mode.", type: "select", options: ["nav", "media", "phone", "car_info", "acceleration_test"] },
             "display.center_display.applist": { label: "Configured Applications", help: "Cycleable applications in order.", options: ["nav", "media", "phone", "car_info", "acceleration_test", "coverart"] },
             "display.center_display.navigation.native_render_order": { label: "Navigation Icon Rendering", help: "Planes draw the icon quickly and then refine it. Tiles finish each small area before moving on.", type: "select", options: ["planes", "tiles"] },
-            "display.center_display.navigation.icon_style": { label: "Navigation Icons", help: "Stock uses native font icons without numeric distance. Bitmap uses the existing high or normal artwork and numeric next-maneuver distance. Both use the native approach bar and full-width street on a white DIS.", type: "select", options: ["stock", "bitmap"] },
+            "display.center_display.navigation.icon_style": { label: "Navigation Icons", help: "Bitmap is the default and uses existing high or normal artwork with numeric next-maneuver distance. Stock uses native font icons without numeric distance; unsupported native symbols fall back to bitmap. Both use the native approach bar and full-width street on a white DIS. The saved legacy font profile remains available for the red DIS and bypasses this setting.", type: "select", options: ["stock", "bitmap"] },
             "display.center_display.navigation.native_message_delay_ms": { label: "Icon Drawing Pause (ms)", help: "Increase this pause if native icons show stray pixels.", type: "number", min: 0, max: 100 },
             "display.center_display.navigation.auto_switch": { help: "Automatic switching to Nav app.", type: "boolean" },
             "display.center_display.navigation.auto_switch_approach_threshold": { help: "Auto switch distance (meters).", type: "number" },
@@ -485,7 +485,7 @@ function metadataFor(path) {
             }
             addMissingDefaults(config, NATIVE_DISPLAY_DEFAULTS);
             const center = config?.display?.center_display;
-            if (object(center) && center.high_resolution === true) {
+            if (object(center)) {
                 if (!object(center.navigation)) center.navigation = {};
                 if (!Object.prototype.hasOwnProperty.call(center.navigation, 'icon_style')) {
                     center.navigation.icon_style = center.navigation.renderer === 'stock' ? 'stock' : 'bitmap';
@@ -643,6 +643,7 @@ const BUNDLED_CONFIG = {
       "high_resolution": true,
       "start_inactive": false,
       "navigation": {
+        "icon_style": "bitmap",
         "auto_switch": true,
         "auto_switch_approach_threshold": 500,
         "auto_switch_return_threshold": 1000,

@@ -28,6 +28,20 @@ test('older TV configs expose the wire default and only persist it when edited',
   assert.equal(original.features.tv_simulation.payload, undefined);
 });
 
+test('older display configs expose bitmap icons without persisting them on unrelated saves', () => {
+  const original = { display: { center_display: { navigation: { auto_switch: false } } }, custom: 'keep' };
+  const fields = fieldsFor(original, {});
+  const icons = fields.find(field => field.path === 'display.center_display.navigation.icon_style');
+  assert.equal(icons.value, 'bitmap');
+  assert.equal(original.display.center_display.navigation.icon_style, undefined);
+  assert.deepEqual(applyEdits(original, fields, { custom: 'changed' }), {
+    display: { center_display: { navigation: { auto_switch: false } } }, custom: 'changed'
+  });
+  const next = applyEdits(original, fields, { [icons.id]: 'stock' });
+  assert.equal(next.display.center_display.navigation.icon_style, 'stock');
+  assert.equal(original.display.center_display.navigation.icon_style, undefined);
+});
+
 test('editing installed settings preserves unknown keys, primitive types and original snapshot', () => {
   const original = { display: { enabled: true, speed: 80, label: 'daily', extra: ['custom', null] }, future: { untouched: 'retain' } };
   const fields = fieldsFor(original, { schema: { 'display.speed': { integer: true, min: 0, max: 100 } } });

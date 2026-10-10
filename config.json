@@ -127,6 +127,7 @@
       "high_resolution": true,
       "start_inactive": false,
       "navigation": {
+        "icon_style": "bitmap",
         "auto_switch": true,
         "auto_switch_approach_threshold": 500,
         "auto_switch_return_threshold": 1000,

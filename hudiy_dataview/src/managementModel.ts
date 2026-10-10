@@ -24,7 +24,20 @@ function rnseDefaults(document: ConfigDocument): ConfigDocument {
     const features = { ...(document.features as ConfigDocument || {}) };
     if (!('tv_simulation' in features) || object(features.tv_simulation)) {
       features.tv_simulation = { payload: '0912302020202020', ...(features.tv_simulation as ConfigDocument || {}) };
-      return { ...result, features };
+      Object.assign(result, { features });
+    }
+  }
+  // Show the runtime default for old configs without mutating the loaded snapshot.
+  if (!('display' in document) || object(document.display)) {
+    const display = { ...(document.display as ConfigDocument || {}) };
+    if (!('center_display' in display) || object(display.center_display)) {
+      const center = { ...(display.center_display as ConfigDocument || {}) };
+      if (!('navigation' in center) || object(center.navigation)) {
+        const navigation = object(center.navigation) ? center.navigation : {};
+        center.navigation = { icon_style: navigation.renderer === 'stock' ? 'stock' : 'bitmap', ...navigation };
+        display.center_display = center;
+        result.display = display;
+      }
     }
   }
   return result;

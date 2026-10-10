@@ -79,6 +79,7 @@ test('older imports gain usable compatibility defaults', () => {
     assert.equal(updated.display.font_resolution, undefined);
     assert.deepEqual(updated.custom, {keep: 17});
     assert.equal(updated.display.center_display.navigation.auto_switch, false);
+    assert.equal(updated.display.center_display.navigation.icon_style, 'bitmap');
     assert.equal(updated.display.center_display.navigation.high_resolution, undefined);
     assert.equal(updated.display.center_display.navigation.native_render_order, 'planes');
     assert.equal(updated.display.center_display.navigation.native_message_delay_ms, 5);
