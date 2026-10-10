@@ -19,7 +19,7 @@ from urllib.parse import urlsplit
 
 HERE = Path(__file__).resolve().parent
 PAGES = ['app_media', 'app_nav', 'app_phone', 'app_car_info', 'app_acceleration_test',
-         'app_settings', 'app_coverart', 'app_openpilot','app_easteregg']
+         'app_coverart', 'app_openpilot','app_easteregg']
 INPUTS = ['stalk_up','stalk_down','wheel_up','wheel_down','wheel_click','wheel_mode',
           'wheel_mode_double','wheel_click_double','wheel_mode_hold','wheel_click_hold']
 TOPICS = ['HUDIY_MEDIA', 'HUDIY_NAV', 'HUDIY_NAV_DISTANCE', 'HUDIY_NAV_STATUS', 'HUDIY_PHONE',

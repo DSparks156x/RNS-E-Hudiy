@@ -4,12 +4,9 @@ import zmq, json, time, logging, sys, os, signal, argparse
 from typing import Set, List, Dict, Union
 
 # Import Apps
-from apps.menu import MenuApp
-from apps.radio import RadioApp
 from apps.media import MediaApp
 from apps.nav import NavApp
 from apps.phone import PhoneApp
-from apps.settings import SettingsApp
 from apps.car_info import create_car_info_app
 from apps.coverart import CoverArtApp
 from apps.easteregg import EasterEggApp
@@ -48,8 +45,6 @@ class DisplayEngine:
         self.apps['app_phone']        = PhoneApp(self.cfg)
         self.apps['app_car_info'] = create_car_info_app(self.cfg)
         self.apps['app_acceleration_test'] = AccelerationTestApp(self.cfg)
-        # Settings still exists if needed, but not in cycle
-        self.apps['app_settings']     = SettingsApp(self) 
         self.apps['app_coverart']     = CoverArtApp(self.cfg) 
         self.apps['app_easteregg']    = EasterEggApp(self.cfg)
         self.apps['app_openpilot']    = OpenpilotApp(self.cfg)

@@ -28,9 +28,6 @@ def main():
     class BenchEngine(dis_display.DisplayEngine):
         def __init__(self):
             super().__init__(str(args.config), mock=False)
-            settings = self.apps.get('app_settings')
-            if settings is not None:
-                settings.items = [item for item in settings.items if item.get('action') != 'reboot']
             self.control = self.zmq_ctx.socket(zmq.PULL)
             self.control.setsockopt(zmq.LINGER, 0)
             self.control.connect(self.cfg['bench_control'])
