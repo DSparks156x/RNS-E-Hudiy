@@ -4,7 +4,7 @@ import { defaults, ConfigSourceContext } from './ui';
 import { topics, groups, Pages } from './guide';
 import './style.css';
 
-const aliases = { dis: 'navigation', config: 'configuration' };
+const aliases = { dis: 'navigation', config: 'configuration', setup: 'install-package', 'r21-firmware': 'my-firmware' };
 function currentTopic() {
   const requested = location.hash.slice(1);
   const id = aliases[requested] || requested;
@@ -31,9 +31,12 @@ function App() {
       <a className="brand" href="#overview"><span className="brand-mark">▣</span><span>RNS-E <b>Hudiy</b><small>FEATURES & SETUP</small></span></a>
       <label className="search-label"><span className="sr-only">Find a feature or task</span><span aria-hidden="true">⌕</span><input placeholder="Find a feature or task" value={query} onChange={e => setQuery(e.target.value)}/></label>
       <nav aria-label="Guide topics">
-        {groups.map(group => {
+        {groups.map((group, index) => {
           const entries = results.filter(t => t.group === group.id);
-          return entries.length > 0 && <div className="nav-group" key={group.id}><div className="nav-label">{query ? 'RESULTS / ' : ''}{group.title}</div>{entries.map(t => <a key={t.id} href={`#${t.id}`} aria-current={topic === t.id ? 'page' : undefined} className={topic === t.id ? 'active' : ''}><span aria-hidden="true" className="icon">{t.icon}</span>{t.title}{topic === t.id && <span className="nav-dot"/>}</a>)}</div>;
+          // Consecutive groups sharing a title form one section; only the first shows the title.
+          const previous = groups.slice(0, index).reverse().find(g => results.some(t => t.group === g.id));
+          const showTitle = !group.subtitle || previous?.title !== group.title;
+          return entries.length > 0 && <div className={`nav-group${group.subtitle && !showTitle ? ' nav-subgroup' : ''}`} key={group.id}>{showTitle && <div className="nav-label">{query ? 'RESULTS / ' : ''}{group.title}</div>}{group.subtitle && <div className="nav-sublabel">{group.subtitle}</div>}{entries.map(t => <a key={t.id} href={`#${t.id}`} aria-current={topic === t.id ? 'page' : undefined} className={topic === t.id ? 'active' : ''}><span aria-hidden="true" className="icon">{t.icon}</span>{t.title}{topic === t.id && <span className="nav-dot"/>}</a>)}</div>;
         })}
         {results.length === 0 && <p className="no-results">No match. Try “boost”, “wheel”, “CSV” or “config”.</p>}
       </nav>

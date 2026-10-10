@@ -1,0 +1,4 @@
+.todo{display:block;border:2px dashed #d3a94a;background:#fdf6e3;color:#7a5b16;border-radius:16px;padding:14px 18px;margin:16px 0;font-size:14px;line-height:1.6}
+.todo strong{display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px}
+.todo-inline{display:inline;border-width:1px;border-radius:6px;padding:1px 6px;margin:0;font-size:12px}
+td .todo{margin:0;padding:8px 10px;font-size:12px}

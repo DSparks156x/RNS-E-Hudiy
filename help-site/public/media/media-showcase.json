@@ -1,0 +1,49 @@
+{
+  "data": "All artwork is original synthetic demo content; the animation is the bundled repository GIF.",
+  "assets": [
+    {
+      "name": "dis-cover-sunset",
+      "caption": "Gradient sky and hills. Photo preset (error diffusion) keeps the tones.",
+      "native_preset": "photo",
+      "source": "demo-cover-sunset-source.png",
+      "source_files": [
+        "dis_client/apps/coverart.py",
+        "dis_client/dis_image.py"
+      ]
+    },
+    {
+      "name": "dis-cover-type",
+      "caption": "Type-only cover. Text preset (hard threshold) keeps edges crisp.",
+      "native_preset": "text",
+      "source": "demo-cover-type-source.png",
+      "source_files": [
+        "dis_client/apps/coverart.py",
+        "dis_client/dis_image.py"
+      ]
+    },
+    {
+      "name": "dis-cover-record",
+      "caption": "Vinyl graphic. Balanced preset (ordered dither) stays stable between redraws.",
+      "native_preset": "balanced",
+      "source": "demo-cover-record-source.png",
+      "source_files": [
+        "dis_client/apps/coverart.py",
+        "dis_client/dis_image.py"
+      ]
+    },
+    {
+      "name": "dis-animation",
+      "frames": 20,
+      "frame_ms": 100,
+      "logical_size": [
+        64,
+        48
+      ],
+      "source_sha256": "3ce5beb84f55b1bd69bcd56f01ece6535f17a6ef223f754d7756000059b6f6a5",
+      "source_files": [
+        "dis_client/apps/easteregg.py",
+        "dis_client/dis_image.py"
+      ]
+    }
+  ]
+}

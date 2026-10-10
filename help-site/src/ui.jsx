@@ -13,6 +13,8 @@ export function SourceLink({ source, children }) {
   return <a className="source-link" href={`https://github.com/DSparks156x/RNS-E-Hudiy/blob/testing/${source}`} target="_blank" rel="noreferrer">{children || 'Source notes'} ↗</a>;
 }
 export function Note({ children }) { return <aside className="note">{children}</aside>; }
+// Visible placeholder for content still to be written.
+export function Todo({ children, inline = false }) { return inline ? <span className="todo todo-inline">To write: {children}</span> : <aside className="todo"><strong>To write</strong>{children}</aside>; }
 export function DemoImage({ src, alt, pixel = false }) {
   const animated = src.endsWith('.gif');
   const [playing, setPlaying] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -37,7 +39,7 @@ export function Table({ headings, rows }) {
 }
 export function Settings({ rows }) {
   const selection = useContext(ConfigSourceContext);
-  return <Section title="Related settings"><p>These are the settings used by this feature. Select a path to open its full description in the config helper, using <strong>{selection.repo} / {selection.branch}</strong>.</p><Table headings={['Open in config helper ↗', 'Used here for']} rows={rows.map(([path, help]) => [<a href={helperUrl(selection, path)} target="_blank" rel="noreferrer"><code>{path}</code></a>, help])}/><a className="text-button inline-link" href="#configuration">Choose a source or browse the complete config →</a></Section>;
+  return <Section title="Related settings"><p>Click a path to open it in the config helper (<strong>{selection.repo} / {selection.branch}</strong>).</p><Table headings={['Open in config helper ↗', 'Used here for']} rows={rows.map(([path, help]) => [<a href={helperUrl(selection, path)} target="_blank" rel="noreferrer"><code>{path}</code></a>, help])}/><a className="text-button inline-link" href="#configuration">Browse the whole config →</a></Section>;
 }
 export function Related({ links }) {
   return <div className="related"><span className="eyebrow">RELATED</span>{links.map(([id, title, description]) => <a key={id} href={`#${id}`}><span><strong>{title}</strong><small>{description}</small></span><span>→</span></a>)}</div>;
@@ -61,6 +63,6 @@ export function ConfigLaunch({ selection, setSelection }) {
     {custom && <label className="custom-repo">GitHub owner/repository<input value={selection.repo} onChange={e => setSelection({ ...selection, repo: e.target.value })} placeholder="owner/repository"/></label>}
     <div className="launch-actions"><button className="primary-button" onClick={open}>Open config helper ↗</button>{valid && <a className="text-button" href={`https://github.com/${repo}/tree/${encodeURIComponent(selection.branch.trim())}`} target="_blank" rel="noreferrer">Browse branch ↗</a>}</div>
     {error && <p className="error" role="alert">{error}</p>}
-    <p className="fine-print">Defaults to DSparks156x/RNS-E-Hudiy → testing. Selecting another branch changes the config source; this guide describes this fork.</p>
+    <p className="fine-print">Defaults to DSparks156x/RNS-E-Hudiy → testing. This guide describes my fork; other branches may differ.</p>
   </div>;
 }

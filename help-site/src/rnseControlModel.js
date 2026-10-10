@@ -26,7 +26,7 @@ export function createFaceplateControls(mmi) {
     ], ...extra };
   };
   const stock = title => ({ title, actions: [['RNS-E', 'Factory function; no Pi key mapping in this config.']], stock: true });
-  const tv = (pattern, title) => mapped(pattern, title, { note: 'Available in TV mode with r21 firmware. Navigation, phone and media use Hudiy shortcuts; the projected screen depends on your Android Auto or CarPlay setup.' });
+  const tv = (pattern, title) => mapped(pattern, title, { note: 'Available in TV mode with my firmware. Navigation, phone and media use Hudiy shortcuts; the projected screen depends on your Android Auto or CarPlay setup.' });
   return {
     previous: mapped('1,0', 'Previous-track button'),
     next: mapped('2,0', 'Next-track button'),
@@ -35,8 +35,8 @@ export function createFaceplateControls(mmi) {
     upperRight: stock('Upper-right control button'),
     lowerRight: stock('Lower-right control button'),
     knob: { ...mapped('0,16', 'Navigation knob'), actions: [
-      ['Turn left', describe(mmi.short_press?.['0,32']), token(mmi.short_press?.['0,32'])],
-      ['Turn right', describe(mmi.short_press?.['0,64']), token(mmi.short_press?.['0,64'])],
+      ['Turn left', describe(mmi.short_press?.['0,64']), token(mmi.short_press?.['0,64'])],
+      ['Turn right', describe(mmi.short_press?.['0,32']), token(mmi.short_press?.['0,32'])],
       ...mapped('0,16', 'Navigation knob').actions,
     ] },
     return: mapped('0,2', 'RETURN', { note: 'The longer hold sends KEY_0. Hudiy does not document a standard action for that key.' }),
