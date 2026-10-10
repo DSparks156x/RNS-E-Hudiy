@@ -4,6 +4,7 @@ import { ManagementApp, ManagementApi } from './ManagementApp';
 import { ConfigDocument, ManagedService, Metadata } from './managementModel';
 import { VIDEO_DEFAULTS, VideoSnapshot } from './videoModel';
 import { RnseControlSnapshot } from './rnseBridgeModel';
+import { ADC_REG_DEFAULTS, AdcPreset, AdcSnapshot } from './rnseAdcModel';
 const theme = { primary: '#c4d1b4', onPrimary: '#26331c', primaryContainer: '#3c4b30', onPrimaryContainer: '#e0edce', background: '#11140f', surface: '#1a1e17', onSurface: '#e2e3d9', onSurfaceVariant: '#c5c8bd', outline: '#8d9385', outlineVariant: '#41483b', error: '#ffb4ab', errorContainer: '#93000a', darkThemeEnabled: true };
 let document: ConfigDocument = { rnse: { auto_brightness: { enabled: true, day_brightness: 10, night_brightness: 5 }, auto_lcd_brightness: { enabled: true, day_brightness: 100, night_brightness: 6 }, manual_brightness: 10, manual_lcd_brightness: 0, source_label: { enabled: true } }, display: { center_display: { enabled: true, mode: 'nav', high_resolution: true, navigation: { auto_switch: true, auto_switch_approach_threshold: 500 } } }, branch: 'testing', repo: 'https://github.com/DSparks156x/RNS-E-Hudiy', future_setting: ['preserved', null] };
 let revision = 'preview-1';
@@ -12,6 +13,9 @@ const video: VideoSnapshot = { available: true, status: 'sample', outputs: [{ ou
 // Also a fixture: these values never send CAN frames.
 const bridge: RnseControlSnapshot = { state: 'ready', mode: 'day', level: 10, lcd_brightness: 100, effective_lcd_brightness: 100, source: 2, manual_overrides: { brightness: null, lcd_brightness: null }, queued: false, protocol_available: true, radio_active: true, source_evidence: 'reported_provider' };
 let metadata: Metadata = {};
+const adc: AdcSnapshot = { reply_id: 0x462, reply_configured: true, state: 'sample', inhibited: false, radio_active: true, clamp_duration_default: 47,
+  registers: [...Array.from({length:30}, (_, i) => i), 0x24, 0x31, 0x35, 0x36, 0x37, 0x41, 0x43, 0x45, 0x46].map(register => { const key = register.toString(16).padStart(2,'0').toUpperCase(); const value = ADC_REG_DEFAULTS[key] ?? (key === '15' ? 2 : key === '11' ? 32 : 0); return { register: key, value, baseline: value, changed: false, failed: false }; }), writes: {}, dump: { state: 'complete', received_sequences: [0,1,2,3,4,5,6,7] } };
+const adcPresets: Record<string, AdcPreset> = {};
 try { metadata = await (await fetch('/static/configMetadata.json')).json(); } catch { metadata = { sections: [{ id: 'rnse', root: 'rnse', title: 'RNS-E' }, { id: 'display', root: 'display', title: 'Cluster display' }] }; }
 const services: ManagedService[] = [
   { id: 'dis_display', label: 'Center DIS', unit: 'dis_display.service', active_state: 'active', sub_state: 'running', description: 'Navigation, music, calls and custom reading pages.', can_control: true },
@@ -21,6 +25,26 @@ const services: ManagedService[] = [
 const api: ManagementApi = async <T,>(path: string, init?: RequestInit): Promise<T> => {
   let result: unknown;
   if (path === '/metadata') result = metadata;
+  else if (path === '/test-pattern/open') throw new Error('Sample preview uses browser fullscreen; no native viewer is launched.');
+  else if (path === '/rnse-adc') result = adc;
+  else if (path === '/rnse-adc/identify') {
+    adc.identification = {
+      state: 'identified', chip: 'AD9985', restore_confirmed: true, error: null,
+      probe: { requested: 4, readback: 4, status: 0, state: 'ok' },
+      restore: { requested: 0, readback: 0, status: 0, state: 'ok' },
+    };
+    result = adc;
+  }
+  else if (path === '/rnse-adc/presets') {
+    if (init?.method === 'POST') { const body = JSON.parse(String(init.body)); adcPresets[body.name] = body.values; }
+    result = { presets: adcPresets };
+  }
+  else if (path === '/rnse-adc/dump') { adc.dump = { state: 'complete', received_sequences: [0,1,2,3,4,5,6,7] }; result = adc; }
+  else if (path === '/rnse-adc/write' || path === '/rnse-adc/revert') {
+    const values: AdcPreset = path.endsWith('/revert') ? Object.fromEntries(Object.entries(ADC_REG_DEFAULTS).filter(([key]) => key !== '24')) : JSON.parse(String(init?.body)).values;
+    for (const [register, value] of Object.entries(values)) { const row = adc.registers?.find(item => item.register === register); if (row) { row.value = value; row.changed = row.baseline !== value; } adc.writes![register] = { requested: value, readback: value, status: 0, state: 'ok' }; }
+    result = adc;
+  }
   else if (path === '/rnse-control') result = bridge;
   else if (path === '/rnse-control/manual') {
     const body = JSON.parse(String(init?.body));

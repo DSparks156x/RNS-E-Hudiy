@@ -8,6 +8,8 @@ import { RnseBridgePanel } from './RnseBridgePanel';
 import { RNSE_CONTROL_PATHS } from './rnseBridgeModel';
 import { ManagerScrollRegion } from './ManagerScrollRegion';
 import { installManagerPointerScroll } from './managerPointerScroll';
+import { RnseAdcPanel } from './RnseAdcPanel';
+import { openPatternWindow, RnseTestPattern } from './RnseTestPattern';
 
 export type ManagementApi = <T>(path: string, init?: RequestInit) => Promise<T>;
 interface Props { api?: ManagementApi; previewTheme?: HudiyColorScheme; }
@@ -39,7 +41,10 @@ function SettingControl({ field, text, disabled, set }: { field: SettingField; t
 export function ManagementApp({ api = managementRequest, previewTheme }: Props = {}) {
   const { theme: nativeTheme } = useHudiyTheme(null);
   const [cachedTheme, setCachedTheme] = useState<HudiyColorScheme | null>(null);
-  const [tab, setTab] = useState<'settings' | 'services' | 'logs'>('settings');
+  const [tab, setTab] = useState<'settings' | 'video' | 'services' | 'logs'>('settings');
+  const [videoPane, setVideoPane] = useState<'rnse' | 'pi'>('rnse');
+  const [patternVisible, setPatternVisible] = useState(false);
+  const [patternNotice, setPatternNotice] = useState('');
   const [metadata, setMetadata] = useState<Metadata>({});
   const [targets, setTargets] = useState<ConfigTarget[]>([]);
   const [targetId, setTargetId] = useState('rnse');
@@ -66,6 +71,26 @@ export function ManagementApp({ api = managementRequest, previewTheme }: Props =
   const logPane = useRef<HTMLPreElement>(null);
   const logSource = useRef('');
   const managerRoot = useRef<HTMLDivElement>(null);
+  const patternRequest = useRef(0);
+  const closePattern = useCallback(() => {
+    patternRequest.current++;
+    setPatternVisible(false);
+    if (document.fullscreenElement === managerRoot.current || document.fullscreenElement?.classList.contains('rnse-test-pattern')) void document.exitFullscreen().catch(() => undefined);
+  }, []);
+  const showPattern = () => {
+    const ticket = ++patternRequest.current;
+    setPatternVisible(true); setPatternNotice('Opening native 800×480 test pattern…');
+    // This call must remain synchronous with the touch gesture.
+    if (!window.hudiy) void managerRoot.current?.requestFullscreen?.().then(() => { if (ticket !== patternRequest.current && document.fullscreenElement === managerRoot.current) void document.exitFullscreen().catch(() => undefined); }).catch(() => undefined);
+    void openPatternWindow(api, pin).then(result => {
+      if (ticket !== patternRequest.current) {
+        if (result.running) void api('/test-pattern/close', { method: 'POST', headers: writeHeaders(pin) }).catch(() => undefined);
+        return;
+      }
+      if (result.running) closePattern();
+      else setPatternNotice('Native viewer did not open. Browser image is unscaled; scroll if needed.');
+    }).catch(() => { if (ticket === patternRequest.current) setPatternNotice('Browser fallback · image is unscaled. Fullscreen needs support from the host.'); });
+  };
   useEffect(() => managerRoot.current ? installManagerPointerScroll(managerRoot.current) : undefined, []);
   const theme = previewTheme || (window.hudiy ? nativeTheme : cachedTheme || nativeTheme);
   const themeVars = Object.fromEntries(Object.entries(theme).filter(([, value]) => typeof value === 'string').map(([key, value]) => [`--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`, value]));
@@ -161,14 +186,16 @@ export function ManagementApp({ api = managementRequest, previewTheme }: Props =
   };
 
   return <div ref={managerRoot} className="container manager-container" data-theme={theme.darkThemeEnabled ? 'dark' : 'light'} style={themeVars as CSSProperties}>
-    <nav className="manager-tabs" aria-label="Manager panels"><strong className="manager-nav-title">RNS-E Manager</strong>{(['settings', 'services', 'logs'] as const).map(id => <button key={id} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon kind={id} />{id[0].toUpperCase() + id.slice(1)}</button>)}<a href={filesPortalUrl(window.location)}><Icon kind="files" />Files</a>{pinRequired && <TouchTextInput className="manager-pin" type="password" value={pin} onValueChange={setPin} aria-label="Management PIN" placeholder="PIN" touchOnly />}</nav>
+    <nav className="manager-tabs" aria-label="Manager panels"><strong className="manager-nav-title">RNS-E Manager</strong>{(['settings', 'video', 'services', 'logs'] as const).map(id => <button key={id} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon kind={id === 'video' ? 'settings' : id} />{id[0].toUpperCase() + id.slice(1)}</button>)}<a href={filesPortalUrl(window.location)}><Icon kind="files" />Files</a>{pinRequired && <TouchTextInput className="manager-pin" type="password" value={pin} onValueChange={setPin} aria-label="Management PIN" placeholder="PIN" touchOnly />}</nav>
     {message && <div className={`manager-message ${message.error ? 'error' : ''}`} role={message.error ? 'alert' : 'status'}><span>{message.text}</span><button aria-label="Dismiss message" onClick={() => setMessage(null)}>×</button></div>}
+    {tab === 'video' && <main className="manager-video-page"><nav className="manager-video-pages" aria-label="Video controls"><button className={videoPane === 'rnse' ? 'active' : ''} aria-pressed={videoPane === 'rnse'} onClick={() => setVideoPane('rnse')}>RNS-E ADC</button><button className={videoPane === 'pi' ? 'active' : ''} aria-pressed={videoPane === 'pi'} onClick={() => setVideoPane('pi')}>Pi colors</button></nav>{videoPane === 'rnse' ? <RnseAdcPanel api={api} pin={pin} onTestPattern={showPattern} /> : <div className="manager-video-page-scroll"><VideoPanel api={api} pin={pin} /></div>}</main>}
+    {patternVisible && <RnseTestPattern close={closePattern} notice={patternNotice} />}
     {tab === 'settings' && <>
       {!videoSelected && <div className="manager-settings-tools"><select aria-label="Configuration file" value={targetId} disabled={!!pending || !!dirty} onChange={event => { setTargetId(event.target.value); setSearch(''); setMessage(null); }}>{targets.length ? targets.map(target => <option key={target.id} value={target.id}>{target.label}{target.exists ? '' : ' (missing)'}</option>) : <option value="rnse">RNSE configuration</option>}</select><TouchTextInput value={search} onValueChange={setSearch} aria-label="Search settings" placeholder="Search settings" touchOnly /><button className="manager-icon-button" disabled={!!pending || !!dirty || loadingConfig} onClick={() => void loadConfig(targetId)} aria-label="Reload configuration"><Icon kind="refresh" /></button></div>}
       <div className="manager-settings-workspace"><aside className="manager-sections" aria-label="Settings sections">{groups.map(group => <button className={activeGroup?.id === group.id && !search ? 'active' : ''} key={group.id} onClick={() => { setSection(group.id); setSearch(''); }}>{group.title}</button>)}</aside>
         <ManagerScrollRegion>{loadingConfig ? <p className="manager-empty">Loading installed configuration…</p> : snapshot ? <>
           {!videoSelected && !rnseSelected && <div className="manager-section-heading"><h2>{search ? `Search · ${visibleFields.length} settings` : activeGroup?.title}</h2><p>{search ? 'Names, values and descriptions.' : activeGroup?.description}</p></div>}
-          {rnseSelected && <nav className="manager-rnse-panels" aria-label="RNS-E controls"><button className={rnsePane === 'head-unit' ? 'active' : ''} aria-pressed={rnsePane === 'head-unit'} onClick={() => setRnsePane('head-unit')}>Live controls</button><button className={rnsePane === 'automatic' ? 'active' : ''} aria-pressed={rnsePane === 'automatic'} onClick={() => setRnsePane('automatic')}>Automatic{dirty ? ' · unsaved edits' : ''}</button><button className={rnsePane === 'video' ? 'active' : ''} aria-pressed={rnsePane === 'video'} onClick={() => setRnsePane('video')}>Pi video</button></nav>}
+          {rnseSelected && <nav className="manager-rnse-panels" aria-label="RNS-E controls"><button className={rnsePane === 'head-unit' ? 'active' : ''} aria-pressed={rnsePane === 'head-unit'} onClick={() => setRnsePane('head-unit')}>Live controls</button><button className={rnsePane === 'automatic' ? 'active' : ''} aria-pressed={rnsePane === 'automatic'} onClick={() => setRnsePane('automatic')}>Automatic{dirty ? ' · unsaved edits' : ''}</button><button className={rnsePane === 'video' ? 'active' : ''} aria-pressed={rnsePane === 'video'} onClick={() => { setVideoPane('pi'); setTab('video'); }}>Pi video</button></nav>}
           {videoSelected ? <VideoPanel api={api} pin={pin} /> : <>{rnseSelected && <RnseBridgePanel view={liveSelected ? 'live' : 'automatic'} fields={brightnessFields} edits={edits} disabled={!!pending || (pinRequired && !pin)} api={api} pin={pin} set={(id, text) => setEdits(previous => ({ ...previous, [id]: text }))} />}{!liveSelected && visibleFields.filter(field => !brightnessFields.includes(field)).map(field => <SettingControl field={field} key={field.id} text={edits[field.id] ?? displayValue(field.value, field.metadata)} disabled={!!pending} set={text => setEdits(previous => ({ ...previous, [field.id]: text }))} />)}{!visibleFields.length && <p className="manager-empty">{rnseSelected ? 'No head-unit settings in this config. Pi video is available above.' : 'No settings match.'}</p>}</>}
         </> : <div className="manager-empty">Could not load this configuration.<button onClick={() => void loadConfig(targetId)}>Try again</button></div>}</ManagerScrollRegion>
       </div>

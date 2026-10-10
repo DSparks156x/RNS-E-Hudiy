@@ -19,6 +19,7 @@ import sys
 import uinput
 import os
 from wheel_controls import WheelControlRouter
+from tv_panel_controls import PANEL_BUTTONS, valid_panel_frame
 
 # --- Global State ---
 RUNNING = True
@@ -84,9 +85,46 @@ class ControlState:
 def parse_key(key_string):
     """Safely parses a key name string from config into a uinput key object."""
     if not key_string: return None
+    if not isinstance(key_string, str):
+        logger.warning('Invalid uinput key name %r in config. Ignored.', key_string)
+        return None
     key = getattr(uinput, key_string, None)
     if not key: logger.warning(f"Invalid uinput key name '{key_string}' in config. Ignored.")
     return key
+
+
+def parse_mmi_binding(value, allow_command=False):
+    """All MMI press tables share key/action/null bindings; extended also accepts shell."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        if value.startswith('KEY_'):
+            return parse_key(value)
+        if allow_command and value.strip():
+            return value
+    elif (isinstance(value, dict) and set(value) == {'action'}
+          and isinstance(value['action'], str) and value['action'].strip()
+          and len(value['action']) <= 256):
+        return {'action': value['action']}
+    logger.warning('Ignoring invalid MMI binding %r', value)
+    return None
+
+
+def parse_mmi_map(values, allow_command=False):
+    if not isinstance(values, dict):
+        logger.warning('Ignoring invalid MMI press table: expected an object')
+        return {}
+    result = {}
+    for mask, value in values.items():
+        try:
+            pair = tuple(int(part.strip(), 10) for part in mask.split(','))
+        except (AttributeError, ValueError):
+            pair = ()
+        if len(pair) != 2 or any(not 0 <= part <= 255 for part in pair):
+            logger.warning('Ignoring invalid MMI mask %r', mask)
+            continue
+        result[pair] = parse_mmi_binding(value, allow_command)
+    return result
 
 def load_and_initialize_config(config_path='/home/pi/config.json'):
     """Loads and validates the JSON configuration file."""
@@ -143,11 +181,12 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
             'zmq_top_status': zmq_cfg.get('dis_top_status', 'ipc:///run/rnse_control/dis_top_status.ipc'),
             'wheel_double_click_ms': mfsw_cfg.get('double_click_ms', 350),
             'auto_phone_control': bool(display_cfg.get('phone', {}).get('scroll_wheel_phone_menu', False)),
-            'can_ids': {k: int(v, 16) for k, v in cfg.get('can_ids', {}).items()},
+            'can_ids': {k: int(v, 16) for k, v in cfg.get('can_ids', {}).items()
+                        if k in ('mmi', 'mfsw', 'source')},
             'mmi_scroll_cmds': {tuple(map(int, k.split(','))) for k in mmi_scroll_cmds},
-            'mmi_short_map': {tuple(map(int, k.split(','))): parse_key(v) for k, v in mmi_short_press.items()},
-            'mmi_long_map': {tuple(map(int, k.split(','))): parse_key(v) for k, v in mmi_long_press.items()},
-            'mmi_extended_map': {tuple(map(int, k.split(','))): v for k, v in mmi_extended_press.items()},
+            'mmi_short_map': parse_mmi_map(mmi_short_press),
+            'mmi_long_map': parse_mmi_map(mmi_long_press),
+            'mmi_extended_map': parse_mmi_map(mmi_extended_press, allow_command=True),
             
             'mfsw_cmds': {k: int(v, 16) for k, v in mfsw_cmds_cfg.items() if isinstance(v, str) and k != 'release'},
             'mfsw_release_cmds': [int(v, 16) for v in mfsw_cmds_cfg.get('release', [])],
@@ -228,9 +267,10 @@ def initialize_zmq_subscriber():
 def get_all_possible_keys():
     """Aggregates all unique keys from config for uinput device creation."""
     keys = set()
-    for key_map in [CONFIG['mmi_short_map'], CONFIG['mmi_long_map'], CONFIG['mfsw_map']]:
+    for key_map in [CONFIG['mmi_short_map'], CONFIG['mmi_long_map'],
+                    CONFIG['mmi_extended_map'], CONFIG['mfsw_map']]:
         for key in key_map.values():
-            if key: keys.add(key)
+            if key and not isinstance(key, (dict, str)): keys.add(key)
     if CONFIG.get('play_key'): keys.add(CONFIG['play_key'])
     if CONFIG.get('pause_key'): keys.add(CONFIG['pause_key'])
     logger.info(f"Found {len(keys)} unique keys to register for the virtual device.")
@@ -296,6 +336,30 @@ def publish_wheel_event(event, owner, app):
     except zmq.ZMQError as exc:
         logger.warning('Wheel input publication failed: %s', exc)
 
+def dispatch_mmi_binding(binding):
+    """Use the same dispatcher for every MMI key and press duration."""
+    if not binding:
+        return False
+    if isinstance(binding, str):
+        if not FEATURES.get('system_actions'):
+            return False
+        run_command(binding)
+        return True
+    if not isinstance(binding, dict):
+        press_key(binding)
+        return True
+    if INPUT_PUB is None:
+        return True
+    payload = {'event': binding['action'], 'timestamp': time.time(),
+               'monotonic_timestamp': time.monotonic()}
+    try:
+        INPUT_PUB.send_multipart([b'HUDIY_ACTION', json.dumps(payload).encode()], flags=zmq.NOBLOCK)
+        logger.info('Published Hudiy MMI action %s', binding['action'])
+    except zmq.ZMQError as exc:
+        logger.warning('Hudiy action publication failed: %s', exc)
+    return True
+
+
 def run_command(command_str):
     """Executes a shell command from the configuration."""
     if not command_str: return
@@ -307,9 +371,17 @@ def run_command(command_str):
 
 # --- Message Handlers ---
 def handle_mmi_message(msg, state):
-    if msg['dlc'] < 5: return
-    data = bytes.fromhex(msg['data_hex'])
+    # Bad input must not terminate the service or slip into legacy button logic.
+    if not isinstance(msg, dict): return
+    try:
+        dlc = msg.get('dlc')
+        if not isinstance(dlc, int) or isinstance(dlc, bool) or dlc < 5: return
+        data = bytes.fromhex(msg.get('data_hex', ''))
+    except (TypeError, ValueError):
+        return
+    if len(data) < 5 or len(data) != dlc: return
     status, cmd = data[2], (data[3], data[4])
+    if cmd in PANEL_BUTTONS and not valid_panel_frame(msg, data): return
     now = time.time()
 
     if status == 0x01: # Press Event
@@ -322,22 +394,23 @@ def handle_mmi_message(msg, state):
         state.mmi_press_counters[cmd] = current_count
 
         if cmd in CONFIG['mmi_scroll_cmds']:
-            press_key(CONFIG['mmi_short_map'].get(cmd))
+            dispatch_mmi_binding(CONFIG['mmi_short_map'].get(cmd))
             state.mmi_press_counters[cmd] = 0
             return
 
-        if FEATURES.get('system_actions') and not state.mmi_extended_action_fired.get(cmd) and current_count >= CONFIG['extended_press_count']:
-            action = CONFIG['mmi_extended_map'].get(cmd)
-            logger.info(f"MMI Extended Press: {cmd}")
-            run_command(action)
+        extended = CONFIG['mmi_extended_map'].get(cmd)
+        long_binding = CONFIG['mmi_long_map'].get(cmd)
+        extended_enabled = bool(extended) and (not isinstance(extended, str) or FEATURES.get('system_actions'))
+        if extended_enabled and not state.mmi_extended_action_fired.get(cmd) and current_count >= CONFIG['extended_press_count']:
+            logger.info('MMI Extended Press: %s', PANEL_BUTTONS.get(cmd, cmd))
+            dispatch_mmi_binding(extended)
             state.mmi_extended_action_fired[cmd] = True
             state.mmi_long_action_fired[cmd] = True
             state.last_mmi_action_info = {'command': cmd, 'time': now}
         
-        elif not state.mmi_long_action_fired.get(cmd) and current_count >= CONFIG['long_press_count']:
-            key = CONFIG['mmi_long_map'].get(cmd)
-            logger.info(f"MMI Long Press: {cmd}")
-            press_key(key)
+        elif long_binding and not state.mmi_long_action_fired.get(cmd) and current_count >= CONFIG['long_press_count']:
+            logger.info('MMI Long Press: %s', PANEL_BUTTONS.get(cmd, cmd))
+            dispatch_mmi_binding(long_binding)
             state.mmi_long_action_fired[cmd] = True
             state.last_mmi_action_info = {'command': cmd, 'time': now}
 
@@ -347,10 +420,10 @@ def handle_mmi_message(msg, state):
                 if cmd in [(1, 0), (2, 0)] and now - state.last_mfsw_scroll_time < 0.25:
                     logger.info(f"Ignoring MMI duplicate trigger for {cmd} (MFSW dominant)")
                 else:
-                    key = CONFIG['mmi_short_map'].get(cmd)
-                    logger.info(f"MMI Short Press: {cmd}")
-                    press_key(key)
-                    state.last_mmi_action_info = {'command': cmd, 'time': now}
+                    binding = CONFIG['mmi_short_map'].get(cmd)
+                    logger.info('MMI Short Press: %s', PANEL_BUTTONS.get(cmd, cmd))
+                    if dispatch_mmi_binding(binding):
+                        state.last_mmi_action_info = {'command': cmd, 'time': now}
         
         state.reset_mmi_state(cmd) # Reset on release regardless of action
 

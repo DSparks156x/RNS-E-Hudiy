@@ -17,7 +17,8 @@ function rnseDefaults(document: ConfigDocument): ConfigDocument {
   for (const group of ['auto_brightness', 'auto_lcd_brightness', 'source_label'] as const) {
     if (!(group in (document.rnse as ConfigDocument || {})) || object(rnse[group])) rnse[group] = { ...RNSE_DEFAULTS[group], ...(object(rnse[group]) ? rnse[group] : {}) };
   }
-  const result = { ...document, rnse };
+  const result: ConfigDocument = { ...document, rnse };
+  if (!('can_ids' in document) || object(document.can_ids)) result.can_ids = { rnse_adc_reply: '0x462', ...(document.can_ids as ConfigDocument || {}) };
   // Expose the existing wire default on older Pi configs; only an edit saves it.
   if (!('features' in document) || object(document.features)) {
     const features = { ...(document.features as ConfigDocument || {}) };
@@ -62,8 +63,8 @@ export function parseSetting(text: string, original: JsonValue, metadata: Settin
   if (metadata.type === 'hex-payload') return normalizeHexPayload(text);
   if (metadata.type?.startsWith('json') || original === null || Array.isArray(original) || typeof original === 'object') {
     try { value = JSON.parse(text) as JsonValue; } catch { throw new Error('Enter valid JSON.'); }
-    if ((metadata.type === 'json-array' || Array.isArray(original)) && !Array.isArray(value)) throw new Error('Enter a JSON array.');
-    if (original !== null && !Array.isArray(original) && typeof original === 'object' && (!value || Array.isArray(value) || typeof value !== 'object')) throw new Error('Enter a JSON object.');
+    if ((metadata.type === 'json-array' || (metadata.type !== 'json-value' && Array.isArray(original))) && !Array.isArray(value)) throw new Error('Enter a JSON array.');
+    if (metadata.type !== 'json-value' && original !== null && !Array.isArray(original) && typeof original === 'object' && (!value || Array.isArray(value) || typeof value !== 'object')) throw new Error('Enter a JSON object.');
   } else if (typeof original === 'number') {
     if (!text.trim()) throw new Error('Enter a number.');
     value = Number(text);

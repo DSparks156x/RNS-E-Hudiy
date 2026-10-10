@@ -127,6 +127,12 @@ def validate_document(target, document):
                     raise ConfigError('features.tv_simulation.payload must contain 1 to 8 whole hexadecimal bytes.')
                 tv_simulation['payload'] = re.sub(r'\s+', '', payload).upper()
         rnse = document.get('rnse', {})
+        if 'rnse_adc_reply' in document.get('can_ids', {}):
+            from .rnse_adc_protocol import reply_identifier
+            try:
+                reply_identifier(document['can_ids']['rnse_adc_reply'])
+            except ValueError as error:
+                raise ConfigError(str(error)) from None
         for section, maximum in (('auto_brightness', 10), ('auto_lcd_brightness', 100)):
             if section not in rnse:
                 continue

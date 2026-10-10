@@ -67,9 +67,10 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('date');
   const [showUpload, setShowUpload] = useState(initialGroup === 'controllers');
-  const [archive, setArchive] = useState<{ label: string; status: ArchiveJobStatus | null; error: string | null; busy: boolean; url: string } | null>(null);
+  const [archive, setArchive] = useState<{ label: string; status: ArchiveJobStatus | null; error: string | null; busy: boolean; url: string; expired?: boolean } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const archiveController = useRef<AbortController | null>(null);
+  const archiveBusy = useRef(false);
   const downloadedArchive = useRef<string | null>(null);
   const archiveLinkRef = useRef<HTMLAnchorElement>(null);
   const requestId = useRef(0);
@@ -93,8 +94,17 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
       archiveLinkRef.current?.click();
     }
   }, [archive]);
+  useEffect(() => {
+    if (archive?.status?.state !== 'ready' || archive.expired) return;
+    const url = archive.status.download_url;
+    const timer = setTimeout(() => setArchive(previous => previous?.status?.download_url === url
+      ? { ...previous, expired: true } : previous), 290_000);
+    return () => clearTimeout(timer);
+  }, [archive?.status?.state, archive?.status?.download_url, archive?.expired]);
   const startArchive = async (url: string, label: string) => {
-    if (archive?.busy) return;
+    if (archiveBusy.current) return;
+    archiveBusy.current = true;
+    downloadedArchive.current = null;
     archiveController.current?.abort();
     const controller = new AbortController(); archiveController.current = controller;
     setArchive({ url, label, status: null, error: null, busy: true });
@@ -105,7 +115,7 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
     } catch (error) {
       if (!controller.signal.aborted) setArchive(previous => previous ? { ...previous, busy: false,
         error: error instanceof Error ? error.message : 'ZIP preparation failed.' } : null);
-    }
+    } finally { archiveBusy.current = false; }
   };
   const collections = catalog?.collections || [];
   const groupCollections = collections.filter(collection => collectionGroup(collection) === group);
@@ -153,13 +163,16 @@ export function FilesTab({ loadCatalog: fetchCatalog = loadCatalog, sendFile: po
     </header>
     {archive && <section className={`portal-archive-status${archive.error ? ' failed' : archive.status?.state === 'ready' ? ' ready' : ''}`} aria-live="polite" aria-atomic="true">
       <div className="portal-archive-status-heading"><strong>{archive.error ? `${archive.label} failed` : archive.status?.state === 'ready' ? `${archive.label} is ready` : `Preparing ${archive.label}`}</strong>
-        {archive.busy && <span>{archive.status?.state === 'queued' ? 'Waiting for a worker…' : 'Compressing files…'}</span>}
+        {archive.busy && <span>{archive.status?.state === 'queued' ? 'Waiting for a worker…' : (archive.status?.total_bytes || 0) <= 0 ? 'Scanning files…' : 'Compressing files…'}</span>}
       </div>
-      {archive.busy && <><div className="portal-archive-progress" role="progressbar" aria-label={`${archive.label} preparation`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={archive.status?.percent || 0}><span style={{ width: `${Math.max(0, Math.min(100, archive.status?.percent || 0))}%` }} /></div>
-        <div className="portal-archive-details"><span>{formatSize(archive.status?.bytes_processed || 0)} of {formatSize(archive.status?.total_bytes || 0)} · {Math.max(0, Math.min(100, archive.status?.percent || 0))}%</span>{archive.status?.current_file && <span className="portal-archive-file">{archive.status.current_file}</span>}</div></>}
+      {archive.busy && <><div className={`portal-archive-progress${(archive.status?.total_bytes || 0) <= 0 ? ' indeterminate' : ''}`} role="progressbar" aria-label={`${archive.label} preparation`} aria-valuemin={0} aria-valuemax={100} {...((archive.status?.total_bytes || 0) > 0 ? { 'aria-valuenow': Math.max(0, Math.min(100, archive.status?.percent || 0)) } : {})}><span style={(archive.status?.total_bytes || 0) > 0 ? { width: `${Math.max(0, Math.min(100, archive.status?.percent || 0))}%` } : undefined} /></div>
+        {(archive.status?.total_bytes || 0) > 0 && <div className="portal-archive-details"><span>{formatSize(archive.status?.bytes_processed || 0)} of {formatSize(archive.status?.total_bytes || 0)} · {Math.max(0, Math.min(100, archive.status?.percent || 0))}%</span>{archive.status?.current_file && <span className="portal-archive-file">{archive.status.current_file}</span>}</div>}
+        {(archive.status?.total_bytes || 0) <= 0 && archive.status?.current_file && <div className="portal-archive-details"><span className="portal-archive-file">{archive.status.current_file}</span></div>}</>}
       {archive.error && <div className="portal-archive-result"><span role="alert">{archive.error}</span><button className="portal-primary-button" onClick={() => void startArchive(archive.url, archive.label)}>Retry ZIP</button></div>}
-      {archive.status?.state === 'ready' && !archive.error && <a className="portal-bundle-button portal-archive-download" href={archive.status.download_url || undefined}><Icon name="download" />Download ZIP</a>}
-      {archive.status?.state === 'ready' && <a ref={archiveLinkRef} className="portal-archive-auto-download" href={archive.status.download_url || undefined} aria-hidden="true" tabIndex={-1} download />}
+      {archive.status?.state === 'ready' && !archive.error && (archive.expired
+        ? <div className="portal-archive-result"><span>This download link expired. Prepare a fresh ZIP to download it.</span><button className="portal-primary-button" onClick={() => void startArchive(archive.url, archive.label)}>Prepare again</button></div>
+        : <><p className="portal-archive-expiry">Download available for about five minutes.</p><div className="portal-archive-ready-actions"><a className="portal-bundle-button portal-archive-download" href={archive.status.download_url || undefined}><Icon name="download" />Download ZIP</a><button className="portal-primary-button" onClick={() => void startArchive(archive.url, archive.label)}>Prepare again</button></div></>)}
+      {archive.status?.state === 'ready' && !archive.expired && <a ref={archiveLinkRef} className="portal-archive-auto-download" href={archive.status.download_url || undefined} aria-hidden="true" tabIndex={-1} download />}
     </section>}
     <nav className="portal-groups" aria-label="File categories">{GROUPS.map(item => <button key={item.id} aria-pressed={!configurationOpen && group === item.id}
       className={!configurationOpen && group === item.id ? 'active' : ''} onClick={() => selectGroup(item.id)}>{item.label}<span>{collections.filter(c => collectionGroup(c) === item.id).reduce((sum, c) => sum + c.count, 0)}</span></button>)}<button aria-pressed={configurationOpen} className={configurationOpen ? 'active' : ''} onClick={() => setConfigurationOpen(true)}>Configuration</button></nav>

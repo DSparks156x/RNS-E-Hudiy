@@ -29,6 +29,7 @@ try:
     import common.Api_pb2 as hudiy_api
     from api_event_capture import ApiEventCapture
     from connection_manager import ConnectionManager
+    from input_actions import InputActionDispatcher
     
     # Add root to path for dis_client
     sys.path.insert(0, os.path.join(script_dir, '..'))
@@ -1169,6 +1170,9 @@ class HudiyData:
             event_capture=self.api_event_capture,
         )
         self.data_client = None
+        self.input_control_addr = (config or {}).get('interfaces', {}).get('zmq', {}).get(
+            'input_control_stream', 'ipc:///run/rnse_control/input_control_stream.ipc')
+        self.input_actions = InputActionDispatcher(hudiy_api)
         
         # TP2 Bridge
         self.tp2_zmq_addr = 'tcp://localhost:5558'
@@ -1225,6 +1229,7 @@ class HudiyData:
                 self.data_client = Client("DATA")
                 self.data_client.set_event_handler(self.handler)
                 self.data_client.connect('127.0.0.1', 44405)
+                self.input_actions.set_client(self.data_client)
                 self.connection_manager.set_hudiy_client(self.data_client)
                 logger.info("DATA Thread ACTIVE — subscriptions requested")
                 while self.data_client._connected and self.running:
@@ -1236,6 +1241,7 @@ class HudiyData:
             except Exception as e:
                 logger.error(f"DATA Thread unexpected error: {e}", exc_info=True)
 
+            self.input_actions.set_client(None)
             self.handler.set_projection_api_connected(False)
             if self.data_client:
                 self.data_client.disconnect()
@@ -1290,9 +1296,37 @@ class HudiyData:
                 time.sleep(1)
         sub.close()
 
+    def input_action_subscriber(self):
+        """Drain transient panel actions even while the API is disconnected."""
+        ctx = zmq.Context()
+        sub = ctx.socket(zmq.SUB)
+        sub.setsockopt(zmq.LINGER, 0)
+        sub.setsockopt(zmq.RCVHWM, 32)
+        sub.setsockopt_string(zmq.SUBSCRIBE, 'HUDIY_ACTION')
+        try:
+            sub.connect(self.input_control_addr)
+            while self.running:
+                if not sub.poll(timeout=200):
+                    continue
+                parts = sub.recv_multipart()
+                if len(parts) != 2 or parts[0] != b'HUDIY_ACTION':
+                    continue
+                try:
+                    self.input_actions.submit(json.loads(parts[1]))
+                except (ValueError, UnicodeDecodeError):
+                    logger.warning('Ignoring malformed Hudiy input action')
+        except zmq.ZMQError as exc:
+            logger.warning('Hudiy input action subscriber stopped: %s', exc)
+        finally:
+            sub.close()
+            ctx.term()
+
     def run(self):
         logger.info("THREADING Hudiy Data ACTIVE!")
         self.connection_manager.start()
+        self.input_actions.start()
+        input_action_thread = threading.Thread(target=self.input_action_subscriber,
+                                               daemon=True, name='HUDIY_ACTION_INPUT')
         data_thread    = threading.Thread(target=self.connect_data,         daemon=True, name="DATA")
         tp2_thread     = threading.Thread(target=self.connect_tp2,          daemon=True, name="TP2_BRIDGE")
         tp2_status_thread = threading.Thread(target=self.tp2_status_subscriber, daemon=True, name="TP2_STATUS")
@@ -1300,6 +1334,7 @@ class HudiyData:
         data_thread.start()
         tp2_thread.start()
         tp2_status_thread.start()
+        input_action_thread.start()
 
         try:
             next_projection_snapshot = 0.0
@@ -1313,6 +1348,8 @@ class HudiyData:
         finally:
             logger.info("Main loop finished. Cleaning up...")
             self.running = False
+            self.input_actions.stop()
+            input_action_thread.join(timeout=1.0)
             self.handler.set_projection_api_connected(False)
             self.handler.stop()
             self.connection_manager.stop()

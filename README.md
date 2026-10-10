@@ -18,6 +18,9 @@ and an opt-in source label based on Hudiy’s reported media/navigation provider
 The provider label does not indicate an exact connection state.
 The RNS-E page also has live Pi video controls for gamma, contrast, black point
 and RGB gains, with optional startup profiles and original-color restoration.
+The same page offers [r21 ADC tuning](hudiy_manager/ADC_TUNING.md): linked RGB
+gain/offset, timing and sync controls, complete register dumps, stock Revert,
+named volatile presets, and a full-size 800×480 calibration image.
 
 ### DIS (Driver Information System)
 *   **Contextual Display**: Shows navigation, now playing, and phone info from Hudiy API. 
@@ -41,6 +44,7 @@ and RGB gains, with optional startup profiles and original-color restoration.
 
 ### Inputs & Power
 *   **Unified Inputs**: Handles RNS-E and Steering Wheel Control (SWC) buttons.
+*   **r21 TV panel shortcuts**: NAV navigation, TEL phone, MEDIA current player, INFO DataView, CAR RNS-E Manager, and NAME app menu. SETUP stays home; RADIO returns to factory radio. All faceplate buttons share the short, long and extended press mappings. See [button mapping details](references/TV_BUTTONS_HUDIY_MAPPING.md).
 *   **Power Management**: GPIO shutdown via Radio Amp Wake signal for fast boot.
 *   **CAN Listen Only**: Automatically puts CAN into listen-only mode when ignition is off.
 

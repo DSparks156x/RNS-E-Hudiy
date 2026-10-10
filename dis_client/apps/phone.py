@@ -1,4 +1,3 @@
-import json, os
 from .base import BaseApp
 try:
     from ..icons import WHEEL_CONTROL_GLYPH
@@ -29,12 +28,6 @@ class PhoneApp(BaseApp):
     def on_enter(self):
         super().on_enter()
         self.control_mode = False
-        try:
-            if os.path.exists('/tmp/current_call.json'):
-                with open('/tmp/current_call.json', 'r') as f:
-                    data = json.load(f)
-                    self.update_hudiy(b'HUDIY_PHONE', data)
-        except Exception: pass
 
     def on_leave(self):
         super().on_leave()
@@ -50,6 +43,8 @@ class PhoneApp(BaseApp):
             if new_state != self.state:
                 self.action_idx = 0
             self.state = new_state
+            if not self.has_active_call:
+                self.control_mode = False
             self.caller_name = (data.get('caller_name') or "No ID") if new_state != "IDLE" else ""
             self.caller_number = (data.get('caller_id') or "") if new_state != "IDLE" else ""
             self.battery = data.get('battery', 0)
@@ -109,6 +104,8 @@ class PhoneApp(BaseApp):
         return None
 
     def get_view(self):
+        if not self.has_active_call:
+            return {}
         lines = {}
         
         centering = self.config.get('display', {}).get('text_centering', False)
@@ -117,14 +114,9 @@ class PhoneApp(BaseApp):
         flag_inv = flag | 0x80
         
         # Determine status text
-        if self.state in self.CALL_STATES:
-            status_text = self.state.capitalize()
-            if status_text in ['Incoming', 'Active']:
-                status_text += ' Call'
-        elif self.conn_state == 'CONNECTED':
-            status_text = "Connected"
-        else:
-            status_text = "No Phone"
+        status_text = self.state.capitalize()
+        if status_text in ['Incoming', 'Active']:
+            status_text += ' Call'
             
         status_scroll = self._scroll_text(status_text, 'phone_status', align=align,
             max_width_px=108 if self.control_mode else 128, font_flags=flag)
@@ -132,34 +124,23 @@ class PhoneApp(BaseApp):
             # Keep the ownership symbol visible even while status text scrolls.
             status_scroll = WHEEL_CONTROL_GLYPH + ' ' + status_scroll
         
-        if status_text == "No Phone":
-            # Just show status and clear the rest
-            lines['line1'] = (status_scroll, flag)
-            lines['line2'] = ("", flag)
-            lines['line3'] = ("", flag)
+        name_scroll = self._scroll_text(self.caller_name, 'phone_name', align=align, max_width_px=128, font_flags=flag)
+        num_scroll = self._scroll_text(self.caller_number, 'phone_number', align=align, max_width_px=128, font_flags=flag)
+
+        lines['line1'] = (status_scroll, flag)
+        lines['line2'] = (name_scroll, flag)
+        lines['line3'] = (num_scroll, flag)
+
+        # Action interface for lines 4 and 5
+        if self.state in ['INCOMING', 'ALERTING', 'DIALING']:
+            l4_text = "Accept"
+            l5_text = "Reject"
+            prefix = '>' if self.control_mode else ''
+            lines['line4'] = (prefix + l4_text if self.action_idx == 0 else l4_text, flag_inv if self.control_mode and self.action_idx == 0 else flag)
+            lines['line5'] = (prefix + l5_text if self.action_idx == 1 else l5_text, flag_inv if self.control_mode and self.action_idx == 1 else flag)
+        elif self.state == 'ACTIVE':
+            l5_text = "End Call"
             lines['line4'] = ("", flag)
-            lines['line5'] = ("", flag)
-        else:
-            name_scroll = self._scroll_text(self.caller_name, 'phone_name', align=align, max_width_px=128, font_flags=flag)
-            num_scroll = self._scroll_text(self.caller_number, 'phone_number', align=align, max_width_px=128, font_flags=flag)
-            
-            lines['line1'] = (status_scroll, flag)
-            lines['line2'] = (name_scroll, flag)
-            lines['line3'] = (num_scroll, flag)
-            
-            # Action interface for lines 4 and 5
-            if self.state in ['INCOMING', 'ALERTING', 'DIALING']:
-                l4_text = "Accept"
-                l5_text = "Reject"
-                prefix = '>' if self.control_mode else ''
-                lines['line4'] = (prefix + l4_text if self.action_idx == 0 else l4_text, flag_inv if self.control_mode and self.action_idx == 0 else flag)
-                lines['line5'] = (prefix + l5_text if self.action_idx == 1 else l5_text, flag_inv if self.control_mode and self.action_idx == 1 else flag)
-            elif self.state == 'ACTIVE':
-                l5_text = "End Call"
-                lines['line4'] = ("", flag)
-                lines['line5'] = (l5_text, flag_inv if self.control_mode else flag)
-            else:
-                lines['line4'] = ("", flag)
-                lines['line5'] = ("", flag)
+            lines['line5'] = (l5_text, flag_inv if self.control_mode else flag)
             
         return lines

@@ -27,6 +27,7 @@ interface HudiyObj {
     colorScheme: HudiyColorScheme;
     onColorSchemeChanged?: () => void;
     onAttached?: () => void;
+    onGoBack?: () => boolean;
 }
 
 declare global {

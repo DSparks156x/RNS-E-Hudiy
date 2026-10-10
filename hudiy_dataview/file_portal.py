@@ -42,10 +42,18 @@ class _ArchiveLimitExceeded(Exception):
 
 def _write_archive(archive, members, archive_limit, progress=None):
     """Snapshot each source length, never follow a replaced symlink, and yield."""
-    sizes = [os.path.getsize(path) for _, path in members]
-    total = sum(sizes)
-    if total > archive_limit or len(members) > ARCHIVE_MEMBER_LIMIT:
+    if len(members) > ARCHIVE_MEMBER_LIMIT:
         raise _ArchiveLimitExceeded
+    sizes = []
+    total = 0
+    for index, (_, path) in enumerate(members):
+        size = os.path.getsize(path)
+        sizes.append(size)
+        total += size
+        if total > archive_limit:
+            raise _ArchiveLimitExceeded
+        if index % 64 == 0:
+            time.sleep(0.001)
     copied = 0
     snapshot_total = 0
     if progress:
@@ -53,6 +61,8 @@ def _write_archive(archive, members, archive_limit, progress=None):
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED,
                          compresslevel=1) as bundle:
         for index, (member_name, path) in enumerate(members):
+            if index % 64 == 0:
+                time.sleep(0.001)
             before = os.stat(path, follow_symlinks=False)
             if not stat.S_ISREG(before.st_mode):
                 raise OSError("An archive source is no longer a regular file")
@@ -104,6 +114,7 @@ class _ArchiveJobs:
         self.active = None
         self.worker = None
         self.stopped = False
+        self.last_scavenge = None
 
     def _discard(self, job):
         if job["downloads"]:
@@ -169,8 +180,34 @@ class _ArchiveJobs:
             job.update(bytes_processed=processed, total_bytes=total, current_file=current,
                        percent=min(99, int(processed * 100 / total)) if total else 0)
 
+    def _scavenge(self):
+        # A process crash cannot unlink named results. Only reclaim old files
+        # bearing our exact temporary prefix; leave recent/owned files alone.
+        now = time.monotonic()
+        if self.last_scavenge is not None and now - self.last_scavenge < ARCHIVE_JOB_TTL:
+            return
+        self.last_scavenge = now
+        with self.lock:
+            owned = {job["path"] for job in self.jobs.values() if job["path"]}
+        cutoff = time.time() - 24 * 60 * 60
+        try:
+            with os.scandir(tempfile.gettempdir()) as entries:
+                for index, entry in enumerate(entries):
+                    if index % 64 == 0:
+                        time.sleep(0.001)
+                    if not entry.name.startswith("hudiy-archive-") or not entry.name.endswith(".zip") or entry.path in owned:
+                        continue
+                    try:
+                        if entry.is_file(follow_symlinks=False) and entry.stat(follow_symlinks=False).st_mtime < cutoff:
+                            os.unlink(entry.path)
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+
     def _run(self):
         while True:
+            self._scavenge()
             with self.lock:
                 self._cleanup()
                 if self.stopped or (self.active is None and not self.jobs):
@@ -437,13 +474,19 @@ def _safe_path(collection: Collection, relative_path: str) -> str:
     return candidate
 
 
-def _walk(collection: Collection):
+def _walk(collection: Collection, cooperative: bool = False):
     root = collection.directory
     if not os.path.isdir(root):
         return
+    visited = 0
     for current, directories, filenames in os.walk(root, followlinks=False):
+        if cooperative:
+            time.sleep(0.001)
         directories[:] = sorted(d for d in directories if not d.startswith("."))
         for filename in sorted(filenames):
+            visited += 1
+            if cooperative and visited % 64 == 0:
+                time.sleep(0.001)
             if filename.startswith(".") or not _is_allowed(collection, filename):
                 continue
             path = os.path.join(current, filename)
@@ -586,11 +629,7 @@ def register_file_portal(app, config: Mapping,
         if collection_id == "all_logs":
             if relative_path:
                 abort(404)
-            members = [
-                (f"{collection.id}/{relative_path}", path)
-                for collection in collections.values() if collection.kind == "logs"
-                for relative_path, path in _walk(collection)
-            ]
+            selected = [collection for collection in collections.values() if collection.kind == "logs"]
         else:
             collection = collections.get(collection_id)
             if not collection:
@@ -600,11 +639,25 @@ def register_file_portal(app, config: Mapping,
                 if not os.path.isdir(folder) or os.path.islink(folder):
                     abort(404)
                 relative_path = os.path.relpath(folder, collection.directory).replace(os.sep, "/")
-            members = list(_walk(collection))
-            if relative_path:
-                members = [(name, path) for name, path in members if name.startswith(relative_path + "/")]
-                if not members:
-                    abort(404)
+            selected = [collection]
+        members = []
+        total = 0
+        for collection in selected:
+            for name, path in _walk(collection, cooperative=True):
+                if relative_path and not name.startswith(relative_path + "/"):
+                    continue
+                if len(members) >= ARCHIVE_MEMBER_LIMIT:
+                    raise _ArchiveLimitExceeded
+                # Bound both enumeration memory and anticipated temporary disk
+                # use before appending; do not build an unlimited member list.
+                total += os.path.getsize(path)
+                if total > archive_limit:
+                    raise _ArchiveLimitExceeded
+                if collection_id == "all_logs":
+                    name = f"{collection.id}/{name}"
+                members.append((name, path))
+        if relative_path and not members:
+            abort(404)
         return members, relative_path
 
     jobs = _ArchiveJobs(archive_members, archive_limit, app.logger)
@@ -653,13 +706,11 @@ def register_file_portal(app, config: Mapping,
     @app.get("/api/files/archive/<collection_id>")
     @app.get("/api/files/archive/<collection_id>/<path:relative_path>")
     def portal_archive(collection_id: str, relative_path: str = ""):
-        members, relative_path = archive_members(collection_id, relative_path)
         archive = None
         try:
+            members, relative_path = archive_members(collection_id, relative_path)
             # Legacy direct URLs remain available with fast compression and
             # bounded temporary disk storage, sharing the job copy safeguards.
-            if sum(os.path.getsize(path) for _, path in members) > archive_limit or len(members) > ARCHIVE_MEMBER_LIMIT:
-                raise _ArchiveLimitExceeded
             archive = tempfile.TemporaryFile(mode="w+b")
             size = _write_archive(archive, members, archive_limit)
             archive.seek(0)

@@ -2,6 +2,7 @@
 import json
 
 from .config_store import ConfigError
+from .rnse_adc_protocol import validate_values
 
 DEFAULT_ENDPOINT = 'ipc:///run/rnse_control/rnse_control.ipc'
 MAX_REPLY_BYTES = 16384
@@ -44,6 +45,11 @@ class RnseBridgeClient:
         if not isinstance(endpoint, str) or not endpoint.startswith('ipc:///') or '\x00' in endpoint:
             raise ConfigError('RNS-E bridge commands require a local absolute IPC endpoint.')
         data = {'action': action}
+        if action == 'adc_write':
+            try:
+                data['values'] = validate_values(values)
+            except ValueError as error:
+                raise ConfigError(str(error)) from None
         if action == 'manual':
             if not isinstance(values, dict) or not values or set(values) - {'brightness', 'lcd_brightness'}:
                 raise ConfigError('Provide brightness or lcd_brightness.')

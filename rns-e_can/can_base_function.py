@@ -25,6 +25,7 @@ from rnse_control import RnseBrightnessController
 from rnse_bridge_runtime import serve_commands, listen_projection
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from flasher.traffic import flashing_mode_enabled
+from hudiy_manager.rnse_adc_protocol import AdcController, DEFAULT_REPLY_ID, reply_identifier
 import subprocess
 try:
     from gpiozero import Button
@@ -244,6 +245,10 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
         brightness = RnseBrightnessController.from_config(cfg.get('rnse', {}))
         brightness.inherit_state(CONFIG.get('rnse_brightness'))
         light_id = can_ids.get('light_status')
+        adc_reply_id = reply_identifier(can_ids.get('rnse_adc_reply', DEFAULT_REPLY_ID))
+        adc = CONFIG.get('rnse_adc')
+        if adc is None or adc.reply_id != adc_reply_id:
+            adc = AdcController(adc_reply_id)
         if brightness.needs_lights and light_id is None:
             raise KeyError('can_ids.light_status is required for RNS-E auto brightness')
         command_address = zmq_config.get('rnse_control_command', 'ipc:///run/rnse_control/rnse_control.ipc')
@@ -257,11 +262,13 @@ def load_and_initialize_config(config_path='/home/pi/config.json') -> bool:
             'zmq_send_address': zmq_config.get('send_address'),
             'zmq_base_publish_address': zmq_config.get('system_events'),
             'rnse_brightness': brightness,
+            'rnse_adc': adc,
             'config_path': config_path,
             'rnse_command_address': command_address,
             'hudiy_metric_address': zmq_config.get('metric_stream', 'ipc:///run/rnse_control/hudiy_stream.ipc'),
             'can_ids': {
                 'light_status': int(light_id, 16) if light_id is not None else None,
+                'rnse_adc_reply': adc_reply_id,
                 'tv_presence': int(can_ids.get('tv_presence', '0x602'), 16),
                 'time_data': int(can_ids.get('time_data', '0x623'), 16),
                 'ignition_status': int(can_ids.get('ignition_status', '0x2C3'), 16),
@@ -634,6 +641,17 @@ def reconcile_rnse_brightness(state: AppState):
                     command.arbitration_id, command.payload.hex())
 
 
+def observe_rnse_adc_message(can_id, message):
+    """Malformed ADC traffic must not stop the vehicle CAN listener."""
+    data = message.get('data_hex')
+    if (type(message.get('dlc')) is not int or message['dlc'] != 8
+            or not isinstance(data, str) or not re.fullmatch(r'[0-9A-Fa-f]{16}', data)
+            or message.get('is_error_frame', False)):
+        return False
+    return CONFIG['rnse_adc'].observe(can_id, bytes.fromhex(data), 8,
+        message.get('is_extended_id', False), message.get('is_remote_frame', False))
+
+
 def rnse_bridge_snapshot(state: AppState):
     inhibited = (state.can_listen_only or state.desired_listen_only
                  or state.listen_only_transition_in_progress or flashing_mode_enabled())
@@ -646,7 +664,44 @@ def rnse_bridge_snapshot(state: AppState):
     return result
 
 
+def send_adc_frame(state, arbitration_id, payload):
+    if (state.can_listen_only or state.desired_listen_only
+            or state.listen_only_transition_in_progress or flashing_mode_enabled()
+            or not state.is_radio_active()):
+        return False
+    return send_can_message(arbitration_id, payload)
+
+
+def advance_rnse_adc(state):
+    adc = CONFIG.get('rnse_adc')
+    if adc is not None:
+        adc.advance(lambda arbitration_id, payload: send_adc_frame(state, arbitration_id, payload))
+
+
 def process_rnse_bridge_request(data, state: AppState):
+    if data['action'].startswith('adc_'):
+        adc = CONFIG['rnse_adc']
+        inhibited = (state.can_listen_only or state.desired_listen_only
+                     or state.listen_only_transition_in_progress or flashing_mode_enabled())
+        active = state.is_radio_active()
+        advance_rnse_adc(state)
+        send = lambda arbitration_id, payload: send_adc_frame(state, arbitration_id, payload)
+        if data['action'] != 'adc_status':
+            if inhibited or not active:
+                return {'error': 'ADC commands are inhibited or the radio is asleep.', 'status': 503}
+            if data['action'] == 'adc_dump':
+                queued = adc.request_dump(send)
+            elif data['action'] == 'adc_identify':
+                queued = adc.identify(send)
+            else:
+                queued = adc.revert(send) if data['action'] == 'adc_revert' else adc.write(data.get('values'), send)
+            if not queued:
+                # Return the per-register state so partial multi-write failures
+                # remain visible. No retry is scheduled.
+                result = adc.snapshot(inhibited, active)
+                result['command_error'] = 'CAN gateway did not queue every requested ADC frame.'
+                return result
+        return adc.snapshot(inhibited, active)
     if data['action'] == 'manual':
         CONFIG['rnse_brightness'].set_manual(data.get('values'))
     elif data['action'] == 'reload':
@@ -683,6 +738,7 @@ async def send_periodic_messages_task(state: AppState):
                 send_can_message(CONFIG['can_ids']['tv_presence'],
                                  FEATURES['tv_simulation']['payload'])
             reconcile_rnse_brightness(state)
+            advance_rnse_adc(state)
             await asyncio.sleep(0.5)
         except asyncio.CancelledError:
             break
@@ -717,6 +773,8 @@ async def listen_for_can_messages_task(state: AppState):
             light_topic = f"CAN_{CONFIG['can_ids']['light_status']:03X}"
             sub_stream.transport.subscribe(light_topic.encode('utf-8'))
             logger.info(f"Subscribing to RNS-E brightness light topic: {light_topic}")
+        if CONFIG['can_ids'].get('rnse_adc_reply') is not None:
+            sub_stream.transport.subscribe(f"CAN_{CONFIG['can_ids']['rnse_adc_reply']:03X}".encode('utf-8'))
             
         # Always subscribe to power status (Ignition/Key) because other services (e.g., dis_service, tp2_worker) rely on POWER_STATUS
         sub_stream.transport.subscribe(power_topic.encode('utf-8'))
@@ -758,6 +816,8 @@ async def listen_for_can_messages_task(state: AppState):
                 logger.debug(f"Received CAN message ID={can_id:03X}: {msg_dict}")
                 
                 # Dispatch to handlers
+                if can_id == CONFIG['can_ids'].get('rnse_adc_reply'):
+                    observe_rnse_adc_message(can_id, msg_dict)
                 if can_id == CONFIG['can_ids']['light_status']:
                     handle_rnse_light_status_message(msg_dict)
                 if can_id == CONFIG['can_ids']['time_data']:

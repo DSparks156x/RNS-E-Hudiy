@@ -45,6 +45,19 @@ test('JSON-value command fields quote strings and permit explicit null rather th
   assert.throws(() => parseSetting('KEY_ENTER', 'KEY_ENTER', meta), /valid JSON/);
 });
 
+test('MMI action objects can be disabled or remapped to a key without mutating the snapshot', () => {
+  const original = { input_mappings: { mmi: { short_press: { '0,12': { action: 'hudiy_diagnostics' } } } } };
+  const metadata = { schema: { 'input_mappings.mmi.short_press.0,12': { type: 'json-value', label: 'INFO' } } };
+  const fields = fieldsFor(original, metadata);
+  const path = 'input_mappings.mmi.short_press.0,12';
+  const panelFields = fields.filter(field => field.path.startsWith('input_mappings.mmi.short_press.'));
+  assert.equal(panelFields.length, 1);
+  assert.equal(panelFields[0].metadata.label, 'INFO');
+  assert.equal(applyEdits(original, fields, { [path]: 'null' }).input_mappings.mmi.short_press['0,12'], null);
+  assert.equal(applyEdits(original, fields, { [path]: '"KEY_H"' }).input_mappings.mmi.short_press['0,12'], 'KEY_H');
+  assert.deepEqual(original.input_mappings.mmi.short_press['0,12'], { action: 'hudiy_diagnostics' });
+});
+
 test('branch-specific keys containing dots and prototype names remain literal keys', () => {
   const original = JSON.parse('{"custom.name":3,"custom":{"name":4},"constructor":"keep","__proto__":{"safe":true}}');
   const fields = fieldsFor(original, {});

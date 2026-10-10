@@ -149,6 +149,8 @@ def register_management_video(app, store, video):
 
 
 def register_management_rnse_bridge(app, store, bridge):
+    from .rnse_adc_presets import AdcPresets
+    presets = AdcPresets(store)
     @app.get('/api/manage/rnse-control')
     def manager_rnse_status():
         return jsonify(bridge.request('status'))
@@ -177,3 +179,43 @@ def register_management_rnse_bridge(app, store, bridge):
         if body():
             raise ConfigError('Reload takes an empty JSON object.')
         return jsonify(bridge.request('reload'))
+
+    @app.get('/api/manage/rnse-adc')
+    def manager_rnse_adc():
+        return jsonify(bridge.request('adc_status'))
+
+    @app.post('/api/manage/rnse-adc/write')
+    def manager_rnse_adc_write():
+        denied = require_mutation_access(store)
+        if denied:
+            return denied
+        data = body()
+        if set(data) != {'values'}:
+            raise ConfigError('ADC writes take a values register-to-byte object.')
+        return jsonify(bridge.request('adc_write', data['values']))
+
+    @app.post('/api/manage/rnse-adc/dump')
+    @app.post('/api/manage/rnse-adc/revert')
+    @app.post('/api/manage/rnse-adc/identify')
+    def manager_rnse_adc_action():
+        denied = require_mutation_access(store)
+        if denied:
+            return denied
+        if body():
+            raise ConfigError('ADC dump, Revert and identification take an empty JSON object.')
+        action = 'adc_' + request.path.rsplit('/', 1)[1]
+        return jsonify(bridge.request(action))
+
+    @app.get('/api/manage/rnse-adc/presets')
+    def manager_rnse_adc_presets():
+        return jsonify(presets.list())
+
+    @app.post('/api/manage/rnse-adc/presets')
+    def manager_rnse_adc_save_preset():
+        denied = require_mutation_access(store)
+        if denied:
+            return denied
+        data = body()
+        if set(data) != {'name', 'values'}:
+            raise ConfigError('Save an ADC preset with name and values.')
+        return jsonify(presets.save(data['name'], data['values']))

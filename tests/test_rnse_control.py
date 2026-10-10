@@ -333,15 +333,19 @@ class BaseServiceBrightnessTests(unittest.TestCase):
             reservation.close()
 
     def namespace(self):
+        from hudiy_manager.rnse_adc_protocol import AdcController, DEFAULT_REPLY_ID, reply_identifier
         source = ROOT / 'rns-e_can/can_base_function.py'
         tree = ast.parse(source.read_text())
         names = {'load_and_initialize_config', 'handle_rnse_light_status_message',
+                 'observe_rnse_adc_message',
+                 'send_adc_frame', 'advance_rnse_adc',
                  'handle_nav_nm_message', 'reconcile_rnse_brightness', 'listen_for_can_messages_task',
                  'rnse_bridge_snapshot', 'process_rnse_bridge_request', 'observe_rnse_source',
                  'normalize_tv_simulation_payload', 'send_periodic_messages_task'}
         nodes = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in names]
         namespace = dict(CONFIG={}, FEATURES={}, Dict=Dict, Any=Any,
                          RnseBrightnessController=RnseBrightnessController,
+                         AdcController=AdcController, DEFAULT_REPLY_ID=DEFAULT_REPLY_ID, reply_identifier=reply_identifier,
                          pytz=SimpleNamespace(timezone=lambda zone: zone),
                          json=json, logging=logging, logger=Mock(), send_can_message=Mock(return_value=True),
                          flashing_mode_enabled=Mock(return_value=False), AppState=SimpleNamespace,

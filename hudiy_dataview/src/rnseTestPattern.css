@@ -1,0 +1,5 @@
+.rnse-test-pattern { position:fixed; inset:0; z-index:1900; overflow:auto; background:#000; color:#fff; }
+.rnse-test-pattern img { display:block; width:800px; height:480px; max-width:none; max-height:none; }
+.rnse-pattern-actions { position:fixed; right:8px; bottom:8px; left:8px; display:flex; justify-content:flex-end; align-items:center; gap:8px; pointer-events:none; }
+.rnse-pattern-actions span { margin-right:auto; background:#000; color:#fff; font:14px/1.4 sans-serif; max-width:440px; }
+.rnse-pattern-actions button { pointer-events:auto; min-height:48px; padding:0 18px; border:1px solid #fff; border-radius:24px; background:#171b14; color:#fff; font:600 16px sans-serif; }

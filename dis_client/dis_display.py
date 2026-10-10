@@ -301,11 +301,13 @@ class DisplayEngine:
                 if v == self.current_app:
                     app_name = k
                     break
+            if app_name == 'app_phone' and not self.is_phone_available():
+                app_name = 'unknown'
             
             payload = {
                 "state": state_str,
                 "app": app_name,
-                "wheel_supported": hasattr(self.current_app, 'set_control_mode'),
+                "wheel_supported": app_name != 'unknown' and hasattr(self.current_app, 'set_control_mode'),
                 "control_epoch": getattr(self, '_wheel_epoch', 0),
                 "timestamp": time.time()
             }
@@ -412,6 +414,7 @@ class DisplayEngine:
     def switch_to_app(self, app_name):
         """Direct jump to an app by name."""
         if app_name not in self.apps: return
+        if app_name == 'app_phone' and not self.is_phone_available(): return
         
         if self.current_app == self.apps[app_name]: return
         
@@ -494,6 +497,8 @@ class DisplayEngine:
         is_nav_page = (current_app_name == 'app_nav')
         nav_available = self.is_nav_available()
         phone_available = self.is_phone_available()
+        if not phone_available:
+            self.phone_auto_overlay = False
 
         # Contextual pages must never remain selected without content.
         if is_nav_page and not nav_available:
@@ -513,13 +518,23 @@ class DisplayEngine:
         is_phone_page = (current_app_name == 'app_phone')
         if is_phone_page and not phone_available:
             fallback = 'app_media' if 'app_media' in self.pages else next(
-                (page for page in self.pages if page not in ('app_nav', 'app_phone')), None
+                (page for page in self.pages if page != 'app_phone'
+                 and (page != 'app_nav' or nav_available)), None
             )
             if fallback:
                 logger.info("Phone has no available content: switching to %s.", fallback)
+                self.current_page_idx = self.pages.index(fallback)
                 self._leave_empty_context_page(fallback)
                 current_app_name = fallback
                 is_phone_page = False
+            elif not (nav_available and (self.nav_claim_on_nav
+                    or getattr(self, 'pre_nav_app_name', None) is not None)):
+                # A phone-only rotation has nothing to restore after a call.
+                # Live navigation retains its existing ownership policy.
+                if not self.user_paused and self._send_draw({'command': 'pause'}):
+                    self.user_paused = True
+                    self.content_auto_claimed = False
+                return
 
         nav_should_claim = bool(
             self.nav_claim_on_nav and nav_available
@@ -586,7 +601,7 @@ class DisplayEngine:
         Priority: Phone > Brief Cover Art > Easter Egg > User Selection
         """
         # 1. Phone Priority
-        if getattr(self, 'phone_auto_overlay', False):
+        if getattr(self, 'phone_auto_overlay', False) and self.is_phone_available():
             return 'app_phone'
 
         # 2. Nav Auto Switch
@@ -612,7 +627,11 @@ class DisplayEngine:
                 return 'app_easteregg'
 
         # 5. Normal Application Cycle
-        return self.pages[self.current_page_idx]
+        selected = self.pages[self.current_page_idx]
+        if selected == 'app_phone' and not self.is_phone_available():
+            return next((page for page in self.pages if page != 'app_phone'
+                         and (page != 'app_nav' or self.is_nav_available())), None)
+        return selected
 
     def _send_draw(self, payload):
         """Send a JSON command to the DIS service without blocking. Returns True if sent."""
@@ -871,7 +890,7 @@ class DisplayEngine:
                 self._handle_nav_auto_switch(self.apps['app_nav'])
                 # Periodic App Priority Resolution
                 active_app_name = self._resolve_app_priority()
-                if self.apps[active_app_name] != self.current_app:
+                if active_app_name is not None and self.apps[active_app_name] != self.current_app:
                     logger.info(f"Priority Switch: {active_app_name}")
                     if self.current_app: self.current_app.on_leave()
                     self.current_app = self.apps[active_app_name]
@@ -1041,6 +1060,9 @@ class DisplayEngine:
     def _handle_phone_status(self, data):
         state = PhoneApp.call_state(data)
         interesting = state in PhoneApp.CALL_STATES
+        if not interesting:
+            self.phone_auto_overlay = False
+            self.pre_phone_app_name = None
         
         if interesting != self.phone_active:
             self.phone_active = interesting
@@ -1189,6 +1211,9 @@ class DisplayEngine:
         return result
 
     def _draw(self):
+        phone_app = getattr(self, 'apps', {}).get('app_phone')
+        if phone_app is not None and self.current_app is phone_app and not phone_app.has_active_call:
+            return
         if (not getattr(self, 'service_ready', True) or getattr(self, 'user_paused', False)
                 or self._ui_frame_waiting()):
             return

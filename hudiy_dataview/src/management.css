@@ -1,5 +1,10 @@
 .manager-container { color-scheme:dark; user-select:none; -webkit-user-select:none; --manager-raised:color-mix(in srgb,var(--surface-container) 92%,var(--on-surface)); }
 .manager-container[data-theme="light"] { color-scheme:light; }
+.manager-video-page { display:flex; flex:1; flex-direction:column; min-height:0; padding:0 10px 6px; }
+.manager-video-pages { display:flex; flex-shrink:0; gap:6px; padding:3px 0; }
+.manager-video-pages button { background:transparent; font-size:15px; min-height:44px; }
+.manager-video-pages button.active { background:var(--primary-container); color:var(--on-primary-container); }
+.manager-video-page-scroll { flex:1; overflow:auto; min-height:0; touch-action:pan-y; }
 .manager-container * { box-sizing:border-box; }
 .manager-container :is(button,a,select,input):focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
 .manager-container button,.manager-container input,.manager-container select { font:inherit; }

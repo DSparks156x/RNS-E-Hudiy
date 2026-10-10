@@ -887,9 +887,12 @@ class DISController:
                 logger.info("Call started (%s)", state)
             self._phone_texts = self._phone_fields(self._last_phone_data)
             self._resolve()
-        elif was_active:
-            logger.info("Call ended — restoring display")
-            self._resolve()
+        else:
+            self._phone_control_mode = False
+            self._phone_texts = ("", "")
+            if was_active:
+                logger.info("Call ended — restoring display")
+                self._resolve()
 
     def _set_lines(self, l1: str, l2: str):
         l1 = _normalize(l1)

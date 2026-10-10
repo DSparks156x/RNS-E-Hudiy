@@ -265,6 +265,9 @@ def main():
                 msg_dict = {
                     "timestamp": message.timestamp,
                     "arbitration_id": message.arbitration_id,
+                    "is_extended_id": message.is_extended_id,
+                    "is_remote_frame": message.is_remote_frame,
+                    "is_error_frame": message.is_error_frame,
                     "dlc": message.dlc,
                     "data_hex": message.data.hex()
                 }

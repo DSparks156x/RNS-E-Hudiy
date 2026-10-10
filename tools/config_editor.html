@@ -147,6 +147,24 @@ let currentConfig = {};
             "input_mappings.mmi.cooldown_period": { help: "Min time between distinct button events (sec).", type: "number" },
             "input_mappings.mmi.long_press_message_count": { help: "Messages needed to trigger Long Press.", type: "number" },
             "input_mappings.mmi.extended_long_press_message_count": { help: "Messages needed to trigger Extended Press.", type: "number" },
+            "input_mappings.mmi.short_press.8,0": { label: "NAV" },
+            "input_mappings.mmi.short_press.0,8": { label: "TEL" },
+            "input_mappings.mmi.short_press.0,4": { label: "MEDIA" },
+            "input_mappings.mmi.short_press.4,0": { label: "NAME" },
+            "input_mappings.mmi.short_press.0,12": { label: "INFO" },
+            "input_mappings.mmi.short_press.12,0": { label: "CAR" },
+            "input_mappings.mmi.long_press.8,0": { label: "NAV" },
+            "input_mappings.mmi.long_press.0,8": { label: "TEL" },
+            "input_mappings.mmi.long_press.0,4": { label: "MEDIA" },
+            "input_mappings.mmi.long_press.4,0": { label: "NAME" },
+            "input_mappings.mmi.long_press.0,12": { label: "INFO" },
+            "input_mappings.mmi.long_press.12,0": { label: "CAR" },
+            "input_mappings.mmi.extended_press.8,0": { label: "NAV" },
+            "input_mappings.mmi.extended_press.0,8": { label: "TEL" },
+            "input_mappings.mmi.extended_press.0,4": { label: "MEDIA" },
+            "input_mappings.mmi.extended_press.4,0": { label: "NAME" },
+            "input_mappings.mmi.extended_press.0,12": { label: "INFO" },
+            "input_mappings.mmi.extended_press.12,0": { label: "CAR" },
             // MMI Press Types
             "input_mappings.mmi.short_press.1,0": { label: "Previous Track", help: "Pattern: 1,0" },
             "input_mappings.mmi.short_press.2,0": { label: "Next Track", help: "Pattern: 2,0" },
@@ -352,6 +370,7 @@ Object.assign(SCHEMA, {
   'data_logger.profiles.haldex.measuring_groups': {...SCHEMA['data_logger.profiles.haldex.measuring_groups'], type: 'json-array'},
 });
 const CAN_HELP = {
+  rnse_adc_reply: 'r21 ADC tuning acknowledgement and dump replies; firmware uses 0x462',
   light_status: 'Vehicle light state used for Hudiy day/night mode', time_data: 'Vehicle clock and date used for Pi clock synchronization',
   ignition_status: 'Ignition and key state used by power and connection management', door_status: 'Door state used for connection wake windows',
   gateway_nm_status: 'Gateway network-management state used to detect bus sleep', nav_nm_status: 'RNS-E network-management state used to track radio activity',
@@ -390,7 +409,7 @@ function metadataFor(path) {
   if (action) {
     const device = action[1] === 'mmi' ? 'RNS-E' : 'steering wheel';
     const duration = {short_press: 'short press', long_press: 'long press', extended_press: 'extended press'}[action[3]];
-    return {...known, help: `Action for ${device} ${duration} (${action[4]}). ${action[2] ? 'Legacy phone override ignored by the current shared wheel router; preserved for older versions. ' : ''}${action[3] === 'extended_press' ? 'Enter a shell command run on the Pi; features.system_actions must be enabled.' : 'Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.'}`, type: 'json-value'};
+    return {...known, help: `Action for ${device} ${duration} (${action[4]}). ${action[2] ? 'Legacy phone override ignored by the current shared wheel router; preserved for older versions. ' : ''}${action[1] === 'mmi' ? (action[3] === 'extended_press' ? 'Enter a Linux KEY_* string, a Hudiy action object ({"action":"hudiy_diagnostics"}), a shell command string, or null. Shell commands require features.system_actions.' : 'Enter a Linux KEY_* string, e.g. "KEY_ENTER", a Hudiy action object ({"action":"hudiy_diagnostics"}), or null to disable.') : 'Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.'}`, type: 'json-value'};
   }
   if (path.startsWith('input_mappings.mfsw.commands.') && !known) return {help: 'Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.', type: 'text'};
   return known || {help: 'Custom setting from the loaded configuration. Its behavior depends on the selected branch or extension. The editor preserves its JSON type and value.'};
@@ -757,6 +776,7 @@ const BUNDLED_CONFIG = {
     }
   },
   "can_ids": {
+    "rnse_adc_reply": "0x462",
     "light_status": "0x635",
     "time_data": "0x623",
     "ignition_status": "0x2C3",
@@ -790,7 +810,13 @@ const BUNDLED_CONFIG = {
         "0,32": "KEY_2",
         "0,64": "KEY_1",
         "0,2": "KEY_ESC",
-        "0,1": "KEY_H"
+        "0,1": "KEY_H",
+        "8,0": "KEY_F",
+        "0,8": "KEY_G",
+        "0,4": "KEY_J",
+        "4,0": { "action": "applications_menu" },
+        "0,12": { "action": "hudiy_diagnostics" },
+        "12,0": { "action": "hudiy_manager" }
       },
       "long_press": {
         "1,0": "KEY_LEFT",
@@ -801,7 +827,13 @@ const BUNDLED_CONFIG = {
         "0,32": null,
         "0,64": null,
         "0,2": "KEY_0",
-        "0,1": null
+        "0,1": null,
+        "8,0": null,
+        "0,8": null,
+        "0,4": null,
+        "4,0": null,
+        "0,12": null,
+        "12,0": null
       },
       "extended_press": {
         "1,0": "python3 ~/rns-e_can/save_logs.py",
@@ -812,7 +844,13 @@ const BUNDLED_CONFIG = {
         "0,32": null,
         "0,64": null,
         "0,2": null,
-        "0,1": null
+        "0,1": null,
+        "8,0": null,
+        "0,8": null,
+        "0,4": null,
+        "4,0": null,
+        "0,12": null,
+        "12,0": null
       }
     },
     "mfsw": {

@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RNS-E test pattern</title>
+<style>html,body{margin:0;width:100%;height:100%;overflow:auto;background:#000}img{display:block;width:800px;height:480px;max-width:none;max-height:none}button{position:fixed;right:8px;bottom:8px;min-height:48px;padding:0 18px;border:1px solid #fff;border-radius:24px;background:#171b14;color:#fff;font:600 16px sans-serif;cursor:pointer}button:focus-visible{outline:3px solid #fff}#error{position:fixed;left:8px;bottom:8px;max-width:540px;background:#000;color:#fff;font:16px sans-serif}</style></head>
+<body><img draggable="false" src="/static/rnse-adc-testpattern.png" width="800" height="480" alt="RNS-E ADC calibration pattern at 800 by 480 native pixels"><span id="error" role="alert"></span><button id="back">Back to sliders</button>
+<script>
+const patternSession = {{ session|tojson }};
+if(window.devicePixelRatio !== 1) document.getElementById('error').textContent='Desktop scaling is active. Use an unscaled 800×480 output for pixel-accurate tuning.';
+async function back() {
+ const button = document.getElementById('back'); button.disabled = true;
+ try { const response = await fetch('/api/manage/test-pattern/close', {method:'POST',headers:{'X-Hudiy-Management':'1','X-Hudiy-Pattern-Session':patternSession}}); if(!response.ok) throw new Error('Could not close the test pattern. Try Back again.'); }
+ catch(error) { document.getElementById('error').textContent=error.message; button.disabled=false; }
+}
+document.getElementById('back').addEventListener('click',back);
+document.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();back();}});
+if(window.hudiy) window.hudiy.onGoBack=()=>{back();return true;};
+</script></body></html>
