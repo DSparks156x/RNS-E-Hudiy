@@ -17,7 +17,19 @@
         "0,32": "KEY_2",
         "0,64": "KEY_1",
         "0,2": "KEY_ESC",
-        "0,1": "KEY_H"
+        "0,1": "KEY_H",
+        "8,0": "KEY_F",
+        "0,8": "KEY_G",
+        "0,4": "KEY_J",
+        "4,0": {
+          "action": "applications_menu"
+        },
+        "0,12": {
+          "action": "hudiy_diagnostics"
+        },
+        "12,0": {
+          "action": "hudiy_manager"
+        }
       },
       "long_press": {
         "1,0": "KEY_LEFT",
@@ -28,7 +40,13 @@
         "0,32": null,
         "0,64": null,
         "0,2": "KEY_0",
-        "0,1": null
+        "0,1": null,
+        "8,0": null,
+        "0,8": null,
+        "0,4": null,
+        "4,0": null,
+        "0,12": null,
+        "12,0": null
       },
       "extended_press": {
         "1,0": "python3 ~/rns-e_can/save_logs.py",
@@ -39,7 +57,13 @@
         "0,32": null,
         "0,64": null,
         "0,2": null,
-        "0,1": null
+        "0,1": null,
+        "8,0": null,
+        "0,8": null,
+        "0,4": null,
+        "4,0": null,
+        "0,12": null,
+        "12,0": null
       }
     }
   }

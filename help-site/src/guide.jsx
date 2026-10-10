@@ -303,6 +303,7 @@ function Controls() { return <>
     ['Volume wheel and click', 'Car’s volume controls; no added Pi action', 'No added Pi action'],
   ]}/></Section>
   <Section title="RNS-E faceplate"><p>Select a button or knob to see its press, hold and extended-hold actions. The display here is illustrative; selecting a control only changes its description.</p><RnseFaceplate/></Section>
+  <Section title="TV panel shortcuts (r21)"><p>While TV is active, NAV invokes navigation, TEL invokes phone, MEDIA opens the current player, INFO opens DataView, CAR opens RNS-E Manager, and NAME opens the app menu. SETUP keeps its home mapping. RADIO leaves TV for the factory radio.</p><p>All faceplate buttons share short, long and extended press mappings. By default the six TV buttons have no separate hold action, so a tap or hold invokes their short action once on release. Navigation, phone and media use Hudiy’s dedicated keys; the projected screen they open needs a check with your Android Auto or CarPlay setup.</p></Section>
   <Section title="Give the navigation wheel to the DIS"><p>Use the <strong>stalk rocker</strong> to cycle the configured center apps. On a native readings page or Phone screen, <strong>double-click MODE</strong> to give the navigation wheel to that screen. The little wheel icon confirms ownership.</p><Table headings={['While DIS owns the wheel', 'Result']} rows={[
     ['Rotate the navigation wheel', 'Move between header actions, browse readings pages, or select Accept / Reject.'],
     ['Click the navigation wheel', 'Use the selected action.'],
@@ -316,6 +317,7 @@ function Controls() { return <>
     ['input_mappings.mfsw.double_click_ms', 'Double-click window; default 350 ms. MODE taps and DIS selection clicks wait for this window; normal wheel clicks act on release.'],
     ['input_mappings.mfsw', 'Normal steering-wheel key mappings and press handling.'],
     ['input_mappings.mmi', 'RNS-E faceplate key mappings and press handling.'],
+    ['input_mappings.mmi.short_press / long_press / extended_press', 'Shared mappings for every faceplate button. Short/long values accept a Linux key, Hudiy action object, or null; extended values also accept shell commands.'],
     ['display.phone.scroll_wheel_phone_menu', 'Automatic call-control ownership.'],
     ['display.center_display.applist', 'The stalk’s app cycle order.'],
   ]}/>
