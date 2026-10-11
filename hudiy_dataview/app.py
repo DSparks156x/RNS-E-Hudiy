@@ -362,6 +362,9 @@ class ZMQWorker:
                             if payload.get('type') == 'dtc_report':
                                 socketio.emit('dtc_report', payload, namespace='/')
                                 continue
+                            if payload.get('type') == 'install_list':
+                                socketio.emit('install_list', payload, namespace='/')
+                                continue
                                 
                             mod = payload.get('module')
                             grp = payload.get('group')
@@ -557,6 +560,13 @@ def handle_request_dtcs(data):
         emit('command_response', {"status": "ok", "action": "request_dtcs", "module": mod})
     else:
         emit('command_response', {"status": "error", "message": "Missing module"})
+
+@socketio.on('request_install_list')
+def handle_request_install_list(data=None):
+    # Worker answers from its per-ignition cache, or queues a gateway read
+    # that only runs while diagnostics are available.
+    refresh = bool((data or {}).get('refresh'))
+    worker.send_command("READ_INSTALL_LIST", refresh=refresh, fire_and_forget=True)
 
 @socketio.on('clear_dtcs')
 def handle_clear_dtcs(data):

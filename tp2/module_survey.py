@@ -22,6 +22,7 @@ import uuid
 import can
 
 from tp2_protocol import TP2Protocol, TP2Error
+from installation_list import parse_installation_list
 
 logging.getLogger("tp2_protocol").setLevel(logging.WARNING)
 
@@ -248,6 +249,11 @@ def main():
             print(f"[ ] Identifying 0x{mod:02X} ({n}/{len(to_ident)})...")
             found[mod].update(identify(proto, mod))
         result['modules'] = {f"{m:02X}": v for m, v in sorted(found.items())}
+        for mod in found.values():
+            install = mod.get('1A9F')
+            if isinstance(install, dict) and 'hex' in install:
+                result['installation_list'] = parse_installation_list(
+                    bytes.fromhex(install['hex']))
     finally:
         proto.close()
         if pause:
@@ -266,6 +272,15 @@ def main():
             alt = mod.get('1A91', {}) if isinstance(mod.get('1A91'), dict) else {}
             comp = alt.get('ascii', mod.get('error', ''))
         print(f"{key:<4} {mod['status']:<3} {part:<16} {comp}")
+
+    coded = [e for e in result.get('installation_list', []) if e['coded']]
+    if coded:
+        print(f"\nGateway installation list (coded only)")
+        print(f"{'Addr':<5} {'TP2':<4} {'Bus':<4} {'St':<3} {'Ans':<4} Name")
+        print('-' * 30)
+        for e in coded:
+            answered = 'yes' if f"{e['tp2']:02X}" in result.get('modules', {}) else 'no'
+            print(f"{e['addr']:<5} {e['tp2']:02X}   {e['bus']:02X}   {e['status']:02X}  {answered:<4} {e['name']}")
     print(f"\nSaved {args.out}")
 
 

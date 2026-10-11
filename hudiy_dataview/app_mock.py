@@ -777,6 +777,29 @@ def handle_set_smoothing(data):
             if msg:
                 emit('diagnostic_update', msg)
 
+MOCK_INSTALL_LIST = [
+    # (addr, tp2, status) from a 2009 TT installation list
+    ('01', 0x01, 0x15), ('02', 0x02, 0x15), ('03', 0x03, 0x05), ('04', 0x13, 0x11),
+    ('08', 0x2C, 0x05), ('09', 0x20, 0x05), ('0F', 0x4F, 0x19), ('10', 0x1D, 0x19),
+    ('15', 0x05, 0x05), ('16', 0x2A, 0x05), ('17', 0x07, 0x01), ('19', 0x1F, 0x05),
+    ('22', 0x0A, 0x11), ('25', 0x14, 0x01), ('37', 0x5B, 0x05), ('42', 0x22, 0x01),
+    ('44', 0x09, 0x15), ('46', 0x21, 0x01), ('52', 0x23, 0x01), ('55', 0x06, 0x05),
+    ('56', 0x52, 0x05), ('57', 0x57, 0x11), ('65', 0x29, 0x01), ('77', 0x5A, 0x19),
+    ('11', 0x15, 0x00), ('13', 0x0B, 0x00),
+]
+
+@socketio.on('request_install_list')
+def handle_request_install_list(data=None):
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'tp2'))
+    from installation_list import WORKSHOP_NAMES
+    modules = [{'addr': a, 'tp2': t, 'bus': 0, 'status': st, 'coded': bool(st & 1),
+                'name': WORKSHOP_NAMES.get(int(a, 16), f'Address {a}')}
+               for a, t, st in MOCK_INSTALL_LIST]
+    def send():
+        socketio.sleep(0.5)
+        socketio.emit('install_list', {'type': 'install_list', 'modules': modules, 'error': None}, namespace='/')
+    socketio.start_background_task(send)
+
 @socketio.on('request_dtcs')
 def handle_request_dtcs(data):
     mod = data.get('module')

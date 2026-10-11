@@ -21,22 +21,42 @@ interface DTC {
     freeze_frame?: FreezeFrameItem[];
 }
 
-const KNOWN_MODULES = [
-    { name: 'Engine', id: 0x01 },
-    { name: 'Auto Trans', id: 0x02 },
-    { name: 'ABS Brakes', id: 0x03 },
-    { name: 'Instruments', id: 0x07 },
-    { name: 'Steering Assist', id: 0x09 },
-    { name: 'AWD', id: 0x0A },
-    { name: 'CAN Gateway', id: 0x1F },
-    { name: 'Door Elect, Driver', id: 0x22 },
-    { name: 'Door Elect, Pass.', id: 0x23 },
-    { name: 'Tire Pressure', id: 0x29 },
-    { name: 'Steering wheel', id: 0x2A },
-    { name: 'Auto HVAC', id: 0x2C },
-    { name: 'Digital Radio', id: 0x4F },
-    { name: 'Navigation', id: 0x52 },
+interface ModuleEntry {
+    name: string;
+    addr: string; // VCDS/workshop address
+    id: number;   // TP2 logical ID
+}
+
+// Shown until the gateway installation list (1A 9F) arrives, e.g. with
+// diagnostics off or flashing. Steering angle (04/0x13) is coded but never
+// answers. Central convenience only answers on pre-2009 non-BCM cars; on BCM
+// cars central electronics does its job.
+const DEFAULT_MODULES: ModuleEntry[] = [
+    { name: 'Engine', addr: '01', id: 0x01 },
+    { name: 'Auto Trans', addr: '02', id: 0x02 },
+    { name: 'ABS Brakes', addr: '03', id: 0x03 },
+    { name: 'Auto HVAC', addr: '08', id: 0x2C },
+    { name: 'Central Elect.', addr: '09', id: 0x20 },
+    { name: 'Digital Radio', addr: '0F', id: 0x4F },
+    { name: 'Airbags', addr: '15', id: 0x05 },
+    { name: 'Steering wheel', addr: '16', id: 0x2A },
+    { name: 'Instruments', addr: '17', id: 0x07 },
+    { name: 'CAN Gateway', addr: '19', id: 0x1F },
+    { name: 'AWD', addr: '22', id: 0x0A },
+    { name: 'Immobilizer', addr: '25', id: 0x14 },
+    { name: 'Navigation', addr: '37', id: 0x5B },
+    { name: 'Door Elect, Driver', addr: '42', id: 0x22 },
+    { name: 'Steering Assist', addr: '44', id: 0x09 },
+    { name: 'Central Conv.', addr: '46', id: 0x21 },
+    { name: 'Door Elect, Pass.', addr: '52', id: 0x23 },
+    { name: 'Headlight Range', addr: '55', id: 0x06 },
+    { name: 'Radio', addr: '56', id: 0x52 },
+    { name: 'Tire Pressure', addr: '65', id: 0x29 },
 ];
+
+const tp2Hex = (id: number) => '0x' + id.toString(16).padStart(2, '0').toUpperCase();
+
+let rememberedInstallList: ModuleEntry[] | null = null;
 
 const rememberedDiagnosticsGroups: Record<number, { g1: string, g2: string, g3: string }> = {};
 
@@ -51,6 +71,9 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
     const [dtcError, setDtcError] = useState<string | null>(null);
     const [showFlashModal, setShowFlashModal] = useState(false);
     const [showExhaust, setShowExhaust] = useState(false);
+    const [installList, setInstallList] = useState<ModuleEntry[] | null>(rememberedInstallList);
+    const [installError, setInstallError] = useState<string | null>(null);
+    const modules = installList ?? DEFAULT_MODULES;
 
     // Group Subscriptions
     const [group1, setGroup1] = useState<string>('');
@@ -128,6 +151,27 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
             }
         };
     }, [socket]);
+
+    // Gateway installation list: coded modules with their workshop addresses.
+    useEffect(() => {
+        if (!socket) return;
+        const onInstallList = (data: any) => {
+            if (data.error || !Array.isArray(data.modules) || data.modules.length === 0) {
+                setInstallError(data.error || 'Empty installation list');
+                return;
+            }
+            const coded: ModuleEntry[] = data.modules
+                .filter((m: any) => m.coded)
+                .map((m: any) => ({ name: m.name, addr: m.addr, id: m.tp2 }))
+                .sort((a: ModuleEntry, b: ModuleEntry) => parseInt(a.addr, 16) - parseInt(b.addr, 16));
+            rememberedInstallList = coded;
+            setInstallList(coded);
+            setInstallError(null);
+        };
+        socket.on('install_list', onInstallList);
+        if (isActive && !rememberedInstallList) socket.emit('request_install_list', {});
+        return () => { socket.off('install_list', onInstallList); };
+    }, [socket, isActive]);
 
     // Unsubscribe when tab is hidden, re-subscribe when shown
     useEffect(() => {
@@ -237,8 +281,16 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
     if (selectedModule === null) {
         return (
             <section id="diagnostics" className="tab-content" style={{ color: theme.onSurface, padding: '10px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                {!installList && (
+                    <button
+                        style={{ background: 'none', border: 'none', color: theme.onSurface, opacity: 0.7, fontSize: '0.9rem', padding: '0 0 8px', textAlign: 'left', cursor: 'pointer' }}
+                        onClick={() => socket?.emit('request_install_list', { refresh: true })}
+                    >
+                        Default module list. Gateway installation list not read{installError ? `: ${installError}` : ' (needs ignition and diagnostics on)'}. Tap to retry.
+                    </button>
+                )}
                 <div style={styles.moduleGrid}>
-                    {KNOWN_MODULES.map(mod => (
+                    {modules.map(mod => (
                         <button
                             key={mod.id}
                             style={{ ...styles.moduleBtn, backgroundColor: theme.primaryContainer, color: theme.onPrimaryContainer }}
@@ -258,7 +310,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                             }}
                         >
                             <span style={{ fontSize: '1.2rem', fontWeight: 'bold', lineHeight: 1.1, wordBreak: 'break-word' }}>{mod.name}</span>
-                            <span style={{ fontSize: '1rem', opacity: 0.8 }}>0x{mod.id.toString(16).padStart(2, '0').toUpperCase()}</span>
+                            <span style={{ fontSize: '1rem', opacity: 0.8 }}>{mod.addr} · {tp2Hex(mod.id)}</span>
                         </button>
                     ))}
                     <button style={{ ...styles.moduleBtn, backgroundColor: theme.primaryContainer, color: theme.onPrimaryContainer }}
@@ -299,10 +351,10 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
 
                 <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <h2 style={{ margin: 0, opacity: 0.9 }}>
-                        {KNOWN_MODULES.find(m => m.id === selectedModule)?.name || 'Unknown'}
+                        {modules.find(m => m.id === selectedModule)?.name || 'Unknown'}
                     </h2>
                     <span style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '2px' }}>
-                        0x{selectedModule.toString(16).padStart(2, '0').toUpperCase()}
+                        {[modules.find(m => m.id === selectedModule)?.addr, tp2Hex(selectedModule)].filter(Boolean).join(' · ')}
                     </span>
                 </div>
 

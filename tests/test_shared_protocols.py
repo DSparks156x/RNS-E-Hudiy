@@ -64,6 +64,21 @@ class SharedTP2Tests(unittest.TestCase):
         self.assertEqual(result, bytes(range(50)))
         self.assertEqual(acknowledgements, [b'\xB1', b'\xB4', b'\xB6'])
 
+    def test_reassembler_ignores_length_flag_bit(self):
+        # Airbag 0x05 sets bit 15 of the length: 0x8030 is 48 bytes.
+        payload = b'\x5A\x9B' + bytes(46)
+        frames, _ = segment_message(payload, 0)
+        frames[0] = frames[0][:1] + b'\x80' + frames[0][2:]
+        reassembler = TP2MessageReassembler(0)
+        for frame in frames:
+            result, _ = reassembler.feed(frame)
+        self.assertEqual(result, payload)
+
+    def test_reassembler_rejects_short_final_frame(self):
+        reassembler = TP2MessageReassembler(0)
+        with self.assertRaisesRegex(ValueError, 'declared 9, got 3'):
+            reassembler.feed(b'\x10\x00\x09\x5A\x9B\x00')
+
     def test_reassembler_ignores_padding_in_final_frame(self):
         frames, _ = segment_message(b'\x5A\x9B' + bytes(10), 0)
         frames[-1] = frames[-1] + b'\x55' * (8 - len(frames[-1]))

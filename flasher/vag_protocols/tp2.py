@@ -139,7 +139,9 @@ class TP2MessageReassembler:
         self.expected_sequence = (sequence + 1) & 0x0F
         self.wire.extend(frame[1:])
         if self.expected_length is None and len(self.wire) >= 2:
-            self.expected_length = struct.unpack(">H", self.wire[:2])[0]
+            # Bit 15 is a flag some ECUs set (airbag, steering wheel, engine
+            # pending replies); the length is the low 15 bits.
+            self.expected_length = struct.unpack(">H", self.wire[:2])[0] & 0x7FFF
             if not 1 <= self.expected_length <= 0xFFFF:
                 raise ValueError("Unsupported TP2 payload length")
         final = opcode in (1, 3)
@@ -147,9 +149,7 @@ class TP2MessageReassembler:
         if ack is not None:
             self.last_acked_frame = frame
         if final:
-            # Some ECUs pad the final CAN frame to 8 bytes; bytes past the
-            # declared length are fill, not payload.
-            if self.expected_length is None or len(self.wire) < self.expected_length + 2:
+            if self.expected_length is None or len(self.wire) != self.expected_length + 2:
                 raise ValueError(
                     f"TP2 final frame length mismatch: declared {self.expected_length}, "
                     f"got {len(self.wire) - 2} ({bytes(self.wire).hex(' ')})")

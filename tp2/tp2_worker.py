@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flasher.traffic import flashing_mode_enabled
 from tp2_protocol import TP2Protocol, TP2Error
 from tp2_coding import TP2Coding
+from installation_list import parse_installation_list, GATEWAY_ID
 from tp2.group_scheduler import GroupScheduler, parse_group_periods, group_observation
 from openpilot_receiver import OpenpilotReceiver, OPENPILOT_TRANSPORT_ENABLED, OPENPILOT_DISABLED_REASON
 
@@ -97,6 +98,8 @@ class TP2Service:
 
         # Connection Management
         self.sessions = {}
+        # Gateway installation list, read once per ignition cycle.
+        self.install_list = None
         self._tester_id_pool = list(range(0x300, 0x307))  # 0x300-0x306 (0x307 reserved for Openpilot)
         self._setup_signals()
 
@@ -214,7 +217,33 @@ class TP2Service:
         scheduler = session.setdefault('scheduler', GroupScheduler())
         scheduler.configure(normal_set, low_set, timed, now)
         session['group_periods_ms'] = dict(scheduler.periods)
-        session['active'] = bool(scheduler.periods) or session.get('pending_dtc_req', False) or session.get('pending_dtc_clear', False)
+        session['active'] = (bool(scheduler.periods) or session.get('pending_dtc_req', False)
+                             or session.get('pending_dtc_clear', False)
+                             or session.get('pending_install_req', False))
+
+    def _publish_install_list(self, modules, error=None):
+        payload = {'type': 'install_list', 'modules': modules or [], 'error': error}
+        self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
+
+    def _read_install_list(self, session):
+        # Main Thread Only, gateway session connected.
+        session['pending_install_req'] = False
+        try:
+            resp = session['protocol'].send_kvp_request([0x1A, 0x9F])
+        except TP2Error as e:
+            logger.error(f"Installation list read failed: {e}")
+            session['connected'] = False
+            self._publish_install_list(None, str(e))
+            return
+        if not resp or resp[0] != 0x5A or len(resp) < 2 or resp[1] != 0x9F:
+            logger.warning(f"Installation list rejected: {resp}")
+            self._publish_install_list(None, f"Gateway rejected request: {bytes(resp or b'').hex(' ')}")
+            return
+        modules = parse_installation_list(bytes(resp[2:]))
+        with self.lock:
+            self.install_list = modules
+        logger.info(f"Installation list: {sum(m['coded'] for m in modules)} coded of {len(modules)}")
+        self._publish_install_list(modules)
 
     def _ensure_connected(self, module_id, session):
         # Main Thread Only
@@ -284,6 +313,8 @@ class TP2Service:
                             # Edge detected
                             self.last_ignition_state = kl15
                             self.running = target_running
+                            if not kl15:
+                                self.install_list = None
                             status = "Enabled" if self.running else "Disabled"
                             logger.info(f"Ignition Change: TP2 Service {status} (User Enabled: {self.user_enabled}, KL15: {kl15})")
                             self._publish_status()
@@ -335,7 +366,9 @@ class TP2Service:
                         self.quiescent.clear()
                         self._publish_status()
                     response = {"status": "ok"}
-                elif self.diagnostic_owner and cmd not in ("STATUS", "SYNC"):
+                # READ_INSTALL_LIST only queues; the main loop won't touch CAN
+                # until ownership is released.
+                elif self.diagnostic_owner and cmd not in ("STATUS", "SYNC", "READ_INSTALL_LIST"):
                     response = {"status": "error", "message": "Exclusive diagnostics in progress"}
                 elif cmd == "STATUS":
                     with self.lock:
@@ -414,6 +447,21 @@ class TP2Service:
                     else:
                         response = {"status": "error", "message": "Missing module"}
                         
+                elif cmd == "READ_INSTALL_LIST":
+                    with self.lock:
+                        cached = None if msg.get("refresh") else self.install_list
+                        if cached is None:
+                            session = self._get_or_create_session(GATEWAY_ID)
+                            if not session.get('pending_install_req'):
+                                session['pending_install_req'] = True
+                                session['install_req_at'] = time.time()
+                            session['active'] = True
+                    if cached is not None:
+                        self._publish_install_list(cached)
+                        response = {"status": "ok", "modules": cached}
+                    else:
+                        response = {"status": "queued"}
+
                 elif cmd == "CLEAR_DTC":
                     mod = msg.get("module")
                     if mod is not None:
@@ -576,13 +624,14 @@ class TP2Service:
                     # reads, but preserve idle disconnection for slow-only clients.
                     pending_dtc = session.get('pending_dtc_req', False)
                     pending_clear = session.get('pending_dtc_clear', False)
+                    pending_install = session.get('pending_install_req', False)
                     with self.lock:
                         scheduler = session['scheduler']
                         blocked = [group for group, until in session.get('group_cooldowns', {}).items()
                                    if time.monotonic() < until]
                         due_group = scheduler.select(time.monotonic(), blocked, advance=False)
                         fast_polling = any(period < 60000 for period in scheduler.periods.values())
-                    if due_group is None and not pending_dtc and not pending_clear:
+                    if due_group is None and not pending_dtc and not pending_clear and not pending_install:
                         if session['connected']:
                             try:
                                 if fast_polling:
@@ -597,7 +646,13 @@ class TP2Service:
                         continue
                         
                     if not self._ensure_connected(mod_id, session):
+                        if pending_install and time.time() - session.get('install_req_at', 0) > 20.0:
+                            session['pending_install_req'] = False
+                            self._publish_install_list(None, 'Gateway did not answer')
                         continue
+
+                    if pending_install:
+                        self._read_install_list(session)
                     
                     # Process DTC Clear if pending
                     if session.get('pending_dtc_clear'):

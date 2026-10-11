@@ -160,6 +160,25 @@ and the user's enabled setting.
 }
 ```
 
+### Read Installation List
+**Command**: `READ_INSTALL_LIST`
+**Description**: Returns the gateway's installation list (KWP `1A 9F` on TP2 `0x1F`): every workshop address with its TP2 ID, bus, status and coded flag. Read once per ignition cycle and cached; the cache clears when ignition goes off. Without a cache the read is queued and only runs while diagnostics are available (enabled, ignition on, no exclusive owner, not flashing). Accepted during exclusive ownership because it only queues. Pass `"refresh": true` to ignore the cache.
+
+The result is always published on `HUDIY_DIAG` as `{"type": "install_list", "modules": [...], "error": null}`. A failed read publishes an empty list with `error` set. If the gateway doesn't open a channel within 20 s, the request is dropped with an error.
+
+**Request Body**:
+```json
+{
+  "cmd": "READ_INSTALL_LIST"
+}
+```
+
+**Response** (queued, or from cache):
+```json
+{ "status": "queued" }
+{ "status": "ok", "modules": [{"addr": "17", "tp2": 7, "bus": 6, "status": 1, "coded": true, "name": "Instruments"}] }
+```
+
 ### Clear All Sessions
 **Command**: `CLEAR`
 **Description**: Marks all active module sessions as inactive. The worker will disconnect from the modules and release the tester IDs.

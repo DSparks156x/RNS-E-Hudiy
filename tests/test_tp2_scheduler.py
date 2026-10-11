@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from tp2.group_scheduler import GroupScheduler, parse_group_periods
-from tp2 import tp2_coding
+from tp2 import tp2_coding, installation_list
 
 
 def load_offline_worker():
@@ -21,6 +21,7 @@ def load_offline_worker():
         "zmq": SimpleNamespace(ContextTerminated=ContextTerminated),
         "tp2_protocol": SimpleNamespace(TP2Protocol=lambda **kwargs: Mock(), TP2Error=RuntimeError),
         "tp2_coding": tp2_coding,
+        "installation_list": installation_list,
         "openpilot_receiver": SimpleNamespace(OpenpilotReceiver=Mock(),
             OPENPILOT_TRANSPORT_ENABLED=False, OPENPILOT_DISABLED_REASON="offline"),
     }):
@@ -145,6 +146,7 @@ class WorkerSchedulingIntegrationTests(unittest.TestCase):
         self.service.last_ignition_state = True
         self.service.config = {}
         self.service.pub = Mock()
+        self.service.install_list = None
 
     def commands(self, *messages):
         rep = Mock()
@@ -241,6 +243,51 @@ class WorkerSchedulingIntegrationTests(unittest.TestCase):
                 with patch.object(self.worker, "flashing_mode_enabled", return_value=flashing):
                     self.run_one_iteration()
                 proto.send_kvp_request.assert_not_called()
+
+    # Start of the 2009 TT gateway's 1A 9F reply, captured in the car.
+    INSTALL_REPLY = [0x5A, 0x9F] + list(bytes.fromhex(
+        "f1 01 01 00 15 11 15 00 00 17 07 06 01 25 14 06 01 09 20 02 05 46 21 02 01 ff"))
+
+    def test_install_list_waits_while_disabled_flashing_or_owned(self):
+        cases = [(False, False, None), (True, True, None), (True, False, "flasher")]
+        for enabled, flashing, owner in cases:
+            with self.subTest(enabled=enabled, flashing=flashing, owner=owner):
+                self.service.sessions = {}
+                self.service._tester_id_pool = list(range(0x300, 0x307))
+                self.service.shutdown_event.clear()
+                self.service.running = enabled
+                self.service.diagnostic_owner = owner
+                result = self.commands({"cmd": "READ_INSTALL_LIST"})[0]
+                self.assertEqual(result["status"], "queued")
+                session = self.service.sessions[0x1F]
+                session["connected"] = True
+                with patch.object(self.worker, "flashing_mode_enabled", return_value=flashing):
+                    self.run_one_iteration()
+                session["protocol"].send_kvp_request.assert_not_called()
+                self.assertTrue(session["pending_install_req"])
+
+    def test_install_list_read_once_then_served_from_cache(self):
+        self.commands({"cmd": "READ_INSTALL_LIST"})
+        session = self.service.sessions[0x1F]
+        session["connected"] = True
+        session["protocol"].send_kvp_request.return_value = self.INSTALL_REPLY
+        self.run_one_iteration()
+        session["protocol"].send_kvp_request.assert_called_once_with([0x1A, 0x9F])
+        topic, encoded = self.service.pub.send_multipart.call_args.args[0]
+        payload = json.loads(encoded)
+        self.assertEqual((topic, payload["type"], payload["error"]), (b"HUDIY_DIAG", "install_list", None))
+        coded = [(m["addr"], m["tp2"], m["name"]) for m in payload["modules"] if m["coded"]]
+        self.assertEqual(coded, [("01", 0x01, "Engine"), ("17", 0x07, "Instruments"),
+                                 ("25", 0x14, "Immobilizer"), ("09", 0x20, "Central Elect."),
+                                 ("46", 0x21, "Central Conv.")])
+        self.assertNotIn("11", [m["addr"] for m in payload["modules"] if m["coded"]])
+
+        self.service.sessions = {}
+        self.service.shutdown_event.clear()
+        result = self.commands({"cmd": "READ_INSTALL_LIST"})[0]
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(len(result["modules"]), 6)
+        self.assertEqual(self.service.sessions, {})
 
 
 if __name__ == "__main__":

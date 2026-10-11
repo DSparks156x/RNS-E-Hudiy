@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "hudiy_dataview", "run", "start"],
       "port": 5173
+    },
+    {
+      "name": "dataview-mock-flask",
+      "runtimeExecutable": "scratch/data-logs-test-env/Scripts/python.exe",
+      "runtimeArgs": ["hudiy_dataview/app_mock.py", "--mock", "-d"],
+      "port": 5003
     }
   ]
 }
