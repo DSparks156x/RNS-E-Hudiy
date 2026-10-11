@@ -1,3 +1,5 @@
+import os
+import tempfile
 import unittest
 import importlib.util
 import json
@@ -147,6 +149,9 @@ class WorkerSchedulingIntegrationTests(unittest.TestCase):
         self.service.config = {}
         self.service.pub = Mock()
         self.service.install_list = None
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.service.install_list_file = os.path.join(tmp.name, "install_list.json")
 
     def commands(self, *messages):
         rep = Mock()
@@ -288,6 +293,14 @@ class WorkerSchedulingIntegrationTests(unittest.TestCase):
         self.assertEqual(result["status"], "ok")
         self.assertEqual(len(result["modules"]), 6)
         self.assertEqual(self.service.sessions, {})
+
+        # Survives a restart; refresh queues a new read but keeps the old list meanwhile.
+        self.assertEqual(self.service._load_install_list(), result["modules"])
+        self.service.shutdown_event.clear()
+        result = self.commands({"cmd": "READ_INSTALL_LIST", "refresh": True})[0]
+        self.assertEqual(result["status"], "queued")
+        self.assertTrue(self.service.sessions[0x1F]["pending_install_req"])
+        self.assertEqual(len(self.service.install_list), 6)
 
 
 if __name__ == "__main__":

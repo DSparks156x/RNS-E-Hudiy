@@ -98,8 +98,10 @@ class TP2Service:
 
         # Connection Management
         self.sessions = {}
-        # Gateway installation list, read once per ignition cycle.
-        self.install_list = None
+        # Gateway installation list. Kept on disk until a refresh replaces it;
+        # coding rarely changes.
+        self.install_list_file = os.path.expanduser("~/.hudiy/tp2_install_list.json")
+        self.install_list = self._load_install_list()
         self._tester_id_pool = list(range(0x300, 0x307))  # 0x300-0x306 (0x307 reserved for Openpilot)
         self._setup_signals()
 
@@ -225,6 +227,29 @@ class TP2Service:
         payload = {'type': 'install_list', 'modules': modules or [], 'error': error}
         self.pub.send_multipart([b'HUDIY_DIAG', json.dumps(payload).encode()])
 
+    def _load_install_list(self):
+        try:
+            with open(self.install_list_file) as f:
+                modules = json.load(f)
+            if isinstance(modules, list) and modules:
+                logger.info(f"Loaded cached installation list ({len(modules)} entries)")
+                return modules
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            logger.warning(f"Ignoring unreadable installation list cache: {e}")
+        return None
+
+    def _save_install_list(self, modules):
+        try:
+            os.makedirs(os.path.dirname(self.install_list_file), exist_ok=True)
+            tmp = self.install_list_file + ".tmp"
+            with open(tmp, 'w') as f:
+                json.dump(modules, f, indent=2)
+            os.replace(tmp, self.install_list_file)
+        except Exception as e:
+            logger.error(f"Failed to save installation list: {e}")
+
     def _read_install_list(self, session):
         # Main Thread Only, gateway session connected.
         session['pending_install_req'] = False
@@ -242,6 +267,7 @@ class TP2Service:
         modules = parse_installation_list(bytes(resp[2:]))
         with self.lock:
             self.install_list = modules
+        self._save_install_list(modules)
         logger.info(f"Installation list: {sum(m['coded'] for m in modules)} coded of {len(modules)}")
         self._publish_install_list(modules)
 
@@ -313,8 +339,6 @@ class TP2Service:
                             # Edge detected
                             self.last_ignition_state = kl15
                             self.running = target_running
-                            if not kl15:
-                                self.install_list = None
                             status = "Enabled" if self.running else "Disabled"
                             logger.info(f"Ignition Change: TP2 Service {status} (User Enabled: {self.user_enabled}, KL15: {kl15})")
                             self._publish_status()

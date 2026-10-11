@@ -73,6 +73,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
     const [showExhaust, setShowExhaust] = useState(false);
     const [installList, setInstallList] = useState<ModuleEntry[] | null>(rememberedInstallList);
     const [installError, setInstallError] = useState<string | null>(null);
+    const [refreshingInstall, setRefreshingInstall] = useState(false);
     const modules = installList ?? DEFAULT_MODULES;
 
     // Group Subscriptions
@@ -156,6 +157,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
     useEffect(() => {
         if (!socket) return;
         const onInstallList = (data: any) => {
+            setRefreshingInstall(false);
             if (data.error || !Array.isArray(data.modules) || data.modules.length === 0) {
                 setInstallError(data.error || 'Empty installation list');
                 return;
@@ -172,6 +174,16 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
         if (isActive && !rememberedInstallList) socket.emit('request_install_list', {});
         return () => { socket.off('install_list', onInstallList); };
     }, [socket, isActive]);
+
+    // A queued re-read waits while diagnostics are off or flashing; don't spin forever.
+    useEffect(() => {
+        if (!refreshingInstall) return;
+        const timer = setTimeout(() => {
+            setRefreshingInstall(false);
+            setInstallError('No answer. Diagnostics off or flashing?');
+        }, 30000);
+        return () => clearTimeout(timer);
+    }, [refreshingInstall]);
 
     // Unsubscribe when tab is hidden, re-subscribe when shown
     useEffect(() => {
@@ -359,6 +371,19 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px' }}>
+                    {selectedModule === 0x1F && (
+                        <button
+                            style={{ ...styles.actionBtn, backgroundColor: refreshingInstall ? theme.surfaceVariant : theme.primaryContainer, color: theme.onPrimaryContainer }}
+                            onClick={() => {
+                                setRefreshingInstall(true);
+                                setInstallError(null);
+                                socket?.emit('request_install_list', { refresh: true });
+                            }}
+                            disabled={refreshingInstall}
+                        >
+                            {refreshingInstall ? 'Reading List...' : installError ? 'List Read Failed, Retry' : 'Re-read Module List'}
+                        </button>
+                    )}
                     {(selectedModule === 0x0A || selectedModule === 0x09) && (
                         <button
                             style={{
