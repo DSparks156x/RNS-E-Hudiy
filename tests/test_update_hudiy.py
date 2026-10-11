@@ -66,6 +66,15 @@ class HudiyUpdateActionTests(unittest.TestCase):
                 self.assertEqual(command[-2:], ['bash', str(ROOT / 'hudiy_client' / filename)])
                 self.assertEqual(launch.call_args.kwargs['env']['WAYLAND_DISPLAY'], 'wayland-test')
 
+    def test_rnse_update_and_restore_wait_on_git_not_ping(self):
+        # ICMP is often blocked on hotspots; ping made restore hang forever.
+        for name in ('update_rnse.sh', 'restore_configs.sh'):
+            with self.subTest(script=name):
+                text = (ROOT / 'hudiy_client' / name).read_text()
+                self.assertNotRegex(text, r'(?m)^\s*[^#\n]*\bping\b')
+                self.assertIn('git ls-remote "$REPO_URL" HEAD', text)
+                self.assertLess(text.index('REPO_URL="https://github.com/'), text.index('git ls-remote "$REPO_URL" HEAD'))
+
     def test_https_probe_has_timeout_and_handles_offline_failure(self):
         probe = SCRIPT.read_text().split("<<'PY'\n", 1)[1].split('\nPY\n', 1)[0]
         with patch('urllib.request.urlopen') as request:

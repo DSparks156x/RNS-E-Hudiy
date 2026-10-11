@@ -21,17 +21,6 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # Let the API send responses and clean up Hudiy UI
 sleep 3
 
-echo -e "${YELLOW}Waiting for Wi-Fi connection...${NC}"
-while true; do
-    if ping -q -c 1 -W 1 github.com >/dev/null; then
-        echo -e "${GREEN}Internet connection established.${NC}"
-        break
-    else
-        echo -e "${YELLOW}Waiting for internet...${NC}"
-        sleep 5
-    fi
-done
-
 CONFIG_FILE="$HOME/config.json"
 
 # Detect Repo and Branch from config if available (using config_restore_ prefixed keys)
@@ -39,8 +28,21 @@ REPO_PATH=$(python3 -c "import json, os; f=os.path.expanduser('$CONFIG_FILE'); \
 conf=json.load(open(f)) if os.path.exists(f) else {}; \
 r=conf.get('config_restore_repo') or conf.get('repo', 'DSparks156x/RNS-E-Hudiy'); \
 print(r.replace('https://github.com/', '').replace('.git', ''))" 2>/dev/null || echo "DSparks156x/RNS-E-Hudiy")
-
 REPO_URL="https://github.com/${REPO_PATH}.git"
+
+echo -e "${YELLOW}Waiting for GitHub connection...${NC}"
+# ICMP may be blocked while HTTPS/Git traffic still works. Probe the same
+# repository the restore clones from, as update_rnse.sh does.
+while true; do
+    if git ls-remote "$REPO_URL" HEAD >/dev/null 2>&1; then
+        echo -e "${GREEN}GitHub connection established.${NC}"
+        break
+    else
+        echo -e "${YELLOW}Waiting for GitHub access...${NC}"
+        sleep 5
+    fi
+done
+
 echo -e "   Using Restore Repository: ${BLUE}$REPO_URL${NC}"
 
 BRANCH=$(python3 -c "import json, os; f=os.path.expanduser('$CONFIG_FILE'); \
