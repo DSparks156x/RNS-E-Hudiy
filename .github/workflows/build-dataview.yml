@@ -36,6 +36,7 @@ jobs:
       run: |
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        git add -f hudiy_dataview/static/js/main.js
+        # npm run build emits DataView (main), file portal and Manager bundles.
+        git add -f hudiy_dataview/static/js/main.js hudiy_dataview/static/js/portal.js hudiy_dataview/static/js/portal.css hudiy_dataview/static/js/management.js hudiy_dataview/static/js/management.css
         git commit -m "chore: auto-build Dataview React App [skip ci]" || echo "No changes to commit"
         git push
