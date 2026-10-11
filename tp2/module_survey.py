@@ -133,10 +133,20 @@ def capture_sollverbau(channel, seconds=2.0):
         bus.shutdown()
 
 
-def sweep(proto, ids, wait_s):
+def progress(label, done, total, note=''):
+    width = 30
+    filled = width * done // max(total, 1)
+    line = f"{label} [{'#' * filled}{'.' * (width - filled)}] {done}/{total} {note}"
+    sys.stdout.write('\r' + line.ljust(100)[:100])
+    sys.stdout.flush()
+
+
+def sweep(proto, ids, wait_s, label='Sweep'):
     """Channel-setup every ID. Any 7-byte reply on 0x200+id means something is there."""
     found = {}
-    for mod in ids:
+    for n, mod in enumerate(ids):
+        progress(label, n, len(ids), f"0x{mod:02X}  found: " +
+                 ' '.join(f"{m:02X}" for m in found))
         proto._send(BROADCAST, [mod, 0xC0, 0x00, 0x10,
                                 TESTER_ID & 0xFF, (TESTER_ID >> 8) & 0xFF, 0x01], pace=False)
         deadline = time.monotonic() + wait_s
@@ -152,6 +162,8 @@ def sweep(proto, ids, wait_s):
                 proto._send(rx, [0xA8], pace=False)
             break
         time.sleep(0.02)
+    progress(label, len(ids), len(ids), f"found {len(found)}")
+    print()
     return found
 
 
@@ -195,6 +207,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--ids', help='comma-separated hex IDs to survey instead of 01-7F')
     ap.add_argument('--wait', type=float, default=0.25, help='seconds to wait per ID in sweep')
+    ap.add_argument('--retry-wait', type=float, default=1.0,
+                    help='seconds per ID on a second pass over silent IDs (0 to skip)')
     ap.add_argument('--out', default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                                   'module_survey.json'))
     ap.add_argument('--no-pause', action='store_true', help="don't QUIESCE worker/haldex")
@@ -219,13 +233,19 @@ def main():
             pause.__enter__()
         proto.open()
         print(f"[ ] Sweeping {len(ids)} IDs on {diag_ch}...")
-        found = sweep(proto, ids, args.wait)
+        found = sweep(proto, ids, args.wait, 'Pass 1')
+        if args.retry_wait > 0:
+            silent = [m for m in ids if m not in found]
+            print(f"[ ] {len(found)} on first pass, retrying {len(silent)} silent IDs...")
+            late = sweep(proto, silent, args.retry_wait, 'Pass 2')
+            for v in late.values():
+                v['late'] = True
+            found.update(late)
         print(f"[+] {len(found)} responded: " + ' '.join(f"{m:02X}({v['status']})"
                                                          for m, v in sorted(found.items())))
-        for mod in sorted(found):
-            if found[mod]['status'] != 'D0':
-                continue
-            print(f"[ ] Identifying 0x{mod:02X}...")
+        to_ident = [m for m in sorted(found) if found[m]['status'] == 'D0']
+        for n, mod in enumerate(to_ident, 1):
+            print(f"[ ] Identifying 0x{mod:02X} ({n}/{len(to_ident)})...")
             found[mod].update(identify(proto, mod))
         result['modules'] = {f"{m:02X}": v for m, v in sorted(found.items())}
     finally:

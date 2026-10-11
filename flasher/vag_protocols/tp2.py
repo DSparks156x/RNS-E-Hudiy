@@ -147,8 +147,12 @@ class TP2MessageReassembler:
         if ack is not None:
             self.last_acked_frame = frame
         if final:
-            if self.expected_length is None or len(self.wire) != self.expected_length + 2:
-                raise ValueError("TP2 final frame length mismatch")
+            # Some ECUs pad the final CAN frame to 8 bytes; bytes past the
+            # declared length are fill, not payload.
+            if self.expected_length is None or len(self.wire) < self.expected_length + 2:
+                raise ValueError(
+                    f"TP2 final frame length mismatch: declared {self.expected_length}, "
+                    f"got {len(self.wire) - 2} ({bytes(self.wire).hex(' ')})")
             message = bytes(self.wire[2:self.expected_length + 2])
             self.clear_partial()
             return message, ack
