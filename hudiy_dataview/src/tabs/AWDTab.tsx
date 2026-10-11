@@ -15,6 +15,15 @@ const formatSeconds = (sec: number) => {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
+// Modes 3-4 exist only on five-mode images (7416/7516).
+const HALDEX_MODES = [
+  { mode: 0, label: 'Stock', title: 'Stock' },
+  { mode: 1, label: 'Perf', title: 'Performance' },
+  { mode: 2, label: 'Comp', title: 'Competition' },
+  { mode: 3, label: 'Snow', title: 'Snow Drift' },
+  { mode: 4, label: 'Full', title: 'Full Coupling Request' },
+];
+
 interface AWDTabProps {
   socket?: Socket | null;
 }
@@ -80,24 +89,20 @@ export function AWDTab({ socket = null }: AWDTabProps) {
 
             {/* Mode Segmented Selector */}
             <div className="mode-selector">
-              <button
-                className={`mode-btn${haldex.desired_mode === 0 ? ' active' : ''}`}
-                onClick={() => setMode(0)}
-              >
-                Stock
-              </button>
-              <button
-                className={`mode-btn${haldex.desired_mode === 1 ? ' active' : ''}`}
-                onClick={() => setMode(1)}
-              >
-                Perf
-              </button>
-              <button
-                className={`mode-btn${haldex.desired_mode === 2 ? ' active' : ''}`}
-                onClick={() => setMode(2)}
-              >
-                Comp
-              </button>
+              {HALDEX_MODES.map(({ mode, label, title }) => {
+                const supported = haldex.available_modes?.includes(mode) ?? true;
+                return (
+                  <button
+                    key={mode}
+                    className={`mode-btn${haldex.desired_mode === mode ? ' active' : ''}`}
+                    disabled={!supported}
+                    title={supported ? title : `${title}: needs a five-mode image (7416/7516)`}
+                    onClick={() => setMode(mode)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Real-time Uncensored Signals */}

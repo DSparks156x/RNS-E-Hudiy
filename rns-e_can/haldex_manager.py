@@ -9,7 +9,7 @@ Architecture:
 - Subscribes to can_stream.ipc to decode 0x6DA and 0x679 telemetry @ 50 Hz.
 - Reconciles active vs desired mode (~1 Hz self-limiting retry loop).
 - Handles persistence according to config.json:
-    - If "default_mode" is configured (0, 1, or 2), resets to that mode on startup.
+    - If "default_mode" is configured (0-4), resets to that mode on startup.
     - If "default_mode" is null/blank, restores last used mode on startup and saves changes.
 - Exposes ZMQ REP command socket (haldex_cmd.ipc) and ZMQ PUB status socket (haldex_status.ipc).
 """
@@ -32,12 +32,19 @@ from flasher.exhaust_valve import command as valve_command
 MODE_STOCK = 0
 MODE_PERFORMANCE = 1
 MODE_COMPETITION = 2
+MODE_SNOW_DRIFT = 3       # five-mode images (7416/7516) only
+MODE_FULL_COUPLING = 4    # five-mode images (7416/7516) only
 
 MODE_NAMES = {
     MODE_STOCK: "Stock",
     MODE_PERFORMANCE: "Performance",
-    MODE_COMPETITION: "Competition"
+    MODE_COMPETITION: "Competition",
+    MODE_SNOW_DRIFT: "Snow Drift",
+    MODE_FULL_COUPLING: "Full Coupling",
 }
+ALL_MODES = tuple(MODE_NAMES)
+# 7316 treats the Snow/Full headers as unknown and falls back to Stock.
+THREE_MODE_IMAGE_MODES = (MODE_STOCK, MODE_PERFORMANCE, MODE_COMPETITION)
 
 CAN_ID_MODE_CMD = 0x67A
 CAN_ID_HALDEX_TELEMETRY_YAW = 0x679
@@ -47,6 +54,8 @@ MODE_COMMAND_HEADERS = {
     MODE_STOCK: bytes.fromhex("5AA5"),
     MODE_PERFORMANCE: bytes.fromhex("A55A"),
     MODE_COMPETITION: bytes.fromhex("3CC3"),
+    MODE_SNOW_DRIFT: bytes.fromhex("6996"),
+    MODE_FULL_COUPLING: bytes.fromhex("9669"),
 }
 
 logger = logging.getLogger("HaldexManager")
@@ -54,12 +63,12 @@ logger = logging.getLogger("HaldexManager")
 
 def build_mode_frame(mode: int) -> Tuple[int, str]:
     """
-    Build one compact 7316 0x67A mode command. The mode is encoded entirely
-    by bytes 0-1; Haldex ignores bytes 2-7 for recognized headers.
+    Build one 0x67A mode command. The mode is encoded entirely by bytes 0-1;
+    Haldex ignores bytes 2-7 for recognized headers.
     """
     mode = int(mode)
     if mode not in MODE_COMMAND_HEADERS:
-        raise ValueError(f"Invalid mode {mode}. Expected 0, 1, or 2.")
+        raise ValueError(f"Invalid mode {mode}. Expected 0-4.")
     data_bytes = MODE_COMMAND_HEADERS[mode] + bytes(6)
     return CAN_ID_MODE_CMD, data_bytes.hex()
 
@@ -72,27 +81,48 @@ def build_mode_burst(mode: int, count: int = 5) -> List[Tuple[int, str]]:
 
 def decode_0x6da(payload_hex: str) -> Optional[Dict[str, Any]]:
     """
-    Decode one page of the 7316 0x6DA telemetry stream. Byte 0 is 0xD0|page,
-    byte 1 carries compact status, and bytes 2..7 contain three LE words.
+    Decode one page of the 0x6DA telemetry stream; bytes 2..7 are three LE words.
+      five-mode (7416/7516): byte 0 = 0xE0|ABS<<3|page; byte 1 = mode bits 0-2,
+                             B1CC 3-5, A78 6, token 7; pages 0-7
+      7316:                  byte 0 = 0xD0|page; byte 1 = mode bits 0-1,
+                             B1CC 2-4, A78 5, token 6, ABS 7; pages 0-6
     """
     try:
         data = bytes.fromhex(payload_hex)
-        if len(data) != 8 or data[0] & 0xF8 != 0xD0:
-            return None
-        page = data[0] & 0x07
-        if page > 6:
+        if len(data) != 8:
             return None
         status = data[1]
+        if data[0] & 0xF0 == 0xE0:
+            page = data[0] & 0x07
+            image_modes = 5
+            mode = status & 0x07
+            flags = {
+                'selector': (status >> 3) & 0x07,
+                'force_zero': bool((status >> 6) & 0x01),
+                'token_ok': bool((status >> 7) & 0x01),
+                'abs_braking': bool((data[0] >> 3) & 0x01),
+            }
+        elif data[0] & 0xF8 == 0xD0:
+            page = data[0] & 0x07
+            if page > 6:
+                return None
+            image_modes = 3
+            mode = status & 0x03
+            flags = {
+                'selector': (status >> 2) & 0x07,
+                'force_zero': bool((status >> 5) & 0x01),
+                'token_ok': bool((status >> 6) & 0x01),
+                'abs_braking': bool((status >> 7) & 0x01),
+            }
+        else:
+            return None
         words = struct.unpack('<HHH', data[2:8])
-        mode = status & 0x03
         decoded = {
             'page': page,
+            'image_modes': image_modes,
             'mode': mode,
             'mode_name': MODE_NAMES.get(mode, f"Unknown ({mode})"),
-            'selector': (status >> 2) & 0x07,
-            'force_zero': bool((status >> 5) & 0x01),
-            'token_ok': bool((status >> 6) & 0x01),
-            'abs_braking': bool((status >> 7) & 0x01),
+            **flags,
         }
         signed = lambda value: value - 0x10000 if value & 0x8000 else value
         if page == 0:
@@ -128,6 +158,10 @@ def decode_0x6da(payload_hex: str) -> Optional[Dict[str, Any]]:
             decoded.update({'c3a_slip_energy': words[0],
                             'c26_energy_ceiling': words[1],
                             'afe_fault_ceiling': words[2]})
+        elif page == 7:
+            decoded.update({'b1a_yaw_feedback': signed(words[0]),
+                            'b0c_current_request': words[1],
+                            'ac6_slip_error': signed(words[2])})
         return decoded
     except Exception as e:
         logger.debug(f"Error decoding 0x6DA: {e}")
@@ -189,6 +223,8 @@ class HaldexManager:
         # State Variables
         self.desired_mode = MODE_STOCK
         self.active_mode: Optional[int] = None
+        # Mode count of the image seen on 0x6DA (3 = 7316, 5 = 7416/7516); None until telemetry.
+        self.image_modes: Optional[int] = None
         self.last_telemetry_state: Dict[str, Any] = {}
         self.last_telemetry_yaw: Dict[str, Any] = {}
         self.last_telemetry_time: float = 0.0
@@ -246,13 +282,13 @@ class HaldexManager:
     def _init_desired_mode(self):
         """
         Evaluate default_mode vs persistence_file:
-        - If default_mode is specified (0, 1, 2): force that mode.
+        - If default_mode is specified (0-4): force that mode.
         - If default_mode is null/empty: load last mode from persistence file.
         """
         if self.default_mode is not None and str(self.default_mode).strip() != "":
             try:
                 m = int(self.default_mode)
-                if m in (MODE_STOCK, MODE_PERFORMANCE, MODE_COMPETITION):
+                if m in ALL_MODES:
                     self.desired_mode = m
                     logger.info(f"Startup: Using configured default_mode = {m} ({MODE_NAMES[m]})")
                     return
@@ -261,7 +297,7 @@ class HaldexManager:
 
         # If left blank, restore from persistence file
         saved = self._read_persisted_mode()
-        if saved is not None and saved in (MODE_STOCK, MODE_PERFORMANCE, MODE_COMPETITION):
+        if saved is not None and saved in ALL_MODES:
             self.desired_mode = saved
             logger.info(f"Startup: Restored last used mode = {saved} ({MODE_NAMES[saved]})")
         else:
@@ -298,6 +334,10 @@ class HaldexManager:
         except Exception as e:
             logger.error(f"Failed to persist mode {mode}: {e}")
 
+    def available_modes(self) -> Tuple[int, ...]:
+        """Modes the connected image accepts; all five until telemetry says otherwise."""
+        return THREE_MODE_IMAGE_MODES if self.image_modes == 3 else ALL_MODES
+
     def get_status(self) -> Dict[str, Any]:
         """Return comprehensive status dictionary."""
         with self.state_lock:
@@ -311,6 +351,8 @@ class HaldexManager:
             if online:
                 if synced:
                     status_str = "synced"
+                elif desired not in self.available_modes():
+                    status_str = "unsupported"
                 elif now - self.last_switch_time < 0.4:
                     status_str = "switching"
                 else:
@@ -330,7 +372,9 @@ class HaldexManager:
                 'hold_a7e': self.last_telemetry_state.get('hold_a7e', 0),
                 'last_telemetry_age': round(now - self.last_telemetry_time, 2) if self.last_telemetry_time else None,
                 'last_switch_time': self.last_switch_time,
-                'inhibited': self.inhibited
+                'inhibited': self.inhibited,
+                'image_modes': self.image_modes,
+                'available_modes': list(self.available_modes()),
             }
 
     def get_valve_status(self):
@@ -417,10 +461,13 @@ class HaldexManager:
     def set_mode(self, mode: int) -> Dict[str, Any]:
         """Request a mode change."""
         mode = int(mode)
-        if mode not in (MODE_STOCK, MODE_PERFORMANCE, MODE_COMPETITION):
-            raise ValueError(f"Invalid mode {mode}. Expected 0, 1, or 2.")
+        if mode not in ALL_MODES:
+            raise ValueError(f"Invalid mode {mode}. Expected 0-4.")
 
         with self.state_lock:
+            if mode not in self.available_modes():
+                raise ValueError(f"{MODE_NAMES[mode]} needs a five-mode image (7416/7516); "
+                                 "the connected Haldex runs the 3-mode 7316.")
             self.desired_mode = mode
             self._save_persisted_mode(mode)
 
@@ -429,9 +476,11 @@ class HaldexManager:
         return self.get_status()
 
     def cycle_mode(self) -> Dict[str, Any]:
-        """Cycle mode: Stock -> Performance -> Competition -> Stock."""
+        """Cycle through the modes the connected image accepts, wrapping to Stock."""
         with self.state_lock:
-            next_mode = (self.desired_mode + 1) % 3
+            modes = self.available_modes()
+            later = [m for m in modes if m > self.desired_mode]
+            next_mode = later[0] if later else modes[0]
         return self.set_mode(next_mode)
 
     def _can_listener_worker(self):
@@ -469,6 +518,7 @@ class HaldexManager:
                                 if decoded:
                                     with self.state_lock:
                                         self.active_mode = decoded['mode']
+                                        self.image_modes = decoded['image_modes']
                                         self.last_telemetry_state.update(decoded)
                                         self.last_telemetry_time = time.time()
                             elif '679' in topic_str:
@@ -500,10 +550,17 @@ class HaldexManager:
                 inhibited = self.inhibited
                 active = self.active_mode
                 desired = self.desired_mode
+                supported = desired in self.available_modes()
                 switch_age = now - self.last_switch_time
                 reconcile_age = now - self.last_reconcile_attempt
 
             if inhibited:
+                continue
+
+            # A saved Snow/Full request on a 7316 can never take, so resending it just
+            # holds the ECU in Stock. Status reports "unsupported" until the user picks again.
+            if not supported:
+                self._publish_status()
                 continue
 
             # If telemetry is present and active mode does not match desired mode

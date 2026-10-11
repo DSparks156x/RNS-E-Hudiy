@@ -88,8 +88,35 @@ class HaldexTelemetryMuxTests(unittest.TestCase):
             'Any': __import__('typing').Any,
             'struct': __import__('struct'),
             'logger': logging.getLogger('test'),
-            'MODE_NAMES': {0: 'Stock', 1: 'Performance', 2: 'Competition'},
+            'MODE_NAMES': {0: 'Stock', 1: 'Performance', 2: 'Competition',
+                           3: 'Snow Drift', 4: 'Full Coupling'},
         })
+
+    def test_manager_decodes_five_mode_pages(self):
+        # 0xE0 | ABS<<3 | page 0; mode 4, B1CC 5, A78 clear, token set.
+        page0 = self.ns['decode_0x6da']('e8ac100020003000')
+        self.assertEqual(page0['image_modes'], 5)
+        self.assertEqual(page0['page'], 0)
+        self.assertEqual(page0['mode'], 4)
+        self.assertEqual(page0['mode_name'], 'Full Coupling')
+        self.assertEqual(page0['selector'], 5)
+        self.assertFalse(page0['force_zero'])
+        self.assertTrue(page0['token_ok'])
+        self.assertTrue(page0['abs_braking'])
+        self.assertEqual(page0['a72_nm'], 1.0)
+
+        page7 = self.ns['decode_0x6da']('e743ffff3412feff')
+        self.assertEqual(page7['mode'], 3)
+        self.assertTrue(page7['force_zero'])
+        self.assertFalse(page7['abs_braking'])
+        self.assertEqual(page7['b1a_yaw_feedback'], -1)
+        self.assertEqual(page7['b0c_current_request'], 0x1234)
+        self.assertEqual(page7['ac6_slip_error'], -2)
+
+    def test_7316_frames_report_three_modes_and_unknown_formats_drop(self):
+        self.assertEqual(self.ns['decode_0x6da']('d041100020003000')['image_modes'], 3)
+        self.assertIsNone(self.ns['decode_0x6da']('d741100020003000'))  # no 7316 page 7
+        self.assertIsNone(self.ns['decode_0x6da']('f041100020003000'))
 
     def test_manager_decodes_mux_pages_and_rejects_old_layout(self):
         page0 = self.ns['decode_0x6da']('d041100020003000')
@@ -133,23 +160,79 @@ class HaldexModeCommandTests(unittest.TestCase):
                 0: bytes.fromhex('5AA5'),
                 1: bytes.fromhex('A55A'),
                 2: bytes.fromhex('3CC3'),
+                3: bytes.fromhex('6996'),
+                4: bytes.fromhex('9669'),
             },
         })
 
-    def test_exact_7316_mode_headers(self):
+    def test_exact_mode_headers(self):
         self.assertEqual(self.ns['build_mode_frame'](0),
                          (0x67A, '5aa5000000000000'))
         self.assertEqual(self.ns['build_mode_frame'](1),
                          (0x67A, 'a55a000000000000'))
         self.assertEqual(self.ns['build_mode_frame'](2),
                          (0x67A, '3cc3000000000000'))
+        self.assertEqual(self.ns['build_mode_frame'](3),
+                         (0x67A, '6996000000000000'))
+        self.assertEqual(self.ns['build_mode_frame'](4),
+                         (0x67A, '9669000000000000'))
         with self.assertRaisesRegex(ValueError, 'Invalid mode'):
-            self.ns['build_mode_frame'](3)
+            self.ns['build_mode_frame'](5)
+
+    def test_module_headers_match_spec(self):
+        source = (ROOT / 'rns-e_can/haldex_manager.py').read_text()
+        for header in ('5AA5', 'A55A', '3CC3', '6996', '9669'):
+            self.assertIn(f'bytes.fromhex("{header}")', source)
 
     def test_recommended_burst_is_five_identical_frames(self):
         burst = self.ns['build_mode_burst'](2)
         self.assertEqual(len(burst), 5)
         self.assertEqual(set(burst), {(0x67A, '3cc3000000000000')})
+
+
+class ManagerModeSetTests(unittest.TestCase):
+    def manager(self, image_modes):
+        import typing
+        ns = definitions('rns-e_can/haldex_manager.py', {'HaldexManager'}, {
+            'Optional': typing.Optional, 'Dict': typing.Dict, 'Any': typing.Any,
+            'Tuple': typing.Tuple, 'logger': logging.getLogger('test'), 'os': os,
+            'MODE_NAMES': {0: 'Stock', 1: 'Performance', 2: 'Competition',
+                           3: 'Snow Drift', 4: 'Full Coupling'},
+            'ALL_MODES': (0, 1, 2, 3, 4), 'THREE_MODE_IMAGE_MODES': (0, 1, 2)})
+        manager = ns['HaldexManager'].__new__(ns['HaldexManager'])
+        manager.state_lock = threading.Lock()
+        manager.image_modes = image_modes
+        manager.desired_mode = 0
+        manager.sent = []
+        manager._save_persisted_mode = lambda mode: None
+        manager.send_mode_burst = manager.sent.append
+        manager._publish_status = lambda: None
+        manager.get_status = lambda: {'desired_mode': manager.desired_mode}
+        return manager
+
+    def cycle(self, manager, steps):
+        return [manager.cycle_mode()['desired_mode'] for _ in range(steps)]
+
+    def test_cycle_covers_five_modes_on_five_mode_image(self):
+        self.assertEqual(self.cycle(self.manager(5), 5), [1, 2, 3, 4, 0])
+
+    def test_cycle_offline_offers_all_five(self):
+        self.assertEqual(self.cycle(self.manager(None), 5), [1, 2, 3, 4, 0])
+
+    def test_7316_cycles_three_and_rejects_new_modes(self):
+        manager = self.manager(3)
+        self.assertEqual(self.cycle(manager, 3), [1, 2, 0])
+        for mode in (3, 4):
+            with self.assertRaisesRegex(ValueError, 'five-mode image'):
+                manager.set_mode(mode)
+        self.assertEqual(manager.desired_mode, 0)
+        with self.assertRaisesRegex(ValueError, 'Invalid mode'):
+            manager.set_mode(5)
+
+    def test_saved_new_mode_on_7316_cycles_back_to_stock(self):
+        manager = self.manager(3)
+        manager.desired_mode = 3
+        self.assertEqual(manager.cycle_mode()['desired_mode'], 0)
 
 
 class OwnershipTests(unittest.TestCase):
@@ -313,7 +396,7 @@ class ManagerRaceTests(unittest.TestCase):
         import typing
         ns = definitions('rns-e_can/haldex_manager.py', {'HaldexManager'}, {
             'Optional': typing.Optional, 'Dict': typing.Dict, 'Any': typing.Any,
-            'logger': logging.getLogger('test'), 'os': os})
+            'Tuple': typing.Tuple, 'logger': logging.getLogger('test'), 'os': os})
         manager = ns['HaldexManager'].__new__(ns['HaldexManager'])
         manager.burst_lock = threading.Lock()
         manager.inhibited = False

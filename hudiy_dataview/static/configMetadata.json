@@ -1020,7 +1020,7 @@
       "order": 33
     },
     "haldex.default_mode": {
-      "help": "Startup mode: null restores the last saved mode, 0 = Stock, 1 = Performance, 2 = Competition. A fixed mode disables saving mode changes as the next startup choice.",
+      "help": "Startup mode: null restores the last saved mode, 0 = Stock, 1 = Performance, 2 = Competition, 3 = Snow Drift, 4 = Full Coupling (3-4 need a five-mode image). A fixed mode disables saving mode changes as the next startup choice.",
       "type": "json-value",
       "label": "Default mode",
       "order": 34

@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "help-site", "run", "dev", "--", "--port", "5173", "--strictPort"],
       "port": 5173
+    },
+    {
+      "name": "dataview-mock",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "hudiy_dataview", "run", "start"],
+      "port": 5173
     }
   ]
 }

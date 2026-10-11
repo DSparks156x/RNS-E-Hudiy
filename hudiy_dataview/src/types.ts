@@ -44,7 +44,7 @@ export function diagKey(module: number | string, group: number): string {
 }
 
 export interface HaldexStatus {
-    status: 'synced' | 'switching' | 'reconciling' | 'offline';
+    status: 'synced' | 'switching' | 'reconciling' | 'unsupported' | 'offline';
     desired_mode: number;
     desired_name: string;
     active_mode: number | null;
@@ -57,6 +57,9 @@ export interface HaldexStatus {
     hold_a7e: number;
     last_telemetry_age: number | null;
     last_switch_time: number;
+    /** 3 = 7316, 5 = 7416/7516; null until 0x6DA telemetry is seen. */
+    image_modes?: number | null;
+    available_modes?: number[];
 }
 
 export interface LoggerStatus {

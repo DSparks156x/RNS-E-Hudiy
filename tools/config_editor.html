@@ -285,7 +285,7 @@ const SETTING_HELP = {
   'diagnostics.values.ican_hz': 'Default requested frequency, in Hz, for infotainment CAN values without an explicit polling period.',
   'diagnostics.values.lease_seconds': 'Seconds before the shared value broker expires a client’s requests when the client stops renewing its interest.',
   'haldex.enabled': 'Enable the Haldex control manager. Mode changes require compatible controller firmware; this setting does not flash firmware.',
-  'haldex.default_mode': 'Startup mode: null restores the last saved mode, 0 = Stock, 1 = Performance, 2 = Competition. A fixed mode disables saving mode changes as the next startup choice.',
+  'haldex.default_mode': 'Startup mode: null restores the last saved mode, 0 = Stock, 1 = Performance, 2 = Competition, 3 = Snow Drift, 4 = Full Coupling (3-4 need a five-mode image). A fixed mode disables saving mode changes as the next startup choice.',
   'haldex.burst_count': 'Number of CAN frames sent in a Haldex mode command burst. Repeated frames help the controller receive the requested mode.',
   'haldex.burst_interval_ms': 'Pause in milliseconds between frames in each Haldex mode command burst.',
   'haldex.persistence_file': 'JSON file storing the last requested Haldex mode when default_mode is null. The Pi service must be able to write here.',
@@ -1106,7 +1106,7 @@ function renderNode(path, value, container, shortKey) {
         return text.trim().startsWith('"') ? JSON.parse(text) : text;
       }
       const parsed = JSON.parse(text);
-      if (key === 'haldex.default_mode' && parsed !== null && ![0,1,2].includes(parsed)) throw new Error('Use null, 0, 1 or 2.');
+      if (key === 'haldex.default_mode' && parsed !== null && ![0,1,2,3,4].includes(parsed)) throw new Error('Use null or 0-4.');
       return parsed;
     };
   } else if (meta.type === 'hex-payload') {
