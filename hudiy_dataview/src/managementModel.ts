@@ -137,3 +137,9 @@ export function filesPortalUrl(location: Pick<Location, 'protocol' | 'hostname'>
   const url = new URL(`${location.protocol}//${location.hostname.includes(':') ? `[${location.hostname.replace(/^\[|\]$/g, '')}]` : location.hostname}`);
   url.port = '5003'; url.pathname = '/files'; return url.toString();
 }
+export interface PortalAddress { interface: string; address: string; kind: 'hotspot' | 'wifi' | 'wired'; ssid: string | null; url: string; }
+/** Plain words for the one address shown: hotspot, else joined Wi-Fi, else cable. */
+export function portalWhere(entry: PortalAddress): string {
+  if (entry.ssid) return `Connect to Wi-Fi: ${entry.ssid}, then go to:`;
+  return entry.kind === 'wired' ? 'Connect to the Pi’s network, then go to:' : 'Connect to the Pi hotspot, then go to:';
+}

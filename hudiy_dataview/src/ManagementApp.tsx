@@ -1,7 +1,7 @@
 import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TouchTextInput } from './components/touchKeyboard/TouchTextInput';
 import { HudiyColorScheme, useHudiyTheme } from './hooks/useHudiyTheme';
-import { applyEdits, changedCount, ConfigSnapshot, ConfigTarget, displayValue, fieldsFor, filesPortalUrl, formatHexPayload, ManagedService, managementRequest, Metadata, parseSetting, SaveResult, SettingField } from './managementModel';
+import { applyEdits, changedCount, ConfigSnapshot, ConfigTarget, displayValue, fieldsFor, filesPortalUrl, formatHexPayload, ManagedService, managementRequest, Metadata, parseSetting, PortalAddress, portalWhere, SaveResult, SettingField } from './managementModel';
 import './management.css';
 import { VideoPanel } from './VideoPanel';
 import { RnseBridgePanel } from './RnseBridgePanel';
@@ -67,6 +67,7 @@ export function ManagementApp({ api = managementRequest, previewTheme }: Props =
   const [follow, setFollow] = useState(true);
   const [logUpdated, setLogUpdated] = useState('');
   const [logBusy, setLogBusy] = useState(false);
+  const [portal, setPortal] = useState<PortalAddress[] | null>(null);
   const configRequest = useRef(0);
   const logPane = useRef<HTMLPreElement>(null);
   const logSource = useRef('');
@@ -125,6 +126,13 @@ export function ManagementApp({ api = managementRequest, previewTheme }: Props =
     void api<Metadata>('/metadata').then(result => { if (alive) setMetadata(result); }).catch(() => { /* Unknown settings remain editable without description metadata. */ });
     const update = () => api<{ theme?: HudiyColorScheme }>('/theme').then(result => { if (alive && result.theme) setCachedTheme(result.theme); }).catch(() => undefined);
     void update(); const interval = window.setInterval(() => void update(), 30000);
+    return () => { alive = false; window.clearInterval(interval); };
+  }, [api]);
+  useEffect(() => {
+    // Wi-Fi can join or the hotspot can start after Manager opens.
+    let alive = true;
+    const update = () => api<{ addresses: PortalAddress[] }>('/network').then(result => { if (alive) setPortal(result.addresses); }).catch(() => undefined);
+    void update(); const interval = window.setInterval(() => void update(), 10000);
     return () => { alive = false; window.clearInterval(interval); };
   }, [api]);
   const refreshServices = useCallback(async () => {
@@ -186,7 +194,7 @@ export function ManagementApp({ api = managementRequest, previewTheme }: Props =
   };
 
   return <div ref={managerRoot} className="container manager-container" data-theme={theme.darkThemeEnabled ? 'dark' : 'light'} style={themeVars as CSSProperties}>
-    <nav className="manager-tabs" aria-label="Manager panels"><strong className="manager-nav-title">RNS-E Manager</strong>{(['settings', 'video', 'services', 'logs'] as const).map(id => <button key={id} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon kind={id === 'video' ? 'settings' : id} />{id[0].toUpperCase() + id.slice(1)}</button>)}<a href={filesPortalUrl(window.location)}><Icon kind="files" />Files</a>{pinRequired && <TouchTextInput className="manager-pin" type="password" value={pin} onValueChange={setPin} aria-label="Management PIN" placeholder="PIN" touchOnly />}</nav>
+    <nav className="manager-tabs" aria-label="Manager panels"><strong className="manager-nav-title">RNS-E Manager</strong>{(['settings', 'video', 'services', 'logs'] as const).map(id => <button key={id} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon kind={id === 'video' ? 'settings' : id} />{id[0].toUpperCase() + id.slice(1)}</button>)}<a className="manager-files-url" href={portal?.[0]?.url || filesPortalUrl(window.location)}><Icon kind="files" />{portal?.length ? <span><small>{portalWhere(portal[0])}</small><b>{portal[0].url}</b></span> : <span><small>Files from your phone</small><b className="plain">{portal ? 'Pi is not on a network yet' : 'Finding Pi address…'}</b></span>}</a>{pinRequired && <TouchTextInput className="manager-pin" type="password" value={pin} onValueChange={setPin} aria-label="Management PIN" placeholder="PIN" touchOnly />}</nav>
     {message && <div className={`manager-message ${message.error ? 'error' : ''}`} role={message.error ? 'alert' : 'status'}><span>{message.text}</span><button aria-label="Dismiss message" onClick={() => setMessage(null)}>×</button></div>}
     {tab === 'video' && <main className="manager-video-page"><nav className="manager-video-pages" aria-label="Video controls"><button className={videoPane === 'rnse' ? 'active' : ''} aria-pressed={videoPane === 'rnse'} onClick={() => setVideoPane('rnse')}>RNS-E ADC</button><button className={videoPane === 'pi' ? 'active' : ''} aria-pressed={videoPane === 'pi'} onClick={() => setVideoPane('pi')}>Pi colors</button></nav>{videoPane === 'rnse' ? <RnseAdcPanel api={api} pin={pin} onTestPattern={showPattern} /> : <div className="manager-video-page-scroll"><VideoPanel api={api} pin={pin} /></div>}</main>}
     {patternVisible && <RnseTestPattern close={closePattern} notice={patternNotice} />}

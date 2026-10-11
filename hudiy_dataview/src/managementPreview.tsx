@@ -64,6 +64,14 @@ const api: ManagementApi = async <T,>(path: string, init?: RequestInit): Promise
   else if (path === '/video/apply') { const body = JSON.parse(String(init?.body)); await new Promise(resolve => setTimeout(resolve, 100)); video.active = true; video.settings = body.settings; video.output = body.output || 'HDMI-A-1'; result = video; }
   else if (path === '/video/profile') { const body = JSON.parse(String(init?.body)); video.saved_profile = { output: body.output, settings: body.settings }; result = video; }
   else if (path === '/video/reset') { video.active = false; video.settings = { ...VIDEO_DEFAULTS }; video.saved_profile = null; result = video; }
+  else if (path === '/network') {
+    // Fixture: ?net=hotspot|wifi|both|none picks a sample network state.
+    const hotspot = { interface: 'wlan0', address: '10.42.0.1', kind: 'hotspot', ssid: 'Hudiy', url: 'http://10.42.0.1:5003/files' };
+    const wifi = { interface: 'wlan0', address: '192.168.1.42', kind: 'wifi', ssid: 'HomeWiFi', url: 'http://192.168.1.42:5003/files' };
+    const wired = { interface: 'eth0', address: '192.168.1.50', kind: 'wired', ssid: null, url: 'http://192.168.1.50:5003/files' };
+    const net = new URLSearchParams(window.location.search).get('net') || 'hotspot';
+    result = { addresses: net === 'none' ? [] : net === 'wifi' ? [wifi] : net === 'both' ? [hotspot, wired] : [hotspot] };
+  }
   else if (path === '/theme') result = { theme };
   else if (path === '/configs') result = { pin_required: false, configs: [{ id: 'rnse', label: 'RNSE config.json · sample', filename: '/home/pi/config.json', exists: true }] };
   else if (path === '/configs/rnse') {

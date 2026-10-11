@@ -12,6 +12,7 @@ if __package__ in (None, ''):
 
 from flask import Flask, jsonify, render_template
 from hudiy_manager.config_store import ConfigStore
+from hudiy_manager.network_info import addresses as network_addresses
 from hudiy_manager.routes import register_management_configs, register_management_metadata, register_management_services, register_management_video, register_management_rnse_bridge
 from hudiy_manager.rnse_bridge import RnseBridgeClient
 from hudiy_manager.service_control import ServiceController
@@ -56,6 +57,10 @@ def create_app(project_root=None, home=None, controller=None, theme_loader=None,
     @app.get('/manage')
     def index():
         return render_template('manage.html')
+
+    @app.get('/api/manage/network')
+    def manager_network():
+        return jsonify({'addresses': network_addresses()})
 
     cached_theme = {'theme': None}
     load_theme = theme_loader or dataview_theme

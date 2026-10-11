@@ -169,3 +169,13 @@
   .manager-container .manager-pin { flex:0 0 76px; width:76px; font-size:12px; padding:0 6px; }
   .manager-settings-workspace { grid-template-columns:1fr; }
 }
+/* Phone portal address: big enough to read across the car and type on a phone. */
+.manager-nav-title { overflow:hidden; text-overflow:ellipsis; }
+/* The head unit is 800 wide: the phone address matters more than the title. */
+@media(max-width:899px) { .manager-nav-title { display:none; } .manager-tabs a.manager-files-url { margin-left:auto; } }
+.manager-tabs a.manager-files-url { flex-shrink:0; gap:10px; padding:0 14px 0 12px; border-radius:14px; background:var(--primary-container); color:var(--on-primary-container); min-height:48px; }
+.manager-files-url>span { display:flex; flex-direction:column; justify-content:center; gap:1px; }
+.manager-files-url small { font-size:14px; font-weight:600; white-space:nowrap; }
+.manager-files-url b { font-family:'Roboto Mono',ui-monospace,monospace; font-size:16px; font-weight:600; letter-spacing:-.2px; white-space:nowrap; user-select:text; -webkit-user-select:text; }
+.manager-files-url b.plain { font-family:inherit; font-size:14px; }
+@media(max-width:599px) { .manager-files-url small { display:none; } .manager-files-url b { font-size:12px; } }

@@ -13,6 +13,11 @@ in the document; structured values and Hudiy menu arrays can be edited as JSON.
 Manager edits the installed files directly. File uploads live in the network
 Files portal for use from your phone or computer.
 
+The top bar shows the portal address to type on your phone, e.g.
+`http://10.42.0.1:5003/files`. Your phone must be on the same Wi-Fi as the Pi:
+the Hudiy hotspot (its name is shown) or the network the Pi joined. The address
+refreshes every 10 seconds. The portal is part of DataView, so it must be running.
+
 Save replaces the file, after basic structural validation. It creates a backup
 under `~/confbackup/YYYY-MM-DD/<number>/` and preserves file permissions. A stale
 revision is rejected; refresh before retrying, keeping a copy of any draft you

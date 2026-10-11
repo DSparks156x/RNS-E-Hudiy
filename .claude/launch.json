@@ -18,6 +18,12 @@
       "runtimeExecutable": "scratch/data-logs-test-env/Scripts/python.exe",
       "runtimeArgs": ["hudiy_dataview/app_mock.py", "--mock", "-d"],
       "port": 5003
+    },
+    {
+      "name": "manager-preview",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd hudiy_dataview && npx vite --port 5174 --strictPort"],
+      "port": 5174
     }
   ]
 }
