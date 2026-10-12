@@ -10,6 +10,8 @@ from unittest.mock import patch
 root = Path(__file__).resolve().parent
 repo = root.parent
 sys.path.insert(0, str(repo))
+# ddp_protocol imports its siblings as top-level modules, as it does on the Pi.
+sys.path.insert(0, str(repo / 'dis_client'))
 if 'can' not in sys.modules:
     fake = types.ModuleType('can')
     fake.CanError = RuntimeError

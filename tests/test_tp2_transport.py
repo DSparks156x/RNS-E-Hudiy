@@ -300,10 +300,8 @@ class SequenceAndAckTests(TP2Harness):
         self.ecu.on_frame = slow_ack
         self.assertEqual(self.tester.send_kwp_request([0x10, 0x89]), [0x50, 0x89])
 
-    # BUG flasher/vag_protocols/tp2.py:346: wait_for_ack() treats a data frame
-    # as an implied ACK and re-queues it with msgs.append(), i.e. BEHIND frames
-    # already buffered after it. recv() then reassembles out of order.
-    @unittest.expectedFailure
+    # wait_for_ack() treats a data frame as an implied ACK and must re-queue it
+    # ahead of frames buffered after it, or recv() reassembles out of order.
     def test_retransmitted_final_frame_is_reacked_not_duplicated(self):
         """If our ACK is lost the ECU repeats its last frame; it is not new data."""
         self.connect()
@@ -315,18 +313,12 @@ class SequenceAndAckTests(TP2Harness):
         # B1 for the original, B1 again for the repeat, then B2 for the new reply.
         acks = [d for _, d in self.bus.sent if d[0] >> 4 == 0xB]
         self.assertEqual(acks, [b'\xB1', b'\xB1', b'\xB2'])
-        # Currently the stale repeat stays queued and kills the NEXT request
-        # with "sequence mismatch: expected 2, got 0".
+        # A stale repeat left queued would kill the next request.
         self.ecu.queue_response(b'\x61\x02')
         self.assertEqual(self.tester.send_kwp_request([0x21, 0x02]), [0x61, 0x02])
 
-    @unittest.expectedFailure
     def test_multiframe_reply_without_explicit_ack_keeps_frame_order(self):
-        """Code accepts a data frame as an implied ACK; the reply must stay in order.
-
-        Fails today: the first reply frame is moved behind the rest, giving
-        'sequence mismatch: expected 0, got 1' and a failed measuring-block read.
-        """
+        """A data frame accepted as an implied ACK keeps its place in the reply."""
         self.connect()
         self.ecu.ack_requests = False
         self.ecu.queue_response(bytes([0x61, 0x01]) + bytes(range(20)))
@@ -386,9 +378,8 @@ class ChannelLifecycleTests(TP2Harness):
             self.tester.send_kwp_request([0x21, 0x01])
         self.assertFalse(self.tester.connected)
 
-    @unittest.expectedFailure
     def test_ecu_disconnect_is_answered_with_disconnect(self):
-        """Spec: 0xA8 'Receiver should reply with a disconnect'. Code does not."""
+        """Spec: 0xA8 'Receiver should reply with a disconnect'."""
         self.connect()
         original = self.ecu.on_frame
 
@@ -401,12 +392,8 @@ class ChannelLifecycleTests(TP2Harness):
             self.tester.send_kwp_request([0x21, 0x01])
         self.assertEqual(self.bus.sent[-1], (0x740, b'\xA8'))
 
-    @unittest.expectedFailure
     def test_channel_test_from_ecu_is_answered_with_full_parameter_response(self):
-        """Spec: A3 'response is same as parameters response' (6 bytes, A1 BS T1 FF T3 FF).
-
-        flasher/vag_protocols/tp2.py answers with a bare 1-byte A1.
-        """
+        """Spec: A3 'response is same as parameters response' (6 bytes, A1 BS T1 FF T3 FF)."""
         self.connect()
         self.bus.deliver(TESTER_RX, b'\xA3', delay=0.0005)
         self.ecu.queue_response(b'\x61\x01')
