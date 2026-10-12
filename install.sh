@@ -348,20 +348,24 @@ try:
         required_actions = ['hudiy_manager']
         if menu_key == 'items':
             required_actions.extend(['hudiy_diagnostics', 'update_hudiy'])
+        needed_categories = ['Hudiy']
         for action in required_actions:
             entry = next((item for item in source.get(menu_key, [])
                           if isinstance(item, dict) and item.get('action') == action), None)
             if entry and not any(isinstance(item, dict) and item.get('action') == action
                                  for item in target[menu_key]):
                 target[menu_key].append(entry)
+                needed_categories.extend(entry.get('categories', []))
                 updated = True
         if menu_key == 'items' and isinstance(target.get('categories'), list):
-            category = next((item for item in source.get('categories', [])
-                             if isinstance(item, dict) and item.get('label') == 'Hudiy'), None)
-            if category and not any(isinstance(item, dict) and item.get('label') == 'Hudiy'
-                                    for item in target['categories']):
-                target['categories'].append(category)
-                updated = True
+            # Added buttons need their section (e.g. RNS-E), or Hudiy hides them.
+            for label in dict.fromkeys(needed_categories):
+                category = next((item for item in source.get('categories', [])
+                                 if isinstance(item, dict) and item.get('label') == label), None)
+                if category and not any(isinstance(item, dict) and item.get('label') == label
+                                        for item in target['categories']):
+                    target['categories'].append(category)
+                    updated = True
     if updated:
         with open(sys.argv[3], 'w') as f: json.dump(target, f, indent=4)
         sys.exit(0) # Updated

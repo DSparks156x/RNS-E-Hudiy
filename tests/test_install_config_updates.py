@@ -63,7 +63,7 @@ class InstallerConfigMigrationTests(unittest.TestCase):
         self.assertEqual(updated['applications'][1]['action'], 'hudiy_manager')
         self.assertEqual(self.migrate('applications.json', updated, new)[0], 2)
 
-    def test_manager_menu_preserves_custom_entries_and_adds_hudiy_category(self):
+    def test_manager_menu_preserves_custom_entries_and_adds_needed_categories(self):
         old = {'categories': [{'label': 'Personal'}], 'items': [{'action': 'personal_app', 'label': 'Mine'}]}
         new = json.loads((ROOT / 'config/hudiy/applications_menu.json').read_text())
         result, updated = self.migrate('applications_menu.json', old, new)
@@ -72,8 +72,23 @@ class InstallerConfigMigrationTests(unittest.TestCase):
         self.assertEqual(updated['items'][1]['action'], 'hudiy_manager')
         self.assertEqual(updated['items'][2]['action'], 'hudiy_diagnostics')
         self.assertEqual(updated['items'][3]['action'], 'update_hudiy')
-        self.assertEqual([item['label'] for item in updated['categories']], ['Personal', 'Hudiy'])
+        self.assertEqual([item['label'] for item in updated['categories']], ['Personal', 'Hudiy', 'RNS-E'])
+        self.assertEqual(updated['items'][1]['categories'], ['RNS-E'])
         self.assertEqual(self.migrate('applications_menu.json', updated, new)[0], 2)
+
+    def test_shipped_menu_splits_rnse_buttons_and_every_section_exists(self):
+        menu = json.loads((ROOT / 'config/hudiy/applications_menu.json').read_text())
+        labels = {category['label'] for category in menu['categories']}
+        for item in menu['items']:
+            with self.subTest(action=item['action']):
+                self.assertTrue(set(item['categories']) <= labels)
+        sections = {item['action']: item['categories'] for item in menu['items']}
+        for action in ('hudiy_manager', 'hudiy_diagnostics', 'update_rnse', 'restore_configs',
+                       'check_version', 'save_logs', 'toggle_diagnostics', 'toggle_flashing_mode'):
+            self.assertEqual(sections[action], ['RNS-E'], action)
+        for action in ('background_applications', 'settings_menu', 'update_hudiy',
+                       'reboot_system', 'shutdown_system', 'quit_hudiy'):
+            self.assertEqual(sections[action], ['Hudiy'], action)
 
     def test_existing_manager_customization_is_preserved(self):
         old = {'applications': [{'action': 'hudiy_manager', 'url': 'http://localhost:7777', 'allowBackground': True}]}

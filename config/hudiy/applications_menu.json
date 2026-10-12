@@ -25,18 +25,27 @@
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "apps",
             "label": "Hudiy"
+        },
+        {
+            "iconFontFamily": "Material Symbols Rounded",
+            "iconName": "directions_car",
+            "label": "RNS-E"
         }
     ],
     "items": [
         {
-            "categories": ["Hudiy"],
+            "categories": [
+                "RNS-E"
+            ],
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "manage_accounts",
             "action": "hudiy_manager",
             "label": "RNS-E Manager"
         },
         {
-            "categories": ["Hudiy"],
+            "categories": [
+                "RNS-E"
+            ],
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "query_stats",
             "action": "hudiy_diagnostics",
@@ -161,7 +170,7 @@
         },
         {
             "categories": [
-                "Hudiy"
+                "RNS-E"
             ],
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "update",
@@ -169,7 +178,9 @@
             "label": "Update RNS-E stuff"
         },
         {
-            "categories": ["Hudiy"],
+            "categories": [
+                "Hudiy"
+            ],
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "system_update",
             "action": "update_hudiy",
@@ -177,7 +188,7 @@
         },
         {
             "categories": [
-                "Hudiy"
+                "RNS-E"
             ],
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "settings_backup_restore",
@@ -186,7 +197,7 @@
         },
         {
             "categories": [
-                "Hudiy"
+                "RNS-E"
             ],
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "info",
@@ -195,7 +206,7 @@
         },
         {
             "categories": [
-                "Hudiy"
+                "RNS-E"
             ],
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "save",
@@ -204,7 +215,7 @@
         },
         {
             "categories": [
-                "Hudiy"
+                "RNS-E"
             ],
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "car_repair",
@@ -213,7 +224,7 @@
         },
         {
             "categories": [
-                "Hudiy"
+                "RNS-E"
             ],
             "iconFontFamily": "Material Symbols Rounded",
             "iconName": "system_security_update",
