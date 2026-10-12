@@ -127,7 +127,15 @@ def validate_document(target, document):
                     raise ConfigError('features.tv_simulation.payload must contain 1 to 8 whole hexadecimal bytes.')
                 tv_simulation['payload'] = re.sub(r'\s+', '', payload).upper()
         rnse = document.get('rnse', {})
-        if 'rnse_adc_reply' in document.get('can_ids', {}):
+        can_ids = document.get('can_ids', {})
+        if not isinstance(can_ids, dict):
+            raise ConfigError('can_ids must be an object.')
+        for name, value in can_ids.items():
+            # Services parse these with int(value, 16); one bad ID stops the base function.
+            if name != 'rnse_adc_reply' and value is not None and not (
+                    isinstance(value, str) and re.fullmatch(r'0[xX][0-9a-fA-F]{1,3}', value) and int(value, 16) <= 0x7FF):
+                raise ConfigError(f'can_ids.{name} must be a standard hexadecimal CAN ID, for example 0x602.')
+        if 'rnse_adc_reply' in can_ids:
             from .rnse_adc_protocol import reply_identifier
             try:
                 reply_identifier(document['can_ids']['rnse_adc_reply'])

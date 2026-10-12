@@ -139,6 +139,23 @@ class StoreTests(TemporaryConfigCase):
             'enabled': False, 'day_brightness': None, 'night_brightness': None}}}
         self.store.save('rnse', disabled, result['revision'])
 
+    def test_can_ids_must_be_standard_hex_ids(self):
+        revision = self.store.read('rnse')['revision']
+        for value in ('0x', '', '602', '0x800', '0xGGG', 1538):
+            document = {**self.document, 'can_ids': {'tv_presence': value}}
+            with self.subTest(value=value), self.assertRaises(ConfigError):
+                self.store.save('rnse', document, revision)
+        document = {**self.document, 'can_ids': {'tv_presence': '0x602', 'light_status': None}}
+        self.store.save('rnse', document, revision)
+
+    def test_shipped_config_can_ids_parse(self):
+        # Restore configs copies this file onto the Pi; can_base_function parses every ID.
+        can_ids = json.loads((ROOT / 'config.json').read_text(encoding='utf-8'))['can_ids']
+        for name, value in can_ids.items():
+            with self.subTest(name=name):
+                self.assertRegex(value, r'^0[xX][0-9a-fA-F]{1,3}$')
+                self.assertLessEqual(int(value, 16), 0x7FF)
+
     def test_tv_simulation_payload_validation_and_normalization(self):
         revision = self.store.read('rnse')['revision']
         for payload in ('', 'A', '0x01', 'GG', '001122334455667788', 'AA-BB',
