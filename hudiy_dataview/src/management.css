@@ -1,4 +1,4 @@
-.manager-container { color-scheme:dark; user-select:none; -webkit-user-select:none; --manager-raised:color-mix(in srgb,var(--surface-container) 92%,var(--on-surface)); }
+.manager-container { position:relative; color-scheme:dark; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; --manager-raised:color-mix(in srgb,var(--surface-container) 92%,var(--on-surface)); }
 .manager-container[data-theme="light"] { color-scheme:light; }
 .manager-video-page { display:flex; flex:1; flex-direction:column; min-height:0; padding:0 10px 6px; }
 .manager-video-pages { display:flex; flex-shrink:0; gap:6px; padding:3px 0; }
@@ -22,10 +22,11 @@
 .manager-tabs button,.manager-tabs a { display:flex; gap:8px; align-items:center; padding:0 18px; min-height:44px; text-decoration:none; font-size:13px; font-weight:600; color:var(--on-surface-variant); background:transparent; border-radius:24px; }
 .manager-tabs button.active { color:var(--on-primary-container); background:var(--primary-container); }
 .manager-tabs a { margin-left:auto; }
-.manager-message { display:flex; align-items:center; gap:8px; padding:8px 18px; background:var(--primary-container); color:var(--on-primary-container); font-size:12px; line-height:1.5; flex-shrink:0; max-height:100px; overflow:auto; }
+/* Toast over the search row; never pushes the layout down. */
+.manager-message { position:absolute; z-index:20; top:62px; left:50%; transform:translateX(-50%); width:max-content; max-width:min(560px,calc(100% - 24px)); display:flex; align-items:center; padding:10px 18px; border-radius:14px; background:var(--primary-container); color:var(--on-primary-container); font-size:14px; line-height:1.4; box-shadow:0 6px 20px rgb(0 0 0 / .35); animation:manager-toast .18s ease-out; }
+@keyframes manager-toast { from { opacity:0; transform:translate(-50%,-6px); } }
 .manager-message.error { background:var(--error-container); color:var(--on-error-container,var(--on-surface)); }
 .manager-message span { flex:1; overflow-wrap:anywhere; }
-.manager-container .manager-message button { background:transparent; color:inherit; font-size:22px; min-width:44px; }
 .manager-settings-tools { display:flex; gap:10px; padding:10px 20px; flex-shrink:0; }
 .manager-settings-tools select { width:220px; font-size:12px; }
 .manager-settings-tools input { flex:1; width:0; font-size:12px; border:0; }
@@ -36,9 +37,7 @@
 .manager-sections button.active { background:var(--primary-container); color:var(--on-primary-container); }
 .manager-settings-region { display:flex; flex-direction:column; min-height:0; min-width:0; overflow:hidden; }
 .manager-settings-scroll { overflow:auto; flex:1; min-height:0; padding:0 4px 12px 0; }
-.manager-settings-scroll,.manager-sections,.manager-panel-scroll,.manager-log-text,.manager-message { touch-action:pan-y; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
-.manager-scroll-buttons { display:flex; flex-shrink:0; gap:8px; padding:4px 0; border-top:1px solid var(--outline-variant); }
-.manager-scroll-buttons button { flex:1; font-size:12px; }
+.manager-settings-scroll,.manager-sections,.manager-panel-scroll,.manager-log-text { touch-action:pan-y; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
 .manager-brightness { background:var(--surface-container); padding:8px 12px 0; border-radius:16px; }
 .manager-brightness-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .manager-brightness h3 { font-size:14px; font-weight:600; margin:0; }
@@ -77,11 +76,6 @@
 .manager-switch span:after { content:''; display:block; width:18px; height:18px; border-radius:50%; background:var(--on-surface-variant); position:absolute; top:3px; left:3px; }
 .manager-switch.on span { background:var(--primary); border-color:var(--primary); }
 .manager-switch.on span:after { left:21px; background:var(--on-primary,var(--background)); }
-.manager-savebar { display:flex; align-items:center; flex-shrink:0; gap:8px; border-top:1px solid var(--outline-variant); padding:9px 20px; }
-.manager-savebar>div { flex:1; min-width:0; }
-.manager-savebar strong { font-size:12px; display:block; font-weight:500; }
-.manager-savebar small { display:block; font-size:10px; color:var(--on-surface-variant); margin-top:4px; overflow-wrap:anywhere; }
-.manager-savebar button { font-size:12px; padding:0 14px; white-space:nowrap; }
 .manager-container .manager-primary { background:var(--primary); color:var(--on-primary,var(--background)); font-weight:600; }
 .manager-empty { color:var(--on-surface-variant); padding:24px 0; font-size:13px; line-height:1.5; }
 .manager-empty button { display:block; margin-top:10px; }
@@ -113,7 +107,6 @@
   .manager-tabs { padding:3px 16px 6px; }
   .manager-settings-tools { padding:8px 16px; }
   .manager-settings-workspace { padding:0 16px; gap:12px; grid-template-columns:155px minmax(0,1fr); }
-  .manager-savebar { padding:7px 16px; }
   .manager-service { padding:12px 14px; }
 }
 @media(max-width:599px) {
@@ -131,9 +124,6 @@
   .manager-settings-region { flex:1; }
   .manager-sections { touch-action:pan-x; }
   .manager-setting { grid-template-columns:minmax(0,1fr) 130px; gap:10px; }
-  .manager-savebar { padding:8px 10px; flex-wrap:wrap; }
-  .manager-savebar>div { flex-basis:100%; }
-  .manager-savebar button { flex:1; font-size:11px; }
   .manager-service { display:block; }
   .manager-service-actions { grid-template-columns:repeat(4,1fr); margin-top:12px; }
   .manager-panel-scroll,.manager-logs-panel { padding:12px 10px; }
@@ -149,7 +139,7 @@
 .manager-settings-tools { padding:6px 12px; gap:8px; }
 .manager-settings-tools select,.manager-settings-tools input { font-size:14px; }
 .manager-settings-workspace { padding:0 12px; gap:12px; grid-template-columns:136px minmax(0,1fr); }
-.manager-sections button,.manager-scroll-buttons button { font-size:14px; }
+.manager-sections button { font-size:14px; }
 .manager-rnse-panels { gap:6px; margin-bottom:6px; }
 .manager-rnse-panels button { padding:0 14px; font-size:14px; }
 .manager-setting label { font-size:16px; }
@@ -158,9 +148,6 @@
 .manager-setting details,.manager-setting-value small { font-size:12px; }
 .manager-setting-value input,.manager-setting-value select { font-size:16px; }
 .manager-container .manager-switch { font-size:14px; }
-.manager-savebar { padding:6px 12px; }
-.manager-savebar strong { font-size:14px; }
-.manager-savebar small { font-size:12px; }
 @media(max-width:599px) {
   .manager-tabs { padding:4px 6px; gap:2px; overflow-x:auto; }
   .manager-nav-title { flex:0 0 auto; font-size:15px; padding:0 4px; }
@@ -176,6 +163,9 @@
 .manager-tabs a.manager-files-url { flex-shrink:0; gap:10px; padding:0 14px 0 12px; border-radius:14px; background:var(--primary-container); color:var(--on-primary-container); min-height:48px; }
 .manager-files-url>span { display:flex; flex-direction:column; justify-content:center; gap:1px; }
 .manager-files-url small { font-size:14px; font-weight:600; white-space:nowrap; }
-.manager-files-url b { font-family:'Roboto Mono',ui-monospace,monospace; font-size:16px; font-weight:600; letter-spacing:-.2px; white-space:nowrap; user-select:text; -webkit-user-select:text; }
+.manager-files-url b { font-family:'Roboto Mono',ui-monospace,monospace; font-size:16px; font-weight:600; letter-spacing:-.2px; white-space:nowrap; }
 .manager-files-url b.plain { font-family:inherit; font-size:14px; }
 @media(max-width:599px) { .manager-files-url small { display:none; } .manager-files-url b { font-size:12px; } }
+
+.manager-settings-tools>button:not(.manager-icon-button) { flex-shrink:0; white-space:nowrap; font-size:14px; padding:0 16px; }
+.manager-container :is(input,textarea) { user-select:text; -webkit-user-select:text; }
