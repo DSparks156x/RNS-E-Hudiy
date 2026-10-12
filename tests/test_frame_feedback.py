@@ -1,5 +1,6 @@
 import ast
 import logging
+import sys
 import time
 import unittest
 from pathlib import Path
@@ -7,31 +8,31 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 ROOT = Path(__file__).resolve().parent
-SERVICE = ROOT / 'service_feedback_candidate.py'
-GIF = ROOT / 'gif_feedback_candidate.py'
-if not SERVICE.exists():
-    SERVICE = ROOT.parent / 'dis_client/dis_service.py'
-    GIF = ROOT.parent / 'dis_client/dis_tests/test_gif_ipc.py'
+sys.path.insert(0, str(ROOT.parent / 'dis_client'))
+from dis_service import DisService, DDPError  # noqa: E402
+
+GIF = ROOT.parent / 'dis_client/dis_tests/test_gif_ipc.py'
 
 
 def load_methods(path, names):
     tree = ast.parse(path.read_text())
     nodes = [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.ClassDef)) and n.name in names]
-    namespace = {'time': time, 'logger': logging.getLogger(__name__),
-                 'DDPError': RuntimeError, 'zmq': SimpleNamespace(NOBLOCK=1, ZMQError=RuntimeError)}
+    namespace = {'time': time, 'logger': logging.getLogger(__name__)}
     exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), 'exec'), namespace)
     return namespace
 
 
 class ServiceFeedbackTests(unittest.TestCase):
     def setUp(self):
-        names = {'_send_graphics', '_finish_frame', '_expand_draw_command',
-                 '_reject_draw_commands', '_publish_frame_result', 'commit_frame'}
-        ns = load_methods(SERVICE, names)
-        cls = type('Service', (), {name: ns[name] for name in names})
-        self.service = cls()
-        self.service.ddp = SimpleNamespace(send_ddp_frame=Mock(return_value=True))
+        # Real DisService methods on an instance that skips __init__ (no
+        # config file, sockets or CAN). Generic 0x52 renderer, central region.
+        self.service = DisService.__new__(DisService)
+        self.service.ddp = SimpleNamespace(send_ddp_frame=Mock(return_value=True),
+                                           renderer_command_family=lambda: 0x52,
+                                           renderer_ready=lambda family=0x52: family == 0x52)
         self.service.status_pub = SimpleNamespace(send_string=Mock())
+        self.service.command_cache = {}
+        self.service.region_name, self.service.region_y_offset, self.service.region_height = 'central', 27, 48
 
     def result(self):
         return self.service.status_pub.send_string.call_args.args[0]
@@ -58,7 +59,7 @@ class ServiceFeedbackTests(unittest.TestCase):
         self.assertEqual(self.result(), 'DRAW_NACK 45')
 
     def test_failure_is_retained_between_ipc_batches(self):
-        self.service.ddp.send_ddp_frame.side_effect = RuntimeError('ACK timeout')
+        self.service.ddp.send_ddp_frame.side_effect = DDPError('ACK timeout')
         self.assertFalse(self.service._send_graphics([55]))
         self.assertFalse(self.service._send_graphics([57]))
         self.service._finish_frame(46)

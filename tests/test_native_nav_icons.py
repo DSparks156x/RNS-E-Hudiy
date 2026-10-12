@@ -185,6 +185,10 @@ class NativeNavigationMappingTests(unittest.TestCase):
             app = NavApp(config(road_side=road_side))
             self.assertEqual(app.road_side, road_side)
             app.maneuver_type = 13
+            app.maneuver_angle = 90
+            # An absent proto2 angle reads as 0; it must not become a U-turn.
+            self.assertEqual(app._get_icon_name(), 'ROUNDABOUT_' + direction)
+            app.maneuver_angle_present = True
             for angle in range(0, 360, 45):
                 app.maneuver_angle = angle
                 app.maneuver_side = 1
@@ -216,37 +220,39 @@ class NativeNavigationViewTests(unittest.TestCase):
             self.assertFalse(any(item.get('cmd') == 'native_bitmap' for item in view))
 
     def test_opt_in_native_snapshot_then_hardware_overlays(self):
+        # High resolution routes through the white navigation view: bar cells
+        # and text first, the bounded icon bitmap last.
         view = app_with_route(True).get_view()
-        self.assertEqual(view[0]['type'], 'nav_graphic_native')
-        self.assertFalse(view[0]['clear_on_update'])
-        icon = view[1]
+        self.assertEqual(view[0]['type'], 'nav_white_direct_bitmap_high')
+        icon = view[-1]
         self.assertEqual(icon['group'], 'icon')
         self.assertEqual(icon['cmd'], 'native_bitmap')
         self.assertEqual(icon['render_order'], 'planes')
         self.assertEqual(icon['post_message_delay_s'], .005)
         self.assertEqual(bytes.fromhex(icon['data_hex']), canvas_for_icon('TURN_RIGHT'))
+        self.assertEqual([item for item in view if item.get('group') == 'icon'], [icon])
         self.assertTrue(all('type' not in item for item in view[1:]))
         text = [item for item in view if item.get('cmd') == 'draw_text']
-        self.assertEqual([(item['x'], item['y']) for item in text[:2]], [(42, 8), (42, 17)])
-        self.assertEqual(text[-1]['y'], 39)
-        self.assertTrue(any(item.get('cmd') == 'draw_line' and item['x'] == 61 for item in view))
+        self.assertEqual([item['y'] for item in text], [8, 17, 39])
+        self.assertEqual([item['field_id'] for item in view if item.get('cmd') == 'draw_native_font'],
+                         ['nav_bar_%d' % y for y in (3, 10, 17, 24, 31)])
 
     def test_tiles_remain_selectable_with_an_explicit_icon_pause(self):
         app = app_with_route(True)
         app.config['display']['center_display']['navigation'].update(
             native_render_order='tiles', native_message_delay_ms=10)
-        icon = app.get_view()[1]
+        icon = app.get_view()[-1]
         self.assertEqual(icon['render_order'], 'tiles')
         self.assertEqual(icon['post_message_delay_s'], .01)
-        self.assertEqual(icon['update_rect'], [6, 2, 72, 72])
+        self.assertEqual(icon['update_rect'], [6, 0, 72, 78])
 
     def test_distance_update_preserves_identical_native_snapshot(self):
         app = app_with_route(True)
         previous = app.get_view()
         app.update_hudiy(b'HUDIY_NAV_DISTANCE', {'label': '50 m'})
         changed = app.get_view()
-        self.assertEqual(previous[1], changed[1])
-        self.assertNotEqual(previous[2:], changed[2:])
+        self.assertEqual(previous[-1], changed[-1])
+        self.assertNotEqual(previous[1:-1], changed[1:-1])
 
     def test_no_route_stays_text_only(self):
         view = NavApp(config(True)).get_view()

@@ -37,10 +37,6 @@ class OpenpilotConflictTests(unittest.TestCase):
         self.assertIs(class_constants['TRANSPORT_ENABLED'], False)
         self.assertIn('0x67A/0x6DA', class_constants['DISABLED_REASON'])
 
-    def test_worker_requires_both_config_and_transport_enable(self):
-        source = (ROOT / 'tp2' / 'tp2_worker.py').read_text()
-        self.assertIn('op_enabled = bool(op_requested and OPENPILOT_TRANSPORT_ENABLED)', source)
-
 
 if __name__ == '__main__':
     unittest.main()

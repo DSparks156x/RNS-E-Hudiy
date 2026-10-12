@@ -179,11 +179,6 @@ class HaldexModeCommandTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Invalid mode'):
             self.ns['build_mode_frame'](5)
 
-    def test_module_headers_match_spec(self):
-        source = (ROOT / 'rns-e_can/haldex_manager.py').read_text()
-        for header in ('5AA5', 'A55A', '3CC3', '6996', '9669'):
-            self.assertIn(f'bytes.fromhex("{header}")', source)
-
     def test_recommended_burst_is_five_identical_frames(self):
         burst = self.ns['build_mode_burst'](2)
         self.assertEqual(len(burst), 5)

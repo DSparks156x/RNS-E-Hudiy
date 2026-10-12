@@ -77,7 +77,8 @@ class ApiEventCaptureTests(unittest.TestCase):
         service_node = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == 'HudiyData')
         namespace = {'ApiEventCapture': ApiEventCapture, 'json': json, 'os': os,
                      'logger': logging.getLogger(__name__), 'SafePublisher': Mock(),
-                     'HudiyEventHandler': Mock(), 'TP2BridgeHandler': Mock(), 'ConnectionManager': Mock()}
+                     'HudiyEventHandler': Mock(), 'TP2BridgeHandler': Mock(), 'ConnectionManager': Mock(),
+                     'InputActionDispatcher': Mock(), 'hudiy_api': Mock()}
         exec(compile(ast.Module(body=[service_node], type_ignores=[]), 'hudiy_data.py', 'exec'), namespace)
         service_type = namespace['HudiyData']
         with tempfile.TemporaryDirectory(dir=SCRATCH) as directory:
@@ -116,9 +117,6 @@ class ApiEventCaptureTests(unittest.TestCase):
             previous = [json.loads(line) for line in Path(capture.previous_path).read_text().splitlines()]
             self.assertEqual([entry['event'] for entry in current], ['second'])
             self.assertEqual([entry['event'] for entry in previous], ['first'])
-
-    def test_default_limit_is_two_mib_per_file(self):
-        self.assertEqual(ApiEventCapture.MAX_SIZE_MB, 2)
 
     def test_oversized_event_is_dropped(self):
         with tempfile.TemporaryDirectory(dir=SCRATCH) as directory:

@@ -310,11 +310,13 @@ class NavApp(BaseApp):
         candidate = str(int(round(value)))
         if fits(candidate):
             return candidate
+        bound_scale, bound_suffix = 1, ''
         for scale, suffix in ((1000, 'k'), (1000000, 'M'),
                               (1000000000, 'G'), (1000000000000, 'T')):
             scaled = value / scale
             if scaled < 1 and round(scaled, 1) < 1:
                 break
+            bound_scale, bound_suffix = scale, suffix
             if scaled < 10:
                 candidate = f"{scaled:.1f}" + suffix
                 if fits(candidate):
@@ -322,10 +324,11 @@ class NavApp(BaseApp):
             candidate = str(int(round(scaled))) + suffix
             if fits(candidate):
                 return candidate
-        # State an explicit lower bound instead of clipping an enormous value.
+        # State an explicit, true lower bound in the largest reached unit
+        # instead of clipping an enormous value.
         for digits in range(8, 0, -1):
-            candidate = '>' + '9' * digits + 'T'
-            if fits(candidate):
+            candidate = '>' + '9' * digits + bound_suffix
+            if (10 ** digits - 1) * bound_scale < value and fits(candidate):
                 return candidate
         return "?"
 

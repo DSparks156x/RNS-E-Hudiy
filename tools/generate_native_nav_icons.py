@@ -32,7 +32,8 @@ def source_manifest(source_dir=DEFAULT_SOURCE):
     manifest=json.loads((directory/'manifest.json').read_text(encoding='utf-8'))
     for name,item in manifest['icons'].items():
         source=directory/item['svg']
-        actual=hashlib.sha256(source.read_bytes()).hexdigest()
+        # Hash LF bytes so a Windows CRLF checkout and a Linux checkout agree.
+        actual=hashlib.sha256(source.read_bytes().replace(b'\r\n',b'\n')).hexdigest()
         if actual!=item['svg_sha256']:
             raise ValueError('Curated SVG hash mismatch for '+name)
     return manifest

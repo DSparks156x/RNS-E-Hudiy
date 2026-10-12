@@ -17,6 +17,7 @@ class PatternTests(unittest.TestCase):
         viewer = self.home / '.hudiy/share/web_viewer'
         viewer.parent.mkdir(parents=True)
         viewer.write_text('fixture')
+        viewer.chmod(0o755)  # open() requires an executable viewer
         self.process = Mock()
         self.process.poll.return_value = None
         self.launcher = Mock(return_value=self.process)

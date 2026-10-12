@@ -1,5 +1,4 @@
 """Legacy atomic packet capacity, full scroll reach and phone highlights."""
-import ast
 import sys
 import unittest
 from pathlib import Path
@@ -105,11 +104,7 @@ class AtomicTextCapacityTests(unittest.TestCase):
             self.assertLessEqual(len(fixture.s.get_text_update_payload(update)),42)
 
     def test_custom_fields_fit_both_replacement_and_previous_history(self):
-        tree=ast.parse((ROOT/'dis_client/dis_display.py').read_text())
-        ns={}
-        node=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='_prepare_text_group')
-        exec(compile(ast.Module(body=[node],type_ignores=[]),'dis_display.py','exec'),ns)
-        engine=type('Engine',(),{'_prepare_text_group':ns['_prepare_text_group']})()
+        engine=mediafixtures.Engine()
         engine.cfg=LEGACY
         old=[dict(cmd='draw_text',text='i'*32,x=0,y=39,flags=6)]
         new=[dict(cmd='clear_area',x=0,y=39,w=61,h=9),

@@ -1,40 +1,11 @@
 """Offline tests of the actual DDP receiver-flow methods; never open CAN."""
-import ast
-import logging
-import os
-import struct
 import unittest
 from collections import deque
 from contextlib import contextmanager
-from dataclasses import dataclass
-from enum import Enum, auto
-from pathlib import Path
 from types import SimpleNamespace
-from typing import List, Optional, Sequence, Tuple
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
-ROOT = Path(__file__).resolve().parent
-REPO = ROOT.parent
-SOURCE = Path(os.environ.get('DDP_RECEIVER_SOURCE', str(REPO / 'dis_client/ddp_protocol.py')))
-
-
-def load_actual(clock, guard):
-    ns = dict(List=List, Optional=Optional, Sequence=Sequence, Tuple=Tuple,
-              struct=struct, deque=deque, dataclass=dataclass, Enum=Enum, auto=auto,
-              logger=logging.getLogger(__name__), time=clock,
-              transmission_guard=guard,
-              can=SimpleNamespace(Message=lambda **kw: SimpleNamespace(**kw)))
-    tp_tree = ast.parse((REPO / 'flasher/vag_protocols/tp2.py').read_text())
-    wanted = {'classify_frame', 'build_ack', 'build_data_frame', 'segment_message'}
-    exec(compile(ast.Module(body=[n for n in tp_tree.body
-        if isinstance(n, ast.FunctionDef) and n.name in wanted], type_ignores=[]),
-        '<actual TP2 framing>', 'exec'), ns)
-    tree = ast.parse(SOURCE.read_text())
-    nodes = [n for n in tree.body if isinstance(n, ast.ClassDef)]
-    nodes += [n for n in tree.body if isinstance(n, ast.Assign) and any(
-        isinstance(t, ast.Name) and t.id == 'DEFAULT_DDP_TRANSPORT' for t in n.targets)]
-    exec(compile(ast.Module(body=nodes, type_ignores=[]), str(SOURCE), 'exec'), ns)
-    return ns
+from test_ddp_state import ddp, make_driver
 
 
 class ReceiverFlowTests(unittest.TestCase):
@@ -53,18 +24,16 @@ class ReceiverFlowTests(unittest.TestCase):
                 yield self.guard_allowed
             finally:
                 self.guard_events.append('exit')
-        self.ns = load_actual(clock, guard)
-        self.State, self.Mode = self.ns['DDPState'], self.ns['DisMode']
-        self.cls = self.ns['DDPProtocol']
-        self.d = self.cls.__new__(self.cls)
-        self.d.state, self.d.dis_mode = self.State.READY, self.Mode.WHITE
+        for name, value in (('time', clock), ('transmission_guard', guard)):
+            patcher = patch.object(ddp, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.ns = vars(ddp)
+        self.State, self.Mode = ddp.DDPState, ddp.DisMode
+        self.cls = ddp.DDPProtocol
+        self.d = make_driver()
         self.d.send_seq_num = 8
-        self.d.tx_id, self.d.rx_id = 0x6c0, 0x6c1
-        self.d.i_am_opener = True
-        self.d._data_inbox = deque()
-        self.d._last_received_ack = None
-        self.d._last_screen_status = None
-        self.d.screen_released_by_cluster = False
+        self.d._receive_seq_num = 3  # Peer records below continue at sequence 3.
         self.d._flashing_inhibited = Mock(return_value=False)
         self.d.transport_profile = self.ns['DDPTransportProfile'](
             frame_gap_s=0, max_message_bytes=105, max_unacked_frames=15,

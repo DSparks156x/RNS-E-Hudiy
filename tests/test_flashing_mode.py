@@ -124,7 +124,7 @@ class SenderTests(unittest.TestCase):
         ns = dict(transmission_guard=gate, Enum=Enum, auto=auto,
                   List=List, Optional=Optional, Tuple=Tuple, Dict=Dict, Union=Union,
                   can=SimpleNamespace(Message=lambda **kw: kw, CanError=RuntimeError),
-                  logger=Mock(), time=Mock(), threading=threading)
+                  logger=Mock(), time=Mock(), threading=threading, deque=deque)
         tree = ast.parse((ROOT / path).read_text())
         tree.body = [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name in names]
         exec(compile(tree, path, 'exec'), ns)
