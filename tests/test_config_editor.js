@@ -127,7 +127,7 @@ test('unknown select choices remain selected and imported labels are escaped',()
 
 test('bundled RNS-E brightness settings use confirmed integer levels from zero to ten',()=>{
   const ctx=editor();ctx.initialize();
-  assert.deepEqual(plain(vm.runInContext('currentConfig.rnse.auto_brightness',ctx)),{enabled:false,day_brightness:10,night_brightness:5});
+  assert.deepEqual(plain(vm.runInContext('currentConfig.rnse.auto_brightness',ctx)),example.rnse.auto_brightness);
   const brightness=field(ctx,'rnse.auto_brightness.day_brightness');
   for(const invalid of ['-1','11','5.5']){
     brightness.input.onchange({target:{value:invalid}});

@@ -306,7 +306,8 @@ class DataLogs:
             self.active.update(recording=False, stopped_at=time.time(),
                                duration_sec=time.time()-self.active['started_at'], last_error=self.last_error)
             if self.active.get('write_failed'):
-                self.active['dropped_rows'] += pending.qsize()
+                # The writer is dead; skip the stop sentinel if it is still queued.
+                self.active['dropped_rows'] += sum(row is not None for row in list(pending.queue))
             self._metadata()
             self.last_session, self.active = self.active, None
             self.latest, self.seen = {}, {}
