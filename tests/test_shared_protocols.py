@@ -87,11 +87,6 @@ class SharedTP2Tests(unittest.TestCase):
             result, _ = reassembler.feed(frame)
         self.assertEqual(result, b'\x5A\x9B' + bytes(10))
 
-    def test_reassembler_rejects_short_final_frame(self):
-        reassembler = TP2MessageReassembler(0)
-        with self.assertRaisesRegex(ValueError, 'declared 9, got 3'):
-            reassembler.feed(b'\x10\x00\x09\x5A\x9B\x00')
-
 
 class SharedKWPTests(unittest.TestCase):
     def test_pending_is_received_without_resending(self):

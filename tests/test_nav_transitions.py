@@ -17,13 +17,18 @@ def nav_config(native=True, units='metric'):
 
 
 def distance_text(view):
+    # The white view clears the fields and draws empty text when unknown.
     return [item['text'] for item in view
-            if item.get('group') == 'dist' and item.get('cmd') == 'draw_text']
+            if item.get('group') == 'dist' and item.get('cmd') == 'draw_text' and item['text']]
 
 
-def bar_height(view):
-    return max([item['length'] for item in view
-                if item.get('group') == 'bar' and item.get('cmd') == 'draw_line'] or [0])
+def bar_height(app):
+    # Approach fill (0..48) behind both the native bar cells and legacy lines.
+    return app._get_progress_height()
+
+
+def icon(view):
+    return [item for item in view if item.get('group') in ('icon', 'arrow')]
 
 
 def route(app, description='Main St', distance='200 m'):
@@ -45,8 +50,12 @@ class NavigationDistanceTransitionTests(unittest.TestCase):
                     self.assertEqual(app.meters, -1)
                     self.assertTrue(app.has_route)
                     self.assertEqual(distance_text(changed), [])
-                    self.assertEqual(bar_height(changed), 0)
-                    self.assertEqual(original[1], changed[1])
+                    self.assertEqual(bar_height(app), 0)
+                    self.assertFalse(any(c.get('cmd') == 'draw_line' and c.get('group') == 'bar'
+                                         or str(c.get('field_id', '')).startswith('nav_bar')
+                                         for c in changed))
+                    self.assertEqual(original[0], changed[0])
+                    self.assertEqual(icon(original), icon(changed))
                     before_street = [c['text'] for c in original if c.get('group') == 'street' and c.get('cmd') == 'draw_text']
                     after_street = [c['text'] for c in changed if c.get('group') == 'street' and c.get('cmd') == 'draw_text']
                     self.assertEqual(before_street, after_street)
@@ -59,7 +68,7 @@ class NavigationDistanceTransitionTests(unittest.TestCase):
             app.update_hudiy(b'HUDIY_NAV', data)
             self.assertEqual(app.meters, -1)
             self.assertEqual(distance_text(app.get_view()), [])
-            self.assertEqual(bar_height(app.get_view()), 0)
+            self.assertEqual(bar_height(app), 0)
             app.update_hudiy(b'HUDIY_NAV_DISTANCE', {'label': '50 m'})
             self.assertEqual(distance_text(app.get_view()), ['50', 'm'])
 
@@ -70,7 +79,7 @@ class NavigationDistanceTransitionTests(unittest.TestCase):
                 route(app, distance=label)
                 self.assertEqual(app.meters, 0)
                 self.assertEqual(distance_text(app.get_view()), ['0', 'm'])
-                self.assertEqual(bar_height(app.get_view()), 48)
+                self.assertEqual(bar_height(app), 48)
 
     def test_numeric_zero_is_content_without_a_street_description(self):
         for label in (0, 0.0):
@@ -93,7 +102,7 @@ class NavigationDistanceTransitionTests(unittest.TestCase):
             app = NavApp(nav_config())
             route(app, distance=label)
             self.assertNotEqual(distance_text(app.get_view()), ['0', 'm'])
-            self.assertNotEqual(bar_height(app.get_view()), 48)
+            self.assertNotEqual(bar_height(app), 48)
 
     def test_numeric_and_fractional_unit_conversion_is_preserved(self):
         for label, expected in ((150, 150), (0.5, 0.5), ('1.2 km', 1200),
@@ -202,7 +211,8 @@ class ScrollTransitionTests(unittest.TestCase):
         route(app, description=new)
         street = [item['text'] for item in app.get_view()
                   if item.get('group') == 'street' and item.get('cmd') == 'draw_text']
-        expected = app.fit_text(new, (61 - 2) * 2, flags=0x06)
+        # The street row spans the full 64px width (124px of text).
+        expected = app.fit_text(new, (64 - 2) * 2, flags=0x06)
         self.assertEqual(street, [expected])
 
 

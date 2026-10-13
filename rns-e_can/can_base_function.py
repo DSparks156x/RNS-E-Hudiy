@@ -8,6 +8,7 @@
 # Version: 1.3.6 (Fixed global RUNNING declaration in shutdown_monitor_task)
 #
 
+import os
 import zmq
 import json
 import time

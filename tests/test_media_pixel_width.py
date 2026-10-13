@@ -1,6 +1,4 @@
 """Pixel-budget media and actual dictionary redraw regression tests; no IPC."""
-import ast
-import logging
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -8,20 +6,16 @@ import unittest
 from unittest.mock import Mock, patch
 
 REPO = Path(__file__).resolve().parents[1]
-if REPO.name != 'RNS-E-Hudiy':
-    REPO = Path(r'C:\Users\raccoon\Documents\carstuff\RNS-E-Hudiy')
 sys.path.insert(0, str(REPO / 'dis_client'))
 from apps.media import MediaApp
+from dis_display import DisplayEngine
 from font_metrics import measure_text
-from text_render import text_bounds, text_update
+from text_render import text_update
 
-SOURCE = REPO / 'dis_client/dis_display.py'
-tree = ast.parse(SOURCE.read_text(encoding='utf-8'))
-names = {'_draw', '_queue_ui_frame', '_ui_frame_waiting', 'force_redraw', '_handle_ui_frame_result'}
-namespace = {'logger': logging.getLogger(__name__)}
-exec(compile(ast.Module(body=[n for n in ast.walk(tree)
-    if isinstance(n, ast.FunctionDef) and n.name in names], type_ignores=[]), str(SOURCE), 'exec'), namespace)
-Engine = type('Engine', (), {name: namespace[name] for name in names})
+
+def Engine():
+    """Real DisplayEngine methods without __init__ (no config, sockets or apps)."""
+    return DisplayEngine.__new__(DisplayEngine)
 
 
 class MediaPixelWidths(unittest.TestCase):
@@ -140,7 +134,9 @@ class DictionaryTextLines(unittest.TestCase):
         self.e._send_draw.assert_not_called()
 
     def test_clear_rectangles_stay_inside_central_or_full_region(self):
-        for active, height in ((False,7),(True,9)):
+        # Text pages keep the 48px central window even with background nav,
+        # so line5 (y41) is always clipped to 7 rows.
+        for active, height in ((False,7),(True,7)):
             self.e.force_redraw()
             self.e.nav_active=active
             self.e.current_app.get_view.return_value={'line5':('WWW',6)}
@@ -155,7 +151,7 @@ class DictionaryTextLines(unittest.TestCase):
     def test_custom_to_dictionary_transition_is_one_atomic_frame(self):
         self.e.last_sent.update(groups={'icon': 'old'}, last_type='native')
         self.e._draw()
-        self.assertEqual([c['command'] for c in self.commands()], ['clear', 'update_text'])
+        self.assertEqual([c['command'] for c in self.commands()], ['clear_payload', 'update_text'])
         self.e._send_draw.assert_called_once()
         self.assertIsNone(self.e.last_sent['groups'])
 

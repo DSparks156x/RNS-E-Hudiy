@@ -17,16 +17,17 @@ def render(distance, units='metric', approach_max=300):
     view = app.get_view()
     labels = [item['text'] for item in view
               if item.get('group') == 'dist' and item.get('cmd') == 'draw_text']
-    bars = [item['length'] for item in view
-            if item.get('group') == 'bar' and item.get('cmd') == 'draw_line']
-    return app, view, labels, max(bars or [0])
+    # Approach fill (0..48) feeding both the native bar cells and legacy lines.
+    return app, view, labels, app._get_progress_height()
 
 
 class NavigationDistanceFormattingTests(unittest.TestCase):
     def test_small_metric_distances_preserve_precision_and_units(self):
         for distance, labels in [('99 m', ['99', 'm']), ('999 m', ['999', 'm']),
                                  ('1 km', ['1.0', 'km']), ('1.2 km', ['1.2', 'km']),
-                                 ('9.9 km', ['9.9', 'km']), ('99.9 km', ['99.9', 'km'])]:
+                                 ('9.9 km', ['9.9', 'km']),
+                                 # '99.9' is 36px; the 32px slot rounds to a whole number.
+                                 ('99.9 km', ['100', 'km'])]:
             with self.subTest(distance=distance):
                 self.assertEqual(render(distance)[2], labels)
 
@@ -36,15 +37,21 @@ class NavigationDistanceFormattingTests(unittest.TestCase):
         return float(label[:-1]) * scales[label[-1]] if label[-1] in scales else float(label)
 
     def assert_slot(self, app, labels, bar):
-        self.assertTrue(all(app.text_width(label, flags=0x06) <= (38 if bar else 44)
-                            for label in labels))
+        # The distance field is a fixed 32px column, independent of the bar.
+        self.assertTrue(all(app.text_width(label, flags=0x06) <= 32 for label in labels))
 
     def test_large_metric_distances_keep_meaning_and_remain_bounded(self):
         for value in (100, 1000, 9999, 10000, 12500, 100000, 1000000, 1000000000):
             with self.subTest(value=value):
                 app, _, labels, bar = render(f'{value} km')
                 self.assertEqual(labels[1], 'km')
-                self.assertLessEqual(abs(self.numeric_value(labels[0]) - value), value * .05)
+                if labels[0].startswith('>'):
+                    # Saturated: must be a true lower bound, at most 100x low.
+                    bound = self.numeric_value(labels[0][1:])
+                    self.assertLess(bound, value)
+                    self.assertGreaterEqual(bound * 100, value)
+                else:
+                    self.assertLessEqual(abs(self.numeric_value(labels[0]) - value), value * .05)
                 self.assert_slot(app, labels, bar)
 
     def test_rounding_boundary_uses_complete_fitting_number(self):
@@ -85,21 +92,24 @@ class NavigationDistanceFormattingTests(unittest.TestCase):
         self.assertGreater(bar, 0)
         self.assert_slot(app, labels, bar)
         self.assertTrue(any(item.get('cmd') == 'clear_area' and item.get('group') == 'dist'
-                            and item.get('x') == 42 and item.get('w') == 19 for item in view))
+                            and item.get('x') == 40 and item.get('w') == 16 for item in view))
 
     def test_zero_empty_and_arrival_behavior_is_preserved(self):
         for distance in (0, '0 m', 'Now', 'Arrived'):
             self.assertEqual(render(distance)[2:], (['0', 'm'], 48))
         for distance in ('', ' ', None):
-            self.assertEqual(render(distance)[2:], ([], 0))
+            # The fields are cleared and left blank; no bar.
+            _, _, labels, bar = render(distance)
+            self.assertFalse(any(labels))
+            self.assertEqual(bar, 0)
 
     def test_long_to_short_distance_keeps_layout_and_clears_old_value(self):
         app, before, _, _ = render('1000 km')
         app.update_hudiy(b'HUDIY_NAV_DISTANCE', {'label': '5 m'})
         after = app.get_view()
-        self.assertEqual(before[1], after[1])
+        self.assertEqual(before[0], after[0])
         labels = [c for c in after if c.get('group') == 'dist' and c.get('cmd') == 'draw_text']
-        self.assertEqual([(c['text'], c['x'], c['y']) for c in labels], [('5', 42, 8), ('m', 42, 17)])
+        self.assertEqual([(c['text'], c['x'], c['y']) for c in labels], [('5', 45, 8), ('m', 45, 17)])
         first = next(c for c in after if c.get('group') == 'dist')
         self.assertEqual(first['cmd'], 'clear_area')
 

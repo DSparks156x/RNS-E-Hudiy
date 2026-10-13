@@ -162,6 +162,7 @@ class ValveManagerTests(unittest.TestCase):
         zmq = types.SimpleNamespace(Context=Mock, PUSH=1, LINGER=2, SNDTIMEO=3)
         namespace = definitions('rns-e_can/haldex_manager.py', {'HaldexManager'}, {
             'Optional': typing.Optional, 'Dict': typing.Dict, 'Any': typing.Any,
+            'Tuple': typing.Tuple, 'List': typing.List,
             'os': os, 'json': json, 'time': types.SimpleNamespace(sleep=lambda delay: None),
             'threading': threading, 'zmq': zmq, 'logger': logging.getLogger('test'),
             'MODE_STOCK': 0, 'MODE_NAMES': {0: 'Stock'},

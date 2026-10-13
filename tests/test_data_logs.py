@@ -142,6 +142,8 @@ class DataLogsTests(unittest.TestCase):
                 self.handle.close()
             def write(self, row):
                 failed.set()
+                # Let Stop queue its sentinel while the writer is still alive.
+                time.sleep(0.2)
                 raise OSError('No space left on device')
         self.recorder._write = lambda handle, pending: original(FailedFile(handle), pending)
         sid = self.recorder.start_recording('daily')['session_id']

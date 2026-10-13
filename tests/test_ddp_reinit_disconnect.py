@@ -3,22 +3,14 @@ import unittest
 from collections import deque
 from unittest.mock import Mock, patch
 
-from test_ddp_state import ddp
+from test_ddp_state import ddp, make_driver
 
 
 class ReinitDisconnectTests(unittest.TestCase):
     def driver(self):
-        d = ddp.DDPProtocol.__new__(ddp.DDPProtocol)
-        d.state = ddp.DDPState.PAUSED
-        d.dis_mode = ddp.DisMode.WHITE
-        d.bus = None
-        d.tx_id = 0x6C0
-        d.send_seq_num = 0
-        d.i_am_opener = True
+        d = make_driver(ddp.DDPState.PAUSED)
         d.screen_released_by_cluster = True
-        d._last_screen_status = None
         d._data_inbox = deque([[0x10, 0x2E]])  # Already ACKed by the receive path.
-        d._flashing_inhibited = Mock(return_value=False)
         d.send_can = Mock()  # Entire transport is in-memory, no bus construction.
         d._recv = Mock(return_value=None)
         return d
@@ -61,7 +53,15 @@ class ReinitDisconnectTests(unittest.TestCase):
         d._recv_specific = Mock(return_value=[0xB1])
         d.poll_bus_events()
         self.assertEqual(d.state, ddp.DDPState.READY)
+        self.assertEqual(d.presentation_request_generation, 1)
         d.send_can.assert_called_once_with(d.tx_id, [0x10, 0x2F])
+
+    def test_confirmation_without_confirmed_setup_stays_paused(self):
+        d = self.driver()
+        d._application_setup_pending = True
+        d._recv_specific = Mock(return_value=[0xB1])
+        d.poll_bus_events()
+        self.assertEqual(d.state, ddp.DDPState.PAUSED)
 
     def test_generation_increments_on_real_transitions_only(self):
         d = self.driver()

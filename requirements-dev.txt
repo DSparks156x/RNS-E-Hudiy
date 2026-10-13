@@ -1,0 +1,18 @@
+# Test dependencies for CI and local runs. The Pi gets the runtime packages
+# from apt in install.sh; these are the pip equivalents.
+pytest
+pytest-timeout
+python-can
+pyserial
+pytz
+unidecode
+pyzmq
+aiozmq
+protobuf
+flask
+flask-cors
+flask-socketio
+pillow
+numpy
+opencv-python-headless
+websocket-client

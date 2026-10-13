@@ -7,7 +7,7 @@ SOURCE, NS = budget_tests.SOURCE, budget_tests.NS
 
 ICON = {'w': 8, 'h': 2, 'data': bytes((0x80, 0x40))}
 TREE = ast.parse(SOURCE.read_text())
-METHODS = {'draw_bitmap', 'handle_redraw'}
+METHODS = {'draw_bitmap', 'handle_redraw', '_coalesce_native_font_commands'}
 GLOBALS = dict(NS, BITMAPS={'probe': ICON})
 exec(compile(ast.Module(body=[node for node in ast.walk(TREE)
     if isinstance(node, ast.FunctionDef) and node.name in METHODS], type_ignores=[]),

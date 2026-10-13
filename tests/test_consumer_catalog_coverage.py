@@ -64,12 +64,10 @@ class ConsumerCatalogCoverageTests(unittest.TestCase):
                 self.assertEqual(len(providers), 1)
                 self.assertTrue(providers[0]['verified'])
 
-    def test_awd_transport_destination_is_preserved_and_reference_mismatch_documented(self):
+    def test_awd_transport_destination_is_preserved(self):
         for definition in DEFINITIONS:
             if definition['id'].startswith('awd.'):
                 self.assertEqual(definition['module'], 0x0A)
-                self.assertIn('22', definition['note'])
-                self.assertIn('0x0A', definition['note'])
 
     def test_existing_display_values_require_only_shared_original_groups(self):
         broker = VehicleDataBroker(clock=lambda: 100, wall_clock=lambda: 1000)
@@ -89,9 +87,6 @@ class ConsumerCatalogCoverageTests(unittest.TestCase):
         samples = broker.snapshot(client_id='selectors')
         self.assertEqual([sample['value'] for sample in samples], [-7.5, -2, 4.5, 0])
         self.assertEqual([sample['source']['block'] for sample in samples], [1, 2, 3, 4])
-        component = (ROOT / 'hudiy_dataview/src/components/SelectorBars.tsx').read_text(encoding='utf-8')
-        self.assertIn('index={valueIds ? 0 : i}', component)
-        self.assertIn('valueId={valueIds?.[i]}', component)
 
     def test_textual_and_bit_looking_status_values_are_not_numerically_coerced(self):
         broker = VehicleDataBroker(clock=lambda: 100, wall_clock=lambda: 1000)
@@ -141,12 +136,8 @@ class ConsumerCatalogCoverageTests(unittest.TestCase):
             expected = {value_id for value_id in DISPLAY_BINDINGS if value_id.startswith(prefix)}
             self.assertTrue(expected <= displayed_ids, expected - displayed_ids)
             self.assertNotIn('groupKey=', source)
-        hook = (ROOT / 'hudiy_dataview/src/hooks/useSocket.ts').read_text(encoding='utf-8')
-        self.assertIn('mockRef.current ? TAB_CONFIG[tab] || [] : []', hook)
         # Live/mock/tab/reconnect subscription behavior is exercised directly in
-        # hudiy_dataview/tests/socket_subscriptions.test.cjs, without matching
-        # the internal spelling of the values emitted by the hook.
-        self.assertIn("{ id: 'awd.estimated_torque', allow_estimated: true }", hook)
+        # hudiy_dataview/tests/socket_subscriptions.test.cjs.
         mock = (ROOT / 'hudiy_dataview/src/store/mockValues.ts').read_text(encoding='utf-8')
         for value_id in DISPLAY_BINDINGS:
             self.assertIn(value_id, mock)

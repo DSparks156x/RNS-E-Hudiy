@@ -4,8 +4,6 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-if not (ROOT / 'dis_client').is_dir():
-    ROOT = Path(__file__).resolve().parent.parent / 'RNS-E-Hudiy'
 sys.path.insert(0, str(ROOT / 'dis_client'))
 from apps.nav import NavApp
 
@@ -34,19 +32,21 @@ class NavigationMeasuredLayoutTests(unittest.TestCase):
             self.assertLessEqual(item['x'] * 2 + width, 120)
             self.assertLessEqual(abs((item['x'] * 2 + width / 2) - 61), 2)
 
+    # The approach bar ends above the street row, so the street gets the
+    # full 124px (x=1 logical, 2px margin each side).
     def test_street_uses_measured_viewport_not_twelve_character_limit(self):
         app = app_with_route(description='i' * 20)
-        self.assertLessEqual(app.text_width(app.description), 118)
+        self.assertLessEqual(app.text_width(app.description), 124)
         item = text_item(app.get_view(), 'street')
         self.assertEqual(item['text'], app.description)
         app.description = 'W' * 20
         item = text_item(app.get_view(), 'street')
         self.assertLess(len(item['text']), 20)
-        self.assertLessEqual(app.text_width(item['text']), 118)
+        self.assertLessEqual(app.text_width(item['text']), 124)
         self.assertEqual(item['x'], 1)
 
     def test_tighter_margins_fit_native_narrow_text_without_clipping(self):
-        for count, distance, right in ((29, '10 m', 61), (31, '9999 km', 64)):
+        for count, distance, right in ((29, '10 m', 64), (31, '9999 km', 64)):
             with self.subTest(count=count):
                 app = app_with_route(description='i' * count, distance=distance)
                 item = text_item(app.get_view(), 'street')
@@ -62,7 +62,7 @@ class NavigationMeasuredLayoutTests(unittest.TestCase):
         app.update_hudiy(b'HUDIY_NAV_DISTANCE', {'label': '9999 km'})
         view = app.get_view()
         bar_clear = next(i for i, item in enumerate(view)
-                         if item.get('group') == 'bar' and item.get('cmd') == 'clear_area')
+                         if item.get('group') == 'bar_visibility' and item.get('cmd') == 'clear_area')
         for group in ('street', 'dist'):
             draw = next(i for i, item in enumerate(view)
                         if item.get('group') == group and item.get('cmd') == 'draw_text')
@@ -88,8 +88,8 @@ class NavigationMeasuredLayoutTests(unittest.TestCase):
                 view = app.get_view()
                 for item in view:
                     if item.get('group') == 'dist' and item.get('cmd') == 'draw_text':
-                        bar = app._get_progress_height() > 0
-                        self.assertLessEqual(app.text_width(item['text']), 38 if bar else 44)
+                        # Fixed 32px distance column.
+                        self.assertLessEqual(app.text_width(item['text']), 32)
         app = app_with_route()
         # Force a narrow slot: the value must be rescaled, not sliced to123.
         result = app._fit_distance_value(12345, False, app.text_width('12k'))
