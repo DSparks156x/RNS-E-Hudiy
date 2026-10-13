@@ -8,7 +8,7 @@ const source = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const element = () => ({value:'',style:{},children:[],classList:{add(){},remove(){}},addEventListener(){},appendChild(){},setAttribute(){},querySelectorAll(){return [];}});
 const context = vm.createContext({document:{getElementById:element,createElement:element,addEventListener(){},querySelectorAll(){return [];},querySelector(){return null;}},window:{location:{search:''}},URL,URLSearchParams,AbortController,Date,TypeError,setTimeout(){},clearTimeout(){}});
 vm.runInContext(source, context);
-const result = JSON.parse(vm.runInContext('JSON.stringify({schema:SCHEMA,sections:SECTIONS})', context));
+const result = JSON.parse(vm.runInContext('JSON.stringify({schema:SCHEMA,sections:SECTIONS,defaults:BUNDLED_CONFIG})', context));
 let settingOrder = 0;
 function visit(value, prefix='') {
   for (const [key, child] of Object.entries(value)) {

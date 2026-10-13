@@ -2,7 +2,7 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
 export type ConfigDocument = { [key: string]: JsonValue };
 export interface SettingMetadata { label?: string; help?: string; detailedHelp?: string; type?: string; options?: JsonValue[]; min?: number; max?: number; integer?: boolean; order?: number; }
 export interface SettingSection { id: string; title: string; description?: string; root?: string; keys?: string[]; }
-export interface Metadata { schema?: Record<string, SettingMetadata>; sections?: SettingSection[]; }
+export interface Metadata { schema?: Record<string, SettingMetadata>; sections?: SettingSection[]; defaults?: ConfigDocument; }
 export interface ConfigTarget { id: string; label: string; filename: string; exists: boolean; }
 export interface ConfigSnapshot { id: string; label: string; filename: string; document: ConfigDocument; revision: string; affected_services?: string[]; }
 export interface SaveResult extends ConfigSnapshot { backup?: string; message?: string; }
@@ -42,6 +42,16 @@ function rnseDefaults(document: ConfigDocument): ConfigDocument {
   }
   return result;
 }
+// Show every helper setting an older config lacks; only an edit saves it.
+function helperDefaults(document: ConfigDocument, defaults: ConfigDocument, schema: Record<string, SettingMetadata>, prefix = ''): ConfigDocument {
+  const result: ConfigDocument = { ...document };
+  for (const [key, value] of Object.entries(defaults)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (!Object.prototype.hasOwnProperty.call(result, key)) result[key] = JSON.parse(JSON.stringify(value)) as JsonValue;
+    else if (object(result[key]) && object(value) && !schema[path]?.type?.startsWith('json')) result[key] = helperDefaults(result[key] as ConfigDocument, value, schema, path);
+  }
+  return result;
+}
 
 export function fieldsFor(document: ConfigDocument, metadata: Metadata, project = true): SettingField[] {
   const fields: SettingField[] = [];
@@ -54,7 +64,8 @@ export function fieldsFor(document: ConfigDocument, metadata: Metadata, project 
     const section = project ? metadata.sections?.find(group => (group.root && (path === group.root || path.startsWith(`${group.root}.`))) || group.keys?.some(key => path === key || path.startsWith(`${key}.`))) : undefined;
     fields.push({ id: '/' + keys.map(key => key.replace(/~/g, '~0').replace(/\//g, '~1')).join('/'), path, keys, value, metadata: known || {}, section: section?.id || (project ? 'additional' : keys[0]) });
   };
-  Object.entries(project ? rnseDefaults(document) : document).forEach(([key, value]) => walk(value, key, [key]));
+  const shown = project ? helperDefaults(rnseDefaults(document), metadata.defaults || {}, metadata.schema || {}) : document;
+  Object.entries(shown).forEach(([key, value]) => walk(value, key, [key]));
   return fields.sort((a, b) => (a.metadata.order ?? Number.MAX_SAFE_INTEGER) - (b.metadata.order ?? Number.MAX_SAFE_INTEGER));
 }
 
