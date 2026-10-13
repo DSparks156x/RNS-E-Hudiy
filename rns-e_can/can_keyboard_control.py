@@ -433,7 +433,15 @@ def handle_mfsw_message(msg, state):
     if not mfsw_cmds: return
     cmd_byte = int(msg['data_hex'][2:4], 16)
     now = time.time()
-    
+    wheel = state.wheel
+    if cmd_byte in (mfsw_cmds.get('mode_press'), mfsw_cmds.get('scroll_click')) or (
+            cmd_byte in CONFIG['mfsw_release_cmds'] and (wheel.pressed or wheel.pending)):
+        # Wheel gesture trace: frame arrival, router state before handling.
+        logger.info('MFSW frame %s t=%.3f pressed=%s pending=%s owner=%s app=%s '
+                    'ready=%s controllable=%s', msg['data_hex'], time.monotonic(),
+                    wheel.pressed, sorted(wheel.pending), wheel.owner, wheel.app,
+                    wheel.ready, wheel.controllable)
+
     routed = {
         mfsw_cmds.get('mode_press'): 'mode',
         mfsw_cmds.get('scroll_click'): 'click',

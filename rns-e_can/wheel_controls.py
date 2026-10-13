@@ -149,6 +149,8 @@ class WheelControlRouter:
             if now >= deadline and button != self.pressed:
                 self.pending.pop(button, None)
                 if button == 'mode':
+                    logger.info('MODE single press: no second press within %dms',
+                                self.double_window * 1000)
                     self.normal('mode_short')
                 elif self.owner == 'dis':
                     self._emit('select')
