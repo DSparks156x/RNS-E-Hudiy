@@ -107,6 +107,13 @@ class SendWorkerTests(GatewayTestCase):
         self.run_worker_again([[b'1538', b'0912302020202020']])
         self.assertEqual(self.sent(), [(0x602, bytes.fromhex('0912302020202020'), False)])
 
+    def test_flashing_mode_still_sends_tv_presence(self):
+        # Cycling ignition with Flashing Mode on must not kill the RNS-E TV input.
+        self.gw.CONFIG = {'flashing_exempt_ids': {0x602}}
+        traffic.set_flashing_mode(True)
+        self.run_worker([[b'1658', b'5aa5000000000000'], [b'1538', b'0912302020202020']])
+        self.assertEqual(self.sent(), [(0x602, bytes.fromhex('0912302020202020'), False)])
+
     def run_worker_again(self, parts):
         self.gw.RUNNING = True
         self.run_worker(parts)
@@ -246,7 +253,8 @@ class ConfigTests(GatewayTestCase):
         self.assertEqual(self.gw.CONFIG, {
             'infotainment_can_interface': 'can1',
             'zmq_publish_address': 'ipc:///run/x/stream.ipc',
-            'zmq_send_address': 'ipc:///run/x/send.ipc'})
+            'zmq_send_address': 'ipc:///run/x/send.ipc',
+            'flashing_exempt_ids': {0x602}})
         self.assertFalse(self.gw.load_and_initialize_config(handle.name + '.missing'))
 
 

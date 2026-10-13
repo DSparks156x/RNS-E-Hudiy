@@ -13,9 +13,11 @@ bench recovery procedure has resolved the incomplete ECU state.
 
 ## Inhibited traffic
 
-- Central gateway application TX: DIS top-display updates, base-function
-  presence messages, Haldex mode bursts and other producers using `can_send.ipc`.
-  The gateway consumes/discards inhibited frames rather than replaying them.
+- Central gateway application TX: DIS top-display updates, Haldex mode bursts
+  and other producers using `can_send.ipc`. The gateway consumes/discards
+  inhibited frames rather than replaying them. Exception: TV presence
+  (`can_ids.tv_presence`, default 0x602) still goes out, so the RNS-E TV input
+  keeps working across an ignition cycle with Flashing Mode on.
 - DIS direct SocketCAN TX: session state and cached responses are cleared,
   and its socket closes when inhibition is observed.
 - TP2 diagnostic and Openpilot direct TX: send guards reject traffic;
@@ -27,7 +29,7 @@ The flasher uses its own SocketCAN adapter and remains permitted. Passive CAN
 reception, capture/logging, Hudiy communication and control commands remain
 available. This does not disable the physical bus or silence other vehicle ECUs.
 It inhibits all application senders above, including on different configured CAN
-interfaces. No essential wake-up frame exemption is currently configured.
+interfaces. TV presence is the only exempt frame.
 
 ## Ownership and persistence
 
