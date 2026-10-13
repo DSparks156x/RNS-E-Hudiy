@@ -141,3 +141,17 @@ test('a config without any RNS-E section can explicitly enable automation withou
   assert.deepEqual(next.custom, original.custom);
   assert.equal(original.rnse, undefined);
 });
+
+test('older configs show helper defaults for missing settings and save only edited ones', () => {
+  const original = { display: { center_display: { coverart: { args: { dither: true } } } }, data_logs: 'custom' };
+  const defaults = { display: { center_display: { coverart: { args: { gamma: 1 }, native_preset: 'legacy' } } }, data_logs: { directory: '~/logs/data-logs' }, ddp_bitmap_message_bytes: 105 };
+  const fields = fieldsFor(original, { schema: { 'display.center_display.coverart.args': { type: 'json' } }, defaults });
+  const value = path => fields.find(field => field.path === path)?.value;
+  assert.equal(value('ddp_bitmap_message_bytes'), 105);
+  assert.equal(value('display.center_display.coverart.native_preset'), 'legacy');
+  assert.deepEqual(value('display.center_display.coverart.args'), { dither: true }, 'JSON settings are not merged');
+  assert.equal(value('data_logs'), 'custom', 'installed values of another type win');
+  assert.deepEqual(applyEdits(original, fields, {}), original);
+  const bytes = fields.find(field => field.path === 'ddp_bitmap_message_bytes');
+  assert.deepEqual(applyEdits(original, fields, { [bytes.id]: '90' }), { ...original, ddp_bitmap_message_bytes: 90 });
+});

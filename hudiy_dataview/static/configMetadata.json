@@ -1720,5 +1720,404 @@
       "root": "openpilot",
       "description": "Reserved integration settings."
     }
-  ]
+  ],
+  "defaults": {
+    "branch": "testing",
+    "repo": "https://github.com/DSparks156x/RNS-E-Hudiy",
+    "config_restore_repo": "https://github.com/DSparks156x/RNS-E-Hudiy",
+    "config_restore_branch": "testing",
+    "rnse": {
+      "auto_brightness": {
+        "enabled": false,
+        "day_brightness": 10,
+        "night_brightness": 1
+      },
+      "manual_brightness": 10,
+      "auto_lcd_brightness": {
+        "enabled": false,
+        "day_brightness": 100,
+        "night_brightness": 6
+      },
+      "manual_lcd_brightness": 0,
+      "source_label": {
+        "enabled": false
+      }
+    },
+    "interfaces": {
+      "can": {
+        "infotainment": "can0",
+        "diagnostic": "can0"
+      },
+      "zmq": {
+        "can_raw_stream": "ipc:///run/rnse_control/can_stream.ipc",
+        "send_address": "ipc:///run/rnse_control/can_send.ipc",
+        "system_events": "ipc:///run/rnse_control/base_events.ipc",
+        "metric_stream": "ipc:///run/rnse_control/hudiy_stream.ipc",
+        "dis_draw": "ipc:///run/rnse_control/dis_draw.ipc",
+        "dis_status": "ipc:///run/rnse_control/dis_status.ipc",
+        "dis_display_status": "ipc:///run/rnse_control/dis_display_status.ipc",
+        "input_control_stream": "ipc:///run/rnse_control/input_control_stream.ipc",
+        "dis_top_status": "ipc:///run/rnse_control/dis_top_status.ipc",
+        "data_logs_command": "ipc:///run/rnse_control/data_logs_cmd.ipc",
+        "tp2_stream": "ipc:///run/rnse_control/tp2_stream.ipc",
+        "tp2_command": "ipc:///run/rnse_control/tp2_cmd.ipc",
+        "haldex_command": "ipc:///run/rnse_control/haldex_cmd.ipc",
+        "haldex_status": "ipc:///run/rnse_control/haldex_status.ipc"
+      }
+    },
+    "diagnostics": {
+      "enabled": true,
+      "values": {
+        "diagnostic_hz": 2,
+        "ican_hz": 10,
+        "lease_seconds": 15
+      }
+    },
+    "haldex": {
+      "enabled": true,
+      "default_mode": null,
+      "burst_count": 5,
+      "burst_interval_ms": 20,
+      "persistence_file": "/home/pi/.hudiy/haldex_mode.json",
+      "firmware_dir": "~/haldexfw"
+    },
+    "eps": {
+      "firmware_dir": "~/epsfw"
+    },
+    "exhaust_valve": {
+      "firmware_dir": "~/exhaustfw",
+      "installed_generation_floor": 16,
+      "generation_file": "~/.hudiy/exhaust_deployment.json",
+      "intent_file": "~/.hudiy/exhaust_valve_intent.json"
+    },
+    "data_logger": {
+      "default_profile": "haldex",
+      "log_directory": "~/logs",
+      "queue_size": 10000,
+      "profiles": {
+        "haldex": {
+          "measuring_groups": []
+        }
+      }
+    },
+    "data_logs": {
+      "directory": "~/logs/data-logs",
+      "queue_size": 10000
+    },
+    "file_portal": {
+      "upload_pin": "",
+      "archive_limit_mb": 256,
+      "runtime_log_directory": "/var/log/rnse_control",
+      "firmware_targets": [
+        {
+          "id": "haldex",
+          "label": "Haldex AWD",
+          "description": "Validated Gen4 controller firmware images",
+          "directory": "~/haldexfw",
+          "extensions": [
+            ".bin"
+          ],
+          "validator": "haldex",
+          "max_size_mb": 4
+        },
+        {
+          "id": "pq-eps",
+          "label": "PQ EPS",
+          "description": "Validated full images or 4 KiB 0x5E steering datasets",
+          "directory": "~/epsfw",
+          "extensions": [
+            ".bin"
+          ],
+          "validator": "pq-eps",
+          "max_size_mb": 4
+        }
+      ]
+    },
+    "openpilot": {
+      "enabled": false
+    },
+    "display": {
+      "center_display": {
+        "applist": [
+          "nav",
+          "media",
+          "phone",
+          "car_info",
+          "acceleration_test"
+        ],
+        "enabled": true,
+        "mode": "media",
+        "high_resolution": true,
+        "start_inactive": false,
+        "navigation": {
+          "icon_style": "bitmap",
+          "auto_switch": true,
+          "auto_switch_approach_threshold": 500,
+          "auto_switch_return_threshold": 1000,
+          "approach_bar_max_distance": 300,
+          "claim_on_nav": false,
+          "native_render_order": "planes",
+          "native_message_delay_ms": 5
+        },
+        "coverart": {
+          "brief": true,
+          "args": {
+            "contrast": 1.9,
+            "sharpen": 1.5,
+            "dither": "fs",
+            "invert": false,
+            "no_enhance": false,
+            "bg_fill": "black",
+            "grayscale_mode": "smart",
+            "brightness": 1,
+            "gamma": 2.2,
+            "black_floor": 45,
+            "boldness": 0,
+            "diffusion": 0.85
+          },
+          "native_preset": "legacy",
+          "native_args": {},
+          "native_render_order": "planes",
+          "native_delta": false
+        },
+        "acceleration_test": {
+          "auto_reset_on_stop": true,
+          "auto_reset_delay": 0.25,
+          "tolerance_display": true,
+          "line_1": "0-60",
+          "line_2": "0-30",
+          "line_3": "40-70",
+          "line_4": "speed"
+        }
+      },
+      "road_side": "right",
+      "units": {
+        "speed": "imperial",
+        "ambient_temp": "imperial",
+        "boost": "metric",
+        "boost_mode": "absolute",
+        "cartemp": "metric"
+      },
+      "text_scrolling": {
+        "continuous": true,
+        "continuous_gap": 1,
+        "speed_ms": 400,
+        "start_delay_ms": 0,
+        "end_delay_ms": 0,
+        "line_offset_ms": 2000
+      },
+      "text_centering": true,
+      "top_display": {
+        "applist": [
+          "phone",
+          "nav",
+          "media"
+        ],
+        "enabled": true,
+        "media_line1_mode": "title",
+        "media_line2_mode": "source",
+        "media_line1_alt_mode": "source",
+        "phone_line1_mode": "caller",
+        "phone_line2_mode": "state",
+        "nav_line1_mode": "description",
+        "nav_line2_mode": "distance"
+      },
+      "phone": {
+        "scroll_wheel_phone_menu": true,
+        "claim_on_phone": false
+      }
+    },
+    "features": {
+      "day_night_mode": true,
+      "sync_android_auto": false,
+      "time_sync": {
+        "enabled": true,
+        "data_format": "old_logic",
+        "threshold_minutes": 0.1
+      },
+      "power_management": {
+        "auto_shutdown": {
+          "enabled": false,
+          "trigger": "ignition_off",
+          "delay_seconds": 900
+        },
+        "listen_only_mode": {
+          "enabled": true,
+          "delay_seconds": 10,
+          "fallback_seconds": 900
+        },
+        "gpio_shutdown": {
+          "enabled": true,
+          "pin": 12,
+          "active_low": true,
+          "delay_seconds": 60
+        },
+        "connection_management": {
+          "enabled": true,
+          "connect_on_ignition": true,
+          "connect_on_radio": true,
+          "door_open_window_seconds": 15,
+          "unlock_wake_window_seconds": 15,
+          "manage_bluetooth": true,
+          "manage_android_auto": true,
+          "disconnect_delay_seconds": 0
+        }
+      },
+      "tv_simulation": {
+        "enabled": false,
+        "payload": "0912302020202020"
+      },
+      "mmi_controls": true,
+      "mfsw_controls": true,
+      "source_controls": false,
+      "system_actions": true,
+      "car_time_zone": "America/Denver",
+      "debug_mode": false,
+      "log_saver": {
+        "services": [
+          "dis_display.service",
+          "hudiy_data_api.service",
+          "dis_service.service",
+          "tp2_worker.service"
+        ],
+        "minutes": 3,
+        "log_directory": "~/logs"
+      }
+    },
+    "can_ids": {
+      "rnse_adc_reply": "0x462",
+      "light_status": "0x635",
+      "time_data": "0x623",
+      "ignition_status": "0x2C3",
+      "door_status": "0x470",
+      "gateway_nm_status": "0x42B",
+      "nav_nm_status": "0x436",
+      "tv_presence": "0x602",
+      "fis_line1": "0x363",
+      "fis_line2": "0x365",
+      "media_status": "0x6C1",
+      "nav_status": "0x6C0",
+      "mmi": "0x461",
+      "mfsw": "0x5C3",
+      "source": "0x661"
+    },
+    "input_mappings": {
+      "mmi": {
+        "cooldown_period": 0.2,
+        "long_press_message_count": 5,
+        "extended_long_press_message_count": 30,
+        "scroll_commands": [
+          "0,32",
+          "0,64"
+        ],
+        "short_press": {
+          "1,0": "KEY_V",
+          "2,0": "KEY_N",
+          "64,0": "KEY_UP",
+          "128,0": "KEY_DOWN",
+          "0,16": "KEY_ENTER",
+          "0,32": "KEY_2",
+          "0,64": "KEY_1",
+          "0,2": "KEY_ESC",
+          "0,1": "KEY_H",
+          "8,0": "KEY_F",
+          "0,8": "KEY_G",
+          "0,4": "KEY_J",
+          "4,0": {
+            "action": "applications_menu"
+          },
+          "0,12": {
+            "action": "hudiy_diagnostics"
+          },
+          "12,0": {
+            "action": "hudiy_manager"
+          }
+        },
+        "long_press": {
+          "1,0": "KEY_LEFT",
+          "2,0": "KEY_RIGHT",
+          "64,0": null,
+          "128,0": "KEY_M",
+          "0,16": null,
+          "0,32": null,
+          "0,64": null,
+          "0,2": "KEY_0",
+          "0,1": null,
+          "8,0": null,
+          "0,8": null,
+          "0,4": null,
+          "4,0": null,
+          "0,12": null,
+          "12,0": null
+        },
+        "extended_press": {
+          "1,0": "python3 ~/rns-e_can/save_logs.py",
+          "2,0": "sudo shutdown -h now",
+          "64,0": null,
+          "128,0": null,
+          "0,16": "sudo reboot",
+          "0,32": null,
+          "0,64": null,
+          "0,2": null,
+          "0,1": null,
+          "8,0": null,
+          "0,8": null,
+          "0,4": null,
+          "4,0": null,
+          "0,12": null,
+          "12,0": null
+        }
+      },
+      "mfsw": {
+        "double_click_ms": 350,
+        "commands": {
+          "scroll_up": "0x0B",
+          "scroll_down": "0x0C",
+          "mode_press": "0x1C",
+          "volume_scroll_up": "0x06",
+          "volume_scroll_down": "0x07",
+          "ptt_press": "0x2A",
+          "scroll_click": "0x08",
+          "volume_scroll_click": "0xA7",
+          "release": [
+            "0x00",
+            "0x00"
+          ]
+        },
+        "short_press": {
+          "scroll_up": "KEY_V",
+          "scroll_down": "KEY_N",
+          "mode": "KEY_ENTER",
+          "ptt": "KEY_M",
+          "scroll_click": "KEY_B",
+          "volume_scroll_up": null,
+          "volume_scroll_down": null,
+          "volume_scroll_click": null
+        },
+        "long_press": {
+          "mode": "KEY_ESC",
+          "ptt": "KEY_H",
+          "scroll_click": "KEY_B",
+          "volume_scroll_up": null,
+          "volume_scroll_down": null,
+          "volume_scroll_click": null
+        },
+        "phone_alt": {
+          "short_press": {
+            "mode": null,
+            "ptt": null
+          },
+          "long_press": {
+            "mode": null,
+            "ptt": null
+          }
+        }
+      },
+      "source": {
+        "tv_mode_identifier": "0x37",
+        "play_key": "KEY_X",
+        "pause_key": "KEY_C"
+      }
+    }
+  }
 }
