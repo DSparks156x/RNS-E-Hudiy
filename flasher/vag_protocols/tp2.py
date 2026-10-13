@@ -14,6 +14,9 @@ from typing import Callable, List, Optional, Sequence, Tuple
 
 BROADCAST_ADDR = 0x200
 TIMING_UNITS_MS = (0.1, 1.0, 10.0, 100.0)
+# Block size 15, T1 100 ms, T3 5 ms. A0 requests them; A1 answers A0 and A3.
+CHANNEL_PARAMETERS_REQUEST = b"\xA0\x0F\x8A\xFF\x32\xFF"
+CHANNEL_PARAMETERS_RESPONSE = b"\xA1\x0F\x8A\xFF\x32\xFF"
 
 
 class TP2Error(RuntimeError):
@@ -290,7 +293,7 @@ class TP2Transport:
         self.rx_addr, self.tx_addr = rx_addr, tx_addr
         if not (0 < rx_addr <= 0x7FF and 0 < tx_addr <= 0x7FF and rx_addr != tx_addr):
             raise ValueError("Invalid TP2 channel addresses")
-        self.can_send(b"\xA0\x0F\x8A\xFF\x32\xFF")
+        self.can_send(CHANNEL_PARAMETERS_REQUEST)
         self._apply_parameters(self.can_recv())
 
     def intercept_channel(self, module: int, timeout: float = 30.0):
@@ -318,7 +321,7 @@ class TP2Transport:
                                   and 0 < self.tx_addr <= 0x7FF
                                   and self.rx_addr != self.tx_addr):
             raise ValueError("Invalid TP2 channel response")
-        self.can_send(b"\xA0\x0F\x8A\xFF\x32\xFF")
+        self.can_send(CHANNEL_PARAMETERS_REQUEST)
         self._apply_parameters(self.can_recv())
 
     def wait_for_ack(self, sent_sequence: int):
@@ -336,14 +339,14 @@ class TP2Transport:
             if (data[0] & 0xF0) == 0x90:
                 deadline = min(deadline + 1.0, hard_deadline)
             elif data[0] == 0xA8:
-                self.connected = False
+                self._peer_disconnected()
                 raise ConnectionError("Controller closed TP2 channel while waiting for ACK")
             elif data[0] == 0xA3:
-                self.can_send(b"\xA1")
+                self.can_send(CHANNEL_PARAMETERS_RESPONSE)
             elif data[0] == expected:
                 return
             elif data[0] >> 4 in (0, 1, 2, 3):
-                self.msgs.append((self.rx_addr, data))
+                self.msgs.insert(0, (self.rx_addr, data))
                 return
         raise TP2Error(f"Did not receive expected ACK 0x{expected:02X}")
 
@@ -386,10 +389,10 @@ class TP2Transport:
             opcode, sequence = classify_frame(data)
             if opcode == 0xA:
                 if data[0] == 0xA8:
-                    self.connected = False
+                    self._peer_disconnected()
                     raise ConnectionError("Controller closed the TP2.0 channel")
                 if data[0] == 0xA3:
-                    self.can_send(b"\xA1")
+                    self.can_send(CHANNEL_PARAMETERS_RESPONSE)
                 continue
             if opcode == 0xB:
                 continue
@@ -428,9 +431,9 @@ class TP2Transport:
                     self.last_keepalive = time.monotonic()
                     return True
                 if data[0] == 0xA3:
-                    self.can_send(b"\xA1")
+                    self.can_send(CHANNEL_PARAMETERS_RESPONSE)
                 elif data[0] == 0xA8:
-                    self.connected = False
+                    self._peer_disconnected()
                     raise ConnectionError("Controller closed TP2 channel during keepalive")
                 elif (data[0] & 0xF0) == 0x90:
                     deadline = min(deadline + 1.0, hard_deadline)
@@ -439,6 +442,15 @@ class TP2Transport:
             raise MessageTimeoutError("TP2 keepalive response timed out")
         finally:
             self.msgs[0:0] = deferred
+
+    def _peer_disconnected(self):
+        # VW-TP-2.0: the receiver of A8 replies with A8. Best effort: the
+        # caller's ConnectionError must not be replaced by a send failure.
+        self.connected = False
+        try:
+            self.can_send(b"\xA8")
+        except Exception as error:
+            self.log(f"TP2 disconnect reply failed: {error}")
 
     def disconnect(self):
         try:

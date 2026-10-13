@@ -1,7 +1,11 @@
 """Regression tests for the shared TP2/KWP core and DDP compatibility profile."""
 import unittest
 import sys
+from pathlib import Path
 from types import SimpleNamespace
+
+# ddp_protocol imports its siblings as top-level modules, as it does on the Pi.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'dis_client'))
 
 try:
     import can  # noqa: F401
