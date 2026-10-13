@@ -71,11 +71,13 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
         CONFIG = {
             'infotainment_can_interface': can_cfg.get('infotainment', 'can0'),
             'zmq_publish_address': zmq_cfg.get('can_raw_stream'),
-            'zmq_send_address': zmq_cfg.get('send_address')
+            'zmq_send_address': zmq_cfg.get('send_address'),
+            # TV presence keeps the RNS-E TV input alive; Flashing Mode lets it through.
+            'flashing_exempt_ids': {int(config_data.get('can_ids', {}).get('tv_presence', '0x602'), 16)}
         }
         logger.info("Configuration loaded successfully.")
         return True
-    except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, ValueError) as e:
         logger.critical(f"FATAL: Could not load or parse config.json: {e}")
         return False
 
@@ -214,7 +216,7 @@ def send_worker():
                 is_extended_id=False
             )
             with CAN_SEND_LOCK, transmission_guard() as allowed:
-                if not allowed:
+                if not allowed and can_id not in CONFIG.get('flashing_exempt_ids', ()):
                     # Consume and discard queued app frames while inhibited.
                     continue
                 bus.send(msg_to_send, timeout=0.5)
