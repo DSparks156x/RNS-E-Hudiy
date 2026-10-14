@@ -925,6 +925,7 @@ class DDPProtocol:
             self._observe_application_payload(data[1:], receive_token=token)
         if data[1:] == DDPMessages.CMD_REINIT_REQ and self.state == DDPState.READY:
             self._set_state(DDPState.PAUSED)
+            self._reinit_pause_generation = self.state_generation
         if len(self._data_inbox) >= 128:
             self._set_state(DDPState.DISCONNECTED)
             raise DDPHandshakeError("Application receive queue overflow")
@@ -1006,6 +1007,17 @@ class DDPProtocol:
             return (self.state != initial_state or
                     getattr(self, 'state_generation', 0) != initial_generation)
 
+        def completed_before_reinit(reply):
+            # The peer ACKed the message end, so nothing is abandoned. The
+            #2E is already in the inbox for the normal2F dispatch; an A8 here
+            #leaves the cluster never offering the window again.
+            generation = getattr(self, 'state_generation', 0)
+            return (reply == expected and block[-1][0] >> 4 == 1
+                    and initial_state == DDPState.READY
+                    and self.state == DDPState.PAUSED
+                    and generation == initial_generation + 1
+                    and getattr(self, '_reinit_pause_generation', None) == generation)
+
         try:
             while True:
                 for frame in resend:
@@ -1014,6 +1026,8 @@ class DDPProtocol:
                     self.send_can(self.tx_id, list(frame))
                     self.send_seq_num = ((frame[0] & self.PKT_SEQ_MASK) + 1) & 0xF
                 reply = self._recv_specific(expected, 1000)
+                if interrupted() and completed_before_reinit(reply):
+                    return
                 if interrupted():
                     # The peer may retain a graphics prefix or may have accepted
                     # an unacknowledged final frame. A later2F must not complete
