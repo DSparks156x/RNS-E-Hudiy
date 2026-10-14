@@ -367,8 +367,8 @@ class DisplayEngine:
             self.current_page_idx = (self.current_page_idx + delta) % count
             target_name = self.pages[self.current_page_idx]
             
-            # Sub-Check: Skip Nav if inactive or has no route (with debounce)
-            if target_name == 'app_nav' and not self.is_nav_available():
+            # Sub-Check: Skip Nav if inactive or has no route
+            if target_name == 'app_nav' and not self._nav_route_live():
                 continue
             
             # Sub-Check: Phone exists in rotation only during a live call
@@ -379,7 +379,7 @@ class DisplayEngine:
             break
             
         target_name = self.pages[self.current_page_idx]
-        if not ((target_name != 'app_nav' or self.is_nav_available()) and
+        if not ((target_name != 'app_nav' or self._nav_route_live()) and
                 (target_name != 'app_phone' or self.is_phone_available())):
             self.current_page_idx = start_idx
             return
@@ -581,9 +581,28 @@ class DisplayEngine:
                 self.user_paused = True
                 self.content_auto_claimed = False
 
+    # CarPlay briefly reports no route between maneuvers (icon-only details
+    # before their distance, or a momentary INACTIVE). Hold navigation through
+    # that gap so it does not release and reclaim the display on every turn.
+    NAV_RELEASE_GRACE_S = 3.0
+
+    def _nav_route_live(self):
+        """Navigation has a real route right now."""
+        if self.nav_active and self.apps['app_nav'].has_route:
+            self._nav_route_seen_at = time.monotonic()
+            return True
+        return False
+
     def is_nav_available(self):
-        """Navigation exists only when the provider has a real route."""
-        return bool(self.nav_active and self.apps['app_nav'].has_route)
+        """A live route, or one that disappeared within the release grace."""
+        if self._nav_route_live():
+            return True
+        seen = getattr(self, '_nav_route_seen_at', None)
+        return seen is not None and time.monotonic() - seen < self.NAV_RELEASE_GRACE_S
+
+    def _nav_route_held(self):
+        """The route is missing but still within its release grace."""
+        return self.is_nav_available() and not self._nav_route_live()
 
     def is_phone_available(self):
         """Phone exists only while call activity is present."""
@@ -625,7 +644,7 @@ class DisplayEngine:
         selected = self.pages[self.current_page_idx]
         if selected == 'app_phone' and not self.is_phone_available():
             return next((page for page in self.pages if page != 'app_phone'
-                         and (page != 'app_nav' or self.is_nav_available())), None)
+                         and (page != 'app_nav' or self._nav_route_live())), None)
         return selected
 
     def _send_draw(self, payload):
@@ -951,6 +970,8 @@ class DisplayEngine:
                 getattr(self, 'nav_approach_threshold', 500),
                 getattr(self, 'nav_return_threshold', 1000),
                 getattr(self, 'nav_peek_seconds', 5))
+        if self._nav_route_held():
+            return  # Keep the current interruption through a brief route gap.
         signature = tuple(getattr(nav_app, key, None) for key in
             ('maneuver_type', 'maneuver_side', 'maneuver_angle', 'description'))
         available = self.is_nav_available()
@@ -972,6 +993,7 @@ class DisplayEngine:
         self.cluster_selected_session = False
         self._last_cluster_request = 0
         self._context_nav_peek_until = 0
+        self._nav_route_seen_at = None
         self.pre_nav_app_name = None
         if hasattr(self, 'nav_policy'):
             self.nav_policy.reset()
@@ -1212,6 +1234,8 @@ class DisplayEngine:
         if (not getattr(self, 'service_ready', True) or getattr(self, 'user_paused', False)
                 or self._ui_frame_waiting()):
             return
+        if self.current_app is getattr(self, 'apps', {}).get('app_nav') and self._nav_route_held():
+            return  # Leave the last maneuver up instead of flashing "No Route".
         view = self.current_app.get_view()
         from font_metrics import font_profile
         from text_render import text_update

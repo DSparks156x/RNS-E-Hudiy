@@ -3,6 +3,7 @@ import types
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -244,10 +245,75 @@ class NavigationAutoSwitchTests(unittest.TestCase):
 
     def test_route_end_cancels_override(self):
         engine = self._engine(meters=100)
-        engine._handle_nav_auto_switch(engine.apps['app_nav'])
+        with patch('dis_display.time.monotonic', return_value=100.0):
+            engine._handle_nav_auto_switch(engine.apps['app_nav'])
         engine.apps['app_nav'].has_route = False
-        engine._handle_nav_auto_switch(engine.apps['app_nav'])
+        with patch('dis_display.time.monotonic', return_value=104.0):
+            engine._handle_nav_auto_switch(engine.apps['app_nav'])
         self.assertIsNone(engine.pre_nav_app_name)
+
+    def test_brief_route_gap_keeps_override(self):
+        engine = self._engine(meters=100)
+        with patch('dis_display.time.monotonic', return_value=100.0):
+            engine._handle_nav_auto_switch(engine.apps['app_nav'])
+        engine.apps['app_nav'].has_route = False
+        with patch('dis_display.time.monotonic', return_value=100.5):
+            engine._handle_nav_auto_switch(engine.apps['app_nav'])
+        self.assertEqual(engine.pre_nav_app_name, 'app_media')
+
+
+class NavReleaseGraceTests(unittest.TestCase):
+    """CarPlay drops the route for a moment between maneuvers."""
+
+    def _claimed_on_nav(self):
+        engine, sent = ContextClaimTests()._engine()
+        engine.current_page_idx = engine.pages.index("app_nav")
+        engine.apps["app_nav"].has_route = True
+        engine.nav_claim_on_nav = True
+        engine.content_auto_claimed = True
+        switched = []
+        engine.switch_to_app = lambda name: switched.append(name) or setattr(
+            engine, "current_page_idx", engine.pages.index(name))
+        with patch('dis_display.time.monotonic', return_value=100.0):
+            engine._check_nav_availability_pause()
+        return engine, sent, switched
+
+    def test_gap_between_maneuvers_does_not_release_or_leave_nav(self):
+        engine, sent, switched = self._claimed_on_nav()
+        engine.apps["app_nav"].has_route = False
+        with patch('dis_display.time.monotonic', return_value=101.0):
+            engine._check_nav_availability_pause()
+        engine.apps["app_nav"].has_route = True
+        with patch('dis_display.time.monotonic', return_value=101.2):
+            engine._check_nav_availability_pause()
+
+        self.assertEqual(sent, [])
+        self.assertEqual(switched, [])
+        self.assertEqual(engine.pages[engine.current_page_idx], "app_nav")
+
+    def test_momentary_inactive_status_does_not_release(self):
+        engine, sent, _ = self._claimed_on_nav()
+        engine.nav_active = False
+        with patch('dis_display.time.monotonic', return_value=101.0):
+            engine._check_nav_availability_pause()
+
+        self.assertNotIn({"command": "pause"}, sent)
+
+    def test_route_end_releases_after_grace(self):
+        engine, sent, switched = self._claimed_on_nav()
+        engine.apps["app_nav"].has_route = False
+        with patch('dis_display.time.monotonic', return_value=103.5):
+            engine._check_nav_availability_pause()
+
+        self.assertIn({"command": "pause"}, sent)
+        self.assertEqual(switched, ["app_media"])
+
+    def test_grace_holds_claim_but_route_is_not_live(self):
+        engine, _, _ = self._claimed_on_nav()
+        engine.apps["app_nav"].has_route = False
+        with patch('dis_display.time.monotonic', return_value=101.0):
+            self.assertTrue(engine.is_nav_available())
+            self.assertFalse(engine._nav_route_live())
 
 
 
