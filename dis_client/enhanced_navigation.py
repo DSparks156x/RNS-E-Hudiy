@@ -9,6 +9,7 @@ from stock_mono_frame import StockMonoFrameCompiler, records_from_stream
 from display_resolution import high_resolution
 from nav_icons import canvas_for_icon
 from icons import BITMAPS
+from navigation_state import MANEUVER_TYPES
 
 # Native types are renderer object bytes, not HUDIY maneuver enums.
 STOCK_X_OFFSETS = {0x00: -3, 0x40: -3, 0xC0: -12}
@@ -199,6 +200,9 @@ def global_white_view(app, navigation):
         return None
     selection = native_selection(app) if preferred == 'stock' else None
     stock = selection is not None
+    # A distance can arrive before its maneuver details. Stock mode waits
+    # for the maneuver instead of flashing the bitmap fallback.
+    pending = preferred == 'stock' and app.maneuver_type not in MANEUVER_TYPES
     icon_key = app._get_icon_name()
     level = approach_level(app)
     visible = approach_visible(app)
@@ -207,6 +211,8 @@ def global_white_view(app, navigation):
     if stock:
         records, dx, dy = _positioned_native_details(*selection)
         kind = 'nav_white_stock_%02x_%02x_x%d_y%d' % (*selection, dx, dy)
+    elif pending:
+        kind = 'nav_white_stock_pending'
     else:
         kind = 'nav_white_%s_bitmap_%s' % ('stock_fallback' if preferred == 'stock' else 'direct',
                                           'high' if high_resolution(app.config) else 'normal')
@@ -218,6 +224,9 @@ def global_white_view(app, navigation):
                              x=record[3], y=record[4], glyphs=list(record[5:]),
                              field_id='nav_icon_%02x_%02x_%02d' % (*selection, index)))
         dependency = ('stock', *selection, dx, dy)
+    elif pending:
+        view.append(dict(group='icon', cmd='clear_area', x=0, y=0, w=39, h=39))
+        dependency = ('stock_pending',)
     else:
         order = navigation.get('native_render_order', 'planes')
         if order not in ('planes', 'tiles'):
@@ -261,7 +270,7 @@ def global_white_view(app, navigation):
     stamp = (dependency, visible, cells[-1][2] if visible else None)
     view += [dict(group='street', cmd='clear_area', x=0, y=39, w=64, h=9, dependency=stamp),
              dict(group='street', cmd='draw_text', text=text, x=x, y=39, flags=6, dependency=stamp)]
-    if not stock:
+    if not stock and not pending:
         # The bounded bitmap touches only the icon field. Show the fast bar
         # and text first, keeping street repair after native bar cells.
         icon_items = [item for item in view[1:] if item.get('group') == 'icon']

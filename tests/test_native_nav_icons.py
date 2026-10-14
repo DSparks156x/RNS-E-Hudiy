@@ -254,6 +254,21 @@ class NativeNavigationViewTests(unittest.TestCase):
         self.assertEqual(previous[-1], changed[-1])
         self.assertNotEqual(previous[1:-1], changed[1:-1])
 
+    def test_stock_waits_for_maneuver_instead_of_bitmap(self):
+        # A distance can arrive before its maneuver details.
+        app = NavApp(config(True))
+        app.config['display']['center_display']['navigation']['icon_style'] = 'stock'
+        app.update_hudiy(b'HUDIY_NAV', {'distance': '100 m', 'has_route': True})
+        view = app.get_view()
+        self.assertEqual(view[0]['type'], 'nav_white_stock_pending')
+        self.assertNotIn('native_bitmap', [item.get('cmd') for item in view])
+        app.update_hudiy(b'HUDIY_NAV', {'maneuver_type': 4, 'maneuver_side': 2,
+                                      'description': 'Turn right onto Main St',
+                                      'distance': '100 m'})
+        view = app.get_view()
+        self.assertTrue(view[0]['type'].startswith('nav_white_stock_0d_'))
+        self.assertNotIn('native_bitmap', [item.get('cmd') for item in view])
+
     def test_no_route_stays_text_only(self):
         view = NavApp(config(True)).get_view()
         self.assertEqual(view[0]['type'], 'nav_no_route')
