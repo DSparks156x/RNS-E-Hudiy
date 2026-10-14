@@ -375,7 +375,7 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
                 </div>
 
                 {/* Body: 2-Column Compact Grid for 800x400 display */}
-                <div style={styles.body}>
+                <div className="pretty-scroll" style={styles.body}>
                     {/* Left Column: Controller Status & Sector Range */}
                     <div style={styles.col}>
                         <div style={styles.sectionHeader}>

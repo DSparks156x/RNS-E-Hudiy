@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { installManagerPointerScroll } from './managerPointerScroll';
 import { useSocket } from './hooks/useSocket';
 import { useSwipe } from './hooks/useSwipe';
 import { TabId } from './types';
@@ -50,6 +51,9 @@ export function App() {
   };
 
   const swipeHandlers = useSwipe({ onSwipeLeft: goNext, onSwipeRight: goPrev });
+  // The head unit's touch driver reports mouse pointers; drag anywhere in a list to scroll it.
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => root.current ? installManagerPointerScroll(root.current) : undefined, []);
 
   const tabCount = TABS.length;
   const translatePct = -(currentIndex * (100 / tabCount));
@@ -67,6 +71,7 @@ export function App() {
 
   return (
     <div
+      ref={root}
       className="container"
       data-theme={theme.darkThemeEnabled ? 'dark' : 'light'}
       style={themeVars as React.CSSProperties}

@@ -301,7 +301,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                         Default module list. Gateway installation list not read{installError ? `: ${installError}` : ' (needs ignition and diagnostics on)'}. Tap to retry.
                     </button>
                 )}
-                <div style={styles.moduleGrid}>
+                <div className="pretty-scroll" style={styles.moduleGrid}>
                     {modules.map(mod => (
                         <button
                             key={mod.id}
