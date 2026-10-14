@@ -150,12 +150,15 @@ class HaldexTelemetryMuxTests(unittest.TestCase):
 
 
 class HaldexModeCommandTests(unittest.TestCase):
+    """KWP mode select (artifacts/7716/README.md): `3B F0 b0 b1` sets, `3B F0` queries."""
+
     def setUp(self):
+        import typing
         self.ns = definitions('rns-e_can/haldex_manager.py',
-                              {'build_mode_frame', 'build_mode_burst'}, {
-            'Tuple': __import__('typing').Tuple,
-            'List': __import__('typing').List,
-            'CAN_ID_MODE_CMD': 0x67A,
+                              {'build_mode_request', 'decode_mode_response'}, {
+            'Dict': typing.Dict, 'Any': typing.Any,
+            'MODE_QUERY': bytes.fromhex('3BF0'),
+            'REASON_NAMES': {3: 'steady', 6: 'no request, Stock fallback'},
             'MODE_COMMAND_HEADERS': {
                 0: bytes.fromhex('5AA5'),
                 1: bytes.fromhex('A55A'),
@@ -165,69 +168,24 @@ class HaldexModeCommandTests(unittest.TestCase):
             },
         })
 
-    def test_exact_mode_headers(self):
-        self.assertEqual(self.ns['build_mode_frame'](0),
-                         (0x67A, '5aa5000000000000'))
-        self.assertEqual(self.ns['build_mode_frame'](1),
-                         (0x67A, 'a55a000000000000'))
-        self.assertEqual(self.ns['build_mode_frame'](2),
-                         (0x67A, '3cc3000000000000'))
-        self.assertEqual(self.ns['build_mode_frame'](3),
-                         (0x67A, '6996000000000000'))
-        self.assertEqual(self.ns['build_mode_frame'](4),
-                         (0x67A, '9669000000000000'))
+    def test_exact_set_requests(self):
+        build = self.ns['build_mode_request']
+        self.assertEqual([build(m).hex() for m in range(5)],
+                         ['3bf05aa5', '3bf0a55a', '3bf03cc3', '3bf06996', '3bf09669'])
         with self.assertRaisesRegex(ValueError, 'Invalid mode'):
-            self.ns['build_mode_frame'](5)
+            build(5)
 
-    def test_recommended_burst_is_five_identical_frames(self):
-        burst = self.ns['build_mode_burst'](2)
-        self.assertEqual(len(burst), 5)
-        self.assertEqual(set(burst), {(0x67A, '3cc3000000000000')})
-
-
-class ManagerModeSetTests(unittest.TestCase):
-    def manager(self, image_modes):
-        import typing
-        ns = definitions('rns-e_can/haldex_manager.py', {'HaldexManager'}, {
-            'Optional': typing.Optional, 'Dict': typing.Dict, 'Any': typing.Any,
-            'Tuple': typing.Tuple, 'logger': logging.getLogger('test'), 'os': os,
-            'MODE_NAMES': {0: 'Stock', 1: 'Performance', 2: 'Competition',
-                           3: 'Snow Drift', 4: 'Full Coupling'},
-            'ALL_MODES': (0, 1, 2, 3, 4), 'THREE_MODE_IMAGE_MODES': (0, 1, 2)})
-        manager = ns['HaldexManager'].__new__(ns['HaldexManager'])
-        manager.state_lock = threading.Lock()
-        manager.image_modes = image_modes
-        manager.desired_mode = 0
-        manager.sent = []
-        manager._save_persisted_mode = lambda mode: None
-        manager.send_mode_burst = manager.sent.append
-        manager._publish_status = lambda: None
-        manager.get_status = lambda: {'desired_mode': manager.desired_mode}
-        return manager
-
-    def cycle(self, manager, steps):
-        return [manager.cycle_mode()['desired_mode'] for _ in range(steps)]
-
-    def test_cycle_covers_five_modes_on_five_mode_image(self):
-        self.assertEqual(self.cycle(self.manager(5), 5), [1, 2, 3, 4, 0])
-
-    def test_cycle_offline_offers_all_five(self):
-        self.assertEqual(self.cycle(self.manager(None), 5), [1, 2, 3, 4, 0])
-
-    def test_7316_cycles_three_and_rejects_new_modes(self):
-        manager = self.manager(3)
-        self.assertEqual(self.cycle(manager, 3), [1, 2, 0])
-        for mode in (3, 4):
-            with self.assertRaisesRegex(ValueError, 'five-mode image'):
-                manager.set_mode(mode)
-        self.assertEqual(manager.desired_mode, 0)
-        with self.assertRaisesRegex(ValueError, 'Invalid mode'):
-            manager.set_mode(5)
-
-    def test_saved_new_mode_on_7316_cycles_back_to_stock(self):
-        manager = self.manager(3)
-        manager.desired_mode = 3
-        self.assertEqual(manager.cycle_mode()['desired_mode'], 0)
+    def test_decodes_state_unsupported_and_rejects(self):
+        decode = self.ns['decode_mode_response']
+        state = decode(bytes.fromhex('7bf002020203'))
+        self.assertEqual((state['kind'], state['applied'], state['a48'], state['candidate'],
+                          state['reason']), ('state', 2, 2, 2, 3))
+        fresh = decode(bytes.fromhex('7bf00000ff06'))
+        self.assertIsNone(fresh['candidate'])
+        self.assertEqual(decode(bytes.fromhex('7f3b12')), {'kind': 'unsupported'})
+        for answer in ('7f3b31', '7bf000', '', '5a9f'):
+            with self.subTest(answer=answer):
+                self.assertEqual(decode(bytes.fromhex(answer))['kind'], 'error')
 
 
 class OwnershipTests(unittest.TestCase):
@@ -384,82 +342,6 @@ class ServiceQuiescenceTests(unittest.TestCase):
         service.run()
         self.assertEqual(log[:2], ['close', 'ack'])
         self.assertFalse(service.sessions[1]['connected'])
-
-
-class ManagerRaceTests(unittest.TestCase):
-    def manager(self):
-        import typing
-        ns = definitions('rns-e_can/haldex_manager.py', {'HaldexManager'}, {
-            'Optional': typing.Optional, 'Dict': typing.Dict, 'Any': typing.Any,
-            'Tuple': typing.Tuple, 'logger': logging.getLogger('test'), 'os': os})
-        manager = ns['HaldexManager'].__new__(ns['HaldexManager'])
-        manager.burst_lock = threading.Lock()
-        manager.inhibited = False
-        manager.diagnostic_owner = None
-        manager.previous_inhibited = False
-        return manager
-
-    def test_inflight_burst_and_sender_barrier_must_finish_before_ack(self):
-        manager = self.manager()
-        burst_started = threading.Event(); finish_burst = threading.Event()
-        barrier_started = threading.Event(); finish_barrier = threading.Event()
-        acknowledged = threading.Event(); sends = []
-        def burst(mode):
-            if manager.inhibited:
-                return
-            burst_started.set()
-            self.assertTrue(finish_burst.wait(2))
-            sends.append(mode)
-        def barrier(token):
-            barrier_started.set()
-            self.assertTrue(finish_barrier.wait(2))
-        manager._send_mode_burst_locked = burst
-        manager._drain_mode_queue = barrier
-        sender = threading.Thread(target=lambda: manager.send_mode_burst(1))
-        sender.start(); self.assertTrue(burst_started.wait(2))
-        pause = threading.Thread(target=lambda: (manager.quiesce('a'*32), acknowledged.set()))
-        pause.start()
-        self.assertFalse(acknowledged.wait(0.03))
-        self.assertFalse(barrier_started.is_set())
-        finish_burst.set(); self.assertTrue(barrier_started.wait(2))
-        self.assertFalse(acknowledged.is_set())
-        finish_barrier.set(); sender.join(2); pause.join(2)
-        self.assertTrue(acknowledged.is_set())
-        manager.send_mode_burst(2)
-        self.assertEqual(sends, [1])
-
-    def test_failed_barrier_retains_inhibition_without_ack(self):
-        manager = self.manager()
-        manager._drain_mode_queue = Mock(side_effect=TimeoutError('barrier timeout'))
-        with self.assertRaises(TimeoutError):
-            manager.quiesce('a'*32)
-        self.assertTrue(manager.inhibited)
-        self.assertEqual(manager.diagnostic_owner, 'a'*32)
-
-    def test_recovery_sentinel_can_be_claimed_by_flash(self):
-        manager = self.manager()
-        manager.diagnostic_owner = 'recovery-required'
-        manager.inhibited = True
-        manager._drain_mode_queue = Mock()
-        token = 'a' * 32
-        self.assertEqual(manager.quiesce(token), {'quiescent': True, 'owner': token})
-        self.assertEqual(manager.diagnostic_owner, token)
-        self.assertTrue(manager.inhibited)
-
-    def test_recovery_marker_allows_explicit_stale_owner_takeover(self):
-        manager = self.manager()
-        manager.diagnostic_owner = 'stale-operation-token'
-        manager.inhibited = True
-        manager._drain_mode_queue = Mock()
-        token = 'b' * 32
-        with patch('os.path.exists', return_value=True):
-            with self.assertRaisesRegex(RuntimeError, 'already owned'):
-                manager.quiesce(token)
-            self.assertEqual(
-                manager.quiesce(token, recovery_resume=True),
-                {'quiescent': True, 'owner': token})
-        self.assertEqual(manager.diagnostic_owner, token)
-        self.assertTrue(manager.inhibited)
 
 
 class InfoRaceTests(unittest.TestCase):

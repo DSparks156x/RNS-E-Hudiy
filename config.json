@@ -53,8 +53,6 @@
   "haldex": {
     "enabled": true,
     "default_mode": null,
-    "burst_count": 5,
-    "burst_interval_ms": 20,
     "persistence_file": "/home/pi/.hudiy/haldex_mode.json",
     "firmware_dir": "~/haldexfw"
   },

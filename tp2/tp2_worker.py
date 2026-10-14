@@ -103,6 +103,9 @@ class TP2Service:
         self.install_list_file = os.path.expanduser("~/.hudiy/tp2_install_list.json")
         self.install_list = self._load_install_list()
         self._tester_id_pool = list(range(0x300, 0x307))  # 0x300-0x306 (0x307 reserved for Openpilot)
+        # One-off KWP requests from other services (Haldex mode select), by job id.
+        self.kwp_jobs = {}
+        self.kwp_job_seq = 0
         self._setup_signals()
 
         # Initial status push
@@ -221,7 +224,9 @@ class TP2Service:
         session['group_periods_ms'] = dict(scheduler.periods)
         session['active'] = (bool(scheduler.periods) or session.get('pending_dtc_req', False)
                              or session.get('pending_dtc_clear', False)
-                             or session.get('pending_install_req', False))
+                             or session.get('pending_install_req', False)
+                             or bool(session.get('kwp_jobs'))
+                             or time.time() < session.get('kwp_hold_until', 0))
 
     def _publish_install_list(self, modules, error=None):
         payload = {'type': 'install_list', 'modules': modules or [], 'error': error}
@@ -270,6 +275,71 @@ class TP2Service:
         self._save_install_list(modules)
         logger.info(f"Installation list: {sum(m['coded'] for m in modules)} coded of {len(modules)}")
         self._publish_install_list(modules)
+
+    def _queue_kwp(self, msg):
+        # Command Thread. Returns at once: other clients share this REP socket
+        # with short timeouts, so the caller polls KWP_RESULT for the answer.
+        param_mod = int(msg.get("module"))
+        payload = bytes.fromhex(msg.get("payload", ""))
+        if not payload:
+            raise ValueError("Empty KWP request")
+        if not self.running or flashing_mode_enabled():
+            return {"status": "error", "message": "Diagnostics not running"}
+        now = time.time()
+        with self.lock:
+            for job_id, job in list(self.kwp_jobs.items()):
+                if now - job['queued_at'] > 30.0:
+                    del self.kwp_jobs[job_id]
+            self.kwp_job_seq += 1
+            job_id = self.kwp_job_seq
+            job = {'module': param_mod, 'payload': list(payload), 'queued_at': now,
+                   'done': False, 'response': None, 'error': None}
+            self.kwp_jobs[job_id] = job
+            session = self._get_or_create_session(param_mod)
+            session.setdefault('kwp_jobs', []).append(job)
+            session['active'] = True
+        return {"status": "queued", "job": job_id}
+
+    def _kwp_result(self, msg):
+        # Command Thread
+        with self.lock:
+            job = self.kwp_jobs.get(msg.get("job"))
+            if job is None:
+                return {"status": "error", "message": "Unknown KWP job"}
+            if not job['done']:
+                if time.time() - job['queued_at'] > float(msg.get("timeout", 5.0)):
+                    # Withdraw it so a stale request is never sent late.
+                    self.kwp_jobs.pop(msg.get("job"), None)
+                    session = self.sessions.get(job['module'])
+                    if session and job in session.get('kwp_jobs', []):
+                        session['kwp_jobs'].remove(job)
+                    return {"status": "error", "message": f"No answer from module 0x{job['module']:02X}"}
+                return {"status": "pending"}
+            del self.kwp_jobs[msg.get("job")]
+        if job['error']:
+            return {"status": "error", "message": job['error']}
+        return {"status": "ok", "response": bytes(job['response']).hex()}
+
+    def _run_kwp_jobs(self, mod_id, session):
+        # Main Thread Only, session connected.
+        while session['connected']:
+            with self.lock:
+                if not session.get('kwp_jobs'):
+                    return
+                job = session['kwp_jobs'].pop(0)
+            try:
+                job['response'] = session['protocol'].send_kvp_request(job['payload'])
+                if not job['response']:
+                    job['error'] = f"Empty answer from module 0x{mod_id:02X}"
+            except Exception as e:
+                logger.error(f"Mod 0x{mod_id:02X} KWP request failed: {e}")
+                job['error'] = str(e)
+                session['connected'] = False
+                try: session['protocol'].disconnect()
+                except: pass
+            # Hold the channel briefly for a follow-up (a set, then its confirm).
+            session['kwp_hold_until'] = time.time() + 2.0
+            job['done'] = True
 
     def _ensure_connected(self, module_id, session):
         # Main Thread Only
@@ -455,6 +525,12 @@ class TP2Service:
                             response = {"status": "ok", "message": "Synced", "active_groups": sorted(session['group_periods_ms']), "group_periods_ms": session['group_periods_ms']}
                     else:
                         response = {"status": "error", "message": "Missing client_id or module"}
+
+                elif cmd == "KWP_REQUEST":
+                    response = self._queue_kwp(msg)
+
+                elif cmd == "KWP_RESULT":
+                    response = self._kwp_result(msg)
 
                 elif cmd == "READ_DTC":
                     mod = msg.get("module")
@@ -650,15 +726,17 @@ class TP2Service:
                     pending_clear = session.get('pending_dtc_clear', False)
                     pending_install = session.get('pending_install_req', False)
                     with self.lock:
+                        pending_kwp = bool(session.get('kwp_jobs'))
                         scheduler = session['scheduler']
                         blocked = [group for group, until in session.get('group_cooldowns', {}).items()
                                    if time.monotonic() < until]
                         due_group = scheduler.select(time.monotonic(), blocked, advance=False)
                         fast_polling = any(period < 60000 for period in scheduler.periods.values())
-                    if due_group is None and not pending_dtc and not pending_clear and not pending_install:
+                    if (due_group is None and not pending_dtc and not pending_clear
+                            and not pending_install and not pending_kwp):
                         if session['connected']:
                             try:
-                                if fast_polling:
+                                if fast_polling or time.time() < session.get('kwp_hold_until', 0):
                                     if time.time() - session['protocol'].last_kwp_req > 2.0:
                                         session['protocol'].send_kvp_request([0x3E])
                                     session['protocol'].maybe_send_keep_alive()
@@ -677,7 +755,12 @@ class TP2Service:
 
                     if pending_install:
                         self._read_install_list(session)
-                    
+
+                    if pending_kwp:
+                        self._run_kwp_jobs(mod_id, session)
+                        if not session['connected']:
+                            continue
+
                     # Process DTC Clear if pending
                     if session.get('pending_dtc_clear'):
                         proto = session['protocol']

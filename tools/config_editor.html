@@ -285,9 +285,7 @@ const SETTING_HELP = {
   'diagnostics.values.ican_hz': 'Default requested frequency, in Hz, for infotainment CAN values without an explicit polling period.',
   'diagnostics.values.lease_seconds': 'Seconds before the shared value broker expires a client’s requests when the client stops renewing its interest.',
   'haldex.enabled': 'Enable the Haldex control manager. Mode changes require compatible controller firmware; this setting does not flash firmware.',
-  'haldex.default_mode': 'Startup mode: null restores the last saved mode, 0 = Stock, 1 = Performance, 2 = Competition, 3 = Snow Drift, 4 = Full Coupling (3-4 need a five-mode image). A fixed mode disables saving mode changes as the next startup choice.',
-  'haldex.burst_count': 'Number of CAN frames sent in a Haldex mode command burst. Repeated frames help the controller receive the requested mode.',
-  'haldex.burst_interval_ms': 'Pause in milliseconds between frames in each Haldex mode command burst.',
+  'haldex.default_mode': 'Startup mode: null restores the last saved mode, 0 = Stock, 1 = Performance, 2 = Competition, 3 = Snow Drift, 4 = Full Coupling. A fixed mode disables saving mode changes as the next startup choice.',
   'haldex.persistence_file': 'JSON file storing the last requested Haldex mode when default_mode is null. The Pi service must be able to write here.',
   'haldex.firmware_dir': 'Directory containing Haldex firmware available in DataView and the file portal. A leading ~ expands to the Pi service user’s home directory.',
   'eps.firmware_dir': 'Directory containing steering controller images or datasets for the EPS tools. A leading ~ expands on the Pi.',
@@ -569,8 +567,6 @@ const BUNDLED_CONFIG = {
   "haldex": {
     "enabled": true,
     "default_mode": null,
-    "burst_count": 5,
-    "burst_interval_ms": 20,
     "persistence_file": "/home/pi/.hudiy/haldex_mode.json",
     "firmware_dir": "~/haldexfw"
   },

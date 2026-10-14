@@ -1421,6 +1421,7 @@ def haldex_status_subscriber_loop():
 
     poller = zmq.Poller()
     poller.register(sub, zmq.POLLIN)
+    marked_set = None
 
     while True:
         try:
@@ -1428,6 +1429,14 @@ def haldex_status_subscriber_loop():
             if sub in events:
                 topic, msg_bytes = sub.recv_multipart(flags=zmq.NOBLOCK)
                 status_dict = json.loads(msg_bytes.decode('utf-8'))
+                last_set = status_dict.get('last_set')
+                if last_set and last_set.get('time') != marked_set:
+                    # The first status only primes it; that set predates this process.
+                    if marked_set is not None:
+                        data_logger.add_marker(f"MODE_SET: mode={last_set.get('mode')} ({last_set.get('name')})")
+                    marked_set = last_set.get('time')
+                elif marked_set is None:
+                    marked_set = 0
                 socketio.emit('haldex_update', status_dict)
             else:
                 socketio.sleep(0.1)

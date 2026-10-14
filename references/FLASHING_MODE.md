@@ -13,8 +13,8 @@ bench recovery procedure has resolved the incomplete ECU state.
 
 ## Inhibited traffic
 
-- Central gateway application TX: DIS top-display updates, Haldex mode bursts
-  and other producers using `can_send.ipc`. The gateway consumes/discards
+- Central gateway application TX: DIS top-display updates, exhaust valve
+  commands and other producers using `can_send.ipc`. The gateway consumes/discards
   inhibited frames rather than replaying them. Exception: TV presence
   (`can_ids.tv_presence`, default 0x602) still goes out, so the RNS-E TV input
   keeps working across an ignition cycle with Flashing Mode on.
@@ -23,7 +23,8 @@ bench recovery procedure has resolved the incomplete ECU state.
 - TP2 diagnostic and Openpilot direct TX: send guards reject traffic;
   the worker stops its receiver and closes polling sessions. User-enabled
   diagnostic preferences are retained.
-- Haldex mode manager: bursts are skipped; desired mode is retained for resume.
+- Haldex mode manager: no KWP sets or queries; desired mode is retained, and
+  after the flash it re-checks the image and re-sends.
 
 The flasher uses its own SocketCAN adapter and remains permitted. Passive CAN
 reception, capture/logging, Hudiy communication and control commands remain

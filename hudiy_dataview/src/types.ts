@@ -44,7 +44,8 @@ export function diagKey(module: number | string, group: number): string {
 }
 
 export interface HaldexStatus {
-    status: 'synced' | 'switching' | 'reconciling' | 'unsupported' | 'offline';
+    /** unsupported = the Haldex image has no KWP mode select (pre-7716). */
+    status: 'synced' | 'switching' | 'failed' | 'unsupported' | 'offline';
     desired_mode: number;
     desired_name: string;
     active_mode: number | null;
@@ -57,8 +58,11 @@ export interface HaldexStatus {
     hold_a7e: number;
     last_telemetry_age: number | null;
     last_switch_time: number;
-    /** 3 = 7316, 5 = 7416/7516; null until 0x6DA telemetry is seen. */
-    image_modes?: number | null;
+    /** Last `7B F0 applied a48 candidate reason` answer; null until the Haldex answers. */
+    ecu?: { applied: number; a48: number; candidate: number | null; reason: number; reason_name: string } | null;
+    /** Why the last mode request failed, if it did. */
+    message?: string | null;
+    last_query_age?: number | null;
     available_modes?: number[];
 }
 

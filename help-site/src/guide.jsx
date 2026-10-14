@@ -214,10 +214,10 @@ function Dashboards() {
     {tab === 'awd' && <Section title="AWD"><ul>
       <li><strong>Pressure & torque:</strong> Haldex oil pressure and an estimated torque.</li>
       <li><strong>Valve & control:</strong> N273 opening/current, commanded torque, slip-control torque.</li>
-      <li><strong>Stock / Perf / Comp:</strong> requests that mode. Check Active mode to see if the controller took it. The Haldex button on the Hudiy bar cycles the same modes.</li>
+      <li><strong>Stock / Perf / Comp / Snow / Full:</strong> requests that mode over diagnostics (TP2 to module 0A). Active is what the controller reports back. The Haldex button on the Hudiy bar cycles the same modes.</li>
       <li><strong>ARMED:</strong> safety-token state. Also oil/plate temp, supply voltage and operating modes.</li>
       <li><strong>Drive Logger:</strong> the older Haldex/raw CAN logger. See <a href="#files">File portal</a>.</li>
-    </ul><p><code>haldex.default_mode</code> forces a mode at startup; <code>null</code> restores the last one.</p><Note>Mode control and telemetry need compatible custom Haldex firmware on the controller. What Stock/Perf/Comp actually do is up to that firmware.</Note></Section>}
+    </ul><p><code>haldex.default_mode</code> forces a mode at startup; <code>null</code> restores the last one.</p><Note>Mode control needs my Haldex firmware 7716 or later; older images show <strong>unsupported</strong> and get no mode command. The badge says <strong>failed</strong> if the controller won't take the mode. It keeps retrying. Live Haldex telemetry needs the owner image. What each mode actually does is up to that firmware.</Note></Section>}
     <Section title="Smoothing and missing values"><p>The <strong>~</strong> button toggles smoothing. It only smooths the gauges; the ECU isn’t sending any faster. Missing or stale values show as unavailable.</p></Section>
     <Related links={[[ 'recordings', 'Record these values', 'Profiles, markers and review.' ],['controllers','Module flashing','Haldex firmware and readouts.']]}/>
   </>;

@@ -1,8 +1,8 @@
 # Exhaust valve controller
 
 The SB2209 RP2040 controller shares standard CAN ID `0x67A` at 500 kbit/s
-with Haldex, using the separate `C3 3C` namespace. Haldex mode headers remain
-unchanged. Hudiy's bar shortcut alternates absolute Open (100%) and Closed
+with the Haldex owner image, using the separate `C3 3C` namespace. Hudiy now
+selects the Haldex mode over KWP, not `0x67A`. Hudiy's bar shortcut alternates absolute Open (100%) and Closed
 (0%) commands through the Haldex manager. The first press requests Open if
 the Pi has no recorded intent. Three identical transaction retries are sent.
 

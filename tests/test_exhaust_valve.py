@@ -166,7 +166,7 @@ class ValveManagerTests(unittest.TestCase):
             'os': os, 'json': json, 'time': types.SimpleNamespace(sleep=lambda delay: None),
             'threading': threading, 'zmq': zmq, 'logger': logging.getLogger('test'),
             'MODE_STOCK': 0, 'MODE_NAMES': {0: 'Stock'},
-            'CAN_ID_MODE_CMD': 0x67A, 'valve_command': command, 'flashing_mode_enabled': lambda: False,
+            'CAN_ID_VALVE': 0x67A, 'valve_command': command, 'flashing_mode_enabled': lambda: False,
         })
         cls = namespace['HaldexManager']
         with patch.object(cls, '_load_config', return_value=config), patch.object(cls, '_init_desired_mode'):

@@ -24,9 +24,11 @@ Current vehicle candidate 7316 uses fixed `0x679` plus tagged, multiplexed
 `HaldexRE/phase2_can_telemetry_mux.py`; do not decode `0x6DA` as the older four
 little-endian words without first validating its `0xD0 | page` header.
 
-Mode commands on `0x67A` use a compact two-byte namespace. Send five identical
-frames 20 ms apart; bytes 2-7 are zero for Hudiy mode commands and ignored by
-Haldex:
+Hudiy selects the mode over KWP2000 (7716 and later images): `3B F0 b0 b1`
+sets it and `3B F0` queries it, on the TP2 channel to module `0x0A` after
+`10 89`. The answer is `7B F0 applied a48 candidate reason`. The full protocol
+is in `HaldexRE/artifacts/7716/README.md`. The owner image still accepts the
+same codeword in bytes 0-1 of `0x67A`, but Hudiy no longer sends it there:
 
 | Bytes 0-1 | Meaning |
 | --- | --- |
@@ -35,10 +37,11 @@ Haldex:
 | `3C C3` | Competition, row 2 |
 | `C3 3C` | External-device namespace; preserve current row |
 
-An unrecognized header fails immediately to Stock. The pre-7316 packet format
-also began `5A A5`, so an old sender silently selects Stock regardless of its
-legacy mode byte. Log the transmitted header and confirm the applied mode from
-`0x6DA`.
+Snow Drift (`69 96`) and Full Coupling (`96 69`) need a five-mode image. On
+`0x67A`, an unrecognized header fails immediately to Stock. Over KWP, an
+unknown codeword is rejected with `7F 3B 31` and the mode is left alone. An
+image without the KWP handler answers the query with `7F 3B 12`, and Hudiy then
+never sends a set (the stock `0x3B` handler is the coding write).
 
 ---
 
@@ -146,8 +149,9 @@ base or none of the cross-signal analysis works.
 **Do not decimate.** Both frames at 50 Hz is 16 bytes × 100/s — nothing. Log
 every frame.
 
-**Mark mode-change commands.** Log when the CarPi *sent* a `0x67A` burst and
+**Mark mode-change commands.** Log when the CarPi *sent* a mode set and
 what it asked for, as a separate event from the mode the ECU *reports*. The
+Drive Logger writes a `MODE_SET` marker for each set the ECU acknowledged. The
 delta between those two is the transport's real-world reliability, which has
 only ever been measured on a bench with one other node on the bus.
 

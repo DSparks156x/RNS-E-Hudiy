@@ -15,7 +15,6 @@ const formatSeconds = (sec: number) => {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
-// Modes 3-4 exist only on five-mode images (7416/7516).
 const HALDEX_MODES = [
   { mode: 0, label: 'Stock', title: 'Stock' },
   { mode: 1, label: 'Perf', title: 'Performance' },
@@ -81,7 +80,12 @@ export function AWDTab({ socket = null }: AWDTabProps) {
                     ARMED
                   </span>
                 )}
-                <span className={`haldex-badge ${haldex.status}`}>
+                <span
+                  className={`haldex-badge ${haldex.status}`}
+                  title={haldex.status === 'unsupported'
+                    ? 'This Haldex image has no KWP mode select; it needs 7716 or later'
+                    : haldex.message || undefined}
+                >
                   {haldex.status}
                 </span>
               </div>
@@ -96,7 +100,7 @@ export function AWDTab({ socket = null }: AWDTabProps) {
                     key={mode}
                     className={`mode-btn${haldex.desired_mode === mode ? ' active' : ''}`}
                     disabled={!supported}
-                    title={supported ? title : `${title}: needs a five-mode image (7416/7516)`}
+                    title={title}
                     onClick={() => setMode(mode)}
                   >
                     {label}

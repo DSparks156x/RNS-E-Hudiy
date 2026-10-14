@@ -40,13 +40,13 @@
       "help": "Enable or disable the cluster display service.",
       "type": "boolean",
       "label": "Enabled",
-      "order": 56
+      "order": 54
     },
     "display.center_display.high_resolution": {
       "label": "High Resolution",
       "help": "Selects existing high or normal artwork and other app/font layouts. An explicit Stock or Bitmap navigation icon choice uses the white DIS layout with the native approach bar at either artwork resolution. Keep a saved legacy font profile for a red DIS.",
       "type": "boolean",
-      "order": 58
+      "order": 56
     },
     "display.center_display.mode": {
       "label": "Default App",
@@ -59,7 +59,7 @@
         "car_info",
         "acceleration_test"
       ],
-      "order": 57
+      "order": 55
     },
     "display.center_display.applist": {
       "label": "Configured Applications",
@@ -72,7 +72,7 @@
         "acceleration_test",
         "coverart"
       ],
-      "order": 55
+      "order": 53
     },
     "display.center_display.navigation.native_render_order": {
       "label": "Navigation Icon Rendering",
@@ -82,7 +82,7 @@
         "planes",
         "tiles"
       ],
-      "order": 66
+      "order": 64
     },
     "display.center_display.navigation.icon_style": {
       "label": "Navigation Icons",
@@ -92,7 +92,7 @@
         "stock",
         "bitmap"
       ],
-      "order": 60
+      "order": 58
     },
     "display.center_display.navigation.native_message_delay_ms": {
       "label": "Icon Drawing Pause (ms)",
@@ -100,37 +100,37 @@
       "type": "number",
       "min": 0,
       "max": 100,
-      "order": 67
+      "order": 65
     },
     "display.center_display.navigation.auto_switch": {
       "help": "Temporarily show navigation when a maneuver approaches. Each new maneuver gets a five-second preview; manually choosing another page suppresses that maneuver’s automatic approach switch.",
       "type": "boolean",
       "label": "Auto switch",
-      "order": 61
+      "order": 59
     },
     "display.center_display.navigation.auto_switch_approach_threshold": {
       "help": "Distance to the maneuver, in meters, at which navigation takes over the center display. The example uses 500 m.",
       "type": "number",
       "label": "Auto switch approach threshold",
-      "order": 62
+      "order": 60
     },
     "display.center_display.navigation.auto_switch_return_threshold": {
       "help": "Distance to a later maneuver, in meters, beyond which the previous app can return after the approach sequence. Keep this larger than the approach threshold to avoid switching back and forth.",
       "type": "number",
       "label": "Auto switch return threshold",
-      "order": 63
+      "order": 61
     },
     "display.center_display.navigation.approach_bar_max_distance": {
       "help": "Distance in meters used to scale the native maneuver-approach bar. This controls the bar’s visual range, independently of automatic page switching.",
       "type": "number",
       "label": "Approach bar max distance",
-      "order": 64
+      "order": 62
     },
     "display.center_display.navigation.claim_on_nav": {
       "help": "Auto-claim center display when a route starts and release when it ends.",
       "type": "boolean",
       "label": "Claim on nav",
-      "order": 65
+      "order": 63
     },
     "display.center_display.coverart": {
       "label": "Album Cover Art"
@@ -139,7 +139,7 @@
       "help": "Show briefly on track start (5s).",
       "type": "boolean",
       "label": "Brief",
-      "order": 68
+      "order": 66
     },
     "display.center_display.coverart.native_preset": {
       "label": "Native Image Preset",
@@ -151,13 +151,13 @@
         "photo",
         "text"
       ],
-      "order": 70
+      "order": 68
     },
     "display.center_display.coverart.native_args": {
       "label": "Native Processing Overrides",
       "type": "json",
       "help": "JSON object of overrides for the selected native preset. Empty uses its defaults. With legacy, these override Processing Args. Dimensions stay 128x96.",
-      "order": 71
+      "order": 69
     },
     "display.center_display.coverart.native_render_order": {
       "label": "Native Draw Order",
@@ -168,20 +168,20 @@
         "planes",
         "bands"
       ],
-      "order": 72
+      "order": 70
     },
     "display.center_display.coverart.native_delta": {
       "label": "Native Changed Tiles",
       "help": "Send only changed tiles after an acknowledged image. Requires tiles draw order. Disabled sends a full snapshot for each cover.",
       "type": "boolean",
-      "order": 73
+      "order": 71
     },
     "display.center_display.coverart.args": {
       "label": "Processing Args",
       "type": "json",
       "help": "JSON object of legacy image-processing overrides. Used by the legacy preset; the other native presets use their own defaults plus native_args. Open the help button for each processing argument.",
       "detailedHelp": "contrast: Contrast multiplier; 1 leaves contrast unchanged.\n\nsharpen: Sharpening multiplier; 1 leaves sharpness unchanged.\n\ndither: Monochrome dither method, e.g. fs for Floyd–Steinberg.\n\ninvert: Invert the final monochrome pixels.\n\nno_enhance: Skip automatic enhancement before conversion.\n\nbg_fill: Background color used when fitting the image.\n\ngrayscale_mode: Grayscale conversion strategy; smart uses luminance processing.\n\nbrightness: Brightness multiplier; 1 leaves brightness unchanged.\n\ngamma: Gamma applied during grayscale processing.\n\nblack_floor: Shadow cutoff (0–255) used before monochrome conversion.\n\nboldness: Pixel expansion amount for strengthening fine features.\n\ndiffusion: Error-diffusion strength for dithered output.",
-      "order": 69
+      "order": 67
     },
     "display.center_display.acceleration_test": {
       "label": "Acceleration Test"
@@ -190,19 +190,19 @@
       "label": "Auto Reset on Stop",
       "help": "Resets acceleration timers when stopped for configured delay.",
       "type": "boolean",
-      "order": 74
+      "order": 72
     },
     "display.center_display.acceleration_test.auto_reset_delay": {
       "label": "Auto Reset Delay",
       "help": "Delay in seconds before auto reset when stopped.",
       "type": "number",
-      "order": 75
+      "order": 73
     },
     "display.center_display.acceleration_test.tolerance_display": {
       "label": "Show Tolerance",
       "help": "Show measurement uncertainty (±X.XXs) in header",
       "type": "boolean",
-      "order": 76
+      "order": 74
     },
     "display.center_display.acceleration_test.line_1": {
       "label": "Line 1",
@@ -217,7 +217,7 @@
         "speed"
       ],
       "detailedHelp": "Configure this line in 3 ways:\n\n1. Speed-to-Speed: e.g. '0-60', '0-100', '60-130' (uses Configure Speed Units setting)\n2. Distance Timer: e.g. '1/4' (quarter mile) or '1000' (feet). Distances below 10 assume Miles/KM based on units, above 10 assume Feet/Meters.\n3. Live Speed: enter 'speed' to show current velocity",
-      "order": 77
+      "order": 75
     },
     "display.center_display.acceleration_test.line_2": {
       "label": "Line 2",
@@ -232,7 +232,7 @@
         "speed"
       ],
       "detailedHelp": "Configure this line in 3 ways:\n\n1. Speed-to-Speed: e.g. '0-60', '0-100', '60-130' (uses Configure Speed Units setting)\n2. Distance Timer: e.g. '1/4' (quarter mile) or '1000' (feet). Distances below 10 assume Miles/KM based on units, above 10 assume Feet/Meters.\n3. Live Speed: enter 'speed' to show current velocity",
-      "order": 78
+      "order": 76
     },
     "display.center_display.acceleration_test.line_3": {
       "label": "Line 3",
@@ -247,7 +247,7 @@
         "speed"
       ],
       "detailedHelp": "Configure this line in 3 ways:\n\n1. Speed-to-Speed: e.g. '0-60', '0-100', '60-130' (uses Configure Speed Units setting)\n2. Distance Timer: e.g. '1/4' (quarter mile) or '1000' (feet). Distances below 10 assume Miles/KM based on units, above 10 assume Feet/Meters.\n3. Live Speed: enter 'speed' to show current velocity",
-      "order": 79
+      "order": 77
     },
     "display.center_display.acceleration_test.line_4": {
       "label": "Line 4",
@@ -262,7 +262,7 @@
         "speed"
       ],
       "detailedHelp": "Configure this line in 3 ways:\n\n1. Speed-to-Speed: e.g. '0-60', '0-100', '60-130' (uses Configure Speed Units setting)\n2. Distance Timer: e.g. '1/4' (quarter mile) or '1000' (feet). Distances below 10 assume Miles/KM based on units, above 10 assume Feet/Meters.\n3. Live Speed: enter 'speed' to show current velocity",
-      "order": 80
+      "order": 78
     },
     "display.road_side": {
       "help": "Side of the road you drive on.",
@@ -272,13 +272,13 @@
         "right"
       ],
       "label": "Road side",
-      "order": 81
+      "order": 79
     },
     "display.top_display.enabled": {
       "help": "Enable or disable top display service.",
       "type": "boolean",
       "label": "Enabled",
-      "order": 95
+      "order": 93
     },
     "display.top_display.applist": {
       "label": "Configured Applications",
@@ -288,7 +288,7 @@
         "nav",
         "media"
       ],
-      "order": 94
+      "order": 92
     },
     "display.top_display.media_line1_mode": {
       "label": "Media Line 1 Mode",
@@ -301,7 +301,7 @@
         "source",
         "title-artist"
       ],
-      "order": 96
+      "order": 94
     },
     "display.top_display.media_line2_mode": {
       "label": "Media Line 2 Mode",
@@ -314,7 +314,7 @@
         "source",
         "title-artist"
       ],
-      "order": 97
+      "order": 95
     },
     "display.top_display.media_line1_alt_mode": {
       "label": "Media Line 1 Alt Mode",
@@ -327,7 +327,7 @@
         "source",
         "title-artist"
       ],
-      "order": 98
+      "order": 96
     },
     "display.top_display.phone_line1_mode": {
       "label": "Phone Line 1 Mode",
@@ -339,7 +339,7 @@
         "name",
         "connection"
       ],
-      "order": 99
+      "order": 97
     },
     "display.top_display.phone_line2_mode": {
       "label": "Phone Line 2 Mode",
@@ -351,7 +351,7 @@
         "name",
         "connection"
       ],
-      "order": 100
+      "order": 98
     },
     "display.top_display.nav_line1_mode": {
       "label": "Nav Line 1 Mode",
@@ -362,7 +362,7 @@
         "maneuver",
         "distance"
       ],
-      "order": 101
+      "order": 99
     },
     "display.top_display.nav_line2_mode": {
       "label": "Nav Line 2 Mode",
@@ -373,7 +373,7 @@
         "maneuver",
         "distance"
       ],
-      "order": 102
+      "order": 100
     },
     "display.units": {
       "label": "Navigation & Legacy Units",
@@ -388,7 +388,7 @@
         "metric",
         "car"
       ],
-      "order": 82
+      "order": 80
     },
     "display.units.ambient_temp": {
       "help": "Ambient temperature override: imperial = °F, metric = °C, car = the vehicle’s temperature unit setting.",
@@ -399,7 +399,7 @@
         "car"
       ],
       "label": "Ambient temp",
-      "order": 83
+      "order": 81
     },
     "display.units.boost": {
       "label": "Legacy Boost Units",
@@ -410,7 +410,7 @@
         "metric",
         "car"
       ],
-      "order": 84
+      "order": 82
     },
     "display.units.cartemp": {
       "label": "Legacy Temperature Units",
@@ -421,7 +421,7 @@
         "metric",
         "car"
       ],
-      "order": 86
+      "order": 84
     },
     "display.units.boost_mode": {
       "label": "Legacy Boost Pressure Mode",
@@ -431,51 +431,51 @@
         "absolute",
         "relative"
       ],
-      "order": 85
+      "order": 83
     },
     "display.text_scrolling.continuous": {
       "help": "Wrap long text into a repeating loop. Disabled scrolling moves to the end and then returns to the beginning.",
       "type": "boolean",
       "label": "Continuous",
-      "order": 87
+      "order": 85
     },
     "display.text_scrolling.continuous_gap": {
       "help": "Number of spaces between the end and beginning of a continuously scrolling line.",
       "label": "Continuous gap",
-      "order": 88
+      "order": 86
     },
     "display.text_scrolling.speed_ms": {
       "help": "Milliseconds between scrolling steps. Larger values scroll more slowly.",
       "type": "number",
       "label": "Speed ms",
-      "order": 89
+      "order": 87
     },
     "display.text_scrolling.line_offset_ms": {
       "help": "Milliseconds of additional delay between lines so they do not all start scrolling together.",
       "label": "Line offset ms",
-      "order": 92
+      "order": 90
     },
     "display.text_scrolling.start_delay_ms": {
       "help": "Milliseconds to hold a long line at its beginning before scrolling starts.",
       "label": "Start delay ms",
-      "order": 90
+      "order": 88
     },
     "display.text_scrolling.end_delay_ms": {
       "help": "Milliseconds to hold a line at its end before restarting non-continuous scrolling.",
       "label": "End delay ms",
-      "order": 91
+      "order": 89
     },
     "display.phone.scroll_wheel_phone_menu": {
       "label": "Automatic Phone Wheel Control",
       "help": "Automatically enter DIS wheel control for the visible center phone page or top-only phone display. Double-click MODE to return to normal wheel mappings for the current call. Manual readings control takes priority. Page showing is configured separately.",
       "type": "boolean",
-      "order": 103
+      "order": 101
     },
     "display.phone.claim_on_phone": {
       "help": "Auto-claim center display on incoming/active phone calls and release when ended.",
       "type": "boolean",
       "label": "Claim on phone",
-      "order": 104
+      "order": 102
     },
     "input_mappings.mfsw.double_click_ms": {
       "label": "Wheel Double-click Window (ms)",
@@ -483,7 +483,7 @@
       "type": "number",
       "min": 150,
       "max": 800,
-      "order": 203
+      "order": 201
     },
     "interfaces.zmq.input_control_stream": {
       "label": "DIS Wheel Events",
@@ -511,44 +511,44 @@
       "label": "Recording Directory",
       "help": "Stores workspace.json and named-value sessions. Existing raw/debug logs keep their own directory.",
       "type": "text",
-      "order": 48
+      "order": 46
     },
     "data_logs.queue_size": {
       "label": "Recording Writer Queue",
       "help": "Maximum queued samples. Queue losses are reported in recording status.",
       "type": "number",
       "min": 100,
-      "order": 49
+      "order": 47
     },
     "features.day_night_mode": {
       "help": "Automatically sets day/night in Hudiy. Hudiy state propagates to AA/Carplay",
       "type": "boolean",
       "label": "Day night mode",
-      "order": 105
+      "order": 103
     },
     "features.source_controls": {
       "help": "Auto Pause/Resume when switching from/to tv source.",
       "type": "boolean",
       "label": "Source controls",
-      "order": 132
+      "order": 130
     },
     "features.debug_mode": {
       "help": "Enable detailed logging for troubleshooting.",
       "type": "boolean",
       "label": "Debug mode",
-      "order": 135
+      "order": 133
     },
     "features.car_time_zone": {
       "help": "IANA timezone used to interpret the local time sent by the car, for example America/Denver or Europe/London.",
       "type": "text",
       "label": "Car time zone",
-      "order": 134
+      "order": 132
     },
     "features.time_sync.threshold_minutes": {
       "help": "Absolute clock difference in minutes that triggers synchronization. 0.1 means six seconds.",
       "type": "number",
       "label": "Threshold minutes",
-      "order": 109
+      "order": 107
     },
     "features.power_management.auto_shutdown": {
       "label": "Ignition Auto Shutdown"
@@ -557,7 +557,7 @@
       "help": "Wait time before shutdown (sec).",
       "type": "number",
       "label": "Delay seconds",
-      "order": 112
+      "order": 110
     },
     "features.power_management.listen_only_mode": {
       "label": "Infotainment CAN Listen Only Mode",
@@ -569,7 +569,7 @@
     "features.power_management.gpio_shutdown.active_low": {
       "help": "gpiozero input polarity: enabled means low is the active Button state; disabled means high is active. The service derives the wake signal from this state and shuts down when that wake signal is OFF.",
       "label": "Active low",
-      "order": 118
+      "order": 116
     },
     "features.power_management.connection_management": {
       "label": "AA & Bluetooth Connection Manager",
@@ -579,43 +579,43 @@
       "help": "Allow connections when ignition is ON.",
       "type": "boolean",
       "label": "Connect on ignition",
-      "order": 121
+      "order": 119
     },
     "features.power_management.connection_management.connect_on_radio": {
       "help": "Allow connections when RNS-E radio is ON without ignition.",
       "type": "boolean",
       "label": "Connect on radio",
-      "order": 122
+      "order": 120
     },
     "features.power_management.connection_management.door_open_window_seconds": {
       "help": "Fast connection window duration when door opens (sec).",
       "type": "number",
       "label": "Door open window seconds",
-      "order": 123
+      "order": 121
     },
     "features.power_management.connection_management.unlock_wake_window_seconds": {
       "help": "Fast connection window duration on unlock/wake (sec).",
       "type": "number",
       "label": "Unlock wake window seconds",
-      "order": 124
+      "order": 122
     },
     "features.power_management.connection_management.manage_bluetooth": {
       "help": "Toggle Bluetooth/BLE adapter power automatically.",
       "type": "boolean",
       "label": "Manage bluetooth",
-      "order": 125
+      "order": 123
     },
     "features.power_management.connection_management.manage_android_auto": {
       "help": "Dispatch connect/disconnect to Hudiy Android Auto.",
       "type": "boolean",
       "label": "Manage android auto",
-      "order": 126
+      "order": 124
     },
     "features.power_management.connection_management.disconnect_delay_seconds": {
       "help": "Delay before disconnecting when ignition/radio turns off (sec).",
       "type": "number",
       "label": "Disconnect delay seconds",
-      "order": 127
+      "order": 125
     },
     "input_mappings.mmi": {
       "label": "RNS-E (MMI)"
@@ -624,265 +624,265 @@
       "help": "Min time between distinct button events (sec).",
       "type": "number",
       "label": "Cooldown period",
-      "order": 154
+      "order": 152
     },
     "input_mappings.mmi.long_press_message_count": {
       "help": "Messages needed to trigger Long Press.",
       "type": "number",
       "label": "Long press message count",
-      "order": 155
+      "order": 153
     },
     "input_mappings.mmi.extended_long_press_message_count": {
       "help": "Messages needed to trigger Extended Press.",
       "type": "number",
       "label": "Extended long press message count",
-      "order": 156
+      "order": 154
     },
     "input_mappings.mmi.short_press.8,0": {
       "label": "NAV",
       "help": "Action for RNS-E short press (8,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 167
+      "order": 165
     },
     "input_mappings.mmi.short_press.0,8": {
       "label": "TEL",
       "help": "Action for RNS-E short press (0,8). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 168
+      "order": 166
     },
     "input_mappings.mmi.short_press.0,4": {
       "label": "MEDIA",
       "help": "Action for RNS-E short press (0,4). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 169
+      "order": 167
     },
     "input_mappings.mmi.short_press.4,0": {
       "label": "NAME",
       "help": "Action for RNS-E short press (4,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 170
+      "order": 168
     },
     "input_mappings.mmi.short_press.0,12": {
       "label": "INFO",
       "help": "Action for RNS-E short press (0,12). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 171
+      "order": 169
     },
     "input_mappings.mmi.short_press.12,0": {
       "label": "CAR",
       "help": "Action for RNS-E short press (12,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 172
+      "order": 170
     },
     "input_mappings.mmi.long_press.8,0": {
       "label": "NAV",
       "help": "Action for RNS-E long press (8,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 182
+      "order": 180
     },
     "input_mappings.mmi.long_press.0,8": {
       "label": "TEL",
       "help": "Action for RNS-E long press (0,8). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 183
+      "order": 181
     },
     "input_mappings.mmi.long_press.0,4": {
       "label": "MEDIA",
       "help": "Action for RNS-E long press (0,4). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 184
+      "order": 182
     },
     "input_mappings.mmi.long_press.4,0": {
       "label": "NAME",
       "help": "Action for RNS-E long press (4,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 185
+      "order": 183
     },
     "input_mappings.mmi.long_press.0,12": {
       "label": "INFO",
       "help": "Action for RNS-E long press (0,12). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 186
+      "order": 184
     },
     "input_mappings.mmi.long_press.12,0": {
       "label": "CAR",
       "help": "Action for RNS-E long press (12,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 187
+      "order": 185
     },
     "input_mappings.mmi.extended_press.8,0": {
       "label": "NAV",
       "help": "Action for RNS-E extended press (8,0). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
-      "order": 197
+      "order": 195
     },
     "input_mappings.mmi.extended_press.0,8": {
       "label": "TEL",
       "help": "Action for RNS-E extended press (0,8). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
-      "order": 198
+      "order": 196
     },
     "input_mappings.mmi.extended_press.0,4": {
       "label": "MEDIA",
       "help": "Action for RNS-E extended press (0,4). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
-      "order": 199
+      "order": 197
     },
     "input_mappings.mmi.extended_press.4,0": {
       "label": "NAME",
       "help": "Action for RNS-E extended press (4,0). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
-      "order": 200
+      "order": 198
     },
     "input_mappings.mmi.extended_press.0,12": {
       "label": "INFO",
       "help": "Action for RNS-E extended press (0,12). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
-      "order": 201
+      "order": 199
     },
     "input_mappings.mmi.extended_press.12,0": {
       "label": "CAR",
       "help": "Action for RNS-E extended press (12,0). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
-      "order": 202
+      "order": 200
     },
     "input_mappings.mmi.short_press.1,0": {
       "label": "Previous Track",
       "help": "Action for RNS-E short press (1,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 158
+      "order": 156
     },
     "input_mappings.mmi.short_press.2,0": {
       "label": "Next Track",
       "help": "Action for RNS-E short press (2,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 159
+      "order": 157
     },
     "input_mappings.mmi.short_press.0,16": {
       "label": "Knob Press",
       "help": "Action for RNS-E short press (0,16). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 162
+      "order": 160
     },
     "input_mappings.mmi.short_press.64,0": {
       "label": "Top Left Quad",
       "help": "Action for RNS-E short press (64,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 160
+      "order": 158
     },
     "input_mappings.mmi.short_press.128,0": {
       "label": "Bottom Left Quad",
       "help": "Action for RNS-E short press (128,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 161
+      "order": 159
     },
     "input_mappings.mmi.short_press.0,32": {
       "label": "Knob CCW",
       "help": "Action for RNS-E short press (0,32). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 163
+      "order": 161
     },
     "input_mappings.mmi.short_press.0,64": {
       "label": "Knob CW",
       "help": "Action for RNS-E short press (0,64). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 164
+      "order": 162
     },
     "input_mappings.mmi.short_press.0,2": {
       "label": "Return",
       "help": "Action for RNS-E short press (0,2). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 165
+      "order": 163
     },
     "input_mappings.mmi.short_press.0,1": {
       "label": "Setup",
       "help": "Action for RNS-E short press (0,1). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 166
+      "order": 164
     },
     "input_mappings.mmi.long_press.1,0": {
       "label": "Previous Track",
       "help": "Action for RNS-E long press (1,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 173
+      "order": 171
     },
     "input_mappings.mmi.long_press.2,0": {
       "label": "Next Track",
       "help": "Action for RNS-E long press (2,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 174
+      "order": 172
     },
     "input_mappings.mmi.long_press.0,16": {
       "label": "Knob Press",
       "help": "Action for RNS-E long press (0,16). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 177
+      "order": 175
     },
     "input_mappings.mmi.long_press.64,0": {
       "label": "Top Left Quad",
       "help": "Action for RNS-E long press (64,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 175
+      "order": 173
     },
     "input_mappings.mmi.long_press.128,0": {
       "label": "Bottom Left Quad",
       "help": "Action for RNS-E long press (128,0). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 176
+      "order": 174
     },
     "input_mappings.mmi.long_press.0,2": {
       "label": "Return",
       "help": "Action for RNS-E long press (0,2). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 180
+      "order": 178
     },
     "input_mappings.mmi.long_press.0,1": {
       "label": "Setup",
       "help": "Action for RNS-E long press (0,1). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
-      "order": 181
+      "order": 179
     },
     "input_mappings.mmi.extended_press.1,0": {
       "label": "Previous Track",
       "help": "Action for RNS-E extended press (1,0). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
-      "order": 188
+      "order": 186
     },
     "input_mappings.mmi.extended_press.2,0": {
       "label": "Next Track",
       "help": "Action for RNS-E extended press (2,0). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
-      "order": 189
+      "order": 187
     },
     "input_mappings.mmi.extended_press.0,16": {
       "label": "Knob Press",
       "help": "Action for RNS-E extended press (0,16). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
-      "order": 192
+      "order": 190
     },
     "input_mappings.mmi.extended_press.64,0": {
       "label": "Top Left Quad",
       "help": "Action for RNS-E extended press (64,0). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
-      "order": 190
+      "order": 188
     },
     "input_mappings.mmi.extended_press.128,0": {
       "label": "Bottom Left Quad",
       "help": "Action for RNS-E extended press (128,0). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
-      "order": 191
+      "order": 189
     },
     "input_mappings.mmi.extended_press.0,2": {
       "label": "Return",
       "help": "Action for RNS-E extended press (0,2). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
-      "order": 195
+      "order": 193
     },
     "input_mappings.mmi.extended_press.0,1": {
       "label": "Setup",
       "help": "Action for RNS-E extended press (0,1). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
-      "order": 196
+      "order": 194
     },
     "interfaces.can": {
       "label": "CAN interfaces"
@@ -946,19 +946,19 @@
     "features.log_saver.services": {
       "label": "Log Saver Services",
       "help": "List of systemd services to save logs for.",
-      "order": 136
+      "order": 134
     },
     "features.log_saver.minutes": {
       "label": "Log Duration (Minutes)",
       "help": "How far back to save logs in minutes.",
       "type": "number",
-      "order": 137
+      "order": 135
     },
     "features.log_saver.log_directory": {
       "label": "Log Directory",
       "help": "Path where logs will be saved. Supports relative ~/ paths.",
       "type": "text",
-      "order": 138
+      "order": 136
     },
     "file_portal": {
       "label": "File Portal"
@@ -967,25 +967,25 @@
       "label": "Upload PIN",
       "help": "Optional PIN required when uploading firmware from a phone. Leave empty to allow uploads from any device on the Pi network.",
       "type": "text",
-      "order": 50
+      "order": 48
     },
     "file_portal.archive_limit_mb": {
       "label": "Maximum Bundle Size (MB)",
       "help": "Maximum uncompressed size allowed by Download All.",
       "type": "number",
-      "order": 51
+      "order": 49
     },
     "file_portal.runtime_log_directory": {
       "label": "Live Service Log Directory",
       "help": "Directory containing current file-based service logs.",
       "type": "text",
-      "order": 52
+      "order": 50
     },
     "file_portal.firmware_targets": {
       "label": "Firmware Targets",
       "help": "JSON list of firmware upload targets. Each object defines id, label, description, directory, extensions, validator and max_size_mb. Supported validators: haldex and pq-eps. Extensions are a list such as [\".bin\"]. Keep each target’s directory aligned with its controller firmware_dir.",
       "type": "json-array",
-      "order": 53
+      "order": 51
     },
     "ddp_bitmap_message_bytes": {
       "help": "Maximum bytes in each DDP bitmap message (13–195). Larger messages reduce command overhead. Multi-row commands require 105 or fewer bytes. Default example: 105.",
@@ -1020,116 +1020,106 @@
       "order": 33
     },
     "haldex.default_mode": {
-      "help": "Startup mode: null restores the last saved mode, 0 = Stock, 1 = Performance, 2 = Competition, 3 = Snow Drift, 4 = Full Coupling (3-4 need a five-mode image). A fixed mode disables saving mode changes as the next startup choice.",
+      "help": "Startup mode: null restores the last saved mode, 0 = Stock, 1 = Performance, 2 = Competition, 3 = Snow Drift, 4 = Full Coupling. A fixed mode disables saving mode changes as the next startup choice.",
       "type": "json-value",
       "label": "Default mode",
       "order": 34
     },
-    "haldex.burst_count": {
-      "help": "Number of CAN frames sent in a Haldex mode command burst. Repeated frames help the controller receive the requested mode.",
-      "label": "Burst count",
-      "order": 35
-    },
-    "haldex.burst_interval_ms": {
-      "help": "Pause in milliseconds between frames in each Haldex mode command burst.",
-      "label": "Burst interval ms",
-      "order": 36
-    },
     "haldex.persistence_file": {
       "help": "JSON file storing the last requested Haldex mode when default_mode is null. The Pi service must be able to write here.",
       "label": "Persistence file",
-      "order": 37
+      "order": 35
     },
     "haldex.firmware_dir": {
       "help": "Directory containing Haldex firmware available in DataView and the file portal. A leading ~ expands to the Pi service user’s home directory.",
       "label": "Firmware dir",
-      "order": 38
+      "order": 36
     },
     "eps.firmware_dir": {
       "help": "Directory containing steering controller images or datasets for the EPS tools. A leading ~ expands on the Pi.",
       "label": "Firmware dir",
-      "order": 39
+      "order": 37
     },
     "exhaust_valve.firmware_dir": {
       "help": "Directory used for exhaust-valve firmware images. The flashing tools inspect candidate firmware before deployment.",
       "label": "Firmware dir",
-      "order": 40
+      "order": 38
     },
     "exhaust_valve.installed_generation_floor": {
       "help": "Minimum deployed exhaust-control firmware generation assumed when no deployment record exists. Keep this aligned with the firmware actually installed.",
       "label": "Installed generation floor",
-      "order": 41
+      "order": 39
     },
     "exhaust_valve.generation_file": {
       "help": "Deployment record used to track installed exhaust-control firmware generation and determine supported commands.",
       "label": "Generation file",
-      "order": 42
+      "order": 40
     },
     "exhaust_valve.intent_file": {
       "help": "JSON persistence file for the requested exhaust-valve behavior, restored by the Haldex manager.",
       "label": "Intent file",
-      "order": 43
+      "order": 41
     },
     "data_logger.default_profile": {
       "help": "Default raw/debug recording profile. The current logger implements the haldex profile, falling back to it for unknown profile names.",
       "label": "Default profile",
-      "order": 44
+      "order": 42
     },
     "data_logger.log_directory": {
       "help": "Directory for raw/debug sessions, separate from named-value recordings under data_logs.directory. Supports ~ on the Pi.",
       "label": "Log directory",
-      "order": 45
+      "order": 43
     },
     "data_logger.queue_size": {
       "help": "Maximum queued raw/debug records before the writer falls behind. Runtime enforces at least 100; dropped records are reported.",
       "label": "Queue size",
-      "order": 46
+      "order": 44
     },
     "data_logger.profiles.haldex.measuring_groups": {
       "help": "Additional diagnostic groups for raw Haldex sessions. JSON list of objects: module (hex address), groups (list of group numbers), low_priority_groups (optional list), value_count (default 4). An empty list uses the built-in profile groups.",
       "type": "json-array",
       "label": "Measuring groups",
-      "order": 47
+      "order": 45
     },
     "openpilot.enabled": {
       "help": "Reserved setting. Openpilot integration is disabled in the current runtime because its CAN identifiers conflict with Haldex control; enabling this setting does not activate it.",
       "label": "Enabled",
-      "order": 54
+      "order": 52
     },
     "display.center_display.start_inactive": {
       "help": "Start with the original cluster presentation until HUDiy display ownership is requested. Useful when you want the factory screen visible at boot.",
       "label": "Start inactive",
-      "order": 59
+      "order": 57
     },
     "display.text_centering": {
       "help": "Center short text in the DIS text area. Long text uses the scrolling settings instead.",
       "label": "Text centering",
-      "order": 93
+      "order": 91
     },
     "features.sync_android_auto": {
       "help": "When day/night synchronization runs, explicitly set Android Auto’s appearance mode as well as Hudiy’s common/system mode. Disabled uses the common mode alone; this does not connect or disconnect Android Auto.",
       "label": "Sync android auto",
-      "order": 106
+      "order": 104
     },
     "features.mmi_controls": {
       "help": "Translate RNS-E buttons and knob events into the configured keyboard mappings.",
       "label": "Mmi controls",
-      "order": 130
+      "order": 128
     },
     "features.mfsw_controls": {
       "help": "Translate multifunction steering-wheel events into keyboard actions. DIS wheel ownership uses these events for phone and readings controls.",
       "label": "Mfsw controls",
-      "order": 131
+      "order": 129
     },
     "features.system_actions": {
       "help": "Allow MMI extended-press mappings to run system commands such as saving logs, rebooting or shutting down.",
       "label": "System actions",
-      "order": 133
+      "order": 131
     },
     "features.time_sync.enabled": {
       "help": "Set the Pi clock from the vehicle’s CAN time message when its drift exceeds the configured threshold.",
       "label": "Enabled",
-      "order": 107
+      "order": 105
     },
     "features.time_sync.data_format": {
       "help": "Vehicle time-message encoding. old_logic decodes BCD time/date fields; new_logic decodes binary fields. Match your vehicle’s transmitted format.",
@@ -1139,12 +1129,12 @@
         "new_logic"
       ],
       "label": "Data format",
-      "order": 108
+      "order": 106
     },
     "features.power_management.auto_shutdown.enabled": {
       "help": "Enable automatic Pi shutdown after the selected power-state trigger persists for the delay.",
       "label": "Enabled",
-      "order": 110
+      "order": 108
     },
     "features.power_management.auto_shutdown.trigger": {
       "help": "Power-state transition that starts the shutdown timer: ignition_off or key_pulled. A return to the active state cancels the timer; an active GPIO wake signal holds off shutdown.",
@@ -1154,78 +1144,78 @@
         "key_pulled"
       ],
       "label": "Trigger",
-      "order": 111
+      "order": 109
     },
     "features.power_management.listen_only_mode.enabled": {
       "help": "Place the infotainment SocketCAN interface into listen-only mode after the vehicle bus is ready to sleep, avoiding transmissions that keep it awake.",
       "label": "Enabled",
-      "order": 113
+      "order": 111
     },
     "features.power_management.listen_only_mode.delay_seconds": {
       "help": "Seconds to wait after the sleep-ready condition before switching the CAN interface to listen-only.",
       "label": "Delay seconds",
-      "order": 114
+      "order": 112
     },
     "features.power_management.listen_only_mode.fallback_seconds": {
       "help": "Seconds since ignition turned OFF before forcing the sleep-ready state, even if network-management frames still arrive. This is a fallback for vehicles that keep transmitting.",
       "label": "Fallback seconds",
-      "order": 115
+      "order": 113
     },
     "features.power_management.gpio_shutdown.enabled": {
       "help": "Watch the configured GPIO and shut down the Pi when its shutdown level persists for the delay.",
       "label": "Enabled",
-      "order": 116
+      "order": 114
     },
     "features.power_management.gpio_shutdown.pin": {
       "help": "BCM GPIO number of the shutdown input. This is a GPIO number, not a physical header-pin number.",
       "label": "Pin",
-      "order": 117
+      "order": 115
     },
     "features.power_management.gpio_shutdown.delay_seconds": {
       "help": "Seconds the GPIO must remain at its shutdown level before the Pi shuts down.",
       "label": "Delay seconds",
-      "order": 119
+      "order": 117
     },
     "features.power_management.connection_management.enabled": {
       "help": "Automatically manage Hudiy Android Auto and Bluetooth connections using ignition, radio and wake events.",
       "label": "Enabled",
-      "order": 120
+      "order": 118
     },
     "features.tv_simulation.enabled": {
       "help": "Transmit TV tuner presence frames so the RNS-E can select the TV source used by the video interface.",
       "label": "Enabled",
-      "order": 128
+      "order": 126
     },
     "features.tv_simulation.payload": {
       "help": "CAN data bytes sent for TV tuner presence. Enter 1–8 whole bytes as hexadecimal, compact or space-separated; saved as compact uppercase hex.",
       "label": "TV presence payload",
       "type": "hex-payload",
-      "order": 129
+      "order": 127
     },
     "input_mappings.mmi.scroll_commands": {
       "help": "MMI byte pairs treated as immediate rotary events. These bypass press-duration handling; the matching short-press mapping chooses the keyboard key.",
       "label": "Scroll commands",
-      "order": 157
+      "order": 155
     },
     "input_mappings.mfsw.commands.release": {
       "help": "Two-byte steering-wheel release pattern. Keep this as a JSON array of hex strings, matching the vehicle CAN payload.",
       "label": "Release",
-      "order": 212
+      "order": 210
     },
     "input_mappings.source.tv_mode_identifier": {
       "help": "Hex source-state byte identifying TV mode. Source controls pause playback when leaving TV and resume when returning.",
       "label": "Tv mode identifier",
-      "order": 231
+      "order": 229
     },
     "input_mappings.source.play_key": {
       "help": "Keyboard key emitted on returning to the TV source when features.source_controls is enabled.",
       "label": "Play key",
-      "order": 232
+      "order": 230
     },
     "input_mappings.source.pause_key": {
       "help": "Keyboard key emitted on leaving the TV source when features.source_controls is enabled.",
       "label": "Pause key",
-      "order": 233
+      "order": 231
     },
     "interfaces.zmq.haldex_command": {
       "help": "Local ZeroMQ endpoint accepting Haldex and exhaust-control requests from DataView.",
@@ -1241,91 +1231,91 @@
       "help": "r21 ADC tuning acknowledgement and dump replies; firmware uses 0x462. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Rnse adc reply",
-      "order": 139
+      "order": 137
     },
     "can_ids.light_status": {
       "help": "Vehicle light state used for Hudiy day/night mode. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Light status",
-      "order": 140
+      "order": 138
     },
     "can_ids.time_data": {
       "help": "Vehicle clock and date used for Pi clock synchronization. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Time data",
-      "order": 141
+      "order": 139
     },
     "can_ids.ignition_status": {
       "help": "Ignition and key state used by power and connection management. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Ignition status",
-      "order": 142
+      "order": 140
     },
     "can_ids.door_status": {
       "help": "Door state used for connection wake windows. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Door status",
-      "order": 143
+      "order": 141
     },
     "can_ids.gateway_nm_status": {
       "help": "Gateway network-management state used to detect bus sleep. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Gateway nm status",
-      "order": 144
+      "order": 142
     },
     "can_ids.nav_nm_status": {
       "help": "RNS-E network-management state used to track radio activity. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Nav nm status",
-      "order": 145
+      "order": 143
     },
     "can_ids.tv_presence": {
       "help": "TV tuner presence frames transmitted by TV simulation. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Tv presence",
-      "order": 146
+      "order": 144
     },
     "can_ids.fis_line1": {
       "help": "First factory top-DIS text line. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Fis line1",
-      "order": 147
+      "order": 145
     },
     "can_ids.fis_line2": {
       "help": "Second factory top-DIS text line. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Fis line2",
-      "order": 148
+      "order": 146
     },
     "can_ids.media_status": {
       "help": "Factory media source status. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Media status",
-      "order": 149
+      "order": 147
     },
     "can_ids.nav_status": {
       "help": "Factory navigation status. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Nav status",
-      "order": 150
+      "order": 148
     },
     "can_ids.mmi": {
       "help": "RNS-E button and rotary input frames. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Mmi",
-      "order": 151
+      "order": 149
     },
     "can_ids.mfsw": {
       "help": "Multifunction steering-wheel input frames. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Mfsw",
-      "order": 152
+      "order": 150
     },
     "can_ids.source": {
       "help": "Selected RNS-E source state. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Source",
-      "order": 153
+      "order": 151
     },
     "display.center_display.coverart.args.contrast": {
       "help": "Contrast multiplier; 1 leaves contrast unchanged."
@@ -1439,181 +1429,181 @@
       "help": "Action for RNS-E long press (0,32). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
       "label": "0,32",
-      "order": 178
+      "order": 176
     },
     "input_mappings.mmi.long_press.0,64": {
       "help": "Action for RNS-E long press (0,64). Enter a Linux KEY_* string, e.g. \"KEY_ENTER\", a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), or null to disable.",
       "type": "json-value",
       "label": "0,64",
-      "order": 179
+      "order": 177
     },
     "input_mappings.mmi.extended_press.0,32": {
       "help": "Action for RNS-E extended press (0,32). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
       "label": "0,32",
-      "order": 193
+      "order": 191
     },
     "input_mappings.mmi.extended_press.0,64": {
       "help": "Action for RNS-E extended press (0,64). Enter a Linux KEY_* string, a Hudiy action object ({\"action\":\"hudiy_diagnostics\"}), a shell command string, or null. Shell commands require features.system_actions.",
       "type": "json-value",
       "label": "0,64",
-      "order": 194
+      "order": 192
     },
     "input_mappings.mfsw.commands.scroll_up": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Scroll up",
-      "order": 204
+      "order": 202
     },
     "input_mappings.mfsw.commands.scroll_down": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Scroll down",
-      "order": 205
+      "order": 203
     },
     "input_mappings.mfsw.commands.mode_press": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Mode press",
-      "order": 206
+      "order": 204
     },
     "input_mappings.mfsw.commands.volume_scroll_up": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Volume scroll up",
-      "order": 207
+      "order": 205
     },
     "input_mappings.mfsw.commands.volume_scroll_down": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Volume scroll down",
-      "order": 208
+      "order": 206
     },
     "input_mappings.mfsw.commands.ptt_press": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Ptt press",
-      "order": 209
+      "order": 207
     },
     "input_mappings.mfsw.commands.scroll_click": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Scroll click",
-      "order": 210
+      "order": 208
     },
     "input_mappings.mfsw.commands.volume_scroll_click": {
       "help": "Hex command byte identifying this steering-wheel event in the CAN payload. Match the vehicle’s wheel messages.",
       "type": "text",
       "label": "Volume scroll click",
-      "order": 211
+      "order": 209
     },
     "input_mappings.mfsw.short_press.scroll_up": {
       "help": "Action for steering wheel short press (scroll_up). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Scroll up",
-      "order": 213
+      "order": 211
     },
     "input_mappings.mfsw.short_press.scroll_down": {
       "help": "Action for steering wheel short press (scroll_down). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Scroll down",
-      "order": 214
+      "order": 212
     },
     "input_mappings.mfsw.short_press.mode": {
       "help": "Action for steering wheel short press (mode). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Mode",
-      "order": 215
+      "order": 213
     },
     "input_mappings.mfsw.short_press.ptt": {
       "help": "Action for steering wheel short press (ptt). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Ptt",
-      "order": 216
+      "order": 214
     },
     "input_mappings.mfsw.short_press.scroll_click": {
       "help": "Action for steering wheel short press (scroll_click). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Scroll click",
-      "order": 217
+      "order": 215
     },
     "input_mappings.mfsw.short_press.volume_scroll_up": {
       "help": "Action for steering wheel short press (volume_scroll_up). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Volume scroll up",
-      "order": 218
+      "order": 216
     },
     "input_mappings.mfsw.short_press.volume_scroll_down": {
       "help": "Action for steering wheel short press (volume_scroll_down). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Volume scroll down",
-      "order": 219
+      "order": 217
     },
     "input_mappings.mfsw.short_press.volume_scroll_click": {
       "help": "Action for steering wheel short press (volume_scroll_click). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Volume scroll click",
-      "order": 220
+      "order": 218
     },
     "input_mappings.mfsw.long_press.mode": {
       "help": "Action for steering wheel long press (mode). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Mode",
-      "order": 221
+      "order": 219
     },
     "input_mappings.mfsw.long_press.ptt": {
       "help": "Action for steering wheel long press (ptt). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Ptt",
-      "order": 222
+      "order": 220
     },
     "input_mappings.mfsw.long_press.scroll_click": {
       "help": "Action for steering wheel long press (scroll_click). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Scroll click",
-      "order": 223
+      "order": 221
     },
     "input_mappings.mfsw.long_press.volume_scroll_up": {
       "help": "Action for steering wheel long press (volume_scroll_up). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Volume scroll up",
-      "order": 224
+      "order": 222
     },
     "input_mappings.mfsw.long_press.volume_scroll_down": {
       "help": "Action for steering wheel long press (volume_scroll_down). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Volume scroll down",
-      "order": 225
+      "order": 223
     },
     "input_mappings.mfsw.long_press.volume_scroll_click": {
       "help": "Action for steering wheel long press (volume_scroll_click). Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Volume scroll click",
-      "order": 226
+      "order": 224
     },
     "input_mappings.mfsw.phone_alt.short_press.mode": {
       "help": "Action for steering wheel short press (mode). Legacy phone override ignored by the current shared wheel router; preserved for older versions. Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Mode",
-      "order": 227
+      "order": 225
     },
     "input_mappings.mfsw.phone_alt.short_press.ptt": {
       "help": "Action for steering wheel short press (ptt). Legacy phone override ignored by the current shared wheel router; preserved for older versions. Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Ptt",
-      "order": 228
+      "order": 226
     },
     "input_mappings.mfsw.phone_alt.long_press.mode": {
       "help": "Action for steering wheel long press (mode). Legacy phone override ignored by the current shared wheel router; preserved for older versions. Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Mode",
-      "order": 229
+      "order": 227
     },
     "input_mappings.mfsw.phone_alt.long_press.ptt": {
       "help": "Action for steering wheel long press (ptt). Legacy phone override ignored by the current shared wheel router; preserved for older versions. Enter a Linux KEY_* name, e.g. KEY_ENTER. null disables the action.",
       "type": "json-value",
       "label": "Ptt",
-      "order": 230
+      "order": 228
     }
   },
   "sections": [
@@ -1776,8 +1766,6 @@
     "haldex": {
       "enabled": true,
       "default_mode": null,
-      "burst_count": 5,
-      "burst_interval_ms": 20,
       "persistence_file": "/home/pi/.hudiy/haldex_mode.json",
       "firmware_dir": "~/haldexfw"
     },

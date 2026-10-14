@@ -1067,7 +1067,7 @@ body {
 }
 
 .haldex-badge.switching,
-.haldex-badge.reconciling,
+.haldex-badge.failed,
 .haldex-badge.unsupported {
     background-color: rgba(255, 152, 0, 0.2);
     color: #ff9800;
