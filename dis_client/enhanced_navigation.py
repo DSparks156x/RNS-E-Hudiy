@@ -235,9 +235,16 @@ def global_white_view(app, navigation):
         if isinstance(delay, bool) or not isinstance(delay, (int, float)) or not 0 <= delay <= 100:
             delay = 5
         canvas = canvas_for_icon(icon_key) if high_resolution(app.config) else normal_icon_canvas(icon_key)
-        view.append(dict(group='icon', cmd='native_bitmap', update_rect=[6, 0, 72, 78],
-                         preserves_overlays=True, data_hex=canvas.hex(),
-                         render_order=order, post_message_delay_s=delay / 1000))
+        # Planes paint an opaque low-res base with the text and bar, then
+        # refine one plane per frame so the screen stays live and leavable.
+        stages = range(4) if order == 'planes' else (None,)
+        for stage in stages:
+            item = dict(group='icon' if not stage else 'icon_plane_%d' % stage, cmd='native_bitmap',
+                        update_rect=[6, 0, 72, 78], preserves_overlays=True, data_hex=canvas.hex(),
+                        render_order=order, post_message_delay_s=delay / 1000)
+            if stage is not None:
+                item.update(stage=stage, deferred=stage > 0)
+            view.append(item)
         dependency = None
     # Each native cell has its own dirty signature. Cold/full snapshots draw
     # all five; progress updates replace only changed glyphs, without a strip

@@ -1280,9 +1280,23 @@ class DisplayEngine:
             replaces_center = any(any(item.get('cmd') == 'native_bitmap' and not preserves_overlays(item) for item in items)
                 and (full_redraw or last_groups.get(group) != str(items))
                 for group, items in groups_current.items())
-            for group, items in groups_current.items():
+            # Deferred groups (slow native refinement planes) go one per frame
+            # after the frame carrying their base, so text keeps updating and
+            # the page can be left between planes.
+            def deferred(items):
+                return any(item.get('deferred') for item in items)
+            deferred_budget = not (full_redraw or replaces_center or any(
+                not deferred(items) and last_groups.get(group) != str(items)
+                and any(item.get('cmd') == 'native_bitmap' for item in items)
+                for group, items in groups_current.items()))
+            for group, items in sorted(groups_current.items(), key=lambda entry: deferred(entry[1])):
                 if not (full_redraw or replaces_center or last_groups.get(group) != str(items)):
                     continue
+                if deferred(items):
+                    if not deferred_budget:
+                        last_groups.pop(group, None)  # Still owed after this frame.
+                        continue
+                    deferred_budget = False
                 previous_items = [] if full_redraw or replaces_center else (self.last_sent.get('group_items') or {}).get(group, [])
                 prepared_items = self._prepare_text_group(items, previous_items, profile, group)
                 for item in prepared_items:
@@ -1301,13 +1315,15 @@ class DisplayEngine:
                             payload['delta'] = True
                         if item.get('update_rect') is not None:
                             payload['update_rect'] = item['update_rect']
+                        if item.get('stage') is not None:
+                            payload['stage'] = item['stage']
                     elif cmd == 'draw_bitmap':
                         payload = dict(command=cmd, icon_name=item.get('icon', ''),
                             x=item.get('x', 0), y=item.get('y', 0))
                         if 'mode_flag' in item:
                             payload['mode_flag'] = item['mode_flag']
                     elif cmd in ('draw_text', 'update_text', 'draw_line', 'clear_area', 'draw_raw_bitmap', 'draw_stock_mono_frame', 'draw_native_font', 'draw_stock_nav_glyph'):
-                        payload = {key: value for key, value in item.items() if key not in ('cmd', 'group', 'type')}
+                        payload = {key: value for key, value in item.items() if key not in ('cmd', 'group', 'type', 'deferred')}
                         payload['command'] = cmd
                     else:
                         logger.warning('Unsupported app drawing command: %s', cmd)

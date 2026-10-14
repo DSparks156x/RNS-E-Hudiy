@@ -126,6 +126,16 @@ def validate_update_rect(update_rect=None, render_order='tiles', delta=False):
     return list(update_rect)
 
 
+def validate_stage(stage=None, render_order='planes', update_rect=None, delta=False):
+    """Optional single stage of a bounded planes patch: 0 base, 1..3 planes."""
+    if stage is None:
+        return None
+    if (isinstance(stage, bool) or stage not in (0, 1, 2, 3) or render_order != 'planes'
+            or update_rect is None or delta):
+        raise ValueError('Native stage is 0..3 for a bounded planes patch without delta')
+    return stage
+
+
 def compile_native_records(source, *, rows_per_command=1, render_order='planes', band_rows=12):
     """Full-center low-level records; no commit, labels or clipping between planes."""
     if isinstance(rows_per_command, bool) or not isinstance(rows_per_command, int) or not 1 <= rows_per_command <= 12:
@@ -229,13 +239,18 @@ def pack_native_records(records, *, budget=105, priming='each', selector_bytes=1
 
 
 
-def _compile_bounded_plane_payloads(source, rect, rows_per_command):
+def _compile_bounded_plane_payloads(source, rect, rows_per_command, stage=None, through=None):
     """Verified opaque ROI base followed by individually primed V/H/dot planes.
 
     Each base chunk owns its clip and starts at raster row zero. This avoids
     relying on multi-row raster offsets in a retained larger clip. Corrections
     restore the ROI clip; the final record restores the full center window.
+    stage 0 is the base alone; 1/2/3 are one XOR plane, valid only directly
+    over the base and earlier planes of the same source. through=k is the
+    base plus planes 1..k, an opaque replay of a partly refined patch.
     """
+    def wanted(index):
+        return index <= through if through is not None else stage in (None, index)
     x, y, w, h = [value // 2 for value in rect]
     grid = decode_bitmap(source)
     stride = (w + 7) // 8
@@ -255,14 +270,16 @@ def _compile_bounded_plane_payloads(source, rect, rows_per_command):
                 dots.append((px, py))
     records = []
     rows = min(rows_per_command, (105 - 5) // stride)
-    for first in range(0, h, rows):
+    for first in range(0, h, rows) if wanted(0) else ():
         height = min(rows, h - first)
         data = base[first * stride:(first + height) * stride]
         records.append([0x52, 5, 0, x, y + 27 + first, w, height])
         records.append([0x55, len(data) + 3, 2, 0, 0, *data])
     records.append([0x52, 5, 0, x, y + 27, w, h])
-    strokes = _runs(vertical, True) + _runs(horizontal, False)
-    strokes += [dict(orientation=0, x=px, y=py, length=1) for px, py in dots]
+    planes = (_runs(vertical, True), _runs(horizontal, False),
+              [dict(orientation=0, x=px, y=py, length=1) for px, py in dots])
+    strokes = [stroke for index, plane in enumerate(planes, 1)
+               if wanted(index) for stroke in plane]
     for stroke in strokes:
         records.append([0x55, 4, 1, 0, 0, 0, 0x63, 4, stroke['orientation'],
                         stroke['x'], stroke['y'], stroke['length']])
@@ -279,7 +296,7 @@ def _compile_bounded_plane_payloads(source, rect, rows_per_command):
 
 
 def compile_native_payloads(source, *, rows_per_command=1, budget=105, priming='each', selector_bytes=1,
-                            render_order='planes', band_rows=12, update_rect=None):
+                            render_order='planes', band_rows=12, update_rect=None, stage=None, through=None):
     """Bounded native snapshot body, ready for existing guarded _send_graphics.
 
     Caller must append exactly one final commit and its matched frame result.
@@ -291,10 +308,14 @@ def compile_native_payloads(source, *, rows_per_command=1, budget=105, priming='
         raise ValueError('Native packet budget must be an integer13..105')
     validate_render_options(render_order, band_rows)
     update_rect = validate_update_rect(update_rect, render_order)
+    validate_stage(stage, render_order, update_rect)
+    validate_stage(through, render_order, update_rect)
+    if stage is not None and through is not None:
+        raise ValueError('Choose one native stage or a through stage')
     if update_rect is not None and render_order == 'planes':
         if budget != 105 or priming != 'each' or selector_bytes != 1:
             raise ValueError('Bounded planes require the verified105-byte each/short profile')
-        return _compile_bounded_plane_payloads(source, update_rect, rows_per_command)
+        return _compile_bounded_plane_payloads(source, update_rect, rows_per_command, stage, through)
     if render_order == 'tiles':
         if budget != 105 or priming != 'each' or selector_bytes != 1:
             raise ValueError('Completed tiles require the verified105-byte each/short profile')

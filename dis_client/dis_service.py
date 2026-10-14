@@ -772,7 +772,7 @@ class DisService:
             return False
 
     def _native_bitmap_command(self, command):
-        from native_bitmap import compile_native_payloads, validate_update_rect
+        from native_bitmap import compile_native_payloads, validate_stage, validate_update_rect
         if (self.ddp.dis_mode != DisMode.WHITE or self.region_y_offset != 27
                 or self.region_height != 48):
             raise ValueError('Native bitmaps require the white cluster central region')
@@ -785,6 +785,8 @@ class DisService:
         if not isinstance(delta, bool) or (delta and render_order not in ('tiles', 'planes')):
             raise ValueError('Native delta is a boolean option for tiles or planes')
         update_rect = validate_update_rect(command.get('update_rect'), render_order, delta)
+        stage = validate_stage(command.get('stage'), render_order, update_rect, delta)
+        through = validate_stage(command.get('through'), render_order, update_rect, delta)
         delay = command.get('post_message_delay_s')
         if delay is not None and (isinstance(delay, bool)
                 or not isinstance(delay, (int, float)) or not 0 <= delay <= .1):
@@ -792,7 +794,8 @@ class DisService:
         data = bytes.fromhex(command.get('data_hex', ''))
         payloads = compile_native_payloads(data, budget=105, rows_per_command=12,
                                           priming='each', selector_bytes=1,
-                                          render_order=render_order, band_rows=band_rows, update_rect=update_rect)
+                                          render_order=render_order, band_rows=band_rows, update_rect=update_rect,
+                                          stage=stage, through=through)
         source = dict(command='draw_native_bitmap', x=0, y=0, w=128, h=96, data_hex=data.hex(),
                       render_order=render_order, band_rows=band_rows)
         if delay is not None:
@@ -801,7 +804,15 @@ class DisService:
             source['delta'] = True
         if update_rect is not None:
             source['update_rect'] = update_rect
-        return dict(command='_native_bitmap_frame', payloads=payloads, source=source)
+        # A restore replays everything drawn so far, never one XOR plane.
+        if stage is not None and stage < 3:
+            source['through'] = stage
+        elif through is not None and through < 3:
+            source['through'] = through
+        frame = dict(command='_native_bitmap_frame', payloads=payloads, source=source)
+        if stage is not None:
+            frame['interruptible'] = True
+        return frame
 
     def _send_native_bitmap_frame(self, command):
         # Choose a delta at SEND time: preflight may precede a clear, another
@@ -835,6 +846,13 @@ class DisService:
                 if generation != getattr(self.ddp, 'state_generation', None):
                     self._frame_failed = True
                     return False
+                if command.get('interruptible') and self._draw_waiting():
+                    # The display only sends mid-frame after abandoning this
+                    # one (page change, pause); stop the slow plane now, but
+                    # never leave the patch's clip in place for the next frame.
+                    self._send_graphics([0x52, 5, 0, 0, 27, 64, 48])
+                    self._frame_failed = True
+                    return False
                 if message_delay:
                     time.sleep(message_delay)
             if source.get('update_rect') is None:
@@ -845,6 +863,12 @@ class DisService:
             return True
         finally:
             self._native_transfer_active = False
+
+    def _draw_waiting(self):
+        try:
+            return bool(self.draw_socket.poll(0, zmq.POLLIN))
+        except (AttributeError, zmq.ZMQError):
+            return False
 
     def _native_font_command(self, command):
         """Preflight exact stock57/69 records; coordinates remain raw bytes.

@@ -6,9 +6,9 @@ from collections import deque
 
 from .base import BaseApp
 try:
-    from ..readings_assets import static_layer
+    from ..readings_assets import icon_columns, static_layer
 except ImportError:
-    from readings_assets import static_layer
+    from readings_assets import icon_columns, static_layer
 from vehicle_data.catalog import CATALOG
 from vehicle_data.workspace import WorkspaceStore, default_workspace
 try:
@@ -262,9 +262,6 @@ class ReadingsApp(BaseApp):
         self.focus = min(self.focus, len(self.actions) - 1)
         view = [{'type': 'readings:' + self.page_id, 'clear_on_update': False}]
         focused = self.actions[self.focus] if self.control_mode else None
-        view.append({'group': 'static', 'cmd': 'native_bitmap', 'render_order': 'planes',
-                     'data_hex': static_layer(self.page['slots'], [r[2] for r in readings],
-                         None, False, False, False).hex()})
         control_bits = static_layer([], [], None, False, False, recording).hex()
         view.append({'group': 'record-indicator', 'cmd': 'native_bitmap', 'render_order': 'planes',
                      'update_rect': [70, 6, 2, 2], 'preserves_overlays': True, 'data_hex': control_bits})
@@ -291,4 +288,12 @@ class ReadingsApp(BaseApp):
             x = (index % 2) * 64 + 12 + ((40 - self.text_width(text, flags)) // 4) * 2
             view.append({'group': 'value:' + str(index), 'cmd': 'draw_text', 'text': text,
                          'x': x // 2, 'y': 12 + (index // 2) * 9, 'flags': flags})
+        # Each icon column paints its opaque low-res base with the text, then
+        # refines one native plane per frame so the page stays live.
+        static = static_layer(self.page['slots'], [r[2] for r in readings], None, False, False, False).hex()
+        for stage in range(4):
+            for rect in icon_columns(len(readings)):
+                view.append({'group': 'icons:%d' % stage, 'cmd': 'native_bitmap', 'render_order': 'planes',
+                             'update_rect': rect, 'stage': stage, 'preserves_overlays': True,
+                             'deferred': stage > 0, 'data_hex': static})
         return view

@@ -653,6 +653,14 @@ def icon_for(slot):
     return ICONS[next((icon for term, icon in ICON_TERMS if term in value), 'engine')]
 
 
+def icon_columns(count):
+    """Physical icon/unit columns between the value fields, never over text."""
+    rows = (count + 1) // 2
+    if not rows:
+        return []
+    return [[x, 24, w, rows * 18] for x, w in ((0, 10), (54, 20), (118, 10))]
+
+
 def static_layer(slots, units, focused, editing, control_mode, recording):
     canvas = bytearray(128 * 96 // 8)
     def mask(rows, x, y):
