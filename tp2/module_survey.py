@@ -51,6 +51,11 @@ VBN_BITS = [
 # other modules just reject it.
 IDENT_PARAMS = [0x9B, 0x91, 0x80, 0x86, 0x9A, 0x9F]
 
+# New-style identity (service 22 ReadDataByIdentifier). Modules that reject
+# every 1A request with NRC 0x11 (like the PQ BCM) identify through these DIDs
+# instead. 0600 is the module's own coding record on many PQ modules.
+IDENT_DIDS_NEW = [0xF187, 0xF189, 0xF18A, 0xF191, 0xF197, 0x0600]
+
 
 def load_config():
     try:
@@ -196,6 +201,30 @@ def identify(proto, mod):
                 info[key] = {'nrc': f"{resp[2]:02X}" if len(resp) > 2 else '??'}
             else:
                 info[key] = {'unexpected': bytes(resp or b'').hex(' ')}
+
+        # New-style fallback: if every 1A identifier was rejected as
+        # serviceNotSupported (NRC 11), this is a service-22 module. Read the
+        # standard DIDs so the survey still labels it.
+        rejected_1a = all(isinstance(info.get(f"1A{p:02X}"), dict)
+                          and info[f"1A{p:02X}"].get('nrc') == '11'
+                          for p in IDENT_PARAMS)
+        if rejected_1a and proto.connected:
+            for did in IDENT_DIDS_NEW:
+                key = f"22{did:04X}"
+                try:
+                    resp = proto.send_kwp_request([0x22, did >> 8, did & 0xFF])
+                except TP2Error as e:
+                    info[key] = {'error': str(e)}
+                    if not proto.connected:
+                        break
+                    continue
+                if resp and resp[0] == 0x62:
+                    body = bytes(resp[3:])  # strip 62 + echoed DID
+                    info[key] = {'hex': body.hex(' '), 'ascii': ascii_of(body)}
+                elif resp and resp[0] == 0x7F:
+                    info[key] = {'nrc': f"{resp[2]:02X}" if len(resp) > 2 else '??'}
+                else:
+                    info[key] = {'unexpected': bytes(resp or b'').hex(' ')}
     except TP2Error as e:
         info['error'] = str(e)
     finally:
@@ -270,7 +299,16 @@ def main():
         part, comp = text[:12].strip(), text[12:].strip()
         if not text:
             alt = mod.get('1A91', {}) if isinstance(mod.get('1A91'), dict) else {}
-            comp = alt.get('ascii', mod.get('error', ''))
+            comp = alt.get('ascii', '')
+            # New-style (service 22) fallback for modules without 1A.
+            f187 = mod.get('22F187', {})
+            f189 = mod.get('22F189', {})
+            if isinstance(f187, dict) and 'ascii' in f187:
+                part = f187['ascii'][:16]
+                ver = f189.get('ascii', '') if isinstance(f189, dict) else ''
+                comp = (comp or '') + (f" [22; sw {ver}]" if ver else " [22]")
+            if not comp and not part:
+                comp = mod.get('error', '')
         print(f"{key:<4} {mod['status']:<3} {part:<16} {comp}")
 
     coded = [e for e in result.get('installation_list', []) if e['coded']]
