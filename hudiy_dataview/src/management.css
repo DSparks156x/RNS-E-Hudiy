@@ -19,7 +19,7 @@
 .manager-brand span { font-size:11px; color:var(--on-surface-variant); }
 .manager-container .manager-pin { width:160px; min-height:40px; font-size:12px; }
 .manager-tabs { display:flex; gap:6px; flex-shrink:0; padding:4px 20px 9px; border-bottom:1px solid var(--outline-variant); }
-.manager-tabs button,.manager-tabs a { display:flex; gap:8px; align-items:center; padding:0 18px; min-height:44px; text-decoration:none; font-size:13px; font-weight:600; color:var(--on-surface-variant); background:transparent; border-radius:24px; }
+.manager-tabs button,.manager-tabs a,.manager-files-url { display:flex; gap:8px; align-items:center; padding:0 18px; min-height:44px; text-decoration:none; font-size:13px; font-weight:600; color:var(--on-surface-variant); background:transparent; border-radius:24px; }
 .manager-tabs button.active { color:var(--on-primary-container); background:var(--primary-container); }
 .manager-tabs a { margin-left:auto; }
 /* Toast over the search row; never pushes the layout down. */
@@ -115,7 +115,7 @@
   .manager-brand span { font-size:10px; }
   .manager-container .manager-pin { width:115px; }
   .manager-tabs { padding:4px 8px 8px; gap:2px; }
-  .manager-tabs button,.manager-tabs a { font-size:11px; gap:5px; padding:0 10px; }
+  .manager-tabs button,.manager-tabs a,.manager-files-url { font-size:11px; gap:5px; padding:0 10px; }
   .manager-settings-tools { padding:10px; gap:6px; }
   .manager-settings-tools select { width:150px; }
   .manager-settings-workspace { display:flex; flex-direction:column; padding:0 10px; gap:8px; }
@@ -133,7 +133,7 @@
 /* Keep the head-unit controls legible at its 800×400 viewport. */
 .manager-tabs { align-items:center; padding:4px 12px; gap:4px; }
 .manager-nav-title { flex:1; min-width:0; padding-left:8px; font-size:18px; font-weight:600; white-space:nowrap; }
-.manager-tabs button,.manager-tabs a { min-height:44px; font-size:14px; padding:0 12px; }
+.manager-tabs button,.manager-tabs a,.manager-files-url { min-height:44px; font-size:14px; padding:0 12px; }
 .manager-tabs a { margin-left:0; }
 .manager-container .manager-pin { width:112px; min-height:44px; font-size:14px; }
 .manager-settings-tools { padding:6px 12px; gap:8px; }
@@ -151,7 +151,7 @@
 @media(max-width:599px) {
   .manager-tabs { padding:4px 6px; gap:2px; overflow-x:auto; }
   .manager-nav-title { flex:0 0 auto; font-size:15px; padding:0 4px; }
-  .manager-tabs button,.manager-tabs a { flex:0 0 auto; gap:4px; padding:0 7px; font-size:13px; }
+  .manager-tabs button,.manager-tabs a,.manager-files-url { flex:0 0 auto; gap:4px; padding:0 7px; font-size:13px; }
   .manager-tabs svg { display:none; }
   .manager-container .manager-pin { flex:0 0 76px; width:76px; font-size:12px; padding:0 6px; }
   .manager-settings-workspace { grid-template-columns:1fr; }
@@ -159,8 +159,8 @@
 /* Phone portal address: big enough to read across the car and type on a phone. */
 .manager-nav-title { overflow:hidden; text-overflow:ellipsis; }
 /* The head unit is 800 wide: the phone address matters more than the title. */
-@media(max-width:899px) { .manager-nav-title { display:none; } .manager-tabs a.manager-files-url { margin-left:auto; } }
-.manager-tabs a.manager-files-url { flex-shrink:0; gap:10px; padding:0 14px 0 12px; border-radius:14px; background:var(--primary-container); color:var(--on-primary-container); min-height:48px; }
+@media(max-width:899px) { .manager-nav-title { display:none; } .manager-tabs .manager-files-url { margin-left:auto; } }
+.manager-tabs .manager-files-url { flex-shrink:0; gap:10px; padding:0 14px 0 12px; border-radius:14px; background:var(--primary-container); color:var(--on-primary-container); min-height:48px; }
 .manager-files-url>span { display:flex; flex-direction:column; justify-content:center; gap:1px; }
 .manager-files-url small { font-size:14px; font-weight:600; white-space:nowrap; }
 .manager-files-url b { font-family:'Roboto Mono',ui-monospace,monospace; font-size:16px; font-weight:600; letter-spacing:-.2px; white-space:nowrap; }

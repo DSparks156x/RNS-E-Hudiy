@@ -75,7 +75,7 @@ export function ExhaustValvePanel({ socket, theme, onBack }: Props) {
         </div>
         <p>The controller remembers its target and restores it at power-up. No vehicle feedback is available.</p>
         <h3>Firmware update</h3>
-        <p>Upload a ZIP containing can-update.json and both slot .bin images to Exhaust valve controller in <a href="/files" style={{ color: theme.primary }}>Files</a>, then refresh. The three files can also be uploaded separately.</p>
+        <p>Upload a ZIP containing can-update.json and both slot .bin images to Exhaust valve controller in {window.hudiy ? 'the file portal from your phone (address shown in RNS-E Manager)' : <a href="/files" style={{ color: theme.primary }}>Files</a>}, then refresh. The three files can also be uploaded separately.</p>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
             <select aria-label="Valve firmware bundle" value={selected} disabled={busy} onChange={event => { setSelected(event.target.value); setArmed(false); }}
                 style={{ ...button, maxWidth: '100%' }}>
