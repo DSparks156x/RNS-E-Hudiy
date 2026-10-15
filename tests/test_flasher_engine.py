@@ -178,12 +178,34 @@ class EngineTests(unittest.TestCase):
         self.assertTrue(partial['metadata']['bench_only'])
         self.assertEqual(bytes(source), before)
 
-    def test_checksums_are_automatically_repaired_without_changing_source(self):
+    def test_bad_input_checksum_is_rejected_not_repaired(self):
+        for address in (0x18010, 0x30010, 0x4fff0):
+            data = bytearray(self.image)
+            data[address] ^= 1
+            before = bytes(data)
+            for start, end in ((0x18000, 0x4ffff), (0x30000, 0x3ffff)):
+                with self.subTest(address=hex(address), start=hex(start)):
+                    with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
+                        artifacts.prepare_image(data, start, end)
+                    with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
+                        patch_firmware(data, start=start, end=end)
+                    self.assertEqual(bytes(data), before)
+
+    def test_bad_input_checksum_stops_before_can(self):
         data = bytearray(self.image)
-        data[0x18010] ^= 1
-        before = bytes(data)
+        data[0x30010] ^= 1
+        with patch.object(engine, 'SocketCANDevice') as device:
+            with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
+                engine.HaldexFlasher().flash_binary(bytes(data))
+            device.assert_not_called()
+
+    def test_patched_output_checksums_are_valid(self):
+        data = bytearray(self.image)
+        data[0x2027c:0x2027c+len(ROUTINE_BYTES)] = b'\xff' * len(ROUTINE_BYTES)
+        data[0x20364:0x20364+len(HOOK_BYTES)] = bytes.fromhex('da026e030dff')
+        for start, size in APP_BLOCKS:
+            struct.pack_into('<H', data, start+size-2, layer1(data, start, size))
         result = artifacts.prepare_image(data)
-        self.assertEqual(bytes(data), before)
         self.assertNotEqual(result['metadata']['original_sha256'], result['metadata']['prepared_sha256'])
         for start, size in APP_BLOCKS:
             self.assertEqual(struct.unpack_from('<H', result['image'], start+size-2)[0], layer1(result['image'], start, size))
@@ -243,12 +265,13 @@ class EngineTests(unittest.TestCase):
         data = bytearray(self.image)
         data[0x20364:0x20364+len(HOOK_BYTES)] = bytes.fromhex('da026e030dff')
         data[0x30010] ^= 1
+        for start, size in APP_BLOCKS:
+            struct.pack_into('<H', data, start+size-2, layer1(data, start, size))
         result = artifacts.prepare_image(data, 0x30000, 0x3ffff)
         self.assertEqual(result['region'], result['image'][0x30000:0x40000])
         self.assertTrue(all(p['transferred'] for p in result['metadata']['patches']))
         self.assertEqual(result['image'][:0x30000], bytes(data[:0x30000]))
         self.assertEqual(result['image'][0x40000:], bytes(data[0x40000:]))
-        self.assertTrue(any(p['transferred'] for p in result['metadata']['patches']))
         self.assertEqual(result['metadata']['checksum'], sum(result['region']) & 0xffff)
 
     def test_erase_poll_timeout_only_repeats_result_query(self):

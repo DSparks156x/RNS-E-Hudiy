@@ -94,9 +94,6 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
                 const revision = Number(info.sw_version?.trim());
                 setSectorRange(info.connected && Number.isInteger(revision) && revision >= 3000
                     ? '385024:389119' : '40960:393215');
-            } else if (!sectorChosen.current) {
-                setSectorRange(info.connected && !info.in_bootloader && info.sw_version?.trim()
-                    && info.sw_version.trim() !== '3016' ? '196608:262143' : '98304:327679');
             }
         };
 
@@ -431,8 +428,8 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
                                 <option value="380928:385023">Configuration — block 0x5D</option>
                                 <option value="385024:389119">Steer dataset — block 0x5E</option>
                             </> : <>
-                                <option value="196608:262143">Calibration — sector 6</option>
                                 <option value="98304:327679">Full application — sectors 4–7</option>
+                                <option value="196608:262143">Calibration — sector 6</option>
                                 <option value="98304:131071">Sector 4</option>
                                 <option value="131072:196607">Sector 5</option>
                                 <option value="262144:327679">Sector 7</option>
@@ -446,7 +443,7 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
                         <div style={{ fontSize: '0.75rem', lineHeight: 1.4 }}>
                             {module === 'pq-eps'
                                 ? 'A 4 KiB input is locked to steer dataset block 0x5E. A 384 KiB CPU-linear image can flash the full firmware, configuration 0x5D, or steer dataset 0x5E. Partial-region flash is approved only after the live rack reports software revision 3000 or newer; older or unknown revisions require full 0x0A000–0x5FFFF.'
-                                : '320 KiB images are automatically patched and checksums repaired. Query Controller to choose the default: Calibration for non-3016 application firmware; Full for 3016 or unknown. Flash and readout use the selected sectors.'}
+                                : '320 KiB images must have valid checksums in all four sectors; an image that fails is rejected, not repaired. Valid images are automatically patched. Full application is the default for flash and readout; both use the selected sectors.'}
                         </div>
                         {ecuInfo?.error && <div role="alert">{ecuInfo.error}</div>}
                         {recoveryRequired && <div role="alert" style={{ color: '#ffb74d' }}>

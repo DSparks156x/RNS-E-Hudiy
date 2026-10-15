@@ -161,6 +161,14 @@ def patch_firmware(data: bytearray, harden_traps: bool = True, simulator_mode: b
     """
     validate_image(data)
     blocks = selected_blocks(start, end)
+    # Only a checksum-valid image is patched. Repairing a broken input here would
+    # flash corruption with a freshly valid checksum.
+    bad = [f"0x{a:06X} stored 0x{struct.unpack_from('<H', data, a+n-2)[0]:04X} "
+           f"computed 0x{layer1(data, a, n):04X}"
+           for a, n in APP_BLOCKS
+           if struct.unpack_from('<H', data, a+n-2)[0] != layer1(data, a, n)]
+    if bad:
+        raise ValueError("Input image checksum mismatch; not patched: " + "; ".join(bad))
     patch_antibrick = any(address == 0x20000 for address, _ in blocks)
     if simulator_mode:
         # Feature patches are firmware-layout specific even though the flash
@@ -473,7 +481,7 @@ def prepare_image(source, start_addr=DEFAULT_START, end_addr=DEFAULT_END,
         "patches": changes,
         "patch_policy": (
             "Haldex Gen4 recovery patches, trap hardening, optional exact-manifest "
-            "simulator patches, and checksum repairs in selected sectors"
+            "simulator patches, and checksum updates in selected sectors of a checksum-valid image"
         ),
         "patch_result": patch_result,
         "patch_manifest": SIMULATOR_MANIFEST.name if simulator_mode else None,
