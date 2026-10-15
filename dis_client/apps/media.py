@@ -2,6 +2,18 @@ from .base import BaseApp
 import json
 import os
 
+
+def _seconds(label):
+    """'1:02:03' / '03:21' -> seconds; unparseable -> 0."""
+    try:
+        total = 0
+        for part in str(label).split(':'):
+            total = total * 60 + int(part)
+        return total
+    except ValueError:
+        return 0
+
+
 class MediaApp(BaseApp):
     def __init__(self, config=None):
         super().__init__(config)
@@ -26,10 +38,12 @@ class MediaApp(BaseApp):
             self.artist = data.get('artist', '')
             self.album  = data.get('album', '')
             
-            pos = data.get('position', '0:00')
-            dur = data.get('duration', '0:00')
-            
-            if dur == '0:00' and pos == '0:00':
+            pos = data.get('position') or '0:00'
+            dur = data.get('duration') or '0:00'
+
+            # Providers send '0:00' or '00:00'; hide the clock with no track.
+            has_track = any((self.title, self.artist, self.album))
+            if not has_track or not (_seconds(pos) or _seconds(dur)):
                 self.time_str = ""
             else:
                 self.time_str = f"{pos} / {dur}"

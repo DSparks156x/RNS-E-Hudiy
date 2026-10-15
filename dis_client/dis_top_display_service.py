@@ -950,6 +950,8 @@ class DISController:
             elif app == "media" and self._src_state != "NONE":
                 if can_skip and self._center_app == "app_media":
                     alt = self._media_texts[2] or self._source_label
+                    if not alt and not any(self._media_texts[:2]):
+                        continue  # center media page is empty too — fall back to "No Media"
                     if self._prio != PRIO_MEDIA:
                         logger.info("Priority: MEDIA (center on media — alt='%s')", alt or "[blank]")
                     self._prio = PRIO_MEDIA
@@ -970,7 +972,8 @@ class DISController:
         if self._prio != PRIO_NONE:
             logger.info("Priority: NONE")
         self._prio = PRIO_NONE
-        if can_skip:
+        # Another center app owns the screen; the empty media page doesn't.
+        if can_skip and self._center_app != "app_media":
             self._set_lines("", "")
         else:
             self._set_lines(*self._no_media)
