@@ -373,9 +373,11 @@ class TP2Service:
                     logger.error(f"Module 0x{module_id:02X} Session Refused: {resp}")
         except TP2Error as e:
              logger.error(f"Module 0x{module_id:02X} Connect Error: {e}")
-             try: proto.disconnect()
-             except: pass
-        
+
+        # Close the bus too, not just the channel: if the adapter was unplugged
+        # and replugged, the old socket is dead and the next attempt must reopen.
+        try: proto.close()
+        except: pass
         return False
 
     def process_ignition(self):
@@ -702,12 +704,13 @@ class TP2Service:
 
                     # Lifecycle Management
                     if not session['active']:
-                        # Cleanup
-                        if session['connected']:
-                             try: 
-                                 session['protocol'].disconnect()
-                                 logger.info(f"Module 0x{mod_id:02X} Disconnected (Cleanup).")
-                             except: pass
+                        # Cleanup (close() also releases the CAN socket)
+                        was_connected = session['connected']
+                        try:
+                            session['protocol'].close()
+                            if was_connected:
+                                logger.info(f"Module 0x{mod_id:02X} Disconnected (Cleanup).")
+                        except: pass
                         
                         # Remove from main dict safely, return tester ID to pool
                         with self.lock:
