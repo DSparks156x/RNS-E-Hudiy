@@ -347,7 +347,7 @@ try:
     if menu_key and isinstance(target.get(menu_key), list):
         required_actions = ['hudiy_manager']
         if menu_key == 'items':
-            required_actions.extend(['hudiy_diagnostics', 'update_hudiy'])
+            required_actions.extend(['hudiy_diagnostics', 'update_hudiy', 'toggle_flashing_mode'])
         needed_categories = ['Hudiy']
         for action in required_actions:
             entry = next((item for item in source.get(menu_key, [])

@@ -72,6 +72,8 @@ class InstallerConfigMigrationTests(unittest.TestCase):
         self.assertEqual(updated['items'][1]['action'], 'hudiy_manager')
         self.assertEqual(updated['items'][2]['action'], 'hudiy_diagnostics')
         self.assertEqual(updated['items'][3]['action'], 'update_hudiy')
+        self.assertEqual(updated['items'][4]['action'], 'toggle_flashing_mode')
+        self.assertEqual(updated['items'][4]['categories'], ['RNS-E'])
         self.assertEqual([item['label'] for item in updated['categories']], ['Personal', 'Hudiy', 'RNS-E'])
         self.assertEqual(updated['items'][1]['categories'], ['RNS-E'])
         self.assertEqual(self.migrate('applications_menu.json', updated, new)[0], 2)
@@ -100,14 +102,26 @@ class InstallerConfigMigrationTests(unittest.TestCase):
         old = {'categories': new['categories'], 'items': [
             {'action': 'hudiy_diagnostics', 'label': 'My Data', 'categories': ['Hudiy']},
             next(item for item in new['items'] if item['action'] == 'hudiy_manager'),
-            next(item for item in new['items'] if item['action'] == 'update_hudiy')]}
+            next(item for item in new['items'] if item['action'] == 'update_hudiy'),
+            next(item for item in new['items'] if item['action'] == 'toggle_flashing_mode')]}
         self.assertEqual(self.migrate('applications_menu.json', old, new), (2, old))
+
+    def test_existing_menu_without_flashing_mode_gains_it_once(self):
+        new = json.loads((ROOT / 'config/hudiy/applications_menu.json').read_text())
+        old = {'categories': new['categories'], 'items': [
+            item for item in new['items'] if item['action'] != 'toggle_flashing_mode']}
+        result, updated = self.migrate('applications_menu.json', old, new)
+        self.assertEqual(result, 0)
+        self.assertEqual(updated['items'][:-1], old['items'])
+        self.assertEqual(updated['items'][-1]['action'], 'toggle_flashing_mode')
+        self.assertEqual(self.migrate('applications_menu.json', updated, new)[0], 2)
 
     def test_existing_hudiy_update_button_keeps_custom_label_icon_and_position(self):
         new = json.loads((ROOT / 'config/hudiy/applications_menu.json').read_text())
         custom = {'action': 'update_hudiy', 'label': 'My Update', 'iconName': 'custom', 'categories': ['Personal']}
         old = {'categories': new['categories'], 'items': [custom] + [
-            item for item in new['items'] if item['action'] in ('hudiy_manager', 'hudiy_diagnostics')]}
+            item for item in new['items']
+            if item['action'] in ('hudiy_manager', 'hudiy_diagnostics', 'toggle_flashing_mode')]}
         self.assertEqual(self.migrate('applications_menu.json', old, new), (2, old))
 
     def test_brightness_defaults_do_not_replace_existing_levels(self):
