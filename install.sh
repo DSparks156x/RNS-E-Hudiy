@@ -592,9 +592,15 @@ chown -R ${REAL_USER}:${REAL_USER} "${REAL_HOME}/haldexfw" "${REAL_HOME}/epsfw" 
 echo -e "${YELLOW}? Step 7: Installing Systemd Services...${NC}"
 
 # --- A: NETWORK CONFIG ---
-echo "   Configuring systemd-networkd for can0..."
-mkdir -p /etc/systemd/network
-cat <<EOF > /etc/systemd/network/80-can.network
+# Services follow whatever interface config.json names for infotainment, so
+# setups renamed by tp2/config_can.sh (ican/diagcan) survive a reinstall.
+CAN_IFACE=$(python3 -c "import json; print(json.load(open('$REAL_HOME/config.json')).get('interfaces', {}).get('can', {}).get('infotainment', 'can0'))" 2>/dev/null)
+CAN_IFACE=${CAN_IFACE:-can0}
+
+if [ "$CAN_IFACE" = "can0" ]; then
+    echo "   Configuring systemd-networkd for can0..."
+    mkdir -p /etc/systemd/network
+    cat <<EOF > /etc/systemd/network/80-can.network
 [Match]
 Name=can0
 
@@ -602,6 +608,9 @@ Name=can0
 BitRate=100K
 RestartSec=100ms
 EOF
+else
+    echo "   Infotainment CAN is '$CAN_IFACE'; leaving its networkd config as is."
+fi
 
 # --- B: SERVICE FILES ---
 write_service() {
@@ -616,8 +625,8 @@ write_service() {
 # 1. can_handler
 write_service "can_handler.service" "[Unit]
 Description=RNS-E CAN-Bus Handler
-BindsTo=sys-subsystem-net-devices-can0.device
-After=sys-subsystem-net-devices-can0.device
+BindsTo=sys-subsystem-net-devices-${CAN_IFACE}.device
+After=sys-subsystem-net-devices-${CAN_IFACE}.device
 
 [Service]
 User=${REAL_USER}
@@ -636,8 +645,8 @@ WantedBy=multi-user.target"
 # 1.5 tp2_worker (Robust - handles CAN down/up without restart)
 write_service "tp2_worker.service" "[Unit]
 Description=TP2.0 Diagnostics Worker
-Wants=sys-subsystem-net-devices-can0.device
-After=sys-subsystem-net-devices-can0.device
+Wants=sys-subsystem-net-devices-${CAN_IFACE}.device
+After=sys-subsystem-net-devices-${CAN_IFACE}.device
 
 [Service]
 User=${REAL_USER}

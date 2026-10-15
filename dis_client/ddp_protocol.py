@@ -177,7 +177,8 @@ class DDPProtocol:
         self._pending_transport_block = False
         self.peer_transport_parameters = None
 
-        self.channel = config.get('can_channel', 'can0')
+        self.channel = config.get('can_channel') or \
+            config.get('interfaces', {}).get('can', {}).get('infotainment', 'can0')
         self.bitrate = config.get('can_bitrate', 100000)
         
         # Allow overriding DDP IDs for modules like Telephone (0x6C5/0x6C4)
