@@ -2,7 +2,10 @@
 # ==============================================================================
 # CAN setup: MCP2515 as ICAN ("ican", 100K) + USB SocketCAN adapter ("diagcan")
 #
-#   sudo ./config_can.sh [diagcan_bitrate]     (default 500K)
+#   sudo ./config_can.sh [-d] [diagcan_bitrate]     (default 500K)
+#
+#   -d   Also point diagnostics (tp2_worker etc.) at diagcan. Use this for cars
+#        where ICAN refuses diagnostics. Without it, diagnostics stay on ICAN.
 #
 # This sets an MCP2515 connected as ICAN, and a USB SocketCAN adapter
 # (candleLight/gs_usb etc.) as diagcan.
@@ -17,6 +20,7 @@
 #
 # Also updates on this Pi:
 #   - ~/config.json interfaces.can: can0 -> ican, can1 -> diagcan
+#     (with -d, diagnostic -> diagcan)
 #   - can_handler / tp2_worker units: wait for ican instead of can0
 # install.sh writes those units from config.json's infotainment interface, so
 # a reinstall keeps ican.
@@ -29,7 +33,19 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-DIAGCAN_BITRATE="${1:-500K}"
+DIAGCAN_BITRATE=500K
+DIAG_ON_DIAGCAN=0
+for arg in "$@"; do
+    case "$arg" in
+        -d|--diag) DIAG_ON_DIAGCAN=1 ;;
+        -h|--help)
+            echo "Usage: sudo $0 [-d] [diagcan_bitrate]"
+            echo "  -d   use diagcan for diagnostics (default: ican)"
+            exit 0 ;;
+        -*) echo "? Unknown option: $arg"; exit 1 ;;
+        *) DIAGCAN_BITRATE="$arg" ;;
+    esac
+done
 NETWORK_DIR=/etc/systemd/network
 # gs_usb = candleLight / CANable (candleLight fw); others are common USB-CAN drivers.
 USB_CAN_DRIVERS="gs_usb peak_usb kvaser_usb usb_8dev ems_usb"
@@ -96,17 +112,19 @@ CFG
 
 # --- config.json ---
 if [ -f "$CONFIG_JSON" ]; then
-    python3 - "$CONFIG_JSON" <<'PY'
+    python3 - "$CONFIG_JSON" "$DIAG_ON_DIAGCAN" <<'PY'
 import json, sys
-path = sys.argv[1]
+path, diag_on_diagcan = sys.argv[1], sys.argv[2] == '1'
 with open(path) as f:
     cfg = json.load(f)
 rename = {'can0': 'ican', 'can1': 'diagcan'}
 can = cfg.setdefault('interfaces', {}).setdefault('can', {})
 for key in ('infotainment', 'diagnostic'):
     can[key] = rename.get(can.get(key, 'can0'), can.get(key))
+if diag_on_diagcan:
+    can['diagnostic'] = 'diagcan'
 with open(path, 'w') as f:
-    json.dump(cfg, f, indent=2, ensure_ascii=False)
+    json.dump(cfg, f, indent=4, ensure_ascii=False)
     f.write('\n')
 print(f"   config.json: infotainment={can['infotainment']}, diagnostic={can['diagnostic']}")
 PY
@@ -128,4 +146,8 @@ systemctl enable systemd-networkd >/dev/null 2>&1
 echo "? CAN configured: ican = MCP2515 @ 100K, diagcan = USB @ $DIAGCAN_BITRATE"
 echo "  Reboot for the new names to apply."
 echo "  Verify with: networkctl status ican diagcan"
-echo "  To diagnose over ICAN instead, set interfaces.can.diagnostic to \"ican\"."
+if [ "$DIAG_ON_DIAGCAN" = "1" ]; then
+    echo "  Diagnostics use diagcan. To use ICAN instead, set interfaces.can.diagnostic to \"ican\"."
+else
+    echo "  Diagnostics use ICAN. Re-run with -d (or set interfaces.can.diagnostic to \"diagcan\") to use the USB adapter."
+fi
