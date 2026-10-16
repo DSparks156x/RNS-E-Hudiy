@@ -14,6 +14,19 @@ from flasher.controllers.pq_eps import patches as eps_images
 from flasher.vag_protocols.kwp import KWPNegativeResponse
 
 
+def gen3_image(image=None):
+    """Blank rack image with the gen3 dataset CRC marker and valid CRCs."""
+    image = bytearray(eps_images.IMAGE_SIZE if image is None else image)
+    image[eps_images.ERASED_GAP] = 0xFF  # erased in every real image
+    image[0x5DFF8:0x5DFFC] = eps_images.CRC_MARKER
+    return eps_images.update_checksums(bytes(image))
+
+
+def crc_dataset(data):
+    """4 KiB 0x5E dataset with a valid trailing CRC."""
+    return eps_images.update_checksums(data)
+
+
 class ScriptedTransport:
     def __init__(self, pairs):
         self.pairs = list(pairs)
@@ -179,8 +192,7 @@ class PQEPSProtocolTests(unittest.TestCase):
     def test_shared_flash_lifecycle_uses_eps_programming_sequence(self):
         device = Mock()
         replacement = Mock()
-        prepared = eps_images.prepare_image(bytes(eps_images.IMAGE_SIZE),
-                                             0x5D000, 0x5D00F)
+        prepared = eps_images.prepare_image(gen3_image(), 0x5D000, 0x5D00F)
         with patch.object(pq_eps, "TP20Transport", SimulatedFlashTransport), \
                 patch.object(engine.time, "sleep") as sleep:
             flasher = pq_eps.PQEPSFlasher(
@@ -426,7 +438,7 @@ class PQEPSCLITests(unittest.TestCase):
         for trailer, expected in ((b"Ende", "Ende"), (b"\xFF" * 4, "erased")):
             with self.subTest(trailer=expected), tempfile.TemporaryDirectory() as directory:
                 source = Path(directory) / "rack.bin"
-                image = bytearray(eps_images.IMAGE_SIZE)
+                image = bytearray(gen3_image())
                 image[eps_images.END_MARKER_OFFSET:] = trailer
                 source.write_bytes(image)
                 out = io.StringIO()
@@ -444,7 +456,7 @@ class PQEPSCLITests(unittest.TestCase):
     def test_eps_flash_dry_run_maps_4k_input_to_steer_dataset(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "dataset.bin"
-            source.write_bytes(bytes(range(256)) * 16)
+            source.write_bytes(crc_dataset(bytes(range(256)) * 16))
             out = io.StringIO()
             with patch.object(runner, "open_adapter") as opened, \
                     contextlib.redirect_stdout(out):
@@ -461,13 +473,14 @@ class PQEPSCLITests(unittest.TestCase):
     def test_eps_flash_preparation_uses_unmodified_range_and_c5_sum(self):
         image = bytearray(eps_images.IMAGE_SIZE)
         image[0x5D000:0x5D010] = bytes(range(16))
+        image = gen3_image(image)
         prepared = eps_images.prepare_image(image, 0x5D000, 0x5D00F)
         self.assertEqual(prepared["region"], bytes(range(16)))
         self.assertEqual(prepared["metadata"]["checksum"], sum(range(16)))
         self.assertEqual(prepared["image"], bytes(image))
 
     def test_eps_block_image_is_accepted_only_as_steer_dataset(self):
-        dataset = bytes(range(256)) * 16
+        dataset = crc_dataset(bytes(range(256)) * 16)
         prepared = pq_eps.PQEPSFlasher.prepare_image(
             dataset, start_addr=eps_images.DATASET_START,
             end_addr=eps_images.DATASET_END)
@@ -481,7 +494,7 @@ class PQEPSCLITests(unittest.TestCase):
                 eps_images.prepare_image(dataset, start, end)
 
     def test_eps_controller_api_accepts_full_image_region_keywords(self):
-        image = bytes(eps_images.IMAGE_SIZE)
+        image = gen3_image()
         prepared = pq_eps.PQEPSFlasher.prepare_image(
             image, start_addr=eps_images.DATASET_START,
             end_addr=eps_images.DATASET_END)
@@ -491,7 +504,7 @@ class PQEPSCLITests(unittest.TestCase):
                          (eps_images.DATASET_START, eps_images.DATASET_END))
 
     def test_tt3001_loader_partition_check_rejects_local_only_range(self):
-        image = bytes(eps_images.IMAGE_SIZE)
+        image = gen3_image()
         low_bank_hash = hashlib.sha256(image[:eps_images.FLASH_START]).hexdigest().upper()
         with patch.object(eps_images, "TT3001_LOADER_SHA256", low_bank_hash):
             accepted = eps_images.prepare_image(image, 0xA000, 0x5DFFF)
@@ -499,6 +512,61 @@ class PQEPSCLITests(unittest.TestCase):
                              "exact TT 3001 resident-loader partition")
             with self.assertRaisesRegex(ValueError, "exact partition bounds"):
                 eps_images.prepare_image(image, 0x28000, 0x5DFFF)
+
+    def test_eps_flash_refuses_bad_dataset_crc_unless_corrected(self):
+        image = bytearray(gen3_image())
+        image[0x5D100] ^= 1
+        with self.assertRaisesRegex(ValueError, "0x5DFFE.*--correct-checksum"):
+            eps_images.prepare_image(bytes(image), 0x5D000, 0x5DFFF)
+        prepared = eps_images.prepare_image(bytes(image), 0x5D000, 0x5DFFF,
+                                            correct_checksums=True)
+        self.assertEqual(prepared["image"], gen3_image(image))
+        self.assertEqual([row["address"] for row in prepared["metadata"]["dataset_crcs"]
+                          if row["corrected"]], [0x5DFFE])
+
+    def test_eps_crc_correction_requires_its_data_in_the_flash_range(self):
+        image = bytearray(gen3_image())
+        image[0x5C100] ^= 1
+        with self.assertRaisesRegex(ValueError, "0x5DFFC.*cannot correct"):
+            eps_images.prepare_image(bytes(image), 0x5D000, 0x5DFFF,
+                                     correct_checksums=True)
+        prepared = eps_images.prepare_image(bytes(image), 0x5C000, 0x5DFFF,
+                                            correct_checksums=True)
+        self.assertEqual(prepared["image"], gen3_image(image))
+
+    def test_eps_image_without_crc_marker_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "marker"):
+            eps_images.prepare_image(bytes(eps_images.IMAGE_SIZE), 0x5D000, 0x5DFFF)
+
+    def test_eps_4k_0x5d_block_is_not_flashed_as_steer_dataset(self):
+        block = bytearray(eps_images.DATASET_SIZE)
+        block[-8:-4] = eps_images.CRC_MARKER
+        with self.assertRaisesRegex(ValueError, "0x5D configuration block"):
+            eps_images.prepare_image(bytes(block), eps_images.DATASET_START,
+                                     eps_images.DATASET_END)
+
+    def test_hca_timeout_minspeed_patch_picks_manifest_by_firmware(self):
+        for version, countdown, minspeed in (
+                (b"8J0909144J \x003001", 0x5D249, 0x5D2AE),
+                (b"1K0909144R \x003501", 0x5D289, 0x5D2FA)):
+            with self.subTest(version=version[-4:]):
+                image = bytearray(eps_images.IMAGE_SIZE)
+                address = 0x5D7A0 if version.endswith(b"3001") else 0x5D828
+                image[address:address + len(version)] = version
+                image[countdown], image[minspeed] = 0x64, 0x14
+                image[eps_images.END_MARKER_OFFSET:] = b"Ende"
+                image = gen3_image(image)
+                manifest = eps_images.require_patch_manifest(
+                    image, eps_images.HCA_TIMEOUT_MINSPEED)
+                patched = manifest.apply(image)
+                self.assertEqual((patched[countdown], patched[minspeed]), (0, 0))
+                self.assertEqual(patched[eps_images.END_MARKER_OFFSET:], b"\xff" * 4)
+                self.assertEqual(eps_images.check_checksums(patched)[0], patched)
+                self.assertEqual(manifest.apply(patched), patched)
+                self.assertEqual(eps_images.known_patches(patched),
+                                 {manifest.name: "applied"})
+        with self.assertRaises(eps_images.UnsupportedFirmwarePatch):
+            eps_images.require_patch_manifest(gen3_image(), eps_images.HCA_TIMEOUT_MINSPEED)
 
     def test_eps_flash_rejects_cpu_space_below_obd_programming_window(self):
         with self.assertRaisesRegex(ValueError, "0x00A000"):
