@@ -32,7 +32,7 @@ from typing import Optional, Dict, Any, Tuple
 import zmq
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flasher.traffic import flashing_mode_enabled
-from flasher.exhaust_valve import command as valve_command, CAN_ID as CAN_ID_VALVE
+from hudiy_dataview.exhaust_valve import command as valve_command, CAN_ID as CAN_ID_VALVE
 
 # --- Mode Constants ---
 MODE_STOCK = 0

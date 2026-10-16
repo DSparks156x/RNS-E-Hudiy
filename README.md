@@ -225,7 +225,7 @@ slot `.bin` images through **Files → Exhaust valve controller**, then refresh
 the firmware list. The controller restores its own target on power-up; the Pi
 sends valve commands only when requested. Commands and firmware transfers are
 reported as unconfirmed because the vehicle protocol has no return route.
-See [the SB2209 integration notes](flasher/EXHAUST_VALVE.md) for deployment
+See [the SB2209 integration notes](hudiy_dataview/EXHAUST_VALVE.md) for deployment
 generation tracking and transfer behavior.
 
 ### Collecting Android Auto / CarPlay API behavior

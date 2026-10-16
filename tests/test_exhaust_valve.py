@@ -15,7 +15,7 @@ from unittest.mock import Mock, patch
 import zlib
 import zipfile
 
-from flasher.exhaust_valve import (
+from hudiy_dataview.exhaust_valve import (
     command, control, chunk, load_bundle, validate_upload, reserve_generation,
     ExhaustValveUpdater,
 )

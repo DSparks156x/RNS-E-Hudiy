@@ -521,7 +521,12 @@ class InstalledLayoutTests(unittest.TestCase):
         self.assertNotIn('install_folder "vag_protocols" || exit 1', source)
         sparse_paths = re.search(r'^SPARSE_PATHS=\((.*?)\)$', source, re.MULTILINE).group(1).split()
         installed_folders = re.findall(r'^install_folder "([^"]+)" \|\| exit 1$', source, re.MULTILINE)
-        self.assertTrue(set(installed_folders).issubset(sparse_paths))
+        # Submodules are staged by `git submodule update`; naming one in
+        # SPARSE_PATHS makes cone-mode sparse-checkout fail on reruns.
+        submodules = set(re.findall(r'^\s*path = (\S+)$', (ROOT / '.gitmodules').read_text(), re.MULTILINE))
+        self.assertIn('flasher', submodules)
+        self.assertTrue(submodules.isdisjoint(sparse_paths))
+        self.assertTrue((set(installed_folders) - submodules).issubset(sparse_paths))
         self.assertNotIn('rm -rf "$REAL_HOME/tools"', source)
         self.assertIn('python3-can', source)
         function = re.search(r'(?ms)^install_folder\(\) \{.*?^\}', source).group()

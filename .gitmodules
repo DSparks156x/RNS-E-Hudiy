@@ -1,0 +1,4 @@
+[submodule "flasher"]
+	path = flasher
+	url = https://github.com/DSparks156x/PQ35-Flasher.git
+	branch = main

@@ -43,7 +43,7 @@ try:
         sys.path.insert(0, _package_root)
     from flasher.controllers.haldex_gen4 import HaldexFlasher
     from flasher.controllers.pq_eps.protocol import PQEPSFlasher
-    from flasher.exhaust_valve import load_bundle, validate_upload, reserve_generation, ExhaustValveUpdater
+    from hudiy_dataview.exhaust_valve import load_bundle, validate_upload, reserve_generation, ExhaustValveUpdater
     from flasher.traffic import flashing_operation, set_flashing_mode
 
     with open(os.path.join(_base_dir, 'config.json')) as _f:
@@ -73,7 +73,7 @@ except Exception as _e:
             sys.path.insert(0, _package_root)
         from flasher.controllers.haldex_gen4 import HaldexFlasher
         from flasher.controllers.pq_eps.protocol import PQEPSFlasher
-        from flasher.exhaust_valve import load_bundle, validate_upload, reserve_generation, ExhaustValveUpdater
+        from hudiy_dataview.exhaust_valve import load_bundle, validate_upload, reserve_generation, ExhaustValveUpdater
         from flasher.traffic import flashing_operation, set_flashing_mode
     except Exception:
         HaldexFlasher = None

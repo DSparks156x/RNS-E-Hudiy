@@ -146,7 +146,9 @@ echo -e "${YELLOW}? Step 2: Downloading Project Files...${NC}"
 STAGING_DIR="$REAL_HOME/.cache/rns-e-hudiy-installer"
 TEMP_DIR="$STAGING_DIR" # Retain the existing source-path name below.
 STAGING_PARENT=$(dirname "$STAGING_DIR")
-SPARSE_PATHS=(rns-e_can hudiy_client dis_client tp2 hudiy_dataview hudiy_manager vehicle_data flasher config/hudiy)
+# flasher is a submodule, not a directory: cone mode keeps root-level entries
+# (its gitlink included) and naming it here makes sparse-checkout fail.
+SPARSE_PATHS=(rns-e_can hudiy_client dis_client tp2 hudiy_dataview hudiy_manager vehicle_data config/hudiy)
 
 mkdir -p "$STAGING_PARENT"
 
@@ -234,6 +236,22 @@ run_with_heartbeat "Sparse file checkout" \
     exit 1
 }
 
+# flasher/ is the PQ35-Flasher submodule; fetch exactly the pinned commit.
+# Caches made before it became a submodule hold a plain flasher/ folder,
+# which blocks the submodule checkout, so set it aside. A fresh checkout
+# leaves an empty placeholder there, which is fine.
+if [ -d "$STAGING_DIR/flasher" ] && [ ! -e "$STAGING_DIR/flasher/.git" ] \
+        && [ -n "$(ls -A "$STAGING_DIR/flasher")" ]; then
+    mv "$STAGING_DIR/flasher" "$STAGING_DIR.flasher-old-$(date +%Y%m%d-%H%M%S)" || exit 1
+fi
+echo "   Updating flasher submodule..."
+run_with_heartbeat "Flasher submodule checkout" \
+    "$GIT_CMD" -c safe.directory="$STAGING_DIR" -c safe.directory="$STAGING_DIR/flasher" \
+    -C "$STAGING_DIR" submodule update --init --force --depth 1 flasher || {
+    echo "ERROR: Flasher submodule checkout failed."
+    exit 1
+}
+
 # Keep the persistent cache accessible to the target user. Future installer
 # runs still use safe.directory because this script itself runs as root.
 chown -R "$REAL_USER:$REAL_USER" "$STAGING_DIR"
@@ -287,7 +305,7 @@ install_folder "flasher" || exit 1
 }
 
 # Verify deployed package and dependency without constructing a CAN device.
-(cd / && python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import can; from flasher.vag_protocols import TP2Transport, KWPClient; from flasher.controllers.haldex_gen4 import HaldexFlasher; from flasher.controllers.pq_eps.protocol import PQEPSFlasher; from flasher.readout import HaldexReadout, PQEPSReadout; from flasher.traffic import transmission_guard, flashing_mode_enabled; print("Installed shared protocol, Haldex, and PQ EPS imports OK")' "$REAL_HOME") || {
+(cd / && python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import can; from flasher.vag_protocols import TP2Transport, KWPClient; from flasher.controllers.haldex_gen4 import HaldexFlasher; from flasher.controllers.pq_eps.protocol import PQEPSFlasher; from flasher.readout import HaldexReadout, PQEPSReadout; from flasher.traffic import transmission_guard, flashing_mode_enabled; from hudiy_dataview.exhaust_valve import ExhaustValveUpdater; print("Installed shared protocol, Haldex, PQ EPS and exhaust valve imports OK")' "$REAL_HOME") || {
     echo "ERROR: Installed shared protocols, controller flashers, or python3-can is unavailable."
     exit 1
 }

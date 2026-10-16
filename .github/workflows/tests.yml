@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: true
       - uses: actions/setup-python@v6
         with:
           # Raspberry Pi OS Bookworm ships Python 3.11.
