@@ -970,13 +970,17 @@ echo "   Enabling systemd-networkd..."
 $SYSTEMCTL enable --now systemd-networkd
 
 echo "   Enabling and Starting Application Services..."
-$SYSTEMCTL enable --now can_handler.service can_base_function.service tp2_worker.service \
+$SYSTEMCTL enable --now can_handler.service can_base_function.service \
                         can_keyboard_control.service dark_mode_api.service hudiy_data_api.service \
-                        hudiy_dataview.service hudiy_manager.service hudiy_status_service.service dis_top_display.service \
-                        haldex_manager.service
-
-# Start delayed services non-blocking
+                        dis_top_display.service
 $SYSTEMCTL enable --now --no-block dis_service.service dis_display.service
+
+# Late services: reenable drops the multi-user.target link older installs created
+$SYSTEMCTL reenable tp2_worker.service hudiy_dataview.service hudiy_manager.service \
+                    hudiy_status_service.service haldex_manager.service
+$SYSTEMCTL enable rnse-late.path rnse-late.timer
+$SYSTEMCTL start --no-block tp2_worker.service hudiy_dataview.service hudiy_manager.service \
+                            hudiy_status_service.service haldex_manager.service
 
 echo -e "${GREEN}? Services installed, network configured, and started.${NC}"
 
