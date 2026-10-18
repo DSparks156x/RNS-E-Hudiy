@@ -50,6 +50,18 @@ logger = logging.getLogger(__name__)
 # --- ZMQ Publishing Setup ---
 ZMQ_CONTEXT = zmq.Context()
 
+# Created once the Hudiy API answers; rnse-late.path (install.sh) then starts the services
+# that are not needed until Hudiy is up.
+HUDIY_STARTED_FLAG = '/run/rnse_control/hudiy-started'
+
+
+def mark_hudiy_started():
+    try:
+        with open(HUDIY_STARTED_FLAG, 'a'):
+            pass
+    except OSError as e:
+        logger.debug(f"Could not create {HUDIY_STARTED_FLAG}: {e}")
+
 # --- Translation Maps ---
 MANEUVER_TYPE_MAP = {
     0: "Unknown", 1: "Depart", 2: "Name Change", 3: "Slight turn",
@@ -1263,6 +1275,9 @@ class HudiyData:
         Re-subscribes on every (re)connect so the server re-pushes current state, eliminating
         the stale-state problem that previously required user interaction to trigger a re-push."""
         while self.running:
+            # Hudiy starts a few seconds after this service at boot; retry quickly until it is
+            # listening so the connection manager is ready as soon as Hudiy is.
+            retry_delay = 5
             try:
                 self.data_client = Client("DATA")
                 self.data_client.set_event_handler(self.handler)
@@ -1270,10 +1285,13 @@ class HudiyData:
                 self.input_actions.set_client(self.data_client)
                 self.connection_manager.set_hudiy_client(self.data_client)
                 logger.info("DATA Thread ACTIVE — subscriptions requested")
+                mark_hudiy_started()
                 while self.data_client._connected and self.running:
                     if not self.data_client.wait_for_message():
                         logger.warning("DATA Thread: server sent BYEBYE")
                         break
+            except ConnectionRefusedError:
+                retry_delay = 1
             except ConnectionError as e:
                 logger.warning(f"DATA Thread connection lost: {e}")
             except Exception as e:
@@ -1284,8 +1302,9 @@ class HudiyData:
             if self.data_client:
                 self.data_client.disconnect()
             if self.running:
-                logger.info("DATA Thread reconnecting in 5s...")
-                self._stop.wait(5)
+                if retry_delay > 1:
+                    logger.info(f"DATA Thread reconnecting in {retry_delay}s...")
+                self._stop.wait(retry_delay)
 
     def connect_tp2(self):
         """Thread: TP2 Bridge TCP"""

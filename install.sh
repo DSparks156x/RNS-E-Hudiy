@@ -678,7 +678,7 @@ KillSignal=SIGTERM
 TimeoutStopSec=5
 
 [Install]
-WantedBy=multi-user.target"
+WantedBy=rnse-late.target"
 
 # 1.6 hudiy_dataview (UI for diagnostics)
 write_service "hudiy_dataview.service" "[Unit]
@@ -697,7 +697,7 @@ KillSignal=SIGTERM
 TimeoutStopSec=5
 
 [Install]
-WantedBy=multi-user.target"
+WantedBy=rnse-late.target"
 
 # Manager stays available while DataView is stopped.
 write_service "hudiy_manager.service" "[Unit]
@@ -718,7 +718,7 @@ KillSignal=SIGTERM
 TimeoutStopSec=10
 
 [Install]
-WantedBy=multi-user.target"
+WantedBy=rnse-late.target"
 
 # Approved service-only permissions for the independent Manager app.
 MANAGER_SUDOERS=$(mktemp)
@@ -764,7 +764,7 @@ KillSignal=SIGTERM
 TimeoutStopSec=5
 
 [Install]
-WantedBy=multi-user.target"
+WantedBy=rnse-late.target"
 
 # 2. can_base_function
 write_service "can_base_function.service" "[Unit]
@@ -847,15 +847,14 @@ TimeoutStopSec=5
 [Install]
 WantedBy=multi-user.target"
 
-# 6. dis_service (DELAYED 30s)
+# 6. dis_service: idles until can_base_function reports ignition on, so no start delay is needed
 write_service "dis_service.service" "[Unit]
 Description=DIS CAN Driver
 Requires=can_handler.service
-After=can_handler.service
+After=can_handler.service can_base_function.service
 BindsTo=can_handler.service
 
 [Service]
-ExecStartPre=/bin/sleep 10
 ExecStart=/usr/bin/python3 ${REAL_HOME}/dis_client/dis_service.py
 WorkingDirectory=${REAL_HOME}/dis_client
 Environment=PYTHONUNBUFFERED=1
@@ -869,7 +868,7 @@ Group=input
 [Install]
 WantedBy=multi-user.target"
 
-# 7. dis_display (DELAYED 15s after dis_service)
+# 7. dis_display: waits for dis_service to report the DIS ready
 write_service "dis_display.service" "[Unit]
 Description=DIS Menu Structure
 Requires=dis_service.service
@@ -877,7 +876,6 @@ After=dis_service.service
 BindsTo=dis_service.service
 
 [Service]
-ExecStartPre=/bin/sleep 10
 ExecStart=/usr/bin/python3 ${REAL_HOME}/dis_client/dis_display.py
 WorkingDirectory=${REAL_HOME}/dis_client
 Environment=PYTHONUNBUFFERED=1
@@ -930,7 +928,34 @@ KillSignal=SIGTERM
 TimeoutStopSec=5
 
 [Install]
+WantedBy=rnse-late.target"
+
+# 10. Late services: not needed until Hudiy is up, so they start after it instead of
+# competing with the desktop and Hudiy for the disk at boot. hudiy_data creates the flag
+# once the Hudiy API answers; the timer is a fallback if Hudiy never comes up.
+write_service "rnse-late.target" "[Unit]
+Description=RNS-E services started after Hudiy"
+
+write_service "rnse-late.path" "[Unit]
+Description=Start RNS-E late services once Hudiy is up
+RequiresMountsFor=/run/rnse_control
+
+[Path]
+PathExists=/run/rnse_control/hudiy-started
+Unit=rnse-late.target
+
+[Install]
 WantedBy=multi-user.target"
+
+write_service "rnse-late.timer" "[Unit]
+Description=Fallback start of RNS-E late services
+
+[Timer]
+OnBootSec=25s
+Unit=rnse-late.target
+
+[Install]
+WantedBy=timers.target"
 
 # --- Clean up old service ---
 if [ -f "/etc/systemd/system/configure-can0.service" ]; then
