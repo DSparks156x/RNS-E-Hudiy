@@ -1,0 +1,5 @@
+proc            /proc           proc    defaults          0       0
+PARTUUID=xxxxxxxx-01  /boot/firmware  vfat    defaults,noauto,x-systemd.automount,x-systemd.idle-timeout=30  0  2
+PARTUUID=xxxxxxxx-02  /               ext4    defaults,noatime  0       1
+tmpfs   /var/log/rnse_control   tmpfs   defaults,noatime,nosuid,nodev,uid=pi,gid=pi,size=16m   0 0
+tmpfs   /run/rnse_control       tmpfs   defaults,noatime,nosuid,uid=pi,gid=pi,mode=0755,size=2m     0 0

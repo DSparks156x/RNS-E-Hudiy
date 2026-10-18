@@ -1,0 +1,11 @@
+#!/bin/sh
+# boot-tuning: lean lightdm session-wrapper for the labwc/Hudiy session, replacing /etc/X11/Xsession
+# (~0.5 s of Xsession.d scripts: xrdb/xhost (X11 only), ssh-agent, gpg-agent, dbus env push that labwc does itself).
+# Kept: session bus address, /etc/profile + ~/.profile, Qt platform theme.
+if [ -z "$DBUS_SESSION_BUS_ADDRESS" ] && [ -S "$XDG_RUNTIME_DIR/bus" ]; then
+  export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+fi
+[ -r /etc/profile ] && . /etc/profile
+[ -r "$HOME/.profile" ] && . "$HOME/.profile"
+export QT_QPA_PLATFORMTHEME=qt5ct
+exec "$@"

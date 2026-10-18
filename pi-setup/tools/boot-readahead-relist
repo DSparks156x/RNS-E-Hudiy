@@ -1,0 +1,28 @@
+#!/bin/bash
+# Regenerate /etc/boottuning/readahead.list (run after Hudiy, RNS-E or big apt updates).
+#   sudo boot-readahead-relist arm     # trace page-cache fills on the next boot, readahead off for it
+#   sudo reboot; wait ~60 s
+#   sudo boot-readahead-relist build   # stop the trace, write the new list, restore cmdline
+set -e
+CMD=/boot/firmware/cmdline.txt
+OPTS="trace_event=filemap:mm_filemap_add_to_page_cache trace_buf_size=32M"
+D=/etc/boottuning
+case "$1" in
+arm)
+    grep -q trace_event= $CMD || sed -i "1s/\$/ $OPTS/" $CMD
+    touch $D/capture
+    echo "Armed. Reboot, wait ~60 s, then: sudo $0 build" ;;
+build)
+    [ -f $D/capture ] || { echo "not armed"; exit 1; }
+    T=/sys/kernel/tracing
+    echo 0 > $T/tracing_on
+    cat $T/trace > $D/trace.txt
+    echo 0 > $T/events/filemap/mm_filemap_add_to_page_cache/enable
+    sed -i "1s/ trace_event=filemap:mm_filemap_add_to_page_cache trace_buf_size=32M//" $CMD
+    [ -f $D/readahead.list ] && cp $D/readahead.list $D/readahead.list.old
+    python3 /usr/local/lib/boottuning/ra-mklist.py $D/trace.txt $D/readahead.list.new --until 15 --order disk
+    mv $D/readahead.list.new $D/readahead.list
+    rm -f $D/capture $D/trace.txt
+    echo "New list in place (previous: readahead.list.old). Cmdline: $(grep -c trace_event $CMD || true) trace options left." ;;
+*) echo "usage: $0 arm|build"; exit 2 ;;
+esac

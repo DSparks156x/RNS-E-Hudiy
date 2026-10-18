@@ -1,0 +1,12 @@
+#!/bin/sh
+# boot-tuning wrapper (dpkg-divert; real CLI is /usr/sbin/netplan.distrib).
+# NetworkManager runs "netplan generate" on every start: Python start-up + generate + udevadm reload +
+# "systemctl daemon-reload" (~0.8 s, and the reload freezes systemd while the desktop session starts).
+# With no netplan YAML and no netplan-generated NM profiles there is nothing to generate, so skip only
+# that exact case. Everything else passes through unchanged.
+if [ "$*" = "generate" ] \
+   && ! ls /etc/netplan/*.yaml /run/netplan/*.yaml >/dev/null 2>&1 \
+   && ! ls /run/NetworkManager/system-connections/netplan-* >/dev/null 2>&1; then
+  exit 0
+fi
+exec /usr/sbin/netplan.distrib "$@"

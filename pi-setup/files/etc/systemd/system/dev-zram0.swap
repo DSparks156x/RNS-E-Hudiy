@@ -1,0 +1,12 @@
+# boot-tuning: static copy of what rpi-swap-generator produced for Mechanism=zram (generator masked)
+
+[Unit]
+SourcePath=/etc/rpi/swap.conf
+Description=rpi-swap managed swap device (zram)
+Requires=systemd-zram-setup@zram0.service
+After=systemd-zram-setup@zram0.service
+
+
+[Swap]
+What=/dev/zram0
+Priority=100

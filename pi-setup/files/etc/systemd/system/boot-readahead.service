@@ -1,0 +1,12 @@
+[Unit]
+Description=Boot readahead (preload boot files into the page cache)
+DefaultDependencies=no
+ConditionPathExists=/etc/boottuning/readahead.list
+ConditionPathExists=!/etc/boottuning/capture
+
+[Service]
+Type=exec
+ExecStart=/usr/local/sbin/boot-readahead /etc/boottuning/readahead.list 8
+
+[Install]
+WantedBy=sysinit.target

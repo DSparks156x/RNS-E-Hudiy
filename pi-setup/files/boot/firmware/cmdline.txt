@@ -1,0 +1,1 @@
+console=serial0,115200 console=tty1 root=PARTUUID=xxxxxxxx-02 rootfstype=ext4 fsck.repair=yes rootwait quiet splash plymouth.enable=0 fastboot plymouth.ignore-serial-consoles logo.nologo vt.global_cursor_default=0 loglevel=0 cfg80211.ieee80211_regdom=US drm.edid_firmware=HDMI-A-1:Rpi_RNSE_800x480i_EDID.bin

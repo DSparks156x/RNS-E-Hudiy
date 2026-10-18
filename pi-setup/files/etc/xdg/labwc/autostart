@@ -1,0 +1,12 @@
+# boot-tuning: desktop extras start 10 s after login so they do not compete with labwc/Hudiy
+# for the disk (Hudiy covers the screen; labwc background is black meanwhile). Original lines:
+# /usr/bin/lwrespawn /usr/bin/pcmanfm-pi &
+#boot-tuning# /usr/bin/lwrespawn /usr/bin/wf-panel-pi &
+# /usr/bin/kanshi &
+# /usr/bin/lxsession-xdg-autostart
+(
+sleep 10
+/usr/bin/lwrespawn /usr/bin/pcmanfm-pi &
+/usr/bin/kanshi &
+exec /usr/bin/lxsession-xdg-autostart
+) &

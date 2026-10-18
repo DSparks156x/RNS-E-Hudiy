@@ -1,0 +1,13 @@
+#!/bin/sh
+# boot-tuning: keep an uncompressed copy of the Pi 5 kernel (firmware gunzips the stock one slowly, ~0.4 s).
+# Runs after raspi-firmware (z50) has copied the new kernel to /boot/firmware.
+# On any failure, stop config.txt from pointing at a stale copy so the stock kernel is used.
+F=/boot/firmware
+if gunzip -c "$F/kernel_2712.img" > "$F/kernel_2712_raw.img.new" 2>/dev/null && mv "$F/kernel_2712_raw.img.new" "$F/kernel_2712_raw.img"; then
+  sync
+else
+  rm -f "$F/kernel_2712_raw.img.new"
+  sed -i "/^kernel=kernel_2712_raw.img$/d" "$F/config.txt"
+  echo "zz-boottuning-raw-kernel: failed, removed kernel= override from config.txt" >&2
+fi
+exit 0
