@@ -1,7 +1,9 @@
 """RNS-E bridge policy and encoder; this module never transmits CAN frames.
 
-The base service commits each distinct desired payload to the existing gateway
-once. Radio wake is the only automatic reason to repeat a committed payload.
+Targets the r38 firmware protocol: B7 sets the dial, BB the LCD override and
+BA the source label, each deduplicated on its own. The base service commits
+each distinct desired payload to the existing gateway once. Radio wake is the
+only automatic reason to repeat a committed payload.
 """
 from dataclasses import dataclass
 from typing import Any, List, Mapping, Optional, Protocol, Tuple
@@ -11,8 +13,11 @@ class BrightnessProtocol(Protocol):
     def validate_level(self, level: int) -> None:
         """Raise ValueError for unsupported dial levels."""
 
-    def encode(self, level: int, lcd_brightness: int = 0) -> Tuple[int, bytes]:
-        """Return a dial and LCD bridge command."""
+    def encode_dial(self, level: int) -> Tuple[int, bytes]:
+        """Return a brightness dial command."""
+
+    def encode_lcd(self, lcd_brightness: int) -> Tuple[int, bytes]:
+        """Return an LCD brightness override command."""
 
     def encode_source(self, source: int) -> Tuple[int, bytes]:
         """Return a source label and icon command."""
@@ -34,10 +39,14 @@ class RnseCanBrightnessProtocol:
         if type(source) is not int or not 0 <= source <= 2:
             raise ValueError('RNS-E source must be 0 (Hudiy), 1 (CarPlay) or 2 (Android Auto)')
 
-    def encode(self, level: int, lcd_brightness: int = 0) -> Tuple[int, bytes]:
+    def encode_dial(self, level: int) -> Tuple[int, bytes]:
         self.validate_level(level)
+        return 0x7B0, bytes([0xB7, level, 0, 0, 0, 0, 0, 0])
+
+    def encode_lcd(self, lcd_brightness: int) -> Tuple[int, bytes]:
+        # 0 restores native cluster dimming plus the dial; 1-100 is absolute.
         self.validate_lcd(lcd_brightness)
-        return 0x7B0, bytes([0xBB, level, lcd_brightness, 0, 0, 0, 0, 0])
+        return 0x7B0, bytes([0xBB, lcd_brightness, 0, 0, 0, 0, 0, 0])
 
     def encode_source(self, source: int) -> Tuple[int, bytes]:
         self.validate_source(source)
@@ -116,7 +125,7 @@ class BrightnessCommand:
     payload: bytes
     lcd_brightness: int = 0
     source: int = 0
-    kind: str = 'brightness'
+    kind: str = 'dial'
 
 
 class RnseBrightnessController:
@@ -127,7 +136,8 @@ class RnseBrightnessController:
         self.mode: Optional[str] = None
         self.source = 0
         self.manual_overrides = {'brightness': None, 'lcd_brightness': None}
-        self.last_queued: Optional[bytes] = None
+        self.last_dial_queued: Optional[bytes] = None
+        self.last_lcd_queued: Optional[bytes] = None
         self.last_source_queued: Optional[bytes] = None
         self._radio_active: Optional[bool] = None
 
@@ -141,7 +151,8 @@ class RnseBrightnessController:
             return
         self.mode = previous.mode
         self.source = previous.source
-        self.last_queued = previous.last_queued
+        self.last_dial_queued = previous.last_dial_queued
+        self.last_lcd_queued = previous.last_lcd_queued
         self.last_source_queued = previous.last_source_queued
         self._radio_active = previous._radio_active
         if not clear_manual:
@@ -276,12 +287,12 @@ class RnseBrightnessController:
         level, lcd, source = self._desired()
         brightness_state, _ = self._brightness_state(inhibited)
         source_state, _ = self._source_state(inhibited)
-        brightness_payload = (self.protocol.encode(level, lcd)[1]
-                              if brightness_state == 'ready' else None)
+        ready = brightness_state == 'ready'
+        dial_queued = ready and self.protocol.encode_dial(level)[1] == self.last_dial_queued
+        lcd_queued = ready and self.protocol.encode_lcd(lcd)[1] == self.last_lcd_queued
+        brightness_queued = dial_queued and lcd_queued
         source_payload = (self.protocol.encode_source(source)[1]
                           if source_state == 'ready' else None)
-        brightness_queued = (brightness_payload is not None
-                             and brightness_payload == self.last_queued)
         source_queued = source_payload is not None and source_payload == self.last_source_queued
         return {
             'state': status.state, 'mode': status.mode,
@@ -303,7 +314,8 @@ class RnseBrightnessController:
             'enabled': self.enabled, 'needs_lights': self.needs_lights,
             'protocol_available': status.protocol_available, 'error': status.error,
             'brightness_state': brightness_state, 'source_state': source_state,
-            'brightness_queued': brightness_queued, 'source_queued': source_queued,
+            'brightness_queued': brightness_queued, 'dial_queued': dial_queued,
+            'lcd_queued': lcd_queued, 'source_queued': source_queued,
             'queued': (status.state == 'ready'
                        and (brightness_state != 'ready' or brightness_queued)
                        and (source_state != 'ready' or source_queued)),
@@ -311,7 +323,8 @@ class RnseBrightnessController:
 
     def force_reapply(self) -> None:
         """Explicit radio wake re-arms each enabled command once."""
-        self.last_queued = None
+        self.last_dial_queued = None
+        self.last_lcd_queued = None
         self.last_source_queued = None
 
     def pending_command(self, radio_active: bool,
@@ -322,7 +335,7 @@ class RnseBrightnessController:
 
     def pending_commands(self, radio_active: bool,
                          inhibited: bool = False) -> List[BrightnessCommand]:
-        """Propose independent BB and BA commands without committing either."""
+        """Propose independent B7, BB and BA commands without committing any."""
         if not radio_active:
             if self._radio_active is not False:
                 self.force_reapply()
@@ -332,10 +345,14 @@ class RnseBrightnessController:
         level, lcd, source = self._desired()
         commands = []
         if self._brightness_state(inhibited)[0] == 'ready':
-            arbitration_id, payload = self.protocol.encode(level, lcd)
-            if payload != self.last_queued:
+            arbitration_id, payload = self.protocol.encode_dial(level)
+            if payload != self.last_dial_queued:
                 commands.append(BrightnessCommand(self.mode or 'manual', level,
-                    arbitration_id, payload, lcd))
+                    arbitration_id, payload, lcd, kind='dial'))
+            arbitration_id, payload = self.protocol.encode_lcd(lcd)
+            if payload != self.last_lcd_queued:
+                commands.append(BrightnessCommand(self.mode or 'manual', level,
+                    arbitration_id, payload, lcd, kind='lcd'))
         if self._source_state(inhibited)[0] == 'ready':
             arbitration_id, payload = self.protocol.encode_source(source)
             if payload != self.last_source_queued:
@@ -345,8 +362,10 @@ class RnseBrightnessController:
 
     def mark_queued(self, command: BrightnessCommand) -> None:
         """Record one committed payload; this is not an RNS-E acknowledgment."""
-        if command.kind == 'brightness':
-            self.last_queued = command.payload
+        if command.kind == 'dial':
+            self.last_dial_queued = command.payload
+        elif command.kind == 'lcd':
+            self.last_lcd_queued = command.payload
         elif command.kind == 'source':
             self.last_source_queued = command.payload
         else:

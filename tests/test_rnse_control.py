@@ -44,6 +44,13 @@ class BrightnessPolicyTests(unittest.TestCase):
             controller.mark_queued(command)
         return commands[0]
 
+    def sent(self, controller):
+        """Commit every pending command and return their payloads as hex."""
+        commands = controller.pending_commands(True)
+        for command in commands:
+            controller.mark_queued(command)
+        return [command.payload.hex().upper() for command in commands]
+
     def test_absent_settings_are_disabled_with_confirmed_native_defaults(self):
         controller = self.bridge()
         self.assertEqual(controller.settings, BrightnessSettings())
@@ -62,23 +69,24 @@ class BrightnessPolicyTests(unittest.TestCase):
             self.assertIsNone(controller.target())
             self.assertIsNone(controller.target(inhibited=True))
 
-    def test_split_confirmed_eight_byte_commands_and_strict_bounds(self):
+    def test_r38_split_eight_byte_commands_and_strict_bounds(self):
         protocol = RnseCanBrightnessProtocol()
-        self.assertEqual(protocol.encode(5), (0x7B0, bytes.fromhex('BB05000000000000')))
-        self.assertEqual(protocol.encode(10, 100), (0x7B0, bytes.fromhex('BB0A640000000000')))
-        self.assertEqual(protocol.encode(0, 1)[1], bytes.fromhex('BB00010000000000'))
+        self.assertEqual(protocol.encode_dial(5), (0x7B0, bytes.fromhex('B705000000000000')))
+        self.assertEqual(protocol.encode_dial(10)[1], bytes.fromhex('B70A000000000000'))
+        self.assertEqual(protocol.encode_lcd(0), (0x7B0, bytes.fromhex('BB00000000000000')))
+        self.assertEqual(protocol.encode_lcd(100)[1], bytes.fromhex('BB64000000000000'))
         for source in range(3):
             self.assertEqual(protocol.encode_source(source),
                              (0x7B0, bytes([0xBA, source, 0, 0, 0, 0, 0, 0])))
         for level in (-1, 11, True, 5.5, '5', None):
             with self.subTest(level=level), self.assertRaises(ValueError):
-                protocol.encode(level)
+                protocol.encode_dial(level)
         for source in (-1, 3, True, 1.5, '1', None):
             with self.subTest(source=source), self.assertRaises(ValueError):
                 protocol.encode_source(source)
         for lcd in (-1, 101, True, 2.5, '6', None):
             with self.subTest(lcd=lcd), self.assertRaises(ValueError):
-                protocol.encode(5, lcd)
+                protocol.encode_lcd(lcd)
         for level in (-1, 11):
             with self.subTest(level=level), self.assertRaises(ValueError):
                 self.controller(day_brightness=level)
@@ -126,9 +134,13 @@ class BrightnessPolicyTests(unittest.TestCase):
         controller = self.bridge(manual_brightness=4, manual_lcd_brightness=40)
         self.assertTrue(controller.enabled)
         self.assertFalse(controller.needs_lights)
-        command = self.commit(controller)
-        self.assertEqual(command.payload, bytes.fromhex('BB04280000000000'))
-        self.assertEqual(command.mode, 'manual')
+        commands = controller.pending_commands(True)
+        self.assertEqual([c.payload for c in commands],
+                         [bytes.fromhex('B704000000000000'), bytes.fromhex('BB28000000000000')])
+        self.assertEqual([c.kind for c in commands], ['dial', 'lcd'])
+        self.assertEqual(commands[0].mode, 'manual')
+        for command in commands:
+            controller.mark_queued(command)
         self.assertIsNone(controller.pending_command(True))
 
     def test_lcd_auto_independent_from_dial_auto(self):
@@ -139,9 +151,9 @@ class BrightnessPolicyTests(unittest.TestCase):
         self.assertTrue(controller.needs_lights)
         self.assertEqual(controller.status().state, 'waiting_vehicle_state')
         controller.observe_lights(False)
-        self.assertEqual(self.commit(controller).payload, bytes.fromhex('BB08500000000000'))
+        self.assertEqual(self.sent(controller), ['B708000000000000', 'BB50000000000000'])
         controller.observe_lights(True)
-        self.assertEqual(self.commit(controller).payload, bytes.fromhex('BB08020000000000'))
+        self.assertEqual(self.sent(controller), ['BB02000000000000'])
         snapshot = controller.snapshot()
         self.assertEqual(snapshot['lcd_brightness'], 2)
         self.assertEqual(snapshot['effective_lcd_brightness'], 6)
@@ -155,9 +167,9 @@ class BrightnessPolicyTests(unittest.TestCase):
         settings = controller.settings
         self.commit(controller)
         self.assertTrue(controller.set_manual({'brightness': 6}))
-        self.assertEqual(self.commit(controller).payload, bytes.fromhex('BB065A0000000000'))
+        self.assertEqual(self.sent(controller), ['B706000000000000'])
         self.assertTrue(controller.set_manual({'lcd_brightness': 30}))
-        self.assertEqual(self.commit(controller).payload, bytes.fromhex('BB061E0000000000'))
+        self.assertEqual(self.sent(controller), ['BB1E000000000000'])
         self.assertIs(controller.settings, settings)
         self.assertFalse(controller.set_manual({'brightness': 6}))
         self.assertIsNone(controller.pending_command(True))
@@ -177,7 +189,7 @@ class BrightnessPolicyTests(unittest.TestCase):
         self.assertEqual(controller.manual_overrides, {'brightness': 8, 'lcd_brightness': 70})
         self.assertTrue(controller.observe_lights(True))
         self.assertEqual(controller.manual_overrides, {'brightness': None, 'lcd_brightness': None})
-        self.assertEqual(self.commit(controller).payload, bytes.fromhex('BB03070000000000'))
+        self.assertEqual(self.sent(controller), ['B703000000000000', 'BB07000000000000'])
         self.assertIsNone(controller.pending_command(True))
 
     def test_light_edge_only_resumes_automatic_channel(self):
@@ -187,7 +199,7 @@ class BrightnessPolicyTests(unittest.TestCase):
         self.commit(controller)
         controller.observe_lights(True)
         self.assertEqual(controller.manual_overrides, {'brightness': None, 'lcd_brightness': 40})
-        self.assertEqual(self.commit(controller).payload, bytes.fromhex('BB05280000000000'))
+        self.assertEqual(self.sent(controller), ['B705000000000000'])
 
     def test_live_override_before_first_light_observation_survives_initial_state(self):
         controller = self.bridge(auto_brightness={'enabled': True})
@@ -276,10 +288,11 @@ class BrightnessPolicyTests(unittest.TestCase):
     def test_queue_failure_can_retry_before_first_success(self):
         controller = self.bridge(manual_brightness=5)
         first = controller.pending_command(True)
-        self.assertIsNone(controller.last_queued)
+        self.assertIsNone(controller.last_dial_queued)
         self.assertEqual(controller.pending_command(True).payload, first.payload)
         controller.mark_queued(first)
-        self.assertEqual(controller.last_queued, first.payload)
+        self.assertEqual(controller.last_dial_queued, first.payload)
+        self.assertEqual(self.sent(controller), ['BB00000000000000'])
         self.assertIsNone(controller.pending_command(True))
 
     def test_reload_preserves_observed_state_and_dedup_but_clears_live_tests(self):
@@ -297,12 +310,12 @@ class BrightnessPolicyTests(unittest.TestCase):
         restored = self.bridge(auto_brightness={'enabled': True}, source_label={'enabled': True})
         restored.inherit_state(previous)
         self.assertEqual(restored.manual_overrides, {'brightness': None, 'lcd_brightness': None})
-        self.assertEqual(self.commit(restored).payload, bytes.fromhex('BB05000000000000'))
+        self.assertEqual(self.sent(restored), ['B705000000000000'])
 
     def test_effective_lcd_minimum_does_not_change_raw_payload(self):
         for lcd in range(0, 8):
             controller = self.bridge(manual_lcd_brightness=lcd)
-            self.assertEqual(self.commit(controller).payload[2], lcd)
+            self.assertEqual(self.sent(controller)[1], f'BB{lcd:02X}000000000000')
             self.assertEqual(controller.snapshot()['effective_lcd_brightness'], max(6, lcd) if lcd else 0)
 
     def test_source_only_preserves_brightness_and_snapshot_contract(self):
@@ -323,7 +336,8 @@ class BrightnessPolicyTests(unittest.TestCase):
         self.assertFalse(snapshot['brightness_queued'])
         self.assertTrue(snapshot['source_queued'])
         self.assertTrue(snapshot['queued'])
-        self.assertIsNone(controller.last_queued)
+        self.assertIsNone(controller.last_dial_queued)
+        self.assertIsNone(controller.last_lcd_queued)
         self.assertEqual(controller.pending_commands(True), [])
         json.dumps(snapshot)
 
@@ -343,24 +357,29 @@ class BrightnessPolicyTests(unittest.TestCase):
         self.assertEqual(controller.pending_commands(True), [])
         controller.observe_source(2)
         self.assertEqual(self.commit(controller).kind, 'source')
-        self.assertIsNone(controller.last_queued)
+        self.assertIsNone(controller.last_dial_queued)
 
     def test_brightness_and_source_deduplicate_and_commit_independently(self):
         controller = self.bridge(manual_brightness=4, manual_lcd_brightness=70,
                                  source_label={'enabled': True})
         first = controller.pending_commands(True)
         self.assertEqual([command.payload for command in first],
-                         [bytes.fromhex('BB04460000000000'), bytes.fromhex('BA00000000000000')])
-        controller.mark_queued(first[1])
-        self.assertEqual(controller.pending_commands(True), [first[0]])
-        self.assertTrue(controller.snapshot()['source_queued'])
-        self.assertFalse(controller.snapshot()['brightness_queued'])
-        self.assertFalse(controller.snapshot()['queued'])
+                         [bytes.fromhex('B704000000000000'), bytes.fromhex('BB46000000000000'),
+                          bytes.fromhex('BA00000000000000')])
+        controller.mark_queued(first[2])
         controller.mark_queued(first[0])
+        self.assertEqual(controller.pending_commands(True), [first[1]])
+        snapshot = controller.snapshot()
+        self.assertTrue(snapshot['source_queued'])
+        self.assertTrue(snapshot['dial_queued'])
+        self.assertFalse(snapshot['lcd_queued'])
+        self.assertFalse(snapshot['brightness_queued'])
+        self.assertFalse(snapshot['queued'])
+        controller.mark_queued(first[1])
         controller.observe_source(2)
-        self.assertEqual(self.commit(controller).payload, bytes.fromhex('BA02000000000000'))
+        self.assertEqual(self.sent(controller), ['BA02000000000000'])
         controller.set_manual({'lcd_brightness': 30})
-        self.assertEqual(self.commit(controller).payload, bytes.fromhex('BB041E0000000000'))
+        self.assertEqual(self.sent(controller), ['BB1E000000000000'])
         self.assertEqual(controller.last_source_queued, bytes.fromhex('BA02000000000000'))
         self.assertEqual(controller.pending_commands(True), [])
 
@@ -373,12 +392,13 @@ class BrightnessPolicyTests(unittest.TestCase):
         controller.set_manual({'brightness': 8})
         controller.observe_source(2)
         self.assertEqual(controller.pending_commands(True, inhibited=True), [])
-        self.assertEqual([c.kind for c in controller.pending_commands(True)], ['brightness', 'source'])
+        self.assertEqual([c.kind for c in controller.pending_commands(True)], ['dial', 'source'])
         self.commit(controller)
         self.assertEqual(controller.pending_commands(False), [])
         wake = controller.pending_commands(True)
         self.assertEqual([c.payload for c in wake],
-                         [bytes.fromhex('BB08000000000000'), bytes.fromhex('BA02000000000000')])
+                         [bytes.fromhex('B708000000000000'), bytes.fromhex('BB00000000000000'),
+                          bytes.fromhex('BA02000000000000')])
         self.commit(controller)
         self.assertEqual(controller.pending_commands(True), [])
 
@@ -393,7 +413,7 @@ class BrightnessPolicyTests(unittest.TestCase):
         self.assertEqual(self.commit(source_only).kind, 'source')
         brightness_only = self.bridge(manual_brightness=6)
         brightness_only.inherit_state(source_only)
-        self.assertEqual(self.commit(brightness_only).payload, bytes.fromhex('BB06000000000000'))
+        self.assertEqual(self.sent(brightness_only), ['B706000000000000'])
         self.assertEqual(brightness_only.last_source_queued, bytes.fromhex('BA01000000000000'))
 
 
@@ -558,14 +578,15 @@ class BaseServiceBrightnessTests(unittest.TestCase):
         namespace['send_can_message'].assert_not_called()
         namespace['handle_rnse_light_status_message']({'dlc': 2, 'data_hex': '0000'})
         reconcile(state)
-        namespace['send_can_message'].assert_called_once_with(0x7B0, 'bb0a000000000000')
+        self.assertEqual(namespace['send_can_message'].call_args_list,
+                         [call(0x7B0, 'b70a000000000000'), call(0x7B0, 'bb00000000000000')])
         for _ in range(10):
             reconcile(state)
-        self.assertEqual(namespace['send_can_message'].call_count, 1)
+        self.assertEqual(namespace['send_can_message'].call_count, 2)
         namespace['handle_rnse_light_status_message']({'dlc': 2, 'data_hex': '0001'})
         reconcile(state)
-        self.assertEqual(namespace['send_can_message'].call_count, 2)
-        namespace['send_can_message'].assert_called_with(0x7B0, 'bb05000000000000')
+        self.assertEqual(namespace['send_can_message'].call_count, 3)
+        namespace['send_can_message'].assert_called_with(0x7B0, 'b705000000000000')
 
     def test_runtime_gates_radio_listen_only_and_flashing_without_duplicate_resume(self):
         namespace = self.namespace()
@@ -586,17 +607,17 @@ class BaseServiceBrightnessTests(unittest.TestCase):
         namespace['send_can_message'].assert_not_called()
         namespace['flashing_mode_enabled'].return_value = False
         reconcile(state)
-        self.assertEqual(namespace['send_can_message'].call_count, 1)
+        self.assertEqual(namespace['send_can_message'].call_count, 2)
         namespace['flashing_mode_enabled'].return_value = True
         reconcile(state)
         namespace['flashing_mode_enabled'].return_value = False
         reconcile(state)
-        self.assertEqual(namespace['send_can_message'].call_count, 1)
+        self.assertEqual(namespace['send_can_message'].call_count, 2)
         state.is_radio_active.return_value = False
         reconcile(state)
         state.is_radio_active.return_value = True
         reconcile(state)
-        self.assertEqual(namespace['send_can_message'].call_count, 2)
+        self.assertEqual(namespace['send_can_message'].call_count, 4)
 
     def test_queue_failure_retries_without_marking_queued(self):
         namespace = self.namespace()
@@ -605,10 +626,12 @@ class BaseServiceBrightnessTests(unittest.TestCase):
         namespace['send_can_message'].return_value = False
         state = self.state()
         namespace['reconcile_rnse_brightness'](state)
-        self.assertIsNone(namespace['CONFIG']['rnse_brightness'].last_queued)
+        self.assertIsNone(namespace['CONFIG']['rnse_brightness'].last_dial_queued)
+        self.assertIsNone(namespace['CONFIG']['rnse_brightness'].last_lcd_queued)
         namespace['send_can_message'].return_value = True
         namespace['reconcile_rnse_brightness'](state)
-        self.assertEqual(namespace['CONFIG']['rnse_brightness'].last_queued, bytes.fromhex('BB05000000000000'))
+        self.assertEqual(namespace['CONFIG']['rnse_brightness'].last_dial_queued, bytes.fromhex('B705000000000000'))
+        self.assertEqual(namespace['CONFIG']['rnse_brightness'].last_lcd_queued, bytes.fromhex('BB00000000000000'))
 
     def test_reload_uses_new_levels_after_confirmed_state_without_a_heartbeat(self):
         namespace = self.namespace()
@@ -618,11 +641,11 @@ class BaseServiceBrightnessTests(unittest.TestCase):
         namespace['reconcile_rnse_brightness'](state)
         self.assertTrue(self.load(namespace, self.fixture(enabled=True, night_brightness=3)))
         namespace['reconcile_rnse_brightness'](state)
-        self.assertEqual(namespace['send_can_message'].call_count, 2)
+        self.assertEqual(namespace['send_can_message'].call_count, 3)
         namespace['handle_rnse_light_status_message']({'dlc': 2, 'data_hex': '0001'})
         namespace['reconcile_rnse_brightness'](state)
-        self.assertEqual(namespace['send_can_message'].call_count, 2)
-        namespace['send_can_message'].assert_called_with(0x7B0, 'bb03000000000000')
+        self.assertEqual(namespace['send_can_message'].call_count, 3)
+        namespace['send_can_message'].assert_called_with(0x7B0, 'b703000000000000')
 
     def test_explicit_radio_wake_rearms_even_between_periodic_checks(self):
         namespace = self.namespace()
@@ -634,7 +657,7 @@ class BaseServiceBrightnessTests(unittest.TestCase):
         namespace['handle_nav_nm_message']({'dlc': 2, 'data_hex': '0000'}, state)
         state.is_radio_active.return_value = True
         namespace['reconcile_rnse_brightness'](state)
-        self.assertEqual(namespace['send_can_message'].call_count, 2)
+        self.assertEqual(namespace['send_can_message'].call_count, 4)
 
     def test_listener_subscribes_to_radio_nm_when_listen_only_is_disabled(self):
         namespace = self.namespace()
@@ -669,7 +692,8 @@ class BaseServiceBrightnessTests(unittest.TestCase):
         self.assertIn(b'CAN_635', subscriptions)
         self.assertEqual(namespace['CONFIG']['rnse_brightness'].mode, 'night')
         namespace['reconcile_rnse_brightness'](state)
-        namespace['send_can_message'].assert_called_once_with(0x7B0, 'bb0a020000000000')
+        self.assertEqual(namespace['send_can_message'].call_args_list,
+                         [call(0x7B0, 'b70a000000000000'), call(0x7B0, 'bb02000000000000')])
 
     def test_runtime_partial_queue_failure_only_retries_failed_kind(self):
         namespace = self.namespace()
@@ -680,18 +704,20 @@ class BaseServiceBrightnessTests(unittest.TestCase):
         state = self.state()
         controller = namespace['CONFIG']['rnse_brightness']
         controller.observe_source(2)
-        namespace['send_can_message'].side_effect = [False, True]
+        namespace['send_can_message'].side_effect = [False, True, True]
         namespace['reconcile_rnse_brightness'](state)
         self.assertEqual(namespace['send_can_message'].call_args_list,
-                         [call(0x7B0, 'bb04460000000000'), call(0x7B0, 'ba02000000000000')])
-        self.assertIsNone(controller.last_queued)
+                         [call(0x7B0, 'b704000000000000'), call(0x7B0, 'bb46000000000000'),
+                          call(0x7B0, 'ba02000000000000')])
+        self.assertIsNone(controller.last_dial_queued)
+        self.assertEqual(controller.last_lcd_queued, bytes.fromhex('BB46000000000000'))
         self.assertEqual(controller.last_source_queued, bytes.fromhex('BA02000000000000'))
         namespace['send_can_message'].side_effect = None
         namespace['reconcile_rnse_brightness'](state)
-        self.assertEqual(namespace['send_can_message'].call_count, 3)
-        namespace['send_can_message'].assert_called_with(0x7B0, 'bb04460000000000')
+        self.assertEqual(namespace['send_can_message'].call_count, 4)
+        namespace['send_can_message'].assert_called_with(0x7B0, 'b704000000000000')
         namespace['reconcile_rnse_brightness'](state)
-        self.assertEqual(namespace['send_can_message'].call_count, 3)
+        self.assertEqual(namespace['send_can_message'].call_count, 4)
         controller.observe_source(1)
         controller.set_manual({'brightness': 8})
         namespace['send_can_message'].side_effect = [True, False]
@@ -699,7 +725,7 @@ class BaseServiceBrightnessTests(unittest.TestCase):
         namespace['send_can_message'].side_effect = None
         namespace['reconcile_rnse_brightness'](state)
         namespace['send_can_message'].assert_called_with(0x7B0, 'ba01000000000000')
-        self.assertEqual(namespace['send_can_message'].call_count, 6)
+        self.assertEqual(namespace['send_can_message'].call_count, 7)
         self.assertTrue(controller.snapshot()['queued'])
 
     def test_runtime_source_command_does_not_wait_for_unknown_lights(self):
@@ -712,12 +738,12 @@ class BaseServiceBrightnessTests(unittest.TestCase):
         state = self.state()
         namespace['reconcile_rnse_brightness'](state)
         namespace['send_can_message'].assert_called_once_with(0x7B0, 'ba01000000000000')
-        self.assertIsNone(controller.last_queued)
+        self.assertIsNone(controller.last_dial_queued)
         self.assertTrue(controller.snapshot()['queued'])
         namespace['handle_rnse_light_status_message']({'dlc': 2, 'data_hex': '0000'})
         namespace['reconcile_rnse_brightness'](state)
-        self.assertEqual(namespace['send_can_message'].call_count, 2)
-        namespace['send_can_message'].assert_called_with(0x7B0, 'bb0a000000000000')
+        self.assertEqual(namespace['send_can_message'].call_args_list[1:],
+                         [call(0x7B0, 'b70a000000000000'), call(0x7B0, 'bb00000000000000')])
 
 
 

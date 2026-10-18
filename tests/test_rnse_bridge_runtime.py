@@ -50,17 +50,18 @@ class BridgeRequestTests(unittest.TestCase):
         self.lights({'dlc': 2, 'data_hex': '0000'})
         original = self.path.read_bytes()
         self.request({'action': 'manual', 'values': {'brightness': 6}})
-        self.assertEqual(self.send.call_args_list, [call(0x7B0, 'bb065a0000000000'), call(0x7B0, 'ba00000000000000')])
+        self.assertEqual(self.send.call_args_list, [call(0x7B0, 'b706000000000000'), call(0x7B0, 'bb5a000000000000'),
+                                                 call(0x7B0, 'ba00000000000000')])
         self.request({'action': 'manual', 'values': {'lcd_brightness': 30}})
-        self.send.assert_called_with(0x7B0, 'bb061e0000000000')
+        self.send.assert_called_with(0x7B0, 'bb1e000000000000')
         self.lights({'dlc': 2, 'data_hex': '0000'})
         self.namespace['reconcile_rnse_brightness'](self.state)
-        self.assertEqual(self.send.call_count, 3)
+        self.assertEqual(self.send.call_count, 4)
         policy = self.namespace['CONFIG']['rnse_brightness']
         self.assertTrue(policy.settings.enabled)
         self.lights({'dlc': 2, 'data_hex': '0001'})
         self.namespace['reconcile_rnse_brightness'](self.state)
-        self.send.assert_called_with(0x7B0, 'bb03020000000000')
+        self.assertEqual(self.send.call_args_list[-2:], [call(0x7B0, 'b703000000000000'), call(0x7B0, 'bb02000000000000')])
         self.assertEqual(policy.manual_overrides, {'brightness': None, 'lcd_brightness': None})
         self.assertEqual(self.path.read_bytes(), original)
 
@@ -75,7 +76,7 @@ class BridgeRequestTests(unittest.TestCase):
         self.document['rnse']['auto_brightness']['night_brightness'] = 4
         self.path.write_text(json.dumps(self.document))
         self.request({'action': 'reload'})
-        self.send.assert_called_with(0x7B0, 'bb04020000000000')
+        self.send.assert_called_with(0x7B0, 'b704000000000000')
         self.assertIs(self.namespace['FEATURES'], features)
         self.assertEqual(self.namespace['CONFIG']['zmq_send_address'], address)
         policy = self.namespace['CONFIG']['rnse_brightness']
@@ -98,18 +99,19 @@ class BridgeRequestTests(unittest.TestCase):
         self.namespace['flashing_mode_enabled'].return_value = False
         reconcile = self.namespace['reconcile_rnse_brightness']
         reconcile(self.state)
-        self.assertEqual(self.send.call_args_list, [call(0x7B0, 'bb07320000000000'), call(0x7B0, 'ba00000000000000')])
+        self.assertEqual(self.send.call_args_list, [call(0x7B0, 'b707000000000000'), call(0x7B0, 'bb32000000000000'),
+                                                 call(0x7B0, 'ba00000000000000')])
         self.state.can_listen_only = True
         reconcile(self.state)
         self.state.can_listen_only = False
         reconcile(self.state)
-        self.assertEqual(self.send.call_count, 2)
+        self.assertEqual(self.send.call_count, 3)
         self.state.is_radio_active.return_value = False
         reconcile(self.state)
         self.state.is_radio_active.return_value = True
         reconcile(self.state)
         reconcile(self.state)
-        self.assertEqual(self.send.call_count, 4)
+        self.assertEqual(self.send.call_count, 6)
 
     def test_invalid_manual_is_atomic_and_reload_requires_existing_light_id(self):
         policy = self.namespace['CONFIG']['rnse_brightness']

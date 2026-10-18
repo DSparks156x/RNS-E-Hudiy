@@ -1356,7 +1356,7 @@
     "rnse.auto_brightness.enabled": {
       "label": "Automatic RNS-E brightness",
       "type": "boolean",
-      "help": "Set RNS-E screen brightness from vehicle day/night state. Sends a brightness command when the light state changes or the radio wakes. This is separate from Hudiy and Android Auto theme switching.",
+      "help": "Set the RNS-E brightness dial from vehicle day/night state. The dial only has an effect while LCD brightness is 0 (following the cluster). Sends a command when the light state changes or the radio wakes. This is separate from Hudiy and Android Auto theme switching.",
       "order": 4
     },
     "rnse.auto_brightness.day_brightness": {
@@ -1389,7 +1389,7 @@
     "rnse.auto_lcd_brightness.enabled": {
       "label": "Automatic LCD brightness",
       "type": "boolean",
-      "help": "Set the separate RNS-E LCD panel brightness from vehicle day/night state. The LCD level uses its own scale and is independent of screen brightness.",
+      "help": "Set the RNS-E LCD brightness from vehicle day/night state. 0 follows the cluster dimmer plus the brightness dial; 1–100 overrides both.",
       "order": 8
     },
     "rnse.auto_lcd_brightness.day_brightness": {

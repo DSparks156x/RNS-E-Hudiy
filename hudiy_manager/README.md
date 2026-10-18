@@ -61,14 +61,20 @@ automatic mode. A later real day/night transition replaces test values for
 channels whose automatic mode is enabled. Applying settings reloads policy and
 sends a changed payload once.
 
-The bridge uses standard CAN ID `0x7B0`, DLC 8, with separate commands:
+The bridge uses standard CAN ID `0x7B0`, DLC 8, with the r38 firmware
+commands:
 
-- `BB LL SS 00 00 00 00 00` sets brightness without changing the stored source,
-  label or icon mode. `LL` is the dial from 0 to 10. `SS=0` follows cluster dimming;
-  1–100 overrides the LCD level. Raw levels 1–5 use the stock minimum of 6.
+- `B7 LL 00 00 00 00 00 00` sets the dial, 0 to 10. The dial is an offset on the
+  cluster dimmer, so it only has an effect while the LCD override is 0.
+- `BB SS 00 00 00 00 00 00` sets the LCD override. `SS=0` follows the cluster
+  dimmer plus the dial; 1–100 is an absolute level. Raw levels 1–5 use the stock
+  minimum of 6. It never changes the dial.
 - `BA MM 00 00 00 00 00 00` sets the stored source, label and icon mode without
   changing brightness or the LCD override. `MM` selects Hudiy (0), CarPlay (1),
   or Android Auto (2).
+
+r24–r37 firmware used `BB LL SS`. On r38 that frame is dropped when `SS` is
+nonzero, so this bridge needs r38.
 
 Values outside these ranges are rejected before sending; firmware also drops
 invalid values without changing state. Other command formats are unchanged.
@@ -77,7 +83,7 @@ Source labels are opt-in and use Hudiy’s reported media/navigation provider,
 including idle or paused provider state. Hudiy’s API does not report exact
 connection state, so the label is not a connected-source indicator. Hudiy
 publishes two-second ZMQ snapshots; that publisher does not repeat CAN frames.
-Brightness and source frames are deduplicated independently by exact payload.
+Dial, LCD and source frames are deduplicated independently by exact payload.
 Source updates can send while automatic brightness waits for vehicle light state.
 There is no heartbeat or repeat
 for unchanged values. Radio wake causes one reapply; inhibition alone does not
@@ -86,8 +92,8 @@ reapply an unchanged payload. Listen-only and Flashing Mode inhibit CAN sends.
 The Manager client API is available only through the Manager on local port
 5004, with bounded IPC commands to the CAN base service. The service gates sends
 for radio state, listen-only and Flashing Mode. Manager does not access CAN
-directly. This protocol requires new firmware; hardware behavior has not yet
-been verified. Existing B7, ADC and other firmware commands are unchanged.
+directly. This protocol requires r38 firmware; hardware behavior has not yet
+been verified. ADC and other firmware commands are unchanged.
 
 ## Pi video colors
 
