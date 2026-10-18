@@ -2,7 +2,6 @@
 from .base import BaseApp
 import time
 import math
-from PIL import Image, ImageDraw
 import dis_image
 
 class OpenpilotApp(BaseApp):
@@ -163,6 +162,8 @@ class OpenpilotApp(BaseApp):
         # ----------------------------------------------------
         # Group 2: Road Visualization Area (Y=7 to 42) - 64x36 Bitmap
         # ----------------------------------------------------
+        # PIL is imported here, not at startup: only the openpilot view draws.
+        from PIL import Image, ImageDraw
         road_img = Image.new("1", (64, 36), 0)
         draw = ImageDraw.Draw(road_img)
 

@@ -1,7 +1,6 @@
 import os
 import json
 import time
-from PIL import Image
 from .base import BaseApp
 import dis_image
 
@@ -80,6 +79,8 @@ class EasterEggApp(BaseApp):
         self.current_loop = 0
         self.finished = False
 
+        # PIL is imported here, not at startup: only a triggered easter egg needs it.
+        from PIL import Image
         img = None
         try:
             img = Image.open(full_path)

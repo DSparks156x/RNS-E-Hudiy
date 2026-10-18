@@ -8,17 +8,51 @@ Pipeline order:
   gamma → brightness/contrast → edge sharpen → downscale to target →
   adaptive black floor → dither (Atkinson default)
 """
+from __future__ import annotations
+
+import importlib
 import time
 import math
-from PIL import Image, ImageOps, ImageEnhance, ImageFilter, ImageChops, ImageMorph
-import numpy as np
 
-# Try to import OpenCV for CLAHE - fall back to global autocontrast if unavailable
-try:
-    import cv2
-    HAS_CV2 = True
-except ImportError:
-    HAS_CV2 = False
+
+class _LazyModule:
+    """Stands in for a module and imports it on first attribute access."""
+
+    def __init__(self, name):
+        self._name = name
+        self._module = None
+
+    def __getattr__(self, attr):
+        if self._module is None:
+            self._module = importlib.import_module(self._name)
+        return getattr(self._module, attr)
+
+
+# numpy and PIL are imported on first use: cover-art processing never runs at startup,
+# and on the Pi they page in ~45 MB of libraries while every service is booting.
+np = _LazyModule('numpy')
+Image = _LazyModule('PIL.Image')
+ImageOps = _LazyModule('PIL.ImageOps')
+ImageEnhance = _LazyModule('PIL.ImageEnhance')
+ImageFilter = _LazyModule('PIL.ImageFilter')
+ImageChops = _LazyModule('PIL.ImageChops')
+ImageMorph = _LazyModule('PIL.ImageMorph')
+
+# OpenCV (CLAHE, dilation) is imported on first use: on the Pi it pulls in ~150 MB of
+# libraries (VTK, GDAL, Qt5, ffmpeg), which stalled the whole boot when loaded at startup.
+# Falls back to PIL when it isn't installed.
+_cv2 = None
+
+
+def _get_cv2():
+    global _cv2
+    if _cv2 is None:
+        try:
+            import cv2
+            _cv2 = cv2
+        except ImportError:
+            _cv2 = False
+    return _cv2
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +163,8 @@ def apply_clahe(gray_img, clip_limit=2.5, grid_size=8):
     
     Falls back to global autocontrast if OpenCV is not available.
     """
-    if HAS_CV2:
+    cv2 = _get_cv2()
+    if cv2:
         arr = np.array(gray_img, dtype=np.uint8)
         
         # Measure existing contrast: how much of the 0-255 range is used?
@@ -237,7 +272,8 @@ def morphological_bold(gray_img, boldness=0):
     if blend == 0 and boldness > 0:
         blend = 1.0
 
-    if not HAS_CV2:
+    cv2 = _get_cv2()
+    if not cv2:
         # Fallback: simple MaxFilter approach
         dilated = gray_img
         for i in range(iterations):

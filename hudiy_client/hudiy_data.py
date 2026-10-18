@@ -14,7 +14,6 @@ import signal
 import sys
 import os
 import time
-from PIL import Image
 from queue import Queue, Empty
 import zmq
 import hashlib
@@ -35,6 +34,8 @@ try:
     # Add root to path for dis_client
     sys.path.insert(0, os.path.join(script_dir, '..'))
     import dis_client.dis_image as dis_image
+    # PIL.Image, imported on first cover rather than at startup.
+    from dis_client.dis_image import Image
     from dis_client.navigation_state import has_route_content, is_no_route
     from flasher.traffic import flashing_mode_enabled, toggle_flashing_mode
 except ImportError as e:

@@ -1,6 +1,5 @@
 import io
 import logging
-from PIL import Image
 import dis_image
 from .base import BaseApp
 try:
@@ -49,6 +48,7 @@ class CoverArtApp(BaseApp):
         self._last_native_source = None
 
     def _process_native_cover(self, image_hex, native_hex):
+        from PIL import Image
         if image_hex:
             if not isinstance(image_hex, str) or len(image_hex) > self.MAX_ENCODED_BYTES * 2:
                 raise ValueError('Encoded cover exceeds4 MiB or is not hex text')
@@ -81,6 +81,8 @@ class CoverArtApp(BaseApp):
             return
         self._last_native_source = source_key
         self.native_bitmap_hex = ''
+        # PIL is imported here, not at startup: it is only needed once cover art arrives.
+        from PIL import Image
         try:
             self.native_bitmap_hex = self._process_native_cover(image_hex, native_hex)
         except (ValueError, TypeError, OSError, Image.DecompressionBombError) as exc:
