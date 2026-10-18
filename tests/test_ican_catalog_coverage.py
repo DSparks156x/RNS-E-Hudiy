@@ -103,6 +103,24 @@ class ICANCatalogReferenceCoverageTests(unittest.TestCase):
         self.assertEqual(reading("engine.cooling_fan_duty", 0x35B, packed_frame(b40=80))["value"], 32)
         self.assertFalse(any(p["kind"] == "ican" and p["can_id"] == 0x35B for p in CATALOG["vehicle.fuel_remaining"]["providers"]))
 
+    def test_brightness_signals_decode_captured_frames(self):
+        # Frames from references/canlog.txt: 0x635 mirrors the cluster's 0x621 values.
+        cluster = bytes.fromhex("2004240B012523")
+        gateway = bytes.fromhex("250023")
+        self.assertEqual(reading("vehicle.ambient_light_level", 0x621, cluster)["value"], 35)
+        self.assertEqual(reading("vehicle.cluster_display_brightness", 0x621, cluster)["value"], 37)
+        self.assertEqual(reading("vehicle.cluster_display_brightness_substitute", 0x621, cluster)["value"], "No")
+        self.assertEqual(reading("vehicle.gateway_display_brightness", 0x635, gateway)["value"], 37)
+        self.assertEqual(reading("vehicle.gateway_switch_brightness", 0x635, gateway)["value"], 0)
+        self.assertEqual(reading("vehicle.gateway_light_sensor_level", 0x635, gateway)["value"], 35)
+        self.assertEqual(reading("vehicle.gateway_display_brightness", 0x635, bytes.fromhex("7F0023"))["reason"],
+                         "out_of_range")
+        self.assertEqual(reading("vehicle.gateway_switch_brightness", 0x635, bytes.fromhex("258023"))["reason"],
+                         "invalid_flag")
+        self.assertEqual(reading("vehicle.gateway_light_sensor_level", 0x635, bytes.fromhex("2500FE"))["reason"],
+                         "sentinel")
+        self.assertEqual(reading("climate.display_counter_dimming", 0x5E1, packed_frame(7, b48=40))["value"], 40)
+
     def test_altitude_factor_and_pressure_estimate_have_separate_provider_identity(self):
         frame = packed_frame(b16=128)
         self.assertEqual(reading("engine.altitude_correction_factor.ratio", 0x555, frame)["value"], 1)

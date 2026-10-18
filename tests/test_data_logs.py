@@ -164,7 +164,7 @@ class DataLogsTests(unittest.TestCase):
         app = Flask(__name__)
         service = register_data_logs(app, Socket(), self.config)
         client = app.test_client()
-        self.assertEqual(len(client.get('/api/data-logs').json['catalog']), 460)
+        self.assertEqual(len(client.get('/api/data-logs').json['catalog']), 466)
         self.assertEqual(client.put('/api/data-logs/config', json={'profiles': []}).status_code, 400)
         self.assertEqual(client.post('/api/data-logs/start', json=[]).status_code, 400)
         for malformed in ([], 'wrong', 123, True):

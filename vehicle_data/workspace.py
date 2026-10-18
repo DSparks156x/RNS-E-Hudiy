@@ -18,6 +18,13 @@ ENGINE_PULL_VALUES = ['engine.rpm', 'engine.boost.actual_absolute', 'engine.boos
                       'engine.coolant_temperature', 'engine.intake_temperature',
                       'engine.fuel_rail.actual', 'engine.fuel_rail.spec',
                       'engine.fuel_pump_duty', 'engine.injection_time']
+BRIGHTNESS_VALUES = ['vehicle.ambient_light_level', 'vehicle.cluster_display_brightness',
+                     'vehicle.cluster_display_brightness_substitute',
+                     'vehicle.gateway_light_sensor_level', 'vehicle.gateway_display_brightness',
+                     'vehicle.gateway_switch_brightness', 'vehicle.display_brightness',
+                     'vehicle.terminal58_brightness', 'climate.solar_power_left',
+                     'climate.solar_power_right', 'climate.display_counter_dimming',
+                     'vehicle.sidelights', 'vehicle.low_beam', 'vehicle.daytime_running_lights']
 
 
 def data_logs_directory(config):
@@ -36,8 +43,10 @@ def default_workspace():
               'precision': 2 if value.startswith('engine.boost.') else 0,
               'font': 'fixed'} for value in values]
     pull = [value for value in ENGINE_PULL_VALUES if value in CATALOG]
+    brightness = [value for value in BRIGHTNESS_VALUES if value in CATALOG]
     return {'version': 1, 'profiles': [{'id': 'daily', 'name': 'Daily', 'values': values},
-                                      {'id': 'engine_pull', 'name': 'Engine pull', 'values': pull}],
+                                      {'id': 'engine_pull', 'name': 'Engine pull', 'values': pull},
+                                      {'id': 'brightness', 'name': 'Brightness', 'values': brightness}],
             'dis_pages': [{'id': 'daily', 'name': 'Daily', 'profile_id': 'daily',
                            'slots': slots}],
             'settings': {}}

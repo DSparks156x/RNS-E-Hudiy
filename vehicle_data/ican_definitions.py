@@ -19,7 +19,7 @@ NOMINAL_CYCLE_MS = {
     0x2A1: 250, 0x2C3: 100, 0x351: 100, 0x359: 100, 0x35B: 100, 0x3C3: 100,
     0x3E1: 100, 0x3E3: 800, 0x470: 50, 0x527: 200, 0x529: 1000, 0x52B: 1000,
     0x545: 500, 0x555: 100, 0x571: 500, 0x575: 200, 0x58C: 100, 0x5B5: 200,
-    0x5E1: 200, 0x621: 100, 0x629: 1000, 0x62B: 1000, 0x62D: 1000, 0x658: 100,
+    0x5E1: 200, 0x621: 100, 0x635: 200, 0x629: 1000, 0x62B: 1000, 0x62D: 1000, 0x658: 100,
 }
 
 
@@ -249,6 +249,13 @@ _add("vehicle.parked_duration", "Parked duration", "s", 0x621, "KO1_Standzeit", 
 _add("vehicle.ambient_light_level", "Cluster ambient light sensor level", "", 0x621, "KO1_Lichtsensor", 48, 8,
      frame_length=7, invalid_raw=(254, 255),
      note="DBC sensor level; no lux conversion documented.")
+_add("vehicle.cluster_display_brightness", "Cluster display brightness", "%", 0x621, "KO1_Bel_Displ", 40, 7,
+     frame_length=7, valid_raw_max=100,
+     note="Display backlight duty the cluster computes from its light sensor (terminal 58d).")
+_flags(0x621, 7, [
+    ("vehicle.cluster_display_brightness_substitute", "Cluster display brightness is a substitute value",
+     "KO1_Sta_Displ", 47),
+])
 _flags(0x621, 7, [
     ("vehicle.refueling_detected", "Cluster detected refueling", "KO1_Tankstop", 0),
     ("vehicle.low_fuel_warning", "Low fuel warning lamp", "KO1_Tankwarnlampe", 1),
@@ -286,6 +293,16 @@ _add("vehicle.display_brightness", "Instrument display brightness", "%", 0x470, 
 _add("vehicle.terminal58_brightness", "Terminal 58t illumination brightness", "%", 0x470, "BSK_Klemme_58t", 24, 7,
      invalid_bits=(31,), valid_raw_max=100)
 
+# Gateway dimming copy received by the RNS-E. Separate IDs so recordings show
+# whether it mirrors the cluster (0x621) values above.
+_add("vehicle.gateway_display_brightness", "Gateway display dimming", "%", 0x635, "DI1_Display", 0, 7,
+     frame_length=3, invalid_bits=(7,), valid_raw_max=100)
+_add("vehicle.gateway_switch_brightness", "Gateway switch dimming", "%", 0x635, "DI1_Schalter", 8, 7,
+     frame_length=3, invalid_bits=(15,), valid_raw_max=100,
+     note="Terminal 58s; nonzero is what RNS-E day/night auto brightness treats as night.")
+_add("vehicle.gateway_light_sensor_level", "Gateway light sensor level", "", 0x635, "DI1_Sensor", 16, 8,
+     frame_length=3, invalid_raw=(254, 255))
+
 # Climate sensing/control status: useful cabin values, not BAP/UI protocol data.
 _add("climate.ambient_temperature", "Climate-controller ambient temperature", "C", 0x3E1, "CL1_AussenTemp", 8, 8,
      .5, -50, invalid_raw=(255,), note="Kept distinct from filtered/unfiltered cluster ambient temperature.")
@@ -305,6 +322,9 @@ _add("climate.solar_power_right", "Right solar radiation", "W/m2", 0x3E3, "CL2_S
      invalid_raw=(255,))
 _add("climate.coolant_temperature_requested", "Climate requested coolant temperature", "C", 0x3E3,
      "CL2_Vorgabe_KWTemp", 56, 8, .75, -48, invalid_raw=(255,))
+_add("climate.display_counter_dimming", "Climate display counter-dimming", "%", 0x5E1, "CL3_Gegendimmung", 48, 8,
+     frame_length=7, valid_raw_max=100,
+     note="DBC: display brightening against incident light. Not yet seen on the TT.")
 _flags(0x3E1, 8, [
     ("climate.compressor_enabled", "AC compressor enabled", "CL1_Kompressor", 4),
     ("climate.ac_switch", "AC switch on", "CL1_AC_Schalter", 49),
