@@ -7,6 +7,7 @@ Hudiy Data Extractor (V3.0)
 """
 
 import json
+import socket
 import threading
 import logging
 import signal
@@ -719,9 +720,13 @@ class SafePublisher:
                 return
             while self.running:
                 try:
-                    topic, data = self.queue.get(timeout=1.0)
+                    item = self.queue.get(timeout=1.0)
                 except Empty:
                     continue
+                if item is None:  # stop() wake-up
+                    self.queue.task_done()
+                    continue
+                topic, data = item
                 try:
                     pub.send_multipart([topic, json.dumps(data).encode('utf-8')])
                 except Exception as e:
@@ -735,7 +740,8 @@ class SafePublisher:
 
     def stop(self):
         self.running = False
-        self.thread.join()
+        self.queue.put(None)
+        self.thread.join(timeout=1.0)
 
 # --- TP2 Bridge Handler ---
 class TP2BridgeHandler(ClientEventHandler):
@@ -777,8 +783,21 @@ class TP2BridgeHandler(ClientEventHandler):
     def stop(self):
         self.running = False
         if self.timer: self.timer.cancel()
+        # send_command() gives the lock up within 100 ms once running is False.
         with self.lock:
-            if self.socket: self.socket.close()
+            if self.socket:
+                self.socket.close()
+                self.socket = None
+
+    def _start_poll_timer(self, client):
+        if self.timer:
+            self.timer.cancel()
+        if not self.running:
+            return
+        self.timer = threading.Timer(2.0, self.poll_status, [client])
+        # Never let a pending poll hold the interpreter open at exit.
+        self.timer.daemon = True
+        self.timer.start()
 
     def on_hello_response(self, client, message):
         self.client = client
@@ -886,10 +905,7 @@ class TP2BridgeHandler(ClientEventHandler):
             else:
                 self.check_status_now(client)
             # Schedule periodic polling
-            if self.timer:
-                self.timer.cancel()
-            self.timer = threading.Timer(2.0, self.poll_status, [client])
-            self.timer.start()
+            self._start_poll_timer(client)
         else:
             logger.error(f"Failed to register {kind} Status Icon")
         if kind == "diagnostics":
@@ -1072,8 +1088,13 @@ class TP2BridgeHandler(ClientEventHandler):
                 
             try:
                 self.socket.send_json({"cmd": cmd})
-                msg = self.socket.recv_json()
-                return msg
+                # 3 s reply budget in slices, so stop() is never held up by it.
+                for _ in range(30):
+                    if self.socket.poll(100):
+                        return self.socket.recv_json()
+                    if not self.running:
+                        return None  # stop() closes the mid-request socket
+                raise zmq.Again()
             except zmq.Again:
                 logger.warning("TP2 ZMQ Request Timeout or Busy")
                 self.socket.close()
@@ -1136,9 +1157,8 @@ class TP2BridgeHandler(ClientEventHandler):
         if not self.running: return
         
         self.check_status_now(client)
-        
-        self.timer = threading.Timer(2.0, self.poll_status, [client])
-        self.timer.start()
+
+        self._start_poll_timer(client)
 
 class HudiyData:
     def __init__(self, config_path='~/config.json'):
@@ -1194,6 +1214,8 @@ class HudiyData:
         self.connection_manager = ConnectionManager(config_path=config_path)
 
         self.running = True
+        # Set by run() once the main loop ends; wakes reconnect back-offs.
+        self._stop = threading.Event()
         self._setup_signals()
         
     def _setup_signals(self):
@@ -1202,9 +1224,24 @@ class HudiyData:
         signal.signal(signal.SIGTERM, self._shutdown)
 
     def _shutdown(self, signum, frame):
+        # Flag only: run() does the cleanup outside the signal handler.
         logger.info(f"Shutdown signal {signum} received. Stopping HudiyDataService...")
         self.running = False
-        self.connection_manager.stop()
+
+    @staticmethod
+    def _wake_reader(client):
+        """Unblock a thread sitting in the Hudiy client's socket recv().
+
+        close() from another thread does not wake a blocked recv() on Linux;
+        shutdown(SHUT_RD) does, and the BYEBYE can still be sent afterwards.
+        """
+        sock = getattr(client, '_socket', None) if client else None
+        if sock is None:
+            return
+        try:
+            sock.shutdown(socket.SHUT_RD)
+        except OSError:
+            pass
 
     def _close_connection(self):
         """Perform additional cleanup on shutdown."""
@@ -1247,7 +1284,7 @@ class HudiyData:
                 self.data_client.disconnect()
             if self.running:
                 logger.info("DATA Thread reconnecting in 5s...")
-                time.sleep(5)
+                self._stop.wait(5)
 
     def connect_tp2(self):
         """Thread: TP2 Bridge TCP"""
@@ -1272,12 +1309,13 @@ class HudiyData:
             
             if self.running:
                 logger.info("TP2 Bridge Reconnecting in 5s...")
-                time.sleep(5)
+                self._stop.wait(5)
     
     def tp2_status_subscriber(self):
         """Thread: Listens for TP2 status updates via ZMQ"""
         ctx = zmq.Context()
         sub = ctx.socket(zmq.SUB)
+        sub.setsockopt(zmq.LINGER, 0)
         sub.connect(self.tp2_status_addr)
         sub.subscribe(b"HUDIY_TP2_STATUS")
         logger.info(f"TP2 Status Subscriber connected to {self.tp2_status_addr}")
@@ -1293,8 +1331,9 @@ class HudiyData:
                 time.sleep(0.1)
             except Exception as e:
                 logger.error(f"TP2 Status Subscriber Error: {e}")
-                time.sleep(1)
+                self._stop.wait(1)
         sub.close()
+        ctx.term()
 
     def input_action_subscriber(self):
         """Drain transient panel actions even while the API is disconnected."""
@@ -1342,12 +1381,16 @@ class HudiyData:
                 if time.monotonic() >= next_projection_snapshot:
                     self.handler.publish_projection_source()
                     next_projection_snapshot = time.monotonic() + 2.0
-                time.sleep(1)
+                time.sleep(0.1)  # short slices: SIGTERM only sets self.running
         except Exception as e:
             logger.exception(f"Fatal error in main loop: {e}")
         finally:
             logger.info("Main loop finished. Cleaning up...")
             self.running = False
+            self._stop.set()
+            self.tp2_handler.running = False
+            self._wake_reader(self.data_client)
+            self._wake_reader(self.tp2_client)
             self.input_actions.stop()
             input_action_thread.join(timeout=1.0)
             self.handler.set_projection_api_connected(False)
@@ -1363,15 +1406,22 @@ class HudiyData:
 
         data_thread.join(timeout=2.0)
         tp2_thread.join(timeout=2.0)
-        
+        tp2_status_thread.join(timeout=1.0)
+
         self.safe_pub.stop()
         logger.info("ZMQ publisher closed.")
+        # The shared context may only be terminated once its users are gone.
+        return not tp2_thread.is_alive()
 
 if __name__ == '__main__':
+    clean = True
     try:
-        HudiyData(config_path='~/config.json').run()
+        clean = HudiyData(config_path='~/config.json').run()
     except Exception as e:
         logger.critical(f"Unhandled exception in main: {e}", exc_info=True)
     finally:
-        ZMQ_CONTEXT.term()
+        if clean:
+            ZMQ_CONTEXT.term()
+        else:
+            logger.warning("TP2 bridge thread still running; leaving its socket to process exit.")
         logger.info("HudiyData service has shut down.")

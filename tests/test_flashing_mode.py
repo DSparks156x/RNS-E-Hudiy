@@ -193,7 +193,8 @@ class BarrierTests(unittest.TestCase):
         tree.body = [node for node in tree.body if isinstance(node, ast.FunctionDef)
                      and node.name in ('acknowledge_barrier', 'send_worker')]
         ns = dict(transmission_guard=lambda: nullcontext(True), CONFIG={}, CAN_SEND_LOCK=threading.Lock(), CAN_BUS=Mock(), ZMQ_CONTEXT=Mock(),
-                  zmq=SimpleNamespace(PUSH=1, LINGER=2, SNDTIMEO=3, IMMEDIATE=4),
+                  zmq=SimpleNamespace(PUSH=1, LINGER=2, SNDTIMEO=3, IMMEDIATE=4, NOBLOCK=5),
+                  SEND_STOP=threading.Event(),
                   can=SimpleNamespace(Message=lambda **kw: kw), logger=Mock(), RUNNING=True)
         exec(compile(tree, str(source), 'exec'), ns)
         return ns
@@ -205,7 +206,7 @@ class BarrierTests(unittest.TestCase):
         endpoint = f'ipc:///run/rnse_control/haldex_barrier_{token}.ipc'
         parts = iter([[b'1658', b'5aa500ff00000000'],
                       [b'BARRIER', token.encode(), endpoint.encode()]])
-        def receive():
+        def receive(*_flags):
             try:
                 return next(parts)
             except StopIteration:
@@ -226,7 +227,7 @@ class BarrierTests(unittest.TestCase):
         token = 'b' * 32
         parts = iter([[b'1658', b'0102'], [b'BARRIER', token.encode(),
                       f'ipc:///run/rnse_control/haldex_barrier_{token}.ipc'.encode()]])
-        def receive():
+        def receive(*_flags):
             try:
                 return next(parts)
             except StopIteration:

@@ -80,7 +80,7 @@ class TP2PlanClient:
                         if self.stop_event.is_set():
                             break
                         sock.send_json(command)
-                        response = sock.recv_json()
+                        response = self._reply(sock)
                         if command['cmd'] == 'STATUS':
                             with self.lock:
                                 self.latest_status = {**response, '_received_monotonic': time.monotonic()}
@@ -100,6 +100,16 @@ class TP2PlanClient:
         finally:
             if sock is not None:
                 sock.close()
+
+    def _reply(self, sock):
+        """1 s reply budget, sliced so close() never waits out a dead worker."""
+        import zmq
+        for _ in range(10):
+            if sock.poll(100):
+                return sock.recv_json(flags=zmq.NOBLOCK)
+            if self.stop_event.is_set():
+                break
+        raise zmq.Again()
 
     def close(self):
         self.stop_event.set()

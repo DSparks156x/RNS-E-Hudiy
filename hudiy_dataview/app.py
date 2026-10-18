@@ -8,6 +8,7 @@ import hashlib
 import uuid
 import logging
 import math
+import signal
 import zmq
 from flask import Flask, render_template, request, abort, send_file
 from flask_socketio import SocketIO, emit
@@ -1453,8 +1454,15 @@ if __name__ == '__main__':
     socketio.start_background_task(sync_subscriptions)
     socketio.start_background_task(interpolation_broadcast_loop)
     socketio.start_background_task(haldex_status_subscriber_loop)
+
+    # SIGTERM's default action kills the process before an active recording
+    # is flushed. Unwind the server instead; every worker thread is a daemon.
+    def terminate(_signum, _frame):
+        raise SystemExit(0)
+    signal.signal(signal.SIGTERM, terminate)
     try:
         socketio.run(app, host='0.0.0.0', port=5003, allow_unsafe_werkzeug=True)
     finally:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)  # never interrupt the flush
         data_logger.close()
         data_logs.close()

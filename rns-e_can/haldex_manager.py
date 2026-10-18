@@ -292,6 +292,9 @@ class HaldexManager:
 
         # Threading & Control
         self.running = True
+        self._threads = []
+        # The mode and command workers both publish status.
+        self.pub_lock = threading.Lock()
         self.context = zmq.Context()
         self.can_push_sock: Optional[zmq.Socket] = None
         self.can_sub_sock: Optional[zmq.Socket] = None
@@ -465,19 +468,29 @@ class HaldexManager:
         try:
             status = self.get_status()
             payload = json.dumps(status).encode('utf-8')
-            self.status_pub_sock.send_multipart([b"HALDEX_STATUS", payload], flags=zmq.NOBLOCK)
+            with self.pub_lock:
+                if self.running:
+                    self.status_pub_sock.send_multipart([b"HALDEX_STATUS", payload], flags=zmq.NOBLOCK)
         except Exception:
             pass
+
+    def _recv_json(self, sock, timeout_ms):
+        """Wait for a reply in 100 ms slices so shutdown never waits out a timeout."""
+        for _ in range(max(1, (timeout_ms + 99) // 100)):
+            if not self.running:
+                raise RuntimeError("Haldex manager stopping")
+            if sock.poll(100):
+                return sock.recv_json(flags=zmq.NOBLOCK)
+        raise zmq.Again()
 
     def _tp2_command(self, msg: Dict[str, Any]) -> Dict[str, Any]:
         sock = self.context.socket(zmq.REQ)
         sock.setsockopt(zmq.LINGER, 0)
         sock.setsockopt(zmq.SNDTIMEO, 1000)
-        sock.setsockopt(zmq.RCVTIMEO, 1500)
         try:
             sock.connect(self.tp2_cmd_addr)
             sock.send_json(msg)
-            return sock.recv_json()
+            return self._recv_json(sock, 1500)
         except zmq.Again:
             raise RuntimeError("TP2 worker not answering")
         finally:
@@ -489,7 +502,7 @@ class HaldexManager:
                                     'payload': payload.hex()})
         if queued.get('status') != 'queued':
             raise RuntimeError(queued.get('message', 'TP2 worker refused the request'))
-        while True:
+        while self.running:
             time.sleep(0.05)
             result = self._tp2_command({'cmd': 'KWP_RESULT', 'job': queued['job'],
                                         'timeout': KWP_TIMEOUT_S})
@@ -497,6 +510,7 @@ class HaldexManager:
                 return bytes.fromhex(result['response'])
             if result.get('status') != 'pending':
                 raise RuntimeError(result.get('message', 'KWP request failed'))
+        raise RuntimeError("Haldex manager stopping")
 
     def set_mode(self, mode: int) -> Dict[str, Any]:
         """Request a mode change; the mode worker sends it."""
@@ -699,11 +713,13 @@ class HaldexManager:
         endpoint = 'ipc:///run/rnse_control/haldex_barrier_' + token + '.ipc'
         reply = self.context.socket(zmq.PULL)
         reply.setsockopt(zmq.LINGER, 0)
-        reply.setsockopt(zmq.RCVTIMEO, 5000)
         try:
             reply.bind(endpoint)
             self.can_push_sock.send_multipart([b'BARRIER', token.encode(), endpoint.encode()])
-            response = reply.recv_json()
+            try:
+                response = self._recv_json(reply, 5000)
+            except zmq.Again:
+                raise RuntimeError("CAN sender did not acknowledge queue drain") from None
             if response.get('token') != token or response.get('quiescent') is not True:
                 raise RuntimeError("CAN sender did not acknowledge queue drain")
         finally:
@@ -811,6 +827,9 @@ class HaldexManager:
         # The CAN PUSH socket carries valve commands and the QUIESCE barrier.
         try:
             self.can_push_sock = self.context.socket(zmq.PUSH)
+            # Valve frames are pointless once can_handler is gone; never hold exit.
+            self.can_push_sock.setsockopt(zmq.LINGER, 0)
+            self.can_push_sock.setsockopt(zmq.SNDTIMEO, 1000)
             self.can_push_sock.connect(self.can_send_addr)
             logger.info(f"Connected to CAN send socket at {self.can_send_addr}")
         except Exception as e:
@@ -819,6 +838,7 @@ class HaldexManager:
         # Initialize Status Publisher socket
         try:
             self.status_pub_sock = self.context.socket(zmq.PUB)
+            self.status_pub_sock.setsockopt(zmq.LINGER, 0)
             self.status_pub_sock.bind(self.status_addr)
             logger.info(f"Status publisher bound to {self.status_addr}")
         except Exception as e:
@@ -829,17 +849,31 @@ class HaldexManager:
         for target, name in ((self._can_listener_worker, "Haldex-CAN-Listener"),
                              (self._mode_worker, "Haldex-Mode"),
                              (self._command_server_worker, "Haldex-Command")):
-            threading.Thread(target=target, daemon=True, name=name).start()
+            thread = threading.Thread(target=target, daemon=True, name=name)
+            self._threads.append(thread)
+            thread.start()
 
     def stop(self):
-        """Graceful shutdown."""
-        logger.info("Stopping HaldexManager...")
+        """Ask every worker to stop; safe from a signal handler (main never waits on wake)."""
         self.running = False
         self.wake.set()
+
+    def close(self):
+        """Join the workers, then release their sockets and the context."""
+        logger.info("Stopping HaldexManager...")
+        self.stop()
+        # Every worker wait is sliced to <=0.5 s; a valve burst adds ~0.06 s.
+        for thread in self._threads:
+            thread.join(timeout=2.0)
+        if any(thread.is_alive() for thread in self._threads):
+            # Closing a socket under a live thread is unsafe; exit releases it.
+            logger.warning("Haldex worker did not stop; leaving sockets to process exit.")
+            return
+        with self.pub_lock:
+            if self.status_pub_sock:
+                self.status_pub_sock.close()
         if self.can_push_sock:
             self.can_push_sock.close()
-        if self.status_pub_sock:
-            self.status_pub_sock.close()
         self.context.term()
 
 
@@ -852,14 +886,16 @@ def main():
 
     def handle_sig(sig, frame):
         manager.stop()
-        sys.exit(0)
 
     signal.signal(signal.SIGINT, handle_sig)
     signal.signal(signal.SIGTERM, handle_sig)
 
     manager.start()
-    while manager.running:
-        time.sleep(1)
+    try:
+        while manager.running:
+            time.sleep(0.1)  # a signal runs handle_sig between slices
+    finally:
+        manager.close()
 
 
 if __name__ == '__main__':

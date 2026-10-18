@@ -63,6 +63,7 @@ class TP2Service:
             self.can_interface = _can.get('diagnostic', 'can0')
 
             self.ignition_sub = self.context.socket(zmq.SUB)
+            self.ignition_sub.setsockopt(zmq.LINGER, 0)
             self.ignition_sub.connect(self.addr_ignition)
             self.ignition_sub.subscribe(b"POWER_STATUS")
             logger.info(f"Monitoring Ignition at {self.addr_ignition}")
@@ -75,9 +76,11 @@ class TP2Service:
 
         # Publisher (Data)
         self.pub = ThreadSafeZmqPub(self.context.socket(zmq.PUB))
+        self.pub.setsockopt(zmq.LINGER, 0)
         self.pub.bind(self.addr_pub)
-        
+
         self.rep = self.context.socket(zmq.REP)
+        self.rep.setsockopt(zmq.LINGER, 0)
         self.rep.bind(self.addr_rep)
         
         # Threading
@@ -427,7 +430,9 @@ class TP2Service:
         logger.info("Command Thread Started (ZMQ REP)")
         while not self.shutdown_event.is_set():
             try:
-                # Blocking receive is fine here!
+                # Sliced wait so a quiet socket still sees shutdown_event.
+                if not self.rep.poll(200):
+                    continue
                 msg = self.rep.recv_json()
                 
                 cmd = msg.get("cmd")
@@ -450,7 +455,7 @@ class TP2Service:
                         self.diagnostic_owner = token
                         self.quiescent.clear()
                         self._publish_status()
-                    if not self.quiescent.wait(10):
+                    if not self._wait_quiescent(10):
                         raise RuntimeError("Diagnostic closure not acknowledged; remains inhibited")
                     response = {"status": "ok", "quiescent": True, "owner": token}
                 elif cmd == "RELEASE":
@@ -633,11 +638,34 @@ class TP2Service:
                 try: self.rep.send_json({"status": "error", "message": str(e)})
                 except: pass
 
+    def _wait_quiescent(self, seconds):
+        """Wait for the main loop's acknowledgement, giving up at shutdown."""
+        for _ in range(int(seconds / 0.2)):
+            if self.quiescent.wait(0.2):
+                return True
+            if self.shutdown_event.is_set():
+                return False
+        return self.quiescent.is_set()
+
+    def close(self):
+        """After run(): join the command thread, then release sockets and context."""
+        thread = getattr(self, '_cmd_thread', None)
+        if thread is not None:
+            thread.join(timeout=1.0)  # its waits are sliced to 0.2 s
+            if thread.is_alive():
+                logger.warning("TP2 command thread did not stop; leaving sockets to process exit.")
+                return
+        for sock in (self.rep, self.ignition_sub, self.pub.socket):
+            if sock is not None:
+                sock.close(0)
+        self.context.term()
+
     def run(self):
         logger.info("TP2 Multi-Module Service Starting (Threaded + Error Counting)...")
-        
+
         # Start Command Thread
         t_cmd = threading.Thread(target=self.command_thread_func, daemon=True)
+        self._cmd_thread = t_cmd
         t_cmd.start()
 
         op_receiver = None
@@ -693,7 +721,7 @@ class TP2Service:
                     continue
                     
                 for mod_id, session in current_sessions:
-                    if self.diagnostic_owner:
+                    if self.diagnostic_owner or self.shutdown_event.is_set():
                         break
                     # Check for expired clients periodically
                     now = time.monotonic()
@@ -854,6 +882,8 @@ class TP2Service:
                                 
                                 # Fetch freeze frame data for each DTC if possible
                                 for dtc_item in dtc_list:
+                                    if self.shutdown_event.is_set():
+                                        break
                                     dtc_code = dtc_item['code_dec']
                                     hi = (int(dtc_code) >> 8) & 0xFF
                                     lo = int(dtc_code) & 0xFF
@@ -1022,4 +1052,8 @@ class TP2Service:
             except: pass
 
 if __name__ == "__main__":
-    TP2Service().run()
+    service = TP2Service()
+    try:
+        service.run()
+    finally:
+        service.close()

@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -78,7 +79,7 @@ class ApiEventCaptureTests(unittest.TestCase):
         namespace = {'ApiEventCapture': ApiEventCapture, 'json': json, 'os': os,
                      'logger': logging.getLogger(__name__), 'SafePublisher': Mock(),
                      'HudiyEventHandler': Mock(), 'TP2BridgeHandler': Mock(), 'ConnectionManager': Mock(),
-                     'InputActionDispatcher': Mock(), 'hudiy_api': Mock()}
+                     'InputActionDispatcher': Mock(), 'hudiy_api': Mock(), 'threading': threading}
         exec(compile(ast.Module(body=[service_node], type_ignores=[]), 'hudiy_data.py', 'exec'), namespace)
         service_type = namespace['HudiyData']
         with tempfile.TemporaryDirectory(dir=SCRATCH) as directory:

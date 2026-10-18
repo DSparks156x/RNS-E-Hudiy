@@ -42,6 +42,8 @@ CONFIG: Dict[str, Any] = {}
 FEATURES: Dict[str, Any] = {}
 ZMQ_CONTEXT: Optional[zmq.Context] = None
 ZMQ_PUSH_SOCKET: Optional[zmq.Socket] = None
+# Wakes the supervisor loop at once on SIGTERM or an auto-shutdown decision.
+STOP_EVENT: Optional[asyncio.Event] = None
 
 # --- Logging Setup ---
 def setup_logging():
@@ -874,7 +876,7 @@ async def shutdown_monitor_task(state: AppState):
 
             # 1. Check existing auto_shutdown logic (Guarded by wake signal)
             if await state.check_shutdown_condition(state.wake_signal_active):
-                RUNNING = False
+                request_stop()
                 break
             
             # 2. Check and reconcile listen-only mode
@@ -938,14 +940,14 @@ async def shutdown_monitor_task(state: AppState):
                         else:
                             logger.info("GPIO Shutdown trigger detected (wake signal OFF). Shutting down system NOW (delay=0).")
                             if await execute_system_command_async(["sudo", "shutdown", "-h", "now"]):
-                                RUNNING = False
+                                request_stop()
                                 break
                     else:
                         # Pending - check if time reached
                         if state.gpio_shutdown_trigger_timestamp and (now - state.gpio_shutdown_trigger_timestamp >= delay):
                             logger.info(f"GPIO Shutdown delay ({delay}s) reached. Shutting down system NOW.")
                             if await execute_system_command_async(["sudo", "shutdown", "-h", "now"]):
-                                RUNNING = False
+                                request_stop()
                                 break
                 else:
                     # Not pressed - cancel pending if any
@@ -961,6 +963,8 @@ async def shutdown_monitor_task(state: AppState):
         except Exception as e:
             logger.error(f"Error in shutdown monitor task: {e}")
             await asyncio.sleep(5)
+    if gpio_monitor and gpio_monitor.button:
+        gpio_monitor.button.close()
 
 # --- Signal Handling and Main Loop ---
 def setup_signal_handlers(loop):
@@ -968,9 +972,15 @@ def setup_signal_handlers(loop):
         loop.add_signal_handler(sig, lambda s=sig: shutdown_handler(s))
     loop.add_signal_handler(signal.SIGHUP, lambda s=signal.SIGHUP: reload_config_handler(s))
 
-def shutdown_handler(sig):
+def request_stop():
     global RUNNING
-    if RUNNING: logger.info(f"Shutdown signal {sig.name} received. Stopping..."); RUNNING = False
+    RUNNING = False
+    if STOP_EVENT is not None:
+        STOP_EVENT.set()
+
+def shutdown_handler(sig):
+    if RUNNING: logger.info(f"Shutdown signal {sig.name} received. Stopping...")
+    request_stop()
 
 def reload_config_handler(sig):
     global RELOAD_CONFIG
@@ -979,6 +989,7 @@ def reload_config_handler(sig):
 async def start_runtime(state: AppState):
     context = zmq.Context()
     state.zmq_pub = context.socket(zmq.PUB)
+    state.zmq_pub.setsockopt(zmq.LINGER, 0)
     try:
         state.zmq_pub.bind(CONFIG['zmq_base_publish_address'])
         logger.info(f"ZMQ Publisher bound to {CONFIG['zmq_base_publish_address']}")
@@ -1008,12 +1019,17 @@ async def stop_runtime(state: AppState, context: zmq.Context, tasks):
     if state.time_sync_task:
         pending_tasks.append(state.time_sync_task)
     await asyncio.gather(*pending_tasks, return_exceptions=True)
+    # aiozmq closes stream sockets in a call_soon callback; let those run.
+    await asyncio.sleep(0)
     if state.zmq_pub and not state.zmq_pub.closed:
         state.zmq_pub.close()
     context.term()
 
 async def main_async():
-    global RELOAD_CONFIG, RUNNING
+    global RELOAD_CONFIG, RUNNING, STOP_EVENT
+    STOP_EVENT = asyncio.Event()
+    if not RUNNING:
+        STOP_EVENT.set()
     state = AppState()
     pub_context, tasks = await start_runtime(state)
     
@@ -1045,7 +1061,10 @@ async def main_async():
             else:
                 logger.error("Config reload failed!")
         
-        await asyncio.sleep(1)
+        try:
+            await asyncio.wait_for(STOP_EVENT.wait(), timeout=1)
+        except asyncio.TimeoutError:
+            pass
 
     await stop_runtime(state, pub_context, tasks)
 
@@ -1063,7 +1082,9 @@ def main():
     finally:
         logger.info("Main loop terminated. Closing ZeroMQ resources.")
         if ZMQ_PUSH_SOCKET and not ZMQ_PUSH_SOCKET.closed: ZMQ_PUSH_SOCKET.close()
-        if ZMQ_CONTEXT and not ZMQ_CONTEXT.closed: ZMQ_CONTEXT.term()
+        # The shared instance context also holds aiozmq's sockets, all used only
+        # from this thread; destroy() closes any left open instead of blocking.
+        if ZMQ_CONTEXT and not ZMQ_CONTEXT.closed: ZMQ_CONTEXT.destroy(linger=0)
         loop.close()
         logger.info("CAN Base Function service has finished.")
 

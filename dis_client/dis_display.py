@@ -963,6 +963,13 @@ class DisplayEngine:
             except KeyboardInterrupt: break
             except Exception as e: logger.error(f"Err: {e}", exc_info=True); time.sleep(1)
 
+    def close(self):
+        """Release every socket at once (LINGER 0) so exit never waits on a peer.
+
+        Single-threaded: every socket belongs to this thread, so destroy() is safe.
+        """
+        self.zmq_ctx.destroy(linger=0)
+
     def _handle_nav_auto_switch(self, nav_app):
         """Observe route events without replacing the user's selected page."""
         if not hasattr(self, 'nav_policy'):
@@ -1390,8 +1397,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     config_path = '../config.json' if os.path.exists('../config.json') else '/home/pi/config.json'
+    engine = DisplayEngine(config_path=config_path, mock=args.mock)
     try:
-        DisplayEngine(config_path=config_path, mock=args.mock).run()
+        engine.run()
     except Exception as e:
         logger.exception(f"Fatal error: {e}")
         sys.exit(1)
+    finally:
+        engine.close()

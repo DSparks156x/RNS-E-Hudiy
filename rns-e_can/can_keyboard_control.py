@@ -235,6 +235,7 @@ def initialize_zmq_subscriber():
             INPUT_PUB.setsockopt(zmq.LINGER, 0)
             INPUT_PUB.bind(CONFIG['zmq_input_control_stream'])
         ZMQ_SUB_SOCKET = ZMQ_CONTEXT.socket(zmq.SUB)
+        ZMQ_SUB_SOCKET.setsockopt(zmq.LINGER, 0)
         ZMQ_SUB_SOCKET.set(zmq.RCVTIMEO, 1000)
         ZMQ_SUB_SOCKET.connect(CONFIG['zmq_address'])
         if CONFIG.get('zmq_display_status'):
@@ -577,7 +578,9 @@ def main():
             logger.warning(f"A recoverable error occurred: {e}. Reconnecting...")
             if ZMQ_SUB_SOCKET and not ZMQ_SUB_SOCKET.closed: ZMQ_SUB_SOCKET.close()
             initialize_zmq_subscriber()
-            time.sleep(5)
+            deadline = time.monotonic() + 5
+            while RUNNING and time.monotonic() < deadline:
+                time.sleep(0.1)
         except Exception:
             logger.critical("An unexpected critical error in main loop.", exc_info=True)
             RUNNING = False

@@ -111,7 +111,7 @@ def send_dark_mode(enabled, sync_android_auto=False, max_retries=3):
             # Only log detailed warning on the last retry to keep logs clean during startup
             if attempt == max_retries - 1:
                 logger.warning(f"Failed to set {mode_str} mode: {e}")
-            if attempt < max_retries - 1:
+            if attempt < max_retries - 1 and RUNNING:
                 time.sleep(0.5)
                 continue
                 
@@ -166,6 +166,12 @@ def shutdown_handler(signum, frame):
         logger.info(f"Shutdown signal {signum} received. Cleaning up...")
         RUNNING = False
 
+def pause(seconds):
+    """Sleep in short slices so a shutdown signal is honoured within 0.1 s."""
+    deadline = time.monotonic() + seconds
+    while RUNNING and time.monotonic() < deadline:
+        time.sleep(0.1)
+
 # --- Main Service Loop ---
 def main():
     """Main service loop."""
@@ -203,6 +209,7 @@ def main():
     
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
+    socket.setsockopt(zmq.LINGER, 0)
     
     logger.info(f"Connecting to ZMQ publisher at {zmq_address}...")
     try:
@@ -217,6 +224,9 @@ def main():
 
     while RUNNING:
         try:
+            # A quiet bus must not hide SIGTERM: wait in 200 ms slices.
+            if not socket.poll(200):
+                continue
             [topic, payload] = socket.recv_multipart()
             msg_data = json.loads(payload.decode('utf-8'))
             data_hex = msg_data.get('data_hex')
@@ -263,8 +273,9 @@ def main():
                 break
             logger.error(f"ZMQ Error: {e}. Reconnecting...")
             socket.close()
-            time.sleep(5)
+            pause(5)
             socket = context.socket(zmq.SUB)
+            socket.setsockopt(zmq.LINGER, 0)
             socket.connect(zmq_address)
             socket.setsockopt_string(zmq.SUBSCRIBE, can_topic)
         except KeyboardInterrupt:
@@ -272,7 +283,7 @@ def main():
             break
         except Exception as e:
             logger.critical(f"An unexpected error occurred in main loop: {e}", exc_info=True)
-            time.sleep(10)
+            pause(10)
 
     socket.close()
     context.term()

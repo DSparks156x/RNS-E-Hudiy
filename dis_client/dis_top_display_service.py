@@ -451,6 +451,21 @@ class LineController:
 
             time.sleep(0.005 if tv else 0.10)
 
+    def finish(self):
+        """After run() returned: write the final frame once, then close the socket."""
+        push, self._push = getattr(self, '_push', None), None
+        if push is None:
+            return
+        try:
+            if self._watcher is not None and self._watcher.tv_active:
+                snap = self.snapshot()
+                if snap != self._last_sent:
+                    self._push = push
+                    self._send(snap)
+        finally:
+            self._push = None
+            push.close(0)
+
 
 # ---------------------------------------------------------------------------
 # CANWatcher
@@ -566,6 +581,8 @@ class CANWatcher:
             except Exception as e:
                 logger.warning("CANWatcher: %s", e)
                 time.sleep(0.1)
+        self._sub.close(0)
+        self._push.close(0)
 
 
 # ---------------------------------------------------------------------------
@@ -583,7 +600,7 @@ class DISController:
         self._setup_zmq(cfg)
         self._setup_state(cfg)
         self.running = True
-        self._shutdown_event = threading.Event()
+        self._stop_requested = False
         self._setup_signals()
 
     def _setup_signals(self):
@@ -591,9 +608,10 @@ class DISController:
         signal.signal(signal.SIGTERM, self._shutdown)
 
     def _shutdown(self, *_):
+        # Flag only: run() stops the threads. Setting an Event here could
+        # deadlock if the signal lands inside the main thread's wait on it.
         logger.info("Shutdown signal received. Stopping DISController...")
-        self.running = False
-        self._shutdown_event.set()
+        self._stop_requested = True
 
     def _load_config(self) -> dict:
         config_path = CONFIG_PATH
@@ -780,9 +798,6 @@ class DISController:
             pass
         time.sleep(1.0)
         self._sub = self._make_sub(self._zmq_addr)
-
-    def _shutdown(self, *_):
-        self.running = False
 
     @staticmethod
     def _parse_mode(mode_str: str, fields: dict) -> str:
@@ -1213,21 +1228,33 @@ class DISController:
                 else:
                     time.sleep(0.05)
         top_status.close(0)
+        self._sub.close(0)
 
     def run(self):
-        threading.Thread(target=self._listener, daemon=True, name="meta").start()
-        threading.Thread(target=self._watcher.run, daemon=True, name="rx").start()
-        for c in self._ctrls:
-            threading.Thread(target=c.run, daemon=True, name=f"tx-{c.name}").start()
+        threads = [threading.Thread(target=self._listener, daemon=True, name="meta"),
+                   threading.Thread(target=self._watcher.run, daemon=True, name="rx")]
+        threads += [threading.Thread(target=c.run, daemon=True, name=f"tx-{c.name}")
+                    for c in self._ctrls]
+        for thread in threads:
+            thread.start()
 
         try:
-            self._shutdown_event.wait()
+            while not self._stop_requested:
+                time.sleep(0.1)
         except KeyboardInterrupt:
-            self._shutdown_event.set()
-            self.running = False
+            pass
 
+        # Every loop sleeps or polls for <=0.1 s, then closes its own sockets.
+        self.running = False
+        for thread in threads:
+            thread.join(timeout=1.0)
+        if any(thread.is_alive() for thread in threads):
+            logger.warning("DISController thread did not stop; leaving sockets to process exit.")
+            return
         self._set_lines(*self._no_media)
-        time.sleep(0.15)  # allow LineControllers to write one final frame
+        for c in self._ctrls:
+            c.finish()
+        self._zmq_ctx.term()
 
 
 if __name__ == "__main__":

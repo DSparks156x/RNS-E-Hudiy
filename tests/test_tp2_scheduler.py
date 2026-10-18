@@ -190,11 +190,12 @@ class WorkerSchedulingIntegrationTests(unittest.TestCase):
         self.assertFalse(published["available"])
 
     def run_one_iteration(self):
-        # Stop after the main loop's first iteration; command thread is inert.
-        def stop_after_ignition():
+        # Stop at the main loop's first closing sleep; command thread is inert.
+        # (Setting shutdown earlier would rightly cut the session loop short.)
+        def stop_at_sleep(_seconds):
             self.service.shutdown_event.set()
-        self.service.process_ignition = stop_after_ignition
-        with patch.object(self.worker.threading, "Thread"), patch.object(self.worker.time, "sleep"):
+        self.service.process_ignition = lambda: None
+        with patch.object(self.worker.threading, "Thread"),                 patch.object(self.worker.time, "sleep", side_effect=stop_at_sleep):
             self.service.run()
 
     def test_inhibited_main_loop_never_polls_and_acknowledges_owner(self):

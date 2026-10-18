@@ -29,6 +29,15 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] (DIS Svc) %(message)s')
 logger = logging.getLogger(__name__)
 
+
+class ServiceStop(BaseException):
+    """Raised by the SIGTERM handler to abort a blocking DDP exchange.
+
+    A BaseException, like KeyboardInterrupt, so the main loop's broad
+    `except Exception` recovery cannot swallow it.
+    """
+
+
 class DisService:
     def __init__(self, config_path='/home/pi/config.json'):
         # --- EXPERIMENTAL FLAGS ---
@@ -49,8 +58,27 @@ class DisService:
         signal.signal(signal.SIGTERM, self._shutdown)
 
     def _shutdown(self, signum, frame):
+        if not self.running:
+            return  # already stopping; never interrupt the cleanup
         logger.info(f"Shutdown signal {signum} received. Stopping DisService...")
         self.running = False
+        # Session open/init can block for seconds in CAN waits; abort it.
+        raise ServiceStop()
+
+    def close(self):
+        """Release sockets and the CAN bus; the process is single-threaded."""
+        for name in ('ignition_sub', 'draw_socket', 'status_pub'):
+            sock = getattr(self, name, None)
+            if sock is not None and not sock.closed:
+                sock.close(linger=0)
+        if getattr(self, 'context', None) is not None and not self.context.closed:
+            self.context.term()
+        bus = getattr(getattr(self, 'ddp', None), 'bus', None)
+        if bus is not None:
+            try:
+                bus.shutdown()
+            except Exception as e:
+                logger.debug(f"CAN bus shutdown: {e}")
 
     def load_config(self, config_path):
         try:
@@ -1798,6 +1826,12 @@ if __name__ == "__main__":
     service = DisService(config_path='/home/pi/config.json')
     try:
         service.run()
+    except ServiceStop:
+        pass
     except Exception as e:
         logger.exception(f"Fatal error: {e}")
         sys.exit(1)
+    finally:
+        service.running = False
+        service.close()
+        logger.info("DisService stopped.")

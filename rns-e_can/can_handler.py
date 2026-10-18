@@ -33,6 +33,9 @@ CAN_SEND_LOCK = threading.Lock()
 ZMQ_CONTEXT = None
 ZMQ_PUB_SOCKET = None
 ZMQ_PULL_SOCKET = None # Socket to receive messages to be sent
+# The send thread owns ZMQ_PULL_SOCKET while it runs; teardown waits for it.
+SEND_STOP = threading.Event()
+SEND_THREAD = None
 
 # --- Logging Setup ---
 def setup_logging():
@@ -98,8 +101,8 @@ def initialize_can_bus(retries=5, delay=5):
             return True
         except can.CanError as e:
             logger.error(f"Attempt {attempt}/{retries} failed: {e}")
-            if attempt < retries:
-                time.sleep(delay)
+            if attempt < retries and not pause(delay):
+                return False
     logger.critical("Could not initialize CAN bus after multiple retries.")
     return False
 
@@ -113,6 +116,8 @@ def initialize_zmq_sockets():
         # Publisher for broadcasting received CAN messages
         logger.info(f"Binding ZeroMQ publisher to {CONFIG['zmq_publish_address']}...")
         ZMQ_PUB_SOCKET = ZMQ_CONTEXT.socket(zmq.PUB)
+        # Frames for a stalled subscriber are not worth delaying shutdown.
+        ZMQ_PUB_SOCKET.setsockopt(zmq.LINGER, 0)
         ZMQ_PUB_SOCKET.set_hwm(1000)
         ZMQ_PUB_SOCKET.bind(CONFIG['zmq_publish_address'])
         logger.info("ZeroMQ publisher bound successfully.")
@@ -120,6 +125,7 @@ def initialize_zmq_sockets():
         # PULL socket to receive outgoing CAN messages from other services
         logger.info(f"Binding ZeroMQ PULL socket to {CONFIG['zmq_send_address']}...")
         ZMQ_PULL_SOCKET = ZMQ_CONTEXT.socket(zmq.PULL)
+        ZMQ_PULL_SOCKET.setsockopt(zmq.LINGER, 0)
         ZMQ_PULL_SOCKET.bind(CONFIG['zmq_send_address'])
         logger.info("ZeroMQ PULL socket bound successfully.")
         
@@ -130,22 +136,42 @@ def initialize_zmq_sockets():
 
 # MODIFIED: Teardown also cleans up the new socket
 def teardown_resources():
-    """Gracefully closes all active resources."""
+    """Gracefully closes all active resources (after stop_send_worker())."""
     global CAN_BUS, ZMQ_PUB_SOCKET, ZMQ_PULL_SOCKET, ZMQ_CONTEXT
     logger.info("Tearing down resources...")
+    sender_alive = SEND_THREAD is not None and SEND_THREAD.is_alive()
     if ZMQ_PUB_SOCKET and not ZMQ_PUB_SOCKET.closed:
         ZMQ_PUB_SOCKET.close()
         logger.info("ZMQ publisher socket closed.")
-    if ZMQ_PULL_SOCKET and not ZMQ_PULL_SOCKET.closed:
+    if sender_alive:
+        # Never close a socket under another thread; exit releases it.
+        logger.warning("Send thread did not stop; leaving its socket to process exit.")
+    elif ZMQ_PULL_SOCKET and not ZMQ_PULL_SOCKET.closed:
         ZMQ_PULL_SOCKET.close()
         logger.info("ZMQ PULL socket closed.")
-    if ZMQ_CONTEXT and not ZMQ_CONTEXT.closed:
+    if ZMQ_CONTEXT and not ZMQ_CONTEXT.closed and not sender_alive:
+        # Every socket is closed with LINGER 0, so term() returns at once.
         ZMQ_CONTEXT.term()
         logger.info("ZMQ context terminated.")
     if CAN_BUS:
         CAN_BUS.shutdown()
         logger.info("CAN bus shut down.")
         CAN_BUS = None
+
+
+def pause(seconds):
+    """Sleep in short slices; False as soon as shutdown is requested.
+
+    Signal handlers only set flags: setting an Event from a handler can deadlock
+    when the main thread is inside that Event's wait().
+    """
+    deadline = time.monotonic() + seconds
+    while RUNNING:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            return True
+        time.sleep(min(0.1, left))
+    return False
 
 
 # --- Signal Handling ---
@@ -195,11 +221,16 @@ def acknowledge_barrier(parts):
 
 
 def send_worker():
-    """Dedicated thread: blocks on ZMQ PULL and immediately forwards to CAN bus."""
-    while RUNNING:
+    """Dedicated thread: waits on ZMQ PULL and immediately forwards to CAN bus.
+
+    The wait is sliced so a quiet socket still sees SEND_STOP within 100 ms.
+    """
+    while RUNNING and not SEND_STOP.is_set():
         try:
-            parts = ZMQ_PULL_SOCKET.recv_multipart()
-            if not RUNNING:
+            if not ZMQ_PULL_SOCKET.poll(100):
+                continue
+            parts = ZMQ_PULL_SOCKET.recv_multipart(zmq.NOBLOCK)
+            if not RUNNING or SEND_STOP.is_set():
                 break
             if acknowledge_barrier(parts):
                 continue
@@ -226,6 +257,22 @@ def send_worker():
                 logger.debug(f"send_worker: {e}")
 
 
+def start_send_worker():
+    global SEND_THREAD
+    SEND_STOP.clear()
+    SEND_THREAD = threading.Thread(target=send_worker, daemon=True, name="can-send")
+    SEND_THREAD.start()
+
+
+def stop_send_worker():
+    """Stop and join the send thread so its socket can be closed safely."""
+    SEND_STOP.set()
+    thread = SEND_THREAD
+    if thread is not None and thread.is_alive():
+        # Longest step is a barrier reply (1 s SNDTIMEO) or bus.send (0.5 s).
+        thread.join(timeout=2.0)
+
+
 # --- Main Application ---
 def main():
     """The main application entry point and loop."""
@@ -237,10 +284,10 @@ def main():
 
     if not initialize_zmq_sockets() or not initialize_can_bus():
         teardown_resources()
-        sys.exit(1)
+        sys.exit(0 if not RUNNING else 1)
 
     logger.info("CAN handler service started successfully.")
-    threading.Thread(target=send_worker, daemon=True, name="can-send").start()
+    start_send_worker()
     message_count = 0
     last_log_time = time.time()
 
@@ -248,17 +295,19 @@ def main():
         try:
             if RELOAD_CONFIG:
                 logger.info("Reloading configuration...")
+                stop_send_worker()
                 teardown_resources()
                 load_and_initialize_config()
                 initialize_zmq_sockets()
                 initialize_can_bus()
+                start_send_worker()
                 RELOAD_CONFIG = False
                 logger.info("Configuration reload complete.")
 
             if CAN_BUS is None:
                 logger.warning("CAN bus is not available. Attempting to reconnect...")
                 if not initialize_can_bus():
-                    time.sleep(10) 
+                    pause(10)
                     continue
             
             # 1. Receive from CAN and publish to ZMQ
@@ -290,11 +339,12 @@ def main():
             if CAN_BUS:
                 CAN_BUS.shutdown()
             CAN_BUS = None 
-            time.sleep(5)
+            pause(5)
         except Exception as e:
             logger.critical(f"An unexpected critical error occurred: {e}", exc_info=True)
             break 
 
+    stop_send_worker()
     teardown_resources()
     logger.info("can_handler.py has finished.")
 

@@ -41,7 +41,10 @@ class FakePull:
         self.parts = list(parts)
         self.before_each = before_each
 
-    def recv_multipart(self):
+    def poll(self, timeout=None):
+        return 1
+
+    def recv_multipart(self, flags=0):
         if not self.parts:
             self.module.RUNNING = False
             raise RuntimeError('drained')
@@ -209,7 +212,7 @@ class ReceivePublishTests(GatewayTestCase):
                 patch.object(self.gw, 'initialize_can_bus', side_effect=init_bus), \
                 patch.object(self.gw, 'teardown_resources'), \
                 patch.object(self.gw.threading, 'Thread'), \
-                patch.object(self.gw.time, 'sleep') as sleep:
+                patch.object(self.gw, 'pause', return_value=True) as sleep:
             self.gw.main()
         return published, connects, sleep
 
