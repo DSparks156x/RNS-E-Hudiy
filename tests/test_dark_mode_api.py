@@ -271,6 +271,17 @@ class HudiyLinkTests(unittest.TestCase):
         time.sleep(0.05)
         self.assertNotIn(API.MESSAGE_SET_ANDROID_AUTO_DAY_NIGHT_MODE, hudiy.ids())
 
+    def test_failed_send_is_retried_against_the_next_connection(self):
+        hudiy = self.start_hudiy()
+        link = self.make_link(desired=True)
+        link.tick()
+        self.assertTrue(wait_for(lambda: hudiy.modes() == [(0, True)]))
+        link.drop('test')  # e.g. a send error
+        self.assertIsNone(link.sent)
+        link.set_desired(True)  # same value as before: still owed to Hudiy
+        self.advance(link, 1)
+        self.assertTrue(wait_for(lambda: (1, True) in hudiy.modes()))
+
     def test_light_byte_decoding(self):
         self.assertTrue(DM.light_is_night('0064000000'))
         self.assertFalse(DM.light_is_night('0000000000'))
@@ -319,6 +330,43 @@ class ServiceLoopTests(unittest.TestCase):
         self.servers.append(hudiy)
         # No further frames: the retry timer alone must get the mode across.
         self.assertTrue(wait_for(lambda: hudiy.modes()[:1] == [(0, False)], timeout=3))
+
+    def periodic(self, data_hex, stop):
+        # 0x635 is periodic: the same value keeps arriving.
+        def loop():
+            while not stop.is_set():
+                self.publish(data_hex)
+                time.sleep(0.02)
+        thread = threading.Thread(target=loop, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join, 1)
+        self.addCleanup(stop.set)
+
+    def test_steady_frames_resend_after_hudiy_restart_but_not_while_up(self):
+        stop = threading.Event()
+        with patch.object(DM, 'REASSERT_DELAYS', ()):
+            hudiy = FakeHudiy(self.port)
+            self.servers.append(hudiy)
+            self.start_loop(desired=True)
+            self.periodic('0000000000', stop)  # day, unchanged throughout
+            self.assertTrue(wait_for(lambda: (0, False) in hudiy.modes(), timeout=3))
+            time.sleep(0.5)
+            first = hudiy.modes()
+            self.assertEqual(first.count((0, False)), 1)  # steady frames: no resend
+            hudiy.stop()
+            hudiy = FakeHudiy(self.port)
+            self.servers.append(hudiy)
+            self.assertTrue(wait_for(lambda: hudiy.modes() == [(0, False)], timeout=3), hudiy.modes())
+            time.sleep(0.5)
+            self.assertEqual(hudiy.modes(), [(0, False)])
+
+    def test_loop_answers_ping(self):
+        hudiy = FakeHudiy(self.port)
+        self.servers.append(hudiy)
+        self.start_loop()
+        self.assertTrue(wait_for(lambda: len(hudiy.modes()) == 1, timeout=3))
+        hudiy.send_all(struct.pack('<III', 0, API.MESSAGE_PING, 0))
+        self.assertTrue(wait_for(lambda: API.MESSAGE_PONG in hudiy.ids()))
 
     def test_sigterm_exits_quickly_while_hudiy_is_down(self):
         self.start_loop()

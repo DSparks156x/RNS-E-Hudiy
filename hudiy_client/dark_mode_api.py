@@ -83,6 +83,7 @@ class HudiyLink:
         self.address = address or HUDIY_ADDRESS
         self.clock = clock
         self.sock = None
+        self.sent = None  # mode sent on the current connection; None = Hudiy's is unknown
         self.ever_connected = False
         self.reassert_at = []
         self._buffer = b''
@@ -95,11 +96,12 @@ class HudiyLink:
         return self.sock is not None
 
     def set_desired(self, enabled):
-        if enabled == self.desired:
-            return
-        self.desired = enabled
-        logger.info(f"Light status changed: target {mode_name(enabled)}.")
-        if self.connected:
+        """Called for every light-status frame (0x635 is periodic)."""
+        if enabled != self.desired:
+            self.desired = enabled
+            logger.info(f"Light status changed: target {mode_name(enabled)}.")
+        # Compare with what Hudiy was sent on this connection, not the last frame.
+        if self.connected and self.sent != self.desired:
             self._send_mode('mode change')
 
     def hold_until(self, when):
@@ -114,6 +116,8 @@ class HudiyLink:
     def seconds_until_due(self):
         if not self.connected:
             due = self.next_attempt
+        elif self.sent != self.desired:
+            due = self.clock()
         elif self.reassert_at:
             due = self.reassert_at[0]
         else:
@@ -126,7 +130,9 @@ class HudiyLink:
             if now >= self.next_attempt:
                 self._connect(now)
             return
-        if self.reassert_at and now >= self.reassert_at[0]:
+        if self.sent != self.desired:
+            self._send_mode('pending')
+        elif self.reassert_at and now >= self.reassert_at[0]:
             self.reassert_at.pop(0)
             self._send_mode('re-assert')
 
@@ -148,6 +154,7 @@ class HudiyLink:
             logger.debug(f"Hudiy API not reachable ({e}); retry in {delay:.1f} s.")
             return
         self.sock = sock
+        self.sent = None
         self._buffer = b''
         what = 'reconnected' if self.ever_connected else 'connected'
         self.ever_connected = True
@@ -169,6 +176,7 @@ class HudiyLink:
         except OSError as e:
             self.drop(f"send failed: {e}")
             return False
+        self.sent = enabled
         log = logger.debug if reason == 're-assert' else logger.info
         log(f"Sent {mode_name(enabled)} ({reason}, AA sync={self.sync_android_auto}).")
         return True
@@ -214,6 +222,7 @@ class HudiyLink:
         except OSError:
             pass
         self.sock = None
+        self.sent = None
         self.reassert_at = []
         now = self.clock()
         self.down_since = now
@@ -301,12 +310,13 @@ def open_subscriber(context, zmq_address, can_topic):
 def handle_frame(link, payload, last_data):
     """Apply one 0x635 ZMQ message; returns the data_hex it carried."""
     data_hex = json.loads(payload.decode('utf-8')).get('data_hex')
-    if not data_hex or data_hex == last_data:
+    if not data_hex:
         return last_data
     try:
         night = light_is_night(data_hex)
     except (IndexError, ValueError) as e:
-        logger.error(f"Could not parse light value from data_hex '{data_hex}'. Error: {e}")
+        if data_hex != last_data:
+            logger.error(f"Could not parse light value from data_hex '{data_hex}'. Error: {e}")
         return data_hex
     link.set_desired(night)
     return data_hex
@@ -320,15 +330,16 @@ def run(link, sub, reopen=None):
             link.tick()
             poller = zmq.Poller()
             poller.register(sub, zmq.POLLIN)
-            hudiy_sock = link.sock
-            if hudiy_sock is not None:
-                poller.register(hudiy_sock, zmq.POLLIN)
+            # pyzmq reports plain sockets by fd, not by object.
+            hudiy_fd = link.sock.fileno() if link.sock is not None else None
+            if hudiy_fd is not None:
+                poller.register(hudiy_fd, zmq.POLLIN)
             timeout = 200
             due = link.seconds_until_due()
             if due is not None:
                 timeout = min(timeout, max(10, int(due * 1000) + 1))
             events = dict(poller.poll(timeout))
-            if hudiy_sock is not None and hudiy_sock in events:
+            if hudiy_fd is not None and hudiy_fd in events:
                 link.on_readable()
             if sub in events:
                 _topic, payload = sub.recv_multipart()
