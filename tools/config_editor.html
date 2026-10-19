@@ -139,8 +139,11 @@ let currentConfig = {};
             "features.power_management.connection_management.connect_on_radio": { help: "Allow connections when RNS-E radio is ON without ignition.", type: "boolean" },
             "features.power_management.connection_management.door_open_window_seconds": { help: "Fast connection window duration when door opens (sec).", type: "number" },
             "features.power_management.connection_management.unlock_wake_window_seconds": { help: "Fast connection window duration on unlock/wake (sec).", type: "number" },
-            "features.power_management.connection_management.manage_bluetooth": { help: "Toggle Bluetooth/BLE adapter power automatically.", type: "boolean" },
+            "features.power_management.connection_management.manage_bluetooth": { help: "Let the connection manager control Bluetooth.", type: "boolean" },
+            "features.power_management.connection_management.idle_bluetooth": { help: "While idle: block keeps Bluetooth on but blocks paired phones so they can't auto-connect. off powers Bluetooth off.", type: "text", options: ["block", "off"] },
             "features.power_management.connection_management.manage_android_auto": { help: "Dispatch connect/disconnect to Hudiy Android Auto.", type: "boolean" },
+            "features.power_management.connection_management.connect_retry_seconds": { help: "Seconds between Android Auto connect attempts after a wake.", type: "number" },
+            "features.power_management.connection_management.connect_attempts": { help: "Connect attempts per wake. Stops early once Android Auto is up.", type: "number" },
             "features.power_management.connection_management.disconnect_delay_seconds": { help: "Delay before disconnecting when ignition/radio turns off (sec).", type: "number" },
             // MMI Specific Mappings
             "input_mappings.mmi": { label: "RNS-E (MMI)" },
@@ -748,7 +751,10 @@ const BUNDLED_CONFIG = {
         "door_open_window_seconds": 15,
         "unlock_wake_window_seconds": 15,
         "manage_bluetooth": true,
+        "idle_bluetooth": "block",
         "manage_android_auto": true,
+        "connect_retry_seconds": 10,
+        "connect_attempts": 6,
         "disconnect_delay_seconds": 0
       }
     },

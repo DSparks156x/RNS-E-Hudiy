@@ -380,6 +380,97 @@ class PowerReviewTests(unittest.TestCase):
         self.manager._disable_connections.assert_called_once()
 
 
+class HeldThread:
+    """Records Bluetooth workers so a test can run them in a chosen order."""
+    started = []
+
+    def __init__(self, target=None, args=(), **_):
+        self.target, self.args = target, args
+
+    def start(self):
+        HeldThread.started.append(self)
+
+    def run(self):
+        self.target(*self.args)
+
+
+@patch('hudiy_client.connection_manager.threading.Timer', ManualTimer)
+@patch('hudiy_client.connection_manager.threading.Thread', HeldThread)
+class ConnectRetryTests(unittest.TestCase):
+    def setUp(self):
+        HeldThread.started = []
+        with patch.object(ConnectionManager, '_load_config'):
+            self.manager = ConnectionManager()
+        self.manager.connect_attempts = 3
+        self.manager.hudiy_client = Mock()
+        self.bt = patch('hudiy_client.connection_manager.BluetoothController').start()
+        self.addCleanup(patch.stopall)
+
+    def run_workers(self):
+        workers, HeldThread.started = HeldThread.started, []
+        for worker in workers:
+            worker.run()
+
+    def dispatched(self):
+        return [c.args[2] for c in self.manager.hudiy_client.send.call_args_list]
+
+    def connects(self):
+        return [p for p in self.dispatched() if b'connect_android_auto_wifi' in p]
+
+    def test_idle_keeps_bluetooth_on_and_blocks_phones(self):
+        self.manager.process_power_status({})
+        self.run_workers()
+        self.bt.set_powered.assert_called_once_with(True)
+        self.bt.set_blocked.assert_called_once_with(True)
+
+    def test_idle_off_mode_powers_bluetooth_off(self):
+        self.manager.idle_bluetooth = 'off'
+        self.manager.process_power_status({})
+        self.run_workers()
+        self.bt.set_powered.assert_called_once_with(False)
+        self.bt.set_blocked.assert_not_called()
+
+    def test_wake_unblocks_then_retries_connect_until_projection(self):
+        self.manager.process_power_status({})
+        self.manager.process_power_status({'door_event': True, 'door_open': True})
+        self.run_workers()
+        self.bt.set_blocked.assert_called_with(False)
+        self.assertEqual(len(self.connects()), 1)
+        self.manager.connect_timer.fire()
+        self.assertEqual(len(self.connects()), 2)
+        pending = self.manager.connect_timer
+        self.manager.set_projection_active(True)
+        self.assertTrue(pending.cancelled)
+        pending.fire()
+        self.assertEqual(len(self.connects()), 2)
+
+    def test_connect_attempts_are_bounded(self):
+        self.manager.process_power_status({'kl15': True})
+        self.run_workers()
+        while self.manager.connect_timer:
+            self.manager.connect_timer.fire()
+        self.assertEqual(len(self.connects()), 3)
+
+    def test_disconnect_before_bluetooth_worker_runs_drops_the_connect(self):
+        self.manager.process_power_status({'kl15': True})
+        self.manager.process_power_status({})
+        self.run_workers()
+        self.bt.set_blocked.assert_called_once_with(True)
+        self.assertEqual(self.connects(), [])
+        self.assertIsNone(self.manager.connect_timer)
+
+    def test_window_expiry_stops_retries_and_blocks(self):
+        self.manager.process_power_status({})
+        self.manager.process_power_status({'door_event': True, 'door_open': True})
+        self.run_workers()
+        pending = self.manager.connect_timer
+        self.manager.window_timer.fire()
+        self.assertTrue(pending.cancelled)
+        self.run_workers()
+        self.bt.set_blocked.assert_called_with(True)
+        self.assertIn(b'quit_android_auto', self.dispatched()[-1])
+
+
 class PublisherReviewTests(unittest.TestCase):
     def setUp(self):
         self.publisher_class, self.zmq = load_publisher()

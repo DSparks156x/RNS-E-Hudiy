@@ -9,8 +9,12 @@ Manages the lifecycle of Bluetooth/BLE and Wireless Android Auto based on:
 3. Door open / unlock wake temporary connection window (e.g. 15s)
 4. Ignition / Radio OFF disconnection
 
+While idle the adapter stays powered and paired phones are blocked, so a phone
+cannot auto-connect while the car is being worked on. A wake unblocks them and
+dispatches connect_android_auto_wifi until projection comes up.
+
 Interactions:
-- Linux BlueZ (bluetoothctl power on/off)
+- Linux BlueZ (bluetoothctl power, block/unblock)
 - Hudiy API DispatchAction (quit_android_auto, connect_android_auto_wifi)
 - ZMQ POWER_STATUS stream from can_base_function.py
 """
@@ -18,6 +22,7 @@ Interactions:
 import json
 import logging
 import os
+import re
 import sys
 import subprocess
 import threading
@@ -52,6 +57,37 @@ class ManagerState(Enum):
 
 class BluetoothController:
     """Manages system Bluetooth adapter power state using bluetoothctl."""
+
+    @staticmethod
+    def _run(args):
+        try:
+            return subprocess.run(["bluetoothctl", *args], capture_output=True, text=True, timeout=5.0)
+        except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+            logger.error(f"BluetoothController: bluetoothctl {' '.join(args)} failed: {e}")
+            return None
+
+    @staticmethod
+    def paired_devices():
+        # "devices Paired" is BlueZ 5.65+; older releases only have "paired-devices".
+        for args in (["devices", "Paired"], ["paired-devices"]):
+            result = BluetoothController._run(args)
+            if result is not None and result.returncode == 0:
+                return re.findall(r"^Device ([0-9A-Fa-f:]{17})", result.stdout, re.MULTILINE)
+        return []
+
+    @staticmethod
+    def set_blocked(blocked: bool) -> bool:
+        """Blocked phones stay paired but BlueZ rejects their connections."""
+        verb = "block" if blocked else "unblock"
+        ok = True
+        for mac in BluetoothController.paired_devices():
+            result = BluetoothController._run([verb, mac])
+            if result is None or result.returncode != 0:
+                logger.warning(f"BluetoothController: {verb} {mac} failed")
+                ok = False
+            else:
+                logger.info(f"BluetoothController: {verb}ed {mac}")
+        return ok
 
     @staticmethod
     def set_powered(powered: bool) -> bool:
@@ -96,6 +132,10 @@ class ConnectionManager:
         self.manage_bluetooth: bool = True
         self.manage_android_auto: bool = True
         self.disconnect_delay_seconds: float = 0.0
+        # "block": adapter stays on, paired phones blocked. "off": adapter powered off.
+        self.idle_bluetooth: str = "block"
+        self.connect_retry_seconds: float = 10.0
+        self.connect_attempts: int = 6
 
         self.state: ManagerState = ManagerState.IDLE_DISCONNECTED
         # Power transitions can synchronously execute a zero-delay disconnect.
@@ -110,10 +150,17 @@ class ConnectionManager:
         self.door_open: bool = False
         self.wake_signal: bool = False
         self.initial_sync_done: bool = False
+        self.projection_active: bool = False
+
+        # Bumped on every enable/disable so stale Bluetooth work and retries are dropped.
+        self.session: int = 0
+        self.bt_lock = threading.Lock()
+        self.connect_attempts_left: int = 0
 
         # Timers
         self.window_timer: Optional[threading.Timer] = None
         self.disconnect_timer: Optional[threading.Timer] = None
+        self.connect_timer: Optional[threading.Timer] = None
 
         # Hudiy Client reference (set by hudiy_data.py)
         self.hudiy_client = None
@@ -141,6 +188,9 @@ class ConnectionManager:
             self.manage_bluetooth = cm_cfg.get('manage_bluetooth', True)
             self.manage_android_auto = cm_cfg.get('manage_android_auto', True)
             self.disconnect_delay_seconds = float(cm_cfg.get('disconnect_delay_seconds', 0.0))
+            self.idle_bluetooth = cm_cfg.get('idle_bluetooth', 'block')
+            self.connect_retry_seconds = float(cm_cfg.get('connect_retry_seconds', 10.0))
+            self.connect_attempts = int(cm_cfg.get('connect_attempts', 6))
 
             _zmq = self.config.get('interfaces', {}).get('zmq', {})
             self.zmq_address = _zmq.get('system_events', self.zmq_address)
@@ -148,7 +198,8 @@ class ConnectionManager:
             logger.info(
                 f"ConnectionManager Config Loaded: enabled={self.enabled}, "
                 f"door_window={self.door_open_window_seconds}s, "
-                f"manage_bt={self.manage_bluetooth}, manage_aa={self.manage_android_auto}"
+                f"manage_bt={self.manage_bluetooth}, idle_bt={self.idle_bluetooth}, "
+                f"manage_aa={self.manage_android_auto}"
             )
         except Exception as e:
             logger.warning(f"ConnectionManager: Could not load configuration: {e}. Using defaults.")
@@ -159,10 +210,20 @@ class ConnectionManager:
             self.hudiy_client = client
             logger.info("ConnectionManager: Hudiy API client registered.")
 
+    def set_projection_active(self, active: bool):
+        """Called from the Hudiy projection status callback."""
+        with self.lock:
+            self.projection_active = bool(active)
+            if self.projection_active:
+                self._cancel_connect_retries()
+
     def start(self):
         """Starts the ConnectionManager and its background ZMQ subscriber."""
         if not self.enabled:
             logger.info("ConnectionManager: Feature is disabled in config.")
+            # Blocks persist in BlueZ, so release any left from when this was enabled.
+            if self.manage_bluetooth:
+                threading.Thread(target=BluetoothController.set_blocked, args=(False,), daemon=True).start()
             return
 
         self.running = True
@@ -180,24 +241,73 @@ class ConnectionManager:
             if self.disconnect_timer:
                 self.disconnect_timer.cancel()
                 self.disconnect_timer = None
+            self._cancel_connect_retries()
         logger.info("ConnectionManager stopped.")
 
     # --- Actions ---
 
     def _enable_connections(self, trigger_reason: str):
-        """Enables Bluetooth and optionally triggers Android Auto."""
+        """Lets phones connect, then dispatches AA connect until projection is up."""
         logger.info(f"ConnectionManager: Enabling connections (Trigger: {trigger_reason})")
-        if self.manage_bluetooth:
-            threading.Thread(
-                target=BluetoothController.set_powered,
-                args=(True,),
-                daemon=True
-            ).start()
+        self.session += 1
+        self._cancel_connect_retries()
+        threading.Thread(
+            target=self._apply_bluetooth,
+            args=(self.session, True),
+            daemon=True,
+            name="ConnMgrBT",
+        ).start()
+
+    def _apply_bluetooth(self, session: int, enabled: bool):
+        """Runs off the state lock; bt_lock keeps enable/disable in order."""
+        with self.bt_lock:
+            if session != self.session or not self.running:
+                return
+            if self.manage_bluetooth:
+                if enabled or self.idle_bluetooth != "off":
+                    BluetoothController.set_powered(True)
+                    BluetoothController.set_blocked(not enabled)
+                else:
+                    BluetoothController.set_powered(False)
+        if enabled:
+            with self.lock:
+                if session == self.session and self.running:
+                    self.connect_attempts_left = self.connect_attempts
+                    self._connect_attempt(session)
+
+    def _cancel_connect_retries(self):
+        if self.connect_timer:
+            self.connect_timer.cancel()
+            self.connect_timer = None
+        self.connect_attempts_left = 0
+
+    def _connect_attempt(self, session: int):
+        """Lock held. One AA connect dispatch, then schedules the next."""
+        self.connect_timer = None
+        if (session != self.session or not self.running or self.projection_active
+                or self.connect_attempts_left <= 0
+                or self.state not in (ManagerState.WAKE_WINDOW_ACTIVE, ManagerState.ACTIVE_CONNECTED)):
+            return
+        self.connect_attempts_left -= 1
+        self._trigger_aa_connect()
+        if self.connect_attempts_left > 0:
+            timer = threading.Timer(self.connect_retry_seconds,
+                                    lambda: self._on_connect_timer(session, timer))
+            timer.daemon = True
+            self.connect_timer = timer
+            timer.start()
+
+    def _on_connect_timer(self, session: int, timer):
+        with self.lock:
+            if self.connect_timer is timer:
+                self._connect_attempt(session)
 
     def _disable_connections(self, trigger_reason: str):
         """Disconnects Android Auto and disables Bluetooth."""
         logger.info(f"ConnectionManager: Disabling connections (Trigger: {trigger_reason})")
-        
+        self.session += 1
+        self._cancel_connect_retries()
+
         # 1. Quit Android Auto projection session
         if self.manage_android_auto and self.hudiy_client:
             try:
@@ -216,13 +326,13 @@ class ConnectionManager:
             except Exception as e:
                 logger.error(f"ConnectionManager: Failed to dispatch 'quit_android_auto': {e}")
 
-        # 2. Power off Bluetooth adapter
-        if self.manage_bluetooth:
-            threading.Thread(
-                target=BluetoothController.set_powered,
-                args=(False,),
-                daemon=True
-            ).start()
+        # 2. Block paired phones (or power the adapter off)
+        threading.Thread(
+            target=self._apply_bluetooth,
+            args=(self.session, False),
+            daemon=True,
+            name="ConnMgrBT",
+        ).start()
 
     def _trigger_aa_connect(self):
         """Optionally dispatches connect_android_auto_wifi."""

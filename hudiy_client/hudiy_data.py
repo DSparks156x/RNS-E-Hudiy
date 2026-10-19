@@ -114,6 +114,8 @@ class HudiyEventHandler(ClientEventHandler):
         self._projection_publish_lock = threading.Lock()
         from hudiy_client.projection_source import ProjectionSource
         self.projection_source = ProjectionSource()
+        # Set by the service so the connection manager stops retrying once AA is up.
+        self.projection_listener = None
         self._pending_media_clear = None
         self._pending_media_metadata = None
         self._applying_media_clear = False
@@ -393,6 +395,9 @@ class HudiyEventHandler(ClientEventHandler):
             active = bool(getattr(message, 'active', False))
             logger.info(f"PROJECTION STATUS: {'Active' if active else 'Inactive'}")
             self.current_media_data['projection_active'] = active
+            listener = getattr(self, 'projection_listener', None)
+            if listener:
+                listener(active)
             if not active and self.current_media_data.get('source_id', 0) == 0:
                 self.current_media_data['media_state'] = "NONE"
             self._capture_api_event(
@@ -1225,6 +1230,7 @@ class HudiyData:
 
         # Connection Manager (Manages Bluetooth/BLE & AA Connection Lifecycle)
         self.connection_manager = ConnectionManager(config_path=config_path)
+        self.handler.projection_listener = self.connection_manager.set_projection_active
 
         self.running = True
         # Set by run() once the main loop ends; wakes reconnect back-offs.
