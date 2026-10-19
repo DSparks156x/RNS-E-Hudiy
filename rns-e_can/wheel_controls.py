@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class WheelControlRouter:
     SUPPORTED_APPS = frozenset(('app_car_info', 'app_readings', 'app_phone'))
 
-    def __init__(self, emit, normal, *, double_click_ms=350, long_count=5,
+    def __init__(self, emit, normal, *, double_click_ms=250, long_count=3,
                  heartbeat_timeout=3.0, auto_phone=False, clock=time.monotonic):
         self.emit, self.normal, self.clock = emit, normal, clock
         self.double_window = max(0.15, min(0.8, double_click_ms / 1000))
@@ -172,6 +172,17 @@ class WheelControlRouter:
                     self._emit('previous' if action == 'scroll_up' else 'next')
                 else:
                     self.normal(action)
+            return
+        if action == 'mode_double':
+            # The gateway reports MODE's second press as its own code rather
+            # than a second mode frame. Only honour it straight after a MODE click.
+            if self.pressed == 'mode' or 'mode' in self.pending:
+                self.pending.pop('mode', None)
+                self.pressed = None
+                self.press_count = 0
+                self.long_fired = False
+                logger.info('MODE double-click recognized')
+                self.toggle()
             return
         if action == 'release':
             button, held = self.pressed, self.long_fired

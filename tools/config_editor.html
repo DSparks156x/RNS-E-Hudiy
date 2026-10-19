@@ -427,7 +427,7 @@ function metadataFor(path) {
         };
 
         const DATA_LOGS_DEFAULTS = {
-            "input_mappings.mfsw.double_click_ms": 350,
+            "input_mappings.mfsw.double_click_ms": 250,
             "interfaces.zmq.input_control_stream": "ipc:///run/rnse_control/input_control_stream.ipc",
             "interfaces.zmq.dis_top_status": "ipc:///run/rnse_control/dis_top_status.ipc",
             "interfaces.zmq.data_logs_command": "ipc:///run/rnse_control/data_logs_cmd.ipc",
@@ -858,7 +858,7 @@ const BUNDLED_CONFIG = {
       }
     },
     "mfsw": {
-      "double_click_ms": 350,
+      "double_click_ms": 250,
       "commands": {
         "scroll_up": "0x0B",
         "scroll_down": "0x0C",

@@ -309,7 +309,7 @@ function Controls() { return <>
   </ul></Section>
   <Section title="Remap"><p>All of it is in <code>input_mappings</code>: wheel and faceplate short/long presses, and faceplate extended holds. Values are a Linux key (<code>KEY_ENTER</code>), a Hudiy action object, or <code>null</code>. Extended holds can also run a shell command if <code>features.system_actions</code> is on. The stalk just follows the DIS app list.</p></Section>
   <Settings rows={[
-    ['input_mappings.mfsw.double_click_ms', 'Double-click window, default 350 ms.'],
+    ['input_mappings.mfsw.double_click_ms', 'Double-click window, default 250 ms.'],
     ['input_mappings.mfsw', 'Steering-wheel mappings.'],
     ['input_mappings.mmi', 'Faceplate mappings (short_press / long_press / extended_press).'],
     ['display.phone.scroll_wheel_phone_menu', 'Give calls the wheel automatically.'],

@@ -150,7 +150,7 @@ test('data logging import migration preserves mappings without adding a car-info
         input_mappings: {mfsw: {short_press: {mode: 'KEY_ENTER'}}}, custom: {keep: 42}};
     ctx.addDataLogsDefaults(old);
     assert.equal(old.display.center_display?.car_info, undefined);
-    assert.equal(old.input_mappings.mfsw.double_click_ms, 350);
+    assert.equal(old.input_mappings.mfsw.double_click_ms, 250);
     assert.equal(old.input_mappings.mfsw.short_press.mode, 'KEY_ENTER');
     assert.equal(old.display.phone.scroll_wheel_phone_menu, false);
     assert.equal(old.display.phone.claim_on_phone, true);

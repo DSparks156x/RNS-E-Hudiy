@@ -150,11 +150,15 @@ indicates wheel ownership. Manual readings control takes priority over phone tak
 A manual MODE toggle overrides automatic takeover for the current call. Loss of the
 DIS service heartbeat returns the wheel to its configured normal mappings. Volume
 controls retain their existing mappings. Set `input_mappings.mfsw.double_click_ms` to
-adjust the click window (default 350 ms).
+adjust the click window (default 250 ms).
 
 MODE single press and hold retain their configured key mappings; double-click
 needs no new binding or config restore. The second press must start within the
-click window and can be released after it. The old `input_mappings.mfsw.phone_alt`
+click window and can be released after it. The TT gateway sends MODE's second
+press as command `0x01` instead of a second `0x1C`; override it with
+`input_mappings.mfsw.commands.mode_double_click`. Wheel holds fire after 3 frames
+(about 1 s, the wheel repeats every 500 ms); set
+`input_mappings.mfsw.long_press_message_count` to change it. The old `input_mappings.mfsw.phone_alt`
 overrides are ignored by the shared wheel router. The keyboard service logs MODE
 double-click recognition, wheel ownership changes, and unavailable DIS contexts
 to `journalctl -u can_keyboard_control.service`.

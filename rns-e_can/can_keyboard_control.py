@@ -62,8 +62,8 @@ class ControlState:
         self.last_status_log_time = time.time()
         self.wheel = WheelControlRouter(publish_wheel_event,
             lambda action: press_key(CONFIG.get('mfsw_map', {}).get(action)),
-            double_click_ms=CONFIG.get('wheel_double_click_ms', 350),
-            long_count=CONFIG.get('long_press_count', 5),
+            double_click_ms=CONFIG.get('wheel_double_click_ms', 250),
+            long_count=CONFIG.get('wheel_long_press_count', 3),
             auto_phone=CONFIG.get('auto_phone_control', False))
         self.last_wheel_status_time = 0
 
@@ -179,7 +179,9 @@ def load_and_initialize_config(config_path='/home/pi/config.json'):
             'zmq_metric_stream': zmq_cfg.get('metric_stream'),
             'zmq_input_control_stream': zmq_cfg.get('input_control_stream', 'ipc:///run/rnse_control/input_control_stream.ipc'),
             'zmq_top_status': zmq_cfg.get('dis_top_status', 'ipc:///run/rnse_control/dis_top_status.ipc'),
-            'wheel_double_click_ms': mfsw_cfg.get('double_click_ms', 350),
+            'wheel_double_click_ms': mfsw_cfg.get('double_click_ms', 250),
+            # Wheel holds repeat every 500 ms, so 3 frames is about 1 s.
+            'wheel_long_press_count': mfsw_cfg.get('long_press_message_count', 3),
             'auto_phone_control': bool(display_cfg.get('phone', {}).get('scroll_wheel_phone_menu', False)),
             'can_ids': {k: int(v, 16) for k, v in cfg.get('can_ids', {}).items()
                         if k in ('mmi', 'mfsw', 'source')},
@@ -435,7 +437,9 @@ def handle_mfsw_message(msg, state):
     cmd_byte = int(msg['data_hex'][2:4], 16)
     now = time.time()
     wheel = state.wheel
-    if cmd_byte in (mfsw_cmds.get('mode_press'), mfsw_cmds.get('scroll_click')) or (
+    # TT gateway sends MODE's double-click as 39 01, not a second 0x1C.
+    mode_double = mfsw_cmds.get('mode_double_click', 0x01)
+    if cmd_byte in (mfsw_cmds.get('mode_press'), mode_double, mfsw_cmds.get('scroll_click')) or (
             cmd_byte in CONFIG['mfsw_release_cmds'] and (wheel.pressed or wheel.pending)):
         # Wheel gesture trace: frame arrival, router state before handling.
         logger.info('MFSW frame %s t=%.3f pressed=%s pending=%s owner=%s app=%s '
@@ -445,6 +449,7 @@ def handle_mfsw_message(msg, state):
 
     routed = {
         mfsw_cmds.get('mode_press'): 'mode',
+        mode_double: 'mode_double',
         mfsw_cmds.get('scroll_click'): 'click',
         mfsw_cmds.get('scroll_up'): 'scroll_up',
         mfsw_cmds.get('scroll_down'): 'scroll_down',
@@ -457,7 +462,7 @@ def handle_mfsw_message(msg, state):
 
     if cmd_byte == mfsw_cmds.get('ptt_press'):
         state.mfsw_ptt_press_count += 1
-        if not state.mfsw_ptt_long_action_fired and state.mfsw_ptt_press_count >= CONFIG['long_press_count']:
+        if not state.mfsw_ptt_long_action_fired and state.mfsw_ptt_press_count >= CONFIG.get('wheel_long_press_count', 3):
             logger.info("MFSW PTT Long Press")
             press_key(CONFIG['mfsw_map'].get('ptt_long'))
             state.mfsw_ptt_long_action_fired = True
@@ -471,7 +476,7 @@ def handle_mfsw_message(msg, state):
             state.mfsw_volume_scroll_locked = True
     elif cmd_byte == mfsw_cmds.get('volume_scroll_click'):
         state.mfsw_volume_scroll_click_press_count += 1
-        if not state.mfsw_volume_scroll_click_long_action_fired and state.mfsw_volume_scroll_click_press_count >= CONFIG['long_press_count']:
+        if not state.mfsw_volume_scroll_click_long_action_fired and state.mfsw_volume_scroll_click_press_count >= CONFIG.get('wheel_long_press_count', 3):
             logger.info("MFSW Volume Scroll Click Long Press")
             press_key(CONFIG['mfsw_map'].get('volume_scroll_click_long'))
             state.mfsw_volume_scroll_click_long_action_fired = True

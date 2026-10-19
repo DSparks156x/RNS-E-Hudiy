@@ -37,7 +37,7 @@ def main():
             self.bench_errors = []
             self.bench_normal_inputs = []
             self.bench_wheel = WheelControlRouter(self._wheel_emit,self._normal_input,
-                double_click_ms=self.cfg.get('input_mappings',{}).get('mfsw',{}).get('double_click_ms',350),
+                double_click_ms=self.cfg.get('input_mappings',{}).get('mfsw',{}).get('double_click_ms',250),
                 long_count=self.cfg.get('input_mappings',{}).get('mmi',{}).get('long_press_message_count',5))
             owner=self
             class ErrorTelemetry(logging.Handler):

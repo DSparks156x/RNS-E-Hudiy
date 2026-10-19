@@ -79,7 +79,7 @@ class WheelControlsTests(unittest.TestCase):
 
     def test_second_press_inside_window_can_release_after_deadline(self):
         self.click()
-        self.now += .25
+        self.now += .15
         self.router.handle('mode')
         self.now += .11
         self.router.tick()
@@ -90,7 +90,7 @@ class WheelControlsTests(unittest.TestCase):
         self.assertEqual(self.normal, [])
         # Wheel back uses the same gesture timing once DIS owns the wheel.
         self.click('click')
-        self.now += .25
+        self.now += .15
         self.router.handle('click')
         self.now += .15
         self.router.handle('release')
@@ -108,7 +108,7 @@ class WheelControlsTests(unittest.TestCase):
 
     def test_holding_second_press_does_not_emit_first_short_or_toggle(self):
         self.click()
-        self.now += .25
+        self.now += .15
         for _ in range(5):
             self.router.handle('mode')
             self.now += .05
@@ -370,7 +370,7 @@ class KeyboardRawFrameTests(unittest.TestCase):
             path = Path(directory) / 'config.json'
             path.write_text(json.dumps(cfg))
             self.assertTrue(keyboard.load_and_initialize_config(path))
-        self.assertEqual(keyboard.CONFIG['wheel_double_click_ms'], 350)
+        self.assertEqual(keyboard.CONFIG['wheel_double_click_ms'], 250)
         self.assertEqual(keyboard.CONFIG['zmq_display_status'],
                          'ipc:///run/rnse_control/dis_display_status.ipc')
         self.assertEqual(keyboard.CONFIG['mfsw_map']['mode_short'], 'KEY_ENTER')
@@ -388,7 +388,7 @@ class KeyboardRawFrameTests(unittest.TestCase):
             keyboard.handle_mfsw_message({'dlc':2, 'data_hex':f'00{command:02x}'}, state)
         frame(0x1c)
         frame(0)
-        now[0] += .25
+        now[0] += .15
         frame(0x1c)
         now[0] += .15
         frame(0)
@@ -407,6 +407,41 @@ class KeyboardRawFrameTests(unittest.TestCase):
         self.assertTrue(all(item['app'] == 'app_car_info' and item['control_epoch'] == 99
                             for item in inputs))
         self.assertEqual(pressed, [])
+
+    def test_tt_mode_double_click_arrives_as_command_01(self):
+        # Captured on the TT: 3A 1C, 3A 00, 39 01, 39 00 for one MODE double-click.
+        spec = importlib.util.spec_from_file_location('test_keyboard_tt_mode', ROOT / 'rns-e_can/can_keyboard_control.py')
+        keyboard = importlib.util.module_from_spec(spec)
+        with patch.dict(sys.modules, {'uinput': SimpleNamespace()}):
+            spec.loader.exec_module(keyboard)
+        keyboard.CONFIG = {'mfsw_cmds': {'mode_press': 0x1C, 'scroll_click': 0x08},
+                           'mfsw_map': {'mode_short': 'mode_short'},
+                           'long_press_count': 5, 'mfsw_release_cmds': [0]}
+        pressed, now = [], [10.0]
+        keyboard.press_key = pressed.append
+        state = keyboard.ControlState()
+        state.wheel.clock = lambda: now[0]
+        state.wheel.context('app_car_info', True)
+        def frame(data_hex, dt):
+            now[0] += dt
+            keyboard.handle_mfsw_message({'dlc': 2, 'data_hex': data_hex}, state)
+        frame('3a1c', 0)
+        frame('3a00', .16)
+        frame('3901', .08)
+        frame('3900', .16)
+        now[0] += 1.0
+        state.wheel.tick()
+        self.assertEqual(state.wheel.owner, 'dis')
+        self.assertEqual(pressed, [])
+        # Single click still sends the normal MODE key after the window.
+        frame('3a1c', 0)
+        frame('3a00', .24)
+        now[0] += .5
+        state.wheel.tick()
+        self.assertEqual(pressed, ['mode_short'])
+        # A stray 01 with no MODE click before it does nothing.
+        frame('3901', 1.0)
+        self.assertEqual(pressed, ['mode_short'])
 
     def test_volume_is_normal_in_dis_mode_and_release_repeat_deduplicates(self):
         spec = importlib.util.spec_from_file_location('test_keyboard_isolated', ROOT / 'rns-e_can/can_keyboard_control.py')
