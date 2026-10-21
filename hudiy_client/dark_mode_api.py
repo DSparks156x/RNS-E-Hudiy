@@ -26,6 +26,7 @@ import signal
 import sys
 import os
 import time
+import re
 
 # --- Setup Logging ---
 LOG_FILE = '/var/log/rnse_control/dark_mode_service.log'
@@ -62,6 +63,58 @@ FAST_RETRY_WINDOW = 30.0
 REASSERT_DELAYS = (2.0, 5.0)  # Hudiy may apply its saved theme after our first send
 FIRST_FRAME_WAIT = 1.0     # give 0x635 a moment before falling back to initial_mode
 HEADER = struct.Struct('<III')  # payload size, message id, flags
+# Hudiy draws its first frames with this file's theme, before its API is up.
+HUDIY_MAIN_CONFIG = os.path.expanduser('~/.hudiy/share/config/main_configuration.json')
+DARK_THEME_KEY = re.compile(r'("darkThemeEnabled"\s*:\s*)(true|false)')
+
+
+def save_hudiy_theme(path, enabled):
+    """Set theme.darkThemeEnabled in Hudiy's main config so it starts in this mode.
+
+    Edits only that value (the rest of the file stays byte-identical), and
+    replaces the file atomically with fsync: ignition-off can cut power, and
+    a truncated file would lose all of Hudiy's settings. Returns True if the
+    file now holds `enabled`.
+    """
+    try:
+        with open(path, encoding='utf-8') as f:
+            text = f.read()
+        current = json.loads(text)['theme']['darkThemeEnabled']
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        logger.warning(f"Cannot read Hudiy theme from {path}: {e}")
+        return False
+    if current is enabled:
+        return True
+    new_text, count = DARK_THEME_KEY.subn(
+        lambda m: m.group(1) + ('true' if enabled else 'false'), text)
+    try:
+        if count != 1 or json.loads(new_text)['theme']['darkThemeEnabled'] is not enabled:
+            raise ValueError(f"{count} darkThemeEnabled keys")
+    except (ValueError, KeyError, TypeError) as e:
+        logger.warning(f"Not editing {path}: unexpected layout ({e}).")
+        return False
+    tmp = f"{path}.rnse-tmp"
+    try:
+        with open(tmp, 'w', encoding='utf-8') as f:
+            f.write(new_text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, os.stat(path).st_mode & 0o7777)
+        os.replace(tmp, path)
+        dir_fd = os.open(os.path.dirname(path) or '.', os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    except OSError as e:
+        logger.warning(f"Could not save Hudiy theme to {path}: {e}")
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return False
+    logger.info(f"Saved {mode_name(enabled)} as Hudiy's start-up theme.")
+    return True
 
 
 def mode_name(enabled):
@@ -77,8 +130,12 @@ class HudiyLink:
     blocks for longer than CONNECT_TIMEOUT / SEND_TIMEOUT.
     """
 
-    def __init__(self, desired, sync_android_auto=False, address=None, clock=time.monotonic):
+    def __init__(self, desired, sync_android_auto=False, address=None, clock=time.monotonic,
+                 saved_theme_path=None):
         self.desired = desired
+        self.saved_theme_path = saved_theme_path
+        self.saved = None      # mode last ensured in Hudiy's config file
+        self.settled = False   # first frame seen (or FIRST_FRAME_WAIT over)
         self.sync_android_auto = sync_android_auto
         self.address = address or HUDIY_ADDRESS
         self.clock = clock
@@ -110,11 +167,14 @@ class HudiyLink:
 
     def release_hold(self):
         """First CAN frame is in: no need to keep waiting for it."""
+        self.settled = True
         if not self.ever_connected:
             self.next_attempt = min(self.next_attempt, self.clock())
 
     def seconds_until_due(self):
-        if not self.connected:
+        if self.settled and self.saved_theme_path and self.saved != self.desired:
+            due = self.clock()
+        elif not self.connected:
             due = self.next_attempt
         elif self.sent != self.desired:
             due = self.clock()
@@ -126,6 +186,13 @@ class HudiyLink:
 
     def tick(self):
         now = self.clock()
+        if not self.settled and now >= self.next_attempt:
+            self.settled = True
+        if self.settled and self.saved_theme_path and self.saved != self.desired:
+            # Early at boot this lands before Hudiy reads its config; later it
+            # makes the next start-up open in the current mode.
+            save_hudiy_theme(self.saved_theme_path, self.desired)
+            self.saved = self.desired
         if not self.connected:
             if now >= self.next_attempt:
                 self._connect(now)
@@ -386,7 +453,8 @@ def main():
     logger.info(f"Day/Night feature enabled. Default: {initial_mode_str}. Sync AA: {sync_aa}")
 
     # initial_mode is only the fallback until the first 0x635 frame.
-    link = HudiyLink(initial_mode_str == 'night', sync_android_auto=sync_aa)
+    link = HudiyLink(initial_mode_str == 'night', sync_android_auto=sync_aa,
+                     saved_theme_path=HUDIY_MAIN_CONFIG)
     link.hold_until(time.monotonic() + FIRST_FRAME_WAIT)
 
     zmq_address = config['zmq_publish_address']
