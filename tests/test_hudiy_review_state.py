@@ -301,6 +301,7 @@ class PowerReviewTests(unittest.TestCase):
     def setUp(self):
         with patch.object(ConnectionManager, '_load_config'):
             self.manager = ConnectionManager()
+        self.manager.disconnect_delay_seconds = 0.0
         self.manager._enable_connections = Mock()
         self.manager._disable_connections = Mock()
         self.addCleanup(self.manager.stop)
@@ -402,6 +403,7 @@ class ConnectRetryTests(unittest.TestCase):
         with patch.object(ConnectionManager, '_load_config'):
             self.manager = ConnectionManager()
         self.manager.connect_attempts = 3
+        self.manager.disconnect_delay_seconds = 0.0
         self.manager.hudiy_client = Mock()
         self.bt = patch('hudiy_client.connection_manager.BluetoothController').start()
         self.addCleanup(patch.stopall)
@@ -458,6 +460,15 @@ class ConnectRetryTests(unittest.TestCase):
         self.bt.set_blocked.assert_called_once_with(True)
         self.assertEqual(self.connects(), [])
         self.assertIsNone(self.manager.connect_timer)
+
+    def test_ignition_cycle_reconnects_without_hudiy_reporting_inactive(self):
+        self.manager.process_power_status({'kl15': True})
+        self.run_workers()
+        self.manager.set_projection_active(True)
+        self.manager.process_power_status({})
+        self.manager.process_power_status({'kl15': True})
+        self.run_workers()
+        self.assertEqual(len(self.connects()), 2)
 
     def test_window_expiry_stops_retries_and_blocks(self):
         self.manager.process_power_status({})

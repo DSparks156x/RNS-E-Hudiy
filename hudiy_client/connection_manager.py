@@ -131,7 +131,8 @@ class ConnectionManager:
         self.unlock_wake_window_seconds: float = 15.0
         self.manage_bluetooth: bool = True
         self.manage_android_auto: bool = True
-        self.disconnect_delay_seconds: float = 0.0
+        # Rides out a short ignition cycle without dropping Android Auto.
+        self.disconnect_delay_seconds: float = 60.0
         # "block": adapter stays on, paired phones blocked. "off": adapter powered off.
         self.idle_bluetooth: str = "block"
         self.connect_retry_seconds: float = 10.0
@@ -187,7 +188,7 @@ class ConnectionManager:
             self.unlock_wake_window_seconds = float(cm_cfg.get('unlock_wake_window_seconds', 15.0))
             self.manage_bluetooth = cm_cfg.get('manage_bluetooth', True)
             self.manage_android_auto = cm_cfg.get('manage_android_auto', True)
-            self.disconnect_delay_seconds = float(cm_cfg.get('disconnect_delay_seconds', 0.0))
+            self.disconnect_delay_seconds = float(cm_cfg.get('disconnect_delay_seconds', 60.0))
             self.idle_bluetooth = cm_cfg.get('idle_bluetooth', 'block')
             self.connect_retry_seconds = float(cm_cfg.get('connect_retry_seconds', 10.0))
             self.connect_attempts = int(cm_cfg.get('connect_attempts', 6))
@@ -284,11 +285,14 @@ class ConnectionManager:
     def _connect_attempt(self, session: int):
         """Lock held. One AA connect dispatch, then schedules the next."""
         self.connect_timer = None
-        if (session != self.session or not self.running or self.projection_active
-                or self.connect_attempts_left <= 0
+        if (session != self.session or not self.running or self.connect_attempts_left <= 0
                 or self.state not in (ManagerState.WAKE_WINDOW_ACTIVE, ManagerState.ACTIVE_CONNECTED)):
             return
+        if self.projection_active:
+            logger.info("ConnectionManager: Android Auto already active, not dispatching connect.")
+            return
         self.connect_attempts_left -= 1
+        logger.info(f"ConnectionManager: AA connect attempt, {self.connect_attempts_left} left.")
         self._trigger_aa_connect()
         if self.connect_attempts_left > 0:
             timer = threading.Timer(self.connect_retry_seconds,
@@ -323,6 +327,9 @@ class ConnectionManager:
                     payload
                 )
                 logger.info("ConnectionManager: Dispatched 'quit_android_auto' to Hudiy.")
+                # Don't wait on Hudiy's status: a stale "active" would skip every
+                # connect attempt on the next wake.
+                self.projection_active = False
             except Exception as e:
                 logger.error(f"ConnectionManager: Failed to dispatch 'quit_android_auto': {e}")
 

@@ -634,7 +634,7 @@
       "order": 127
     },
     "features.power_management.connection_management.disconnect_delay_seconds": {
-      "help": "Delay before disconnecting when ignition/radio turns off (sec).",
+      "help": "Delay before disconnecting when ignition/radio turns off (sec). Covers a short ignition cycle.",
       "type": "number",
       "label": "Disconnect delay seconds",
       "order": 128
@@ -1973,7 +1973,7 @@
           "manage_android_auto": true,
           "connect_retry_seconds": 10,
           "connect_attempts": 6,
-          "disconnect_delay_seconds": 0
+          "disconnect_delay_seconds": 60
         }
       },
       "tv_simulation": {

@@ -144,7 +144,7 @@ let currentConfig = {};
             "features.power_management.connection_management.manage_android_auto": { help: "Dispatch connect/disconnect to Hudiy Android Auto.", type: "boolean" },
             "features.power_management.connection_management.connect_retry_seconds": { help: "Seconds between Android Auto connect attempts after a wake.", type: "number" },
             "features.power_management.connection_management.connect_attempts": { help: "Connect attempts per wake. Stops early once Android Auto is up.", type: "number" },
-            "features.power_management.connection_management.disconnect_delay_seconds": { help: "Delay before disconnecting when ignition/radio turns off (sec).", type: "number" },
+            "features.power_management.connection_management.disconnect_delay_seconds": { help: "Delay before disconnecting when ignition/radio turns off (sec). Covers a short ignition cycle.", type: "number" },
             // MMI Specific Mappings
             "input_mappings.mmi": { label: "RNS-E (MMI)" },
             "input_mappings.mmi.cooldown_period": { help: "Min time between distinct button events (sec).", type: "number" },
@@ -755,7 +755,7 @@ const BUNDLED_CONFIG = {
         "manage_android_auto": true,
         "connect_retry_seconds": 10,
         "connect_attempts": 6,
-        "disconnect_delay_seconds": 0
+        "disconnect_delay_seconds": 60
       }
     },
     "tv_simulation": {

@@ -238,7 +238,7 @@
         "manage_android_auto": true,
         "connect_retry_seconds": 10,
         "connect_attempts": 6,
-        "disconnect_delay_seconds": 0
+        "disconnect_delay_seconds": 60
       }
     },
     "tv_simulation": {

@@ -325,7 +325,7 @@ function Power() { return <>
     <li><strong>Idle:</strong> Bluetooth and the hotspot stay up, but paired phones are blocked so they can't connect while you work on the car.</li>
     <li><strong>Ignition on</strong> (or radio on without ignition): phones are unblocked and the Pi asks Android Auto to connect, every 10 s until it does (6 tries).</li>
     <li><strong>Door open or unlock:</strong> same, for a short window (15 s by default) so the phone is ready sooner.</li>
-    <li><strong>Ignition/radio off:</strong> disconnect after the delay and block phones again.</li>
+    <li><strong>Ignition/radio off:</strong> disconnect after the delay (60 s by default, so a quick off/on keeps the phone connected) and block phones again.</li>
   </ul></Section>
   <Section title="Day/night, source & time"><ul>
     <li><strong>Day/night:</strong> Hudiy follows the headlights, which carries over to Android Auto/CarPlay. <code>sync_android_auto</code> also sets AA’s mode directly.</li>

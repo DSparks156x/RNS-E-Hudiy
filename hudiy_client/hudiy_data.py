@@ -1304,6 +1304,7 @@ class HudiyData:
                 logger.error(f"DATA Thread unexpected error: {e}", exc_info=True)
 
             self.input_actions.set_client(None)
+            self.connection_manager.set_projection_active(False)
             self.handler.set_projection_api_connected(False)
             if self.data_client:
                 self.data_client.disconnect()
