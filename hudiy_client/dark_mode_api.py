@@ -239,9 +239,77 @@ class HudiyLink:
             self.sock = None
 
 
-def light_is_night(data_hex):
-    """0x635 byte 1: any non-zero dimmer value means headlights on (night)."""
-    return int(data_hex[2:4], 16) > 0
+DAY_CONFIRM = 4.0  # lights must read off this long, with ignition on, before day
+
+
+def parse_light(data_hex):
+    """0x635 mDimmung byte 1 (DI1_Schalter): KL58s dimming %, bit 7 = not valid.
+
+    Returns True (lights on: night), False (off: day) or None (not valid / 127 error).
+    """
+    raw = int(data_hex[2:4], 16)
+    if raw & 0x80 or raw == 0x7F:
+        return None
+    return raw > 0
+
+
+class LightFilter:
+    """Turns 0x635 readings and KL15 into the mode Hudiy should show.
+
+    Night is followed at once. Day only after the lights have read off for
+    DAY_CONFIRM with ignition on, counted from ignition-on at the earliest:
+    KL58 drops while the ignition is off and comes back a moment after it is
+    on, which would otherwise flash light mode on every ignition cycle.
+    """
+
+    def __init__(self, clock=time.monotonic):
+        self.clock = clock
+        self.reading = None    # last valid reading: True night / False day
+        self.day_since = None
+        self.kl15 = None       # None until the first POWER_STATUS
+        self.ignition_on_at = None
+        self.decided = False
+
+    def on_reading(self, night):
+        if night is None:
+            return
+        if not night and self.reading is not False:
+            self.day_since = self.clock()
+        self.reading = night
+
+    def on_ignition(self, kl15):
+        if kl15 == self.kl15:
+            return
+        if kl15 and self.kl15 is False:
+            self.ignition_on_at = self.clock()
+        if self.kl15 is not None:
+            logger.info(f"Ignition {'on' if kl15 else 'off'}.")
+        self.kl15 = kl15
+
+    def _day_start(self):
+        if self.ignition_on_at is None:
+            return self.day_since
+        return max(self.day_since, self.ignition_on_at)
+
+    def target(self, current):
+        """Mode to show now, or None to keep `current`."""
+        if self.reading is None:
+            return None
+        if not self.decided:
+            self.decided = True  # the first valid frame is trusted as is
+            return self.reading
+        if self.reading or current is False:
+            return self.reading
+        if self.kl15 is False:
+            return None
+        if self.clock() - self._day_start() >= DAY_CONFIRM:
+            return False
+        return None
+
+    def seconds_until_due(self, current):
+        if not self.decided or self.reading is not False or current is False or self.kl15 is False:
+            return None
+        return max(0.0, self._day_start() + DAY_CONFIRM - self.clock())
 
 # --- Config Loading Function ---
 def load_config(config_path='/home/pi/config.json'):
@@ -258,6 +326,7 @@ def load_config(config_path='/home/pi/config.json'):
         
         config = {
             'zmq_publish_address': _zmq.get('can_raw_stream', 'ipc:///run/rnse_control/can_stream.ipc'),
+            'system_events_address': _zmq.get('system_events', 'ipc:///run/rnse_control/base_events.ipc'),
             'light_status_can_id': _can_ids.get('light_status', '0x271'),
             'day_night_mode': _features.get('day_night_mode', False),
             'initial_mode': _features.get('initial_mode', 'night'),
@@ -307,64 +376,87 @@ def open_subscriber(context, zmq_address, can_topic):
     return sub
 
 
-def handle_frame(link, payload, last_data):
-    """Apply one 0x635 ZMQ message; returns the data_hex it carried."""
+def handle_frame(lights, payload, last_data):
+    """Feed one 0x635 ZMQ message to the filter; returns the data_hex it carried."""
     data_hex = json.loads(payload.decode('utf-8')).get('data_hex')
     if not data_hex:
         return last_data
     try:
-        night = light_is_night(data_hex)
+        night = parse_light(data_hex)
     except (IndexError, ValueError) as e:
         if data_hex != last_data:
             logger.error(f"Could not parse light value from data_hex '{data_hex}'. Error: {e}")
         return data_hex
-    link.set_desired(night)
+    if night is None and data_hex != last_data:
+        logger.debug(f"Light status not valid ({data_hex}); keeping the current mode.")
+    lights.on_reading(night)
     return data_hex
 
 
-def run(link, sub, reopen=None):
+def handle_power(lights, payload):
+    try:
+        lights.on_ignition(bool(json.loads(payload.decode('utf-8')).get('kl15', False)))
+    except (ValueError, AttributeError) as e:
+        logger.debug(f"Bad POWER_STATUS payload: {e}")
+
+
+def run(link, sub, reopen=None, power_sub=None, lights=None):
     """Serve until RUNNING is cleared. Every wait is at most 200 ms."""
+    lights = lights or LightFilter()
     last_data = None
+    released = False
     while RUNNING:
         try:
+            target = lights.target(link.desired)
+            if target is not None:
+                link.set_desired(target)
+                if not released:
+                    released = True  # first valid frame: stop waiting for it
+                    link.release_hold()
             link.tick()
             poller = zmq.Poller()
             poller.register(sub, zmq.POLLIN)
+            if power_sub is not None:
+                poller.register(power_sub, zmq.POLLIN)
             # pyzmq reports plain sockets by fd, not by object.
             hudiy_fd = link.sock.fileno() if link.sock is not None else None
             if hudiy_fd is not None:
                 poller.register(hudiy_fd, zmq.POLLIN)
             timeout = 200
-            due = link.seconds_until_due()
-            if due is not None:
-                timeout = min(timeout, max(10, int(due * 1000) + 1))
+            for due in (link.seconds_until_due(), lights.seconds_until_due(link.desired)):
+                if due is not None:
+                    timeout = min(timeout, max(10, int(due * 1000) + 1))
             events = dict(poller.poll(timeout))
             if hudiy_fd is not None and hudiy_fd in events:
                 link.on_readable()
+            if power_sub is not None and power_sub in events:
+                _topic, payload = power_sub.recv_multipart()
+                handle_power(lights, payload)
             if sub in events:
                 _topic, payload = sub.recv_multipart()
                 first = last_data is None
-                last_data = handle_frame(link, payload, last_data)
+                last_data = handle_frame(lights, payload, last_data)
                 if first and last_data is not None:
-                    logger.info(f"First light-status frame: {last_data} -> {mode_name(link.desired)}.")
-                    link.release_hold()
+                    logger.info(f"First light-status frame: {last_data}.")
         except zmq.ZMQError as e:
             if e.errno == zmq.ETERM:
                 logger.info("ZMQ context terminated. Shutting down.")
                 break
             logger.error(f"ZMQ Error: {e}. Reconnecting...")
             sub.close()
+            if power_sub is not None:
+                power_sub.close()
             pause(5)
             if reopen is None:
                 break
-            sub = reopen()
+            sub, power_sub = reopen()
         except KeyboardInterrupt:
             logger.info("Shutdown signal received. Exiting...")
             break
         except Exception as e:
             logger.critical(f"An unexpected error occurred in main loop: {e}", exc_info=True)
             pause(10)
-    return sub
+    return sub, power_sub
 
 
 def main():
@@ -402,10 +494,20 @@ def main():
         sys.exit(1)
     logger.info(f"Subscribed to ZMQ topic: {can_topic}. Waiting for CAN messages and Hudiy...")
 
-    sub = run(link, sub, reopen=lambda: open_subscriber(context, zmq_address, can_topic))
+    events_address = config['system_events_address']
+    power_sub = open_subscriber(context, events_address, 'POWER_STATUS')
+    logger.info(f"Subscribed to POWER_STATUS at {events_address}.")
+
+    def reopen():
+        return (open_subscriber(context, zmq_address, can_topic),
+                open_subscriber(context, events_address, 'POWER_STATUS'))
+
+    sub, power_sub = run(link, sub, reopen=reopen, power_sub=power_sub)
 
     link.close()
     sub.close()
+    if power_sub is not None:
+        power_sub.close()
     context.term()
     logger.info("Day/Night service stopped.")
 

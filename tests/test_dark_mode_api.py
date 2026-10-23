@@ -283,8 +283,97 @@ class HudiyLinkTests(unittest.TestCase):
         self.assertTrue(wait_for(lambda: (1, True) in hudiy.modes()))
 
     def test_light_byte_decoding(self):
-        self.assertTrue(DM.light_is_night('0064000000'))
-        self.assertFalse(DM.light_is_night('0000000000'))
+        # mDimmung byte 1 = DI1_Schalter (KL58s %), bit 7 = not valid, 127 = error.
+        self.assertTrue(DM.parse_light('250123'))
+        self.assertTrue(DM.parse_light('256423'))
+        self.assertFalse(DM.parse_light('250023'))
+        for raw in ('80', 'A5', '7F', 'FF'):
+            self.assertIsNone(DM.parse_light('25' + raw + '23'))
+
+
+class LightFilterTests(unittest.TestCase):
+    """KL58 drops over an ignition cycle; that must not flash light mode."""
+
+    def setUp(self):
+        self.clock = Clock()
+        self.lights = DM.LightFilter(clock=self.clock)
+        self.mode = None
+
+    def step(self, seconds=0.0, reading=None, kl15=None):
+        self.clock.now += seconds
+        if kl15 is not None:
+            self.lights.on_ignition(kl15)
+        if reading is not None:
+            self.lights.on_reading(reading)
+        target = self.lights.target(self.mode)
+        if target is not None:
+            self.mode = target
+        return self.mode
+
+    def run_for(self, seconds, reading, step=0.1):
+        modes = set()
+        end = self.clock.now + seconds
+        while self.clock.now < end:
+            modes.add(self.step(step, reading))
+        return modes
+
+    def test_first_valid_frame_is_used_at_once(self):
+        self.assertIs(self.step(reading=False, kl15=True), False)
+        lights = DM.LightFilter(clock=self.clock)
+        lights.on_reading(True)
+        self.assertIs(lights.target(None), True)
+
+    def test_ignition_cycle_at_night_never_shows_day(self):
+        self.step(reading=True, kl15=True)
+        self.assertEqual(self.run_for(5, True), {True})
+        self.step(kl15=False)
+        self.assertEqual(self.run_for(30, False), {True})  # lights off with the key
+        self.step(kl15=True)
+        self.assertEqual(self.run_for(3, False), {True})   # KL58 not back yet
+        self.assertEqual(self.run_for(5, True), {True})
+
+    def test_lights_off_with_ignition_on_goes_day_after_the_confirm_time(self):
+        self.step(reading=True, kl15=True)
+        self.assertEqual(self.run_for(DM.DAY_CONFIRM - 0.2, False), {True})
+        self.assertEqual(self.run_for(0.4, False), {True, False})
+        self.assertIs(self.mode, False)
+
+    def test_day_is_counted_from_ignition_on(self):
+        self.step(reading=True, kl15=True)
+        self.step(kl15=False)
+        self.run_for(30, False)
+        self.step(kl15=True)
+        self.assertEqual(self.run_for(DM.DAY_CONFIRM - 0.2, False), {True})
+        self.run_for(0.4, False)
+        self.assertIs(self.mode, False)
+
+    def test_night_is_immediate(self):
+        self.step(reading=False, kl15=True)
+        self.assertIs(self.step(0.1, True), True)
+
+    def test_flicker_restarts_the_day_timer(self):
+        self.step(reading=True, kl15=True)
+        self.run_for(3, False)
+        self.step(0.1, True)
+        self.assertEqual(self.run_for(DM.DAY_CONFIRM - 0.2, False), {True})
+
+    def test_invalid_frames_keep_the_mode(self):
+        self.step(reading=True, kl15=True)
+        for _ in range(100):
+            self.step(0.1, DM.parse_light('258023'))
+        self.assertIs(self.mode, True)
+
+    def test_without_power_status_day_still_follows(self):
+        self.step(reading=True)
+        self.run_for(DM.DAY_CONFIRM + 0.2, False)
+        self.assertIs(self.mode, False)
+
+    def test_due_time_reports_the_pending_day_switch(self):
+        self.step(reading=True, kl15=True)
+        self.step(0.0, False)
+        self.assertAlmostEqual(self.lights.seconds_until_due(self.mode), DM.DAY_CONFIRM)
+        self.step(kl15=False)
+        self.assertIsNone(self.lights.seconds_until_due(self.mode))
 
 
 class ServiceLoopTests(unittest.TestCase):
@@ -298,6 +387,7 @@ class ServiceLoopTests(unittest.TestCase):
         self.sub = DM.open_subscriber(self.context, 'inproc://light-status', 'CAN_635')
         self.port = free_port()
         self.servers = []
+        self.sockets = []
         DM.RUNNING = True
 
     def tearDown(self):
@@ -306,6 +396,8 @@ class ServiceLoopTests(unittest.TestCase):
             self.thread.join(1)
         for server in self.servers:
             server.stop()
+        for sock in self.sockets:
+            sock.close()
         self.sub.close()
         self.pub.close()
         self.context.term()
@@ -318,6 +410,40 @@ class ServiceLoopTests(unittest.TestCase):
 
     def publish(self, data_hex):
         self.pub.send_multipart([b'CAN_635', json.dumps({'data_hex': data_hex}).encode()])
+
+    def test_ignition_cycle_sends_no_day_to_hudiy(self):
+        power = self.context.socket(zmq.PUB)
+        power.setsockopt(zmq.LINGER, 0)
+        power.bind('inproc://power-status')
+        power_sub = DM.open_subscriber(self.context, 'inproc://power-status', 'POWER_STATUS')
+        self.sockets += [power, power_sub]  # closed before context.term()
+        hudiy = FakeHudiy(self.port)
+        self.servers.append(hudiy)
+        self.link = DM.HudiyLink(True, address=('127.0.0.1', self.port))
+        self.addCleanup(self.link.close)
+        self.thread = threading.Thread(target=DM.run, args=(self.link, self.sub),
+                                       kwargs={'power_sub': power_sub}, daemon=True)
+        self.thread.start()
+        time.sleep(0.05)
+
+        def power_status(kl15):
+            power.send_multipart([b'POWER_STATUS', json.dumps({'kl15': kl15}).encode()])
+
+        def frames(data_hex, seconds):
+            end = time.monotonic() + seconds
+            while time.monotonic() < end:
+                self.publish(data_hex)
+                time.sleep(0.02)
+
+        power_status(True)
+        frames('256423', 0.3)  # night, lights on
+        self.assertTrue(wait_for(lambda: (0, True) in hudiy.modes()))
+        power_status(False)
+        frames('250023', 1.0)  # key off: KL58 drops
+        power_status(True)
+        frames('250023', 1.0)  # key on: lights not back yet
+        frames('256423', 0.3)
+        self.assertNotIn((0, False), hudiy.modes())
 
     def test_frame_before_hudiy_then_hudiy_appears(self):
         self.start_loop(desired=True)
