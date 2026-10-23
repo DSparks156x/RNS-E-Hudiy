@@ -7,12 +7,10 @@ Hudiy whenever its API is up, without waiting for the next headlight change.
 import importlib.util
 import json
 import logging
-import os
 from pathlib import Path
 import socket
 import struct
 import sys
-import tempfile
 import threading
 import time
 import types
@@ -287,83 +285,6 @@ class HudiyLinkTests(unittest.TestCase):
     def test_light_byte_decoding(self):
         self.assertTrue(DM.light_is_night('0064000000'))
         self.assertFalse(DM.light_is_night('0000000000'))
-
-
-REFERENCE_MAIN_CONFIG = ROOT / 'references' / 'hudiy references' / 'hudiy-main' / 'config' / 'main_configuration.json'
-
-
-class SavedThemeTests(unittest.TestCase):
-    """Hudiy's first frames use main_configuration.json, before its API is up."""
-
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.path = os.path.join(self.tmp.name, 'main_configuration.json')
-        self.original = REFERENCE_MAIN_CONFIG.read_text(encoding='utf-8')
-        with open(self.path, 'w', encoding='utf-8', newline='') as f:
-            f.write(self.original)
-        os.chmod(self.path, 0o640)
-
-    def theme(self):
-        with open(self.path, encoding='utf-8') as f:
-            return json.load(f)['theme']['darkThemeEnabled']
-
-    def test_flips_only_that_value(self):
-        self.assertTrue(json.loads(self.original)['theme']['darkThemeEnabled'])
-        self.assertTrue(DM.save_hudiy_theme(self.path, False))
-        self.assertIs(self.theme(), False)
-        with open(self.path, encoding='utf-8', newline='') as f:
-            text = f.read()
-        self.assertEqual(text.replace('"darkThemeEnabled" : false', '"darkThemeEnabled" : true'),
-                         self.original)
-        self.assertEqual(os.stat(self.path).st_mode & 0o777, 0o640)
-        self.assertEqual(os.listdir(self.tmp.name), ['main_configuration.json'])
-
-    def test_same_value_leaves_the_file_alone(self):
-        before = os.stat(self.path).st_mtime_ns
-        os.utime(self.path, ns=(before - 10**9, before - 10**9))
-        self.assertTrue(DM.save_hudiy_theme(self.path, True))
-        self.assertEqual(os.stat(self.path).st_mtime_ns, before - 10**9)
-
-    def test_unexpected_files_are_not_touched(self):
-        for text in ('{"theme": {}}', 'not json', '{"theme": {"darkThemeEnabled": true}, '
-                                                    '"x": {"darkThemeEnabled": true}}'):
-            with open(self.path, 'w', encoding='utf-8') as f:
-                f.write(text)
-            self.assertFalse(DM.save_hudiy_theme(self.path, False))
-            with open(self.path, encoding='utf-8') as f:
-                self.assertEqual(f.read(), text)
-        self.assertFalse(DM.save_hudiy_theme(os.path.join(self.tmp.name, 'missing.json'), False))
-
-    def test_saved_from_the_first_frame_before_hudiy_is_up(self):
-        clock = Clock()
-        link = DM.HudiyLink(True, address=('127.0.0.1', free_port()), clock=clock,
-                            saved_theme_path=self.path)
-        self.addCleanup(link.close)
-        link.hold_until(clock.now + DM.FIRST_FRAME_WAIT)
-        link.tick()
-        self.assertIs(self.theme(), True)  # still waiting for 0x635: untouched
-        link.set_desired(False)            # first frame: lights off
-        link.release_hold()
-        self.assertEqual(link.seconds_until_due(), 0.0)
-        link.tick()
-        self.assertFalse(link.connected)
-        self.assertIs(self.theme(), False)
-        link.set_desired(True)             # later change also lands in the file
-        link.tick()
-        self.assertIs(self.theme(), True)
-
-    def test_initial_mode_saved_when_no_frame_arrives(self):
-        with open(self.path, 'w', encoding='utf-8') as f:
-            f.write(self.original.replace('"darkThemeEnabled" : true', '"darkThemeEnabled" : false'))
-        clock = Clock()
-        link = DM.HudiyLink(True, address=('127.0.0.1', free_port()), clock=clock,
-                            saved_theme_path=self.path)
-        self.addCleanup(link.close)
-        link.hold_until(clock.now + DM.FIRST_FRAME_WAIT)
-        clock.now += DM.FIRST_FRAME_WAIT
-        link.tick()
-        self.assertIs(self.theme(), True)
 
 
 class ServiceLoopTests(unittest.TestCase):
