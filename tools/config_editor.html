@@ -371,7 +371,7 @@ Object.assign(SCHEMA, {
   'data_logger.profiles.haldex.measuring_groups': {...SCHEMA['data_logger.profiles.haldex.measuring_groups'], type: 'json-array'},
 });
 const CAN_HELP = {
-  rnse_adc_reply: 'r21 ADC tuning acknowledgement and dump replies; firmware uses 0x462',
+  rnse_adc_reply: 'r21 ADC tuning acknowledgement and dump replies; firmware uses 0x7B6',
   light_status: 'Vehicle light state used for Hudiy day/night mode', time_data: 'Vehicle clock and date used for Pi clock synchronization',
   ignition_status: 'Ignition and key state used by power and connection management', door_status: 'Door state used for connection wake windows',
   gateway_nm_status: 'Gateway network-management state used to detect bus sleep', nav_nm_status: 'RNS-E network-management state used to track radio activity',
@@ -780,7 +780,7 @@ const BUNDLED_CONFIG = {
     }
   },
   "can_ids": {
-    "rnse_adc_reply": "0x462",
+    "rnse_adc_reply": "0x7B6",
     "light_status": "0x635",
     "time_data": "0x623",
     "ignition_status": "0x2C3",

@@ -448,8 +448,8 @@ class ListenerDispatchTests(BaseFunctionTestCase):
     def test_subscriptions_match_gateway_topics(self):
         stream = self.run_listener([])
         topics = {c.args[0] for c in stream.transport.subscribe.call_args_list}
-        # Gateway topics are f"CAN_{id:03X}" (see test_can_handler); 0x462 = ADC reply.
-        self.assertEqual(topics, {b'CAN_2C3', b'CAN_470', b'CAN_42B', b'CAN_436', b'CAN_462'})
+        # Gateway topics are f"CAN_{id:03X}" (see test_can_handler); 0x7B6 = ADC reply.
+        self.assertEqual(topics, {b'CAN_2C3', b'CAN_470', b'CAN_42B', b'CAN_436', b'CAN_7B6'})
         stream.close.assert_called_once()
 
     def test_gateway_messages_are_routed_by_id(self):

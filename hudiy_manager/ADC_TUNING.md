@@ -2,7 +2,7 @@
 
 The Manager RNS-E page tunes the head unit ADC through the existing local CAN
 base service. Commands use standard CAN ID `0x7B0`, DLC 8. Replies default to
-`0x462`; set `can_ids.rnse_adc_reply` to the firmware's reply ID and restart
+`0x7B6`; set `can_ids.rnse_adc_reply` to the firmware's reply ID and restart
 RNS-E functions if it changes. Setting this field to `null` disables readbacks:
 single commands are unconfirmed and hold the controller busy for at least 200 ms.
 Multi-register writes, linked RGB, presets with multiple values, Revert and chip

@@ -391,7 +391,7 @@ class AdcBaseServiceTests(unittest.TestCase):
                     state.is_radio_active.return_value = False
                 else:
                     setattr(state, flag, True)
-                self.assertTrue(adc.observe(0x462, bytes.fromhex('5708700000000000')))
+                self.assertTrue(adc.observe(0x7B6, bytes.fromhex('5708700000000000')))
                 self.assertEqual([adc.writes[key]['state'] for key in ('08', '09', '0A')],
                                  ['ok', 'queue_failed', 'not_sent'])
                 if flag == 'flashing':
@@ -409,10 +409,10 @@ class AdcBaseServiceTests(unittest.TestCase):
         namespace, state = helper.namespace(), helper.state()
         self.assertTrue(helper.load(namespace, helper.fixture(enabled=False)))
         clock = Mock(return_value=0)
-        adc = AdcController(0x462, clock)
+        adc = AdcController(0x7B6, clock)
         namespace['CONFIG']['rnse_adc'] = adc
         for frame in dump_frames([0] * 39):
-            adc.observe(0x462, frame)
+            adc.observe(0x7B6, frame)
         namespace['process_rnse_bridge_request']({'action': 'adc_identify'}, state)
         namespace['send_can_message'].assert_called_once_with(COMMAND_ID, 'bc1a040000000000')
         clock.return_value = 2
@@ -431,7 +431,7 @@ class AdcBaseServiceTests(unittest.TestCase):
             self.assertTrue(helper.load(namespace, helper.fixture(enabled=False)))
             adc = namespace['CONFIG']['rnse_adc']
             for frame in dump_frames([0] * 39):
-                adc.observe(0x462, frame)
+                adc.observe(0x7B6, frame)
             namespace['process_rnse_bridge_request']({'action': 'adc_identify'}, state)
             if flag == 'flashing':
                 namespace['flashing_mode_enabled'].return_value = True
@@ -439,7 +439,7 @@ class AdcBaseServiceTests(unittest.TestCase):
                 state.is_radio_active.return_value = False
             else:
                 setattr(state, flag, True)
-            adc.observe(0x462, bytes.fromhex('571a040000000000'))
+            adc.observe(0x7B6, bytes.fromhex('571a040000000000'))
             self.assertEqual(adc.identification['state'], 'error')
             self.assertFalse(adc.identification['restore_confirmed'])
             self.assertEqual(adc.identification['restore']['state'], 'queue_failed')
@@ -456,9 +456,9 @@ class AdcBaseServiceTests(unittest.TestCase):
                         {'dlc': 8, 'data_hex': None}, {'dlc': '8', 'data_hex': '00' * 8},
                         {'dlc': 8, 'data_hex': '00' * 9},
                         {'dlc': 8, 'data_hex': '00' * 8, 'is_error_frame': True}):
-            self.assertFalse(observe(0x462, message))
+            self.assertFalse(observe(0x7B6, message))
         namespace['CONFIG']['rnse_adc'].write({'08': 112}, namespace['send_can_message'])
-        self.assertTrue(observe(0x462, {'dlc': 8, 'data_hex': '5708700000000000'}))
+        self.assertTrue(observe(0x7B6, {'dlc': 8, 'data_hex': '5708700000000000'}))
 
     def test_every_inhibition_and_radio_sleep_reject_without_deferred_send(self):
         helper = control_tests.BaseServiceBrightnessTests()
@@ -478,7 +478,7 @@ class AdcBaseServiceTests(unittest.TestCase):
         state.is_radio_active.return_value = True
         process({'action': 'adc_status'}, state)
         namespace['send_can_message'].assert_not_called()
-        self.assertEqual(namespace['CONFIG']['can_ids']['rnse_adc_reply'], 0x462)
+        self.assertEqual(namespace['CONFIG']['can_ids']['rnse_adc_reply'], 0x7B6)
 
     def test_local_bridge_parser_only_accepts_bounded_actions(self):
         for action in ('adc_status', 'adc_dump', 'adc_revert', 'adc_identify'):

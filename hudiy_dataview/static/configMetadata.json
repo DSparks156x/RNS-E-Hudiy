@@ -1250,7 +1250,7 @@
       "order": 28
     },
     "can_ids.rnse_adc_reply": {
-      "help": "r21 ADC tuning acknowledgement and dump replies; firmware uses 0x462. Enter a hexadecimal CAN identifier, for example 0x635.",
+      "help": "r21 ADC tuning acknowledgement and dump replies; firmware uses 0x7B6. Enter a hexadecimal CAN identifier, for example 0x635.",
       "type": "text",
       "label": "Rnse adc reply",
       "order": 140
@@ -1998,7 +1998,7 @@
       }
     },
     "can_ids": {
-      "rnse_adc_reply": "0x462",
+      "rnse_adc_reply": "0x7B6",
       "light_status": "0x635",
       "time_data": "0x623",
       "ignition_status": "0x2C3",

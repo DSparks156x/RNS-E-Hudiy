@@ -18,7 +18,7 @@ function rnseDefaults(document: ConfigDocument): ConfigDocument {
     if (!(group in (document.rnse as ConfigDocument || {})) || object(rnse[group])) rnse[group] = { ...RNSE_DEFAULTS[group], ...(object(rnse[group]) ? rnse[group] : {}) };
   }
   const result: ConfigDocument = { ...document, rnse };
-  if (!('can_ids' in document) || object(document.can_ids)) result.can_ids = { rnse_adc_reply: '0x462', ...(document.can_ids as ConfigDocument || {}) };
+  if (!('can_ids' in document) || object(document.can_ids)) result.can_ids = { rnse_adc_reply: '0x7B6', ...(document.can_ids as ConfigDocument || {}) };
   // Expose the existing wire default on older Pi configs; only an edit saves it.
   if (!('features' in document) || object(document.features)) {
     const features = { ...(document.features as ConfigDocument || {}) };

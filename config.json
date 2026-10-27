@@ -263,7 +263,7 @@
     }
   },
   "can_ids": {
-    "rnse_adc_reply": "0x7B1",
+    "rnse_adc_reply": "0x7B6",
     "light_status": "0x635",
     "time_data": "0x623",
     "ignition_status": "0x2C3",
