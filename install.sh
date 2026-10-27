@@ -350,11 +350,6 @@ try:
         if isinstance(diagnostics, dict) and 'hudiy_api_capture' in diagnostics:
             del diagnostics['hudiy_api_capture']
             updated = True
-        # r21 firmware moved its ADC reply channel from 0x7B1 to 0x7B6.
-        can_ids = target.get('can_ids', {})
-        if isinstance(can_ids, dict) and str(can_ids.get('rnse_adc_reply')).upper() == '0X7B1':
-            can_ids['rnse_adc_reply'] = '0x7B6'
-            updated = True
     if os.path.basename(sys.argv[1]) == 'shortcuts.json':
         shortcuts = target.get('shortcuts')
         if isinstance(shortcuts, list):
