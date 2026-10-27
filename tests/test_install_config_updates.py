@@ -33,6 +33,18 @@ class InstallerConfigMigrationTests(unittest.TestCase):
         self.assertEqual(updated, {'diagnostics': {'enabled': False, 'values': {'diagnostic_hz': 7}}})
         self.assertEqual(self.migrate('config.json', updated, {'diagnostics': {'enabled': True}})[0], 2)
 
+    def test_adc_reply_moves_from_7b1_to_7b6_only(self):
+        source = {'can_ids': {'rnse_adc_reply': '0x7B6', 'light_status': '0x635'}}
+        for old_id in ('0x7B1', '0x7b1'):
+            result, updated = self.migrate('config.json', {'can_ids': {'rnse_adc_reply': old_id,
+                                                                       'light_status': '0x635'}}, source)
+            self.assertEqual(result, 0)
+            self.assertEqual(updated['can_ids'], {'rnse_adc_reply': '0x7B6', 'light_status': '0x635'})
+            self.assertEqual(self.migrate('config.json', updated, source)[0], 2)
+        for custom in ('0x462', None):  # another firmware's ID, or readbacks disabled
+            self.assertEqual(self.migrate('config.json', {'can_ids': {'rnse_adc_reply': custom,
+                                                                      'light_status': '0x635'}}, source)[0], 2)
+
     def test_update_inserts_valve_shortcut_next_to_haldex_without_replacing_customizations(self):
         old = {'shortcuts': [{'action': 'hudiy_diagnostics', 'iconName': 'custom-diag'},
                              {'action': 'toggle_haldex_mode', 'iconName': 'custom-awd'},
