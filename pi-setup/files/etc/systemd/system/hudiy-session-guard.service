@@ -1,0 +1,11 @@
+# boot-tuning: temporary dead-man switch for hudiy-session.service, see /usr/local/sbin/hudiy-session-guard.
+# Type=exec so the 45 s wait does not hold up multi-user.target.
+[Unit]
+Description=boot-tuning: back to lightdm if Hudiy is not up 45 s after boot
+
+[Service]
+Type=exec
+ExecStart=/usr/local/sbin/hudiy-session-guard
+
+[Install]
+WantedBy=multi-user.target

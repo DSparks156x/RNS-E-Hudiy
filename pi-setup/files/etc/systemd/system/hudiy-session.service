@@ -1,0 +1,34 @@
+# boot-tuning: labwc/Hudiy session started by systemd on tty7, replacing lightdm autologin.
+# Same session as before: boottuning-session-wrapper + labwc-pi (setup_env, labwc -m), autologin as pi.
+# PAM (pam_systemd) registers it with logind as an active wayland session on seat0, VT 7.
+[Unit]
+Description=Hudiy labwc session on tty7 (boot-tuning, replaces lightdm)
+After=systemd-user-sessions.service dev-dri-card0.device dev-dri-renderD128.device
+Wants=dev-dri-card0.device dev-dri-renderD128.device
+After=plymouth-quit-wait.service getty@tty7.service
+Conflicts=getty@tty7.service
+
+[Service]
+Type=simple
+User=pi
+PAMName=hudiy-session
+WorkingDirectory=~
+TTYPath=/dev/tty7
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty7
+UtmpMode=user
+Environment=XDG_SESSION_TYPE=wayland XDG_SESSION_CLASS=user XDG_SEAT=seat0 XDG_VTNR=7
+Environment=XDG_SESSION_DESKTOP=rpd-labwc DESKTOP_SESSION=rpd-labwc
+# lightdm switched to VT 7 itself; logind only makes the session active once its VT is in front
+ExecStartPre=+/usr/bin/chvt 7
+ExecStart=/usr/local/bin/boottuning-session-wrapper /usr/bin/labwc-pi
+Restart=always
+RestartSec=1
+
+[Install]
+Alias=display-manager.service

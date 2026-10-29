@@ -83,7 +83,7 @@ Tags: **[boot]** faster boot, **[gap]** what shows on screen between boot and Hu
   sudo install -m 755 files/usr/local/bin/boottuning-session-wrapper /usr/local/bin/
   sudo sed -i '/^\[Seat:\*\]/a session-wrapper=/usr/local/bin/boottuning-session-wrapper' /etc/lightdm/lightdm.conf
   ```
-- **[boot] Desktop extras deferred**: [/etc/xdg/labwc/autostart](files/etc/xdg/labwc/autostart) starts pcmanfm-pi, kanshi and lxsession-xdg-autostart (polkit agent, keyring, pwrkey, xdg autostart entries) 10 s after login in a background subshell, so they don't compete with labwc/Hudiy for the disk. kanshi was a no-op anyway here. wf-panel-pi (taskbar) is off. The file is a conffile of rpd-wayland-core; dpkg keeps local edits on upgrade.
+- **[boot] Desktop extras deferred**: [/etc/xdg/labwc/autostart](files/etc/xdg/labwc/autostart) starts pcmanfm-pi, kanshi and lxsession-xdg-autostart (polkit agent, keyring, pwrkey, xdg autostart entries) 10 s after login in a background subshell, so they don't compete with labwc/Hudiy for the disk. kanshi was a no-op anyway here. wf-panel-pi (taskbar) is off. The file is a conffile of rpd-wayland-core; dpkg keeps local edits on upgrade. Staged: most of these dropped, and lightdm replaced, [below](#no-splash-no-lightdm-staged-2026-10-29-not-yet-boot-tested).
 - **[gap] Black desktop**: [desktop-items-0.conf](files/home/pi/.config/pcmanfm/default/desktop-items-0.conf): solid black, no trash/mount icons (was sunrise.jpg wallpaper).
 - **[gap] Invisible cursor**: theme from [tools/make-invisible-cursor.sh](tools/make-invisible-cursor.sh) (run as the desktop user) at `~/.local/share/icons/invisible`, enabled by `XCURSOR_THEME=invisible` + `XCURSOR_SIZE=24` in [~/.config/labwc/environment](files/home/pi/.config/labwc/environment).
 
@@ -95,8 +95,34 @@ Tags: **[boot]** faster boot, **[gap]** what shows on screen between boot and Hu
   - touches `/run/rnse_control/hudiy-started` after launching Hudiy, which starts `rnse-late.target` (install.sh sets that up).
   - per-step timing in `/run/user/<uid>/hudiy-startup.log`.
 
-  [~/.config/labwc/autostart](files/home/pi/.config/labwc/autostart) runs splash with this script instead of `hudiy_run.sh`. Vendor `hudiy_startup.sh` and `hudiy_run.sh` are byte-identical from 2.16 to 2.24, so no port was needed; re-check after Hudiy updates.
+  [~/.config/labwc/autostart](files/home/pi/.config/labwc/autostart) runs splash with this script instead of `hudiy_run.sh` (staged: without splash, [below](#no-splash-no-lightdm-staged-2026-10-29-not-yet-boot-tested)). Vendor `hudiy_startup.sh` and `hudiy_run.sh` are byte-identical from 2.16 to 2.24, so no port was needed; re-check after Hudiy updates.
 - RNS-E services: the late split (rnse-late.target/.path/.timer), lazy numpy/PIL/OpenCV imports and no DIS start sleeps are in the repo `install.sh` and services now, not a local change. OpenCV alone was ~150 MB of libraries paged in at 3 s (import 941 -> 192 ms).
+
+## No splash, no lightdm (staged 2026-10-29, not yet boot-tested)
+
+Staged on the reference Pi for the next boot; the files in files/ are already the staged versions. Expected gain ~1 s (splash) + ~0.5-1 s (lightdm).
+
+- **[boot] No Hudiy splash**: [~/.config/labwc/autostart](files/home/pi/.config/labwc/autostart) runs `hudiy_startup_fast.sh` directly, same exports. splash only draws and waits (~1.5 s) on a boost interprocess condition in /dev/shm (`hudiy#launch#condition`, `sem.hudiy#launch#mutex`) that Hudiy signals once it's up. Hudiy opens it with `sem_open(name, 0)`; if it's missing it logs `failed to initialize interprocess routines` and carries on (checked in the 2.24 disassembly). splash also D-Bus-activated the desktop portals at 4.4 s.
+- **[boot] labwc from systemd instead of lightdm**: [hudiy-session.service](files/etc/systemd/system/hudiy-session.service) with `Alias=display-manager.service`. User=pi on tty7, `PAMName=hudiy-session` ([PAM file](files/etc/pam.d/hudiy-session) = the session part of lightdm-autologin), so pam_systemd registers an active wayland session on seat0/VT 7 (wireplumber and udisks need that). `chvt 7` first, as lightdm did. Runs `boottuning-session-wrapper /usr/bin/labwc-pi`, the same command lightdm ran. lightdm stays installed.
+- **[boot] Fewer desktop extras**: [/etc/xdg/labwc/autostart](files/etc/xdg/labwc/autostart) still waits 10 s, then runs only pwrkey (`systemd-inhibit --what=handle-power-key gtk-nop`), `create_xauth`, the activation-environment update, and [usb-automount](files/usr/local/bin/usb-automount). pcmanfm-pi, kanshi and lxsession-xdg-autostart are gone. usb-automount is ~20 lines of Gio VolumeMonitor: mounts USB sticks at start and on plug-in at /media/pi/<label>, like pcmanfm did. It has to run inside the session (polkit). udiskie would pull ~50 packages.
+- **[boot] Portals masked**: `xdg-desktop-portal`, `-gtk`, `-wlr` user units -> /dev/null. Nothing in the car uses them; they also dragged in gvfsd.
+- **[safety] Dead-man switch**: [hudiy-session-guard.service](files/etc/systemd/system/hudiy-session-guard.service) runs [hudiy-session-guard](files/usr/local/sbin/hudiy-session-guard) at every boot. At 45 s uptime, if no `~/.hudiy/share/hudiy` process is running, it goes back to lightdm, the splash autostart and unmasked portals, and starts lightdm, so the hotspot and SSH come back on their own. `--dry-run` and `--dry-run --assume-dead` test it. Log: `journalctl -t boottuning-guard`. Disable it once a few boots are fine.
+
+```
+sudo install -m 644 files/etc/systemd/system/hudiy-session.service files/etc/systemd/system/hudiy-session-guard.service /etc/systemd/system/
+sudo install -m 644 files/etc/pam.d/hudiy-session /etc/pam.d/
+sudo install -m 755 files/usr/local/sbin/hudiy-session-guard /usr/local/sbin/
+sudo install -m 755 files/usr/local/bin/usb-automount /usr/local/bin/
+cp -a ~/.config/labwc/autostart ~/boot-tuning/backup/__home__pi__.config__labwc__autostart.pre-session
+cp -a /etc/xdg/labwc/autostart ~/boot-tuning/backup/__etc__xdg__labwc__autostart.pre-session
+install -m 644 files/home/pi/.config/labwc/autostart ~/.config/labwc/autostart
+sudo install -m 644 files/etc/xdg/labwc/autostart /etc/xdg/labwc/autostart
+mkdir -p ~/.config/systemd/user
+for u in xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-wlr; do ln -sfn /dev/null ~/.config/systemd/user/$u.service; done
+sudo systemctl disable lightdm.service
+sudo systemctl enable hudiy-session.service hudiy-session-guard.service
+```
+The guard restores from the two `.pre-session` backups, so make them first.
 
 ## Boot readahead
 

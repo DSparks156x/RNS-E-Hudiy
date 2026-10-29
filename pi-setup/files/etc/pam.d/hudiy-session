@@ -1,0 +1,11 @@
+#%PAM-1.0
+# boot-tuning: PAM stack for hudiy-session.service (systemd runs account + session only).
+# Session part is the same as /etc/pam.d/lightdm-autologin.
+@include common-account
+session  required pam_env.so readenv=1
+session  required pam_env.so readenv=1 envfile=/etc/default/locale
+session  [success=ok ignore=ignore module_unknown=ignore default=bad] pam_selinux.so close
+session  required pam_limits.so
+session  required pam_loginuid.so
+@include common-session
+session  [success=ok ignore=ignore module_unknown=ignore default=bad] pam_selinux.so open

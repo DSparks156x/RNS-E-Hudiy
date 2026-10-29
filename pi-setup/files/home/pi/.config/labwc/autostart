@@ -1,6 +1,7 @@
 # boot-tuning: same as ~/.hudiy/share/hudiy_run.sh but runs ~/.local/bin/hudiy_startup_fast.sh
 # (waits for the DAC instead of sleep 1, and waits for NetworkManager right before Hudiy).
+# No splash: Hudiy only signals the splash through boost shared memory and carries on if it is not there.
 echo "$(cut -d" " -f1 /proc/uptime) autostart" >> /run/user/$(id -u)/hudiy-startup.log
 export LD_LIBRARY_PATH=$HOME/.hudiy/share/:$LD_LIBRARY_PATH
 export HUDIY_RENDERER=direct
-$HOME/.hudiy/share/splash $HOME/.local/bin/hudiy_startup_fast.sh
+$HOME/.local/bin/hudiy_startup_fast.sh

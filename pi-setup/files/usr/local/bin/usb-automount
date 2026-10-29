@@ -1,0 +1,19 @@
+#!/usr/bin/python3
+# boot-tuning: mounts USB sticks the way pcmanfm did (mount_on_startup + mount_removable), at
+# /media/<user>/<label> through gvfs/udisks2. Must run inside the logind session (labwc autostart):
+# polkit only lets the active local session mount without a password.
+import gi
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib
+
+
+def mount(volume):
+    if volume.get_mount() is None and volume.can_mount() and volume.should_automount():
+        volume.mount(Gio.MountMountFlags.NONE, None, None, None, None)
+
+
+monitor = Gio.VolumeMonitor.get()
+for volume in monitor.get_volumes():
+    mount(volume)
+monitor.connect("volume-added", lambda _monitor, volume: mount(volume))
+GLib.MainLoop().run()

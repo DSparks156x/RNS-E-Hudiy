@@ -1,0 +1,38 @@
+#!/bin/sh
+# boot-tuning dead-man switch for hudiy-session.service (staged 2026-10-29).
+# Once uptime reaches 45 s: if the Hudiy binary is not running, go back to lightdm and the splash
+# autostart, unmask the desktop portals, and start lightdm, so the hotspot (and SSH) come back
+# without anyone at the Pi. Remove with: sudo systemctl disable hudiy-session-guard.service
+#   --dry-run       print what would be done, change nothing
+#   --assume-dead   act as if Hudiy were not running (test the revert path)
+B=/home/pi/boot-tuning/backup
+DRY=0; DEAD=0
+for a in "$@"; do
+  case $a in --dry-run) DRY=1 ;; --assume-dead) DEAD=1 ;; *) echo "unknown option $a" >&2; exit 2 ;; esac
+done
+log() { if [ $DRY = 1 ]; then logger -t boottuning-guard "[dry-run] $*"; echo "$*"; else logger -t boottuning-guard "$*"; fi; }
+run() { if [ $DRY = 1 ]; then echo "would run: $*"; else "$@" || log "failed: $*"; fi; }
+
+if [ $DRY = 0 ]; then
+  up=$(cut -d. -f1 /proc/uptime)
+  [ "$up" -lt 45 ] && sleep $((45 - up))
+fi
+if [ $DEAD = 0 ] && pgrep -f "/.hudiy/share/hudiy\$" >/dev/null; then
+  log "Hudiy is running at $(cut -d" " -f1 /proc/uptime) s, display manager $(basename "$(readlink /etc/systemd/system/display-manager.service)"); nothing to do"
+  exit 0
+fi
+
+log "Hudiy is not running at $(cut -d" " -f1 /proc/uptime) s; reverting to lightdm + splash autostart"
+for f in "$B/__home__pi__.config__labwc__autostart.pre-session" "$B/__etc__xdg__labwc__autostart.pre-session"; do
+  [ -f "$f" ] || { log "missing backup $f; aborting revert"; exit 1; }
+done
+run systemctl disable hudiy-session.service
+run systemctl enable lightdm.service
+run install -o pi -g pi -m 644 "$B/__home__pi__.config__labwc__autostart.pre-session" /home/pi/.config/labwc/autostart
+run install -m 644 "$B/__etc__xdg__labwc__autostart.pre-session" /etc/xdg/labwc/autostart
+run rm -f /home/pi/.config/systemd/user/xdg-desktop-portal.service /home/pi/.config/systemd/user/xdg-desktop-portal-gtk.service /home/pi/.config/systemd/user/xdg-desktop-portal-wlr.service
+run systemctl --user -M pi@ daemon-reload
+run systemctl daemon-reload
+run systemctl stop hudiy-session.service
+run systemctl start lightdm.service
+log "revert done (display manager $(basename "$(readlink /etc/systemd/system/display-manager.service)"))"

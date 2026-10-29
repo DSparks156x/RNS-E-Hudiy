@@ -39,4 +39,8 @@ sudo rm -f /etc/systemd/system/boot-readahead.service /usr/local/sbin/boot-reada
 sudo rm -rf /etc/boottuning /usr/local/lib/boottuning
 sudo sed -i 's/ trace_event=filemap:mm_filemap_add_to_page_cache trace_buf_size=32M//' /boot/firmware/cmdline.txt
 
+sudo systemctl disable hudiy-session.service hudiy-session-guard.service; sudo systemctl enable lightdm.service
+sudo rm -f /etc/systemd/system/hudiy-session.service /etc/systemd/system/hudiy-session-guard.service /etc/pam.d/hudiy-session /usr/local/sbin/hudiy-session-guard /usr/local/bin/usb-automount
+rm -f "$HOME/.config/systemd/user/xdg-desktop-portal.service" "$HOME/.config/systemd/user/xdg-desktop-portal-gtk.service" "$HOME/.config/systemd/user/xdg-desktop-portal-wlr.service"
+
 sudo systemctl daemon-reload; echo "Reverted. Reboot to apply."

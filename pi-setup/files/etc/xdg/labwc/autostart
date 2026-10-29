@@ -1,12 +1,16 @@
 # boot-tuning: desktop extras start 10 s after login so they do not compete with labwc/Hudiy
-# for the disk (Hudiy covers the screen; labwc background is black meanwhile). Original lines:
+# for the disk. Only what the car needs is left. Original lines:
 # /usr/bin/lwrespawn /usr/bin/pcmanfm-pi &
 #boot-tuning# /usr/bin/lwrespawn /usr/bin/wf-panel-pi &
 # /usr/bin/kanshi &
 # /usr/bin/lxsession-xdg-autostart
+# Dropped: pcmanfm-pi (desktop + USB automount, replaced by usb-automount), kanshi (no-op here),
+# lxsession-xdg-autostart (polkit agent, squeekboard, autotouch, pprompt, xcompmgr, xdg-user-dirs).
+# Kept from the xdg autostart entries: pwrkey, xwayauth, env-display.
 (
 sleep 10
-/usr/bin/lwrespawn /usr/bin/pcmanfm-pi &
-/usr/bin/kanshi &
-exec /usr/bin/lxsession-xdg-autostart
+systemd-inhibit --what=handle-power-key gtk-nop &
+/usr/bin/create_xauth
+/usr/bin/dbus-update-activation-environment --systemd DISPLAY WAYLAND_DISPLAY
+exec /usr/bin/lwrespawn /usr/local/bin/usb-automount
 ) &
