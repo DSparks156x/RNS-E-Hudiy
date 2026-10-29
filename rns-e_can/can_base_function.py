@@ -693,8 +693,8 @@ def process_rnse_bridge_request(data, state: AppState):
                 return {'error': 'ADC commands are inhibited or the radio is asleep.', 'status': 503}
             if data['action'] == 'adc_dump':
                 queued = adc.request_dump(send)
-            elif data['action'] == 'adc_identify':
-                queued = adc.identify(send)
+            elif data['action'] == 'adc_resend_clock':
+                queued = adc.resend_clock(send)
             else:
                 queued = adc.revert(send) if data['action'] == 'adc_revert' else adc.write(data.get('values'), send)
             if not queued:

@@ -17,3 +17,7 @@
 @media(max-width:600px){.rnse-adc{padding:0 4px 8px}.adc-toolbar{align-items:flex-start;flex-direction:column}.adc-actions{width:100%;justify-content:space-between}.adc-control-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.adc-control-head{align-items:flex-start;flex-direction:column;gap:0;min-height:40px}.adc-control-head label{font-size:15px}.adc-control-head output{font-size:13px}.adc-register-row{grid-template-columns:38px 54px 54px minmax(90px,1fr);gap:4px;padding:0 5px;font-size:12px}}
 @media(max-width:360px){.adc-pages{width:100%}.adc-pages button{flex:1;min-width:0;padding:0 5px}.adc-actions>span{max-width:190px}.adc-control-grid{gap:4px}.adc-control{padding:4px}.adc-control-head label{font-size:14px}}
 .adc-dump{gap:6px;overflow:hidden}.adc-preset-tools{flex-wrap:nowrap}.adc-actions>span{max-width:300px}
+.adc-control-head>span{font-size:16px;font-weight:600;white-space:nowrap}.adc-control-head abbr{color:var(--on-surface-variant);font-size:12px;text-decoration:none}
+.adc-choice{display:flex;gap:5px;min-height:44px;align-items:center}.adc-choice button{flex:1;min-width:0;padding:0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.rnse-adc .adc-choice button.active{background:var(--primary);color:var(--on-primary);border-color:var(--primary)}
+.adc-pages button{min-width:0}
+.adc-page-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-bottom:5px}

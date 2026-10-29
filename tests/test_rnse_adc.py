@@ -3,8 +3,8 @@ import json
 import unittest
 from unittest.mock import Mock
 
-from hudiy_manager.rnse_adc_protocol import (AdcController, COMMAND_ID, DEFAULTS,
-    REGISTERS, REVERT_DEFAULTS, reply_identifier, validate_values)
+from hudiy_manager.rnse_adc_protocol import (AdcController, COMMAND_ID, FIRMWARE,
+    REVERT_DEFAULTS, reply_identifier, validate_values)
 
 try:
     import test_rnse_control as control_tests
@@ -63,38 +63,104 @@ class AdcProtocolTests(unittest.TestCase):
         self.assertFalse(self.adc.snapshot()['busy'])
 
     def test_validation_locked_registers_encodings_and_atomic_invalid_batch(self):
-        for values in ({}, {'01': 63}, {'02': 80}, {'00': 1}, {'07': 1}, {'0E': 1},
-                       {'0F': 1}, {'10': 1}, {'14': 1}, {'15': 1}, {'19': 1}, {'1A': 4}, {'1B': 1}, {'24': 1}, {'FF': 1},
+        for values in ({}, {'00': 1}, {'0B': 1}, {'0C': 1}, {'0D': 1}, {'0F': 0x2A}, {'14': 1},
+                       {'15': 2}, {'16': 1}, {'29': 1}, {'2D': 1}, {'FF': 1},
                        {'08': True}, {'08': 256}, {'08': -1}, {'08': '1'}, {'8': 1},
-                       {'0B': 127}, {'0C': 1}, {'04': 1}, {'03': 17},
-                       {'0a': 1, '0A': 2}, {'08': 112, '01': 63}):
+                       {'01': 63}, {'02': 80}, {'1A': 0}, {'1D': 0}, {'01': 0, '02': 0xD0},
+                       {'01': 0x3F, '02': 0x51}, {'19': 2, '1A': 0}, {'1D': 0, '1E': 81},
+                       {'1D': 1, '1E': 0xEF}, {'0E': 0x2C}, {'24': 0x18}, {'28': 0x70},
+                       {'28': 0xF8}, {'03': 0xC0}, {'03': 0x38}, {'03': 0x31}, {'04': 1},
+                       {'10': 4}, {'05': 0}, {'06': 0}, {'07': 0}, {'25': 255},
+                       {'05': 60, '06': 45}, {'06': 20, '25': 20},
+                       {'0a': 1, '0A': 2}, {'08': 112, '0B': 63}):
             with self.subTest(values=values), self.assertRaises(ValueError):
                 self.adc.write(values, self.send)
         self.send.assert_not_called()
-        self.assertEqual(validate_values(DEFAULTS), DEFAULTS)
-        self.assertEqual(validate_values({'04': 248, '03': 248, '0D': 254}),
-                         {'04': 248, '03': 248, '0D': 254})
+        self.assertEqual(validate_values(FIRMWARE), FIRMWARE)
+        self.assertEqual(validate_values({'04': 248, '03': 0xB0, '1E': 0xF0, '1D': 1, '28': 0xA0}),
+                         {'03': 0xB0, '04': 248, '1D': 1, '1E': 0xF0, '28': 0xA0})
+        self.assertEqual(list(validate_values({'02': 0x50, '01': 0x3F, '1A': 0, '19': 1})),
+                         ['01', '02', '19', '1A'])
 
-    def test_fixed_revert_only_restores_stock_writable_boot_list(self):
+    def test_fixed_revert_restores_firmware_values_stock_range_first(self):
         self.adc.revert(self.send)
         self.assertEqual(self.send.call_count, 1)
         for key, value in REVERT_DEFAULTS.items():
             self.assertTrue(self.ack(int(key, 16), value))
         calls = self.send.call_args_list
-        self.assertEqual(len(calls), 19)
-        self.assertEqual({int(call.args[1][2:4], 16) for call in calls}, set(range(1, 0x14)))
+        self.assertEqual([call.args[1][2:6] for call in calls], [key.lower() + f'{value:02x}' for key, value in REVERT_DEFAULTS.items()])
         self.assertEqual(calls[0].args, (COMMAND_ID, 'bc013f0000000000'))
         self.assertEqual(calls[1].args, (COMMAND_ID, 'bc02500000000000'))
-        self.assertFalse(self.observe(bytes.fromhex('57013f0000000000')))
-        self.assertEqual(self.adc.writes['01']['state'], 'ok')
-        self.assertEqual(REVERT_DEFAULTS['06'], 47)
-        self.assertEqual(REVERT_DEFAULTS['03'], 0x30)
-        self.assertEqual(REVERT_DEFAULTS['12'], 6)
-        self.assertNotIn('24', REVERT_DEFAULTS)
+        self.assertEqual(REVERT_DEFAULTS['24'], 0x58)
+        self.assertEqual(REVERT_DEFAULTS['28'], 0xF0)
+        self.assertNotIn('0F', REVERT_DEFAULTS)
+
+    def test_unpatched_firmware_stops_revert_at_first_widened_register(self):
+        self.adc.revert(self.send)
+        for key, value in REVERT_DEFAULTS.items():
+            if key == '23':
+                self.assertTrue(self.ack(0x23, 0, 0xEE))
+                break
+            self.assertTrue(self.ack(int(key, 16), value))
+        self.assertEqual(self.adc.writes['23']['state'], 'rejected')
+        self.assertEqual({self.adc.writes[key]['state'] for key in ('24', '25', '26', '27', '28')}, {'not_sent'})
+        self.assertFalse(self.adc.snapshot()['busy'])
+
+    def test_widened_registers_cache_readback_across_dumps(self):
+        self.adc.write({'23': 0x01}, self.send)
+        self.assertTrue(self.ack(0x23, 0x01))
+        self.adc.write({'1D': 0, '1E': 8}, self.send)
+        self.send.assert_called_with(COMMAND_ID, 'bc1d000000000000')
+        self.assertTrue(self.ack(0x1D, 0))
+        self.send.assert_called_with(COMMAND_ID, 'bc1e080000000000')
+        self.assertTrue(self.ack(0x1E, 8))
+        self.complete([0] * 39)
+        rows = {row['register']: row for row in self.adc.snapshot()['registers']}
+        self.assertEqual(len(rows), 0x29)
+        self.assertEqual((rows['23']['value'], rows['23']['in_dump'], rows['23']['access']), (1, False, 'widen'))
+        self.assertEqual((rows['1E']['value'], rows['1D']['value'], rows['1D']['in_dump']), (8, 0, True))
+        self.assertEqual((rows['0B']['access'], rows['19']['access'], rows['24']['access']), ('read_only', 'now', 'widen'))
+        self.assertIsNone(rows['25']['value'])
+        self.assertNotIn('31', rows)
+
+    def test_readback_failed_status_and_unknown_register_replies(self):
+        self.adc.write({'08': 112}, self.send)
+        self.assertFalse(self.observe(bytes.fromhex('570b700000000000')))
+        self.assertTrue(self.ack(8, 0, 0xFC))
+        self.assertEqual(self.adc.writes['08']['state'], 'readback_failed')
+
+    def test_resend_clock_repeats_only_confirmed_clock_writes(self):
+        with self.assertRaises(ValueError):
+            self.adc.resend_clock(self.send)
+        self.adc.write({'01': 0x3F, '02': 0x60, '03': 0x28, '08': 100}, self.send)
+        for register, value in ((1, 0x3F), (2, 0x60), (3, 0x28), (8, 100)):
+            self.assertTrue(self.ack(register, value))
+        self.send.reset_mock()
+        self.adc.resend_clock(self.send)
+        for register, value in ((1, 0x3F), (2, 0x60), (3, 0x28)):
+            self.assertTrue(self.ack(register, value))
+        self.assertEqual([call.args[1] for call in self.send.call_args_list],
+                         ['bc013f0000000000', 'bc02600000000000', 'bc03280000000000'])
+        adc = AdcController(0x462, self.clock)
+        adc.write({'01': 0x3F, '02': 0x60}, self.send)
+        adc.observe(0x462, bytes.fromhex('57013f0000000000'))
+        adc.observe(0x462, bytes.fromhex('570260ee00000000'))
+        with self.assertRaises(ValueError):
+            adc.resend_clock(self.send)
+
+    def test_split_must_stay_below_known_clamp_length(self):
+        with self.assertRaises(ValueError):
+            self.adc.write({'25': 47}, self.send)
+        self.adc.write({'25': 30}, self.send)
+        self.assertTrue(self.ack(0x25, 30))
+        with self.assertRaises(ValueError):
+            self.adc.write({'06': 30}, self.send)
+        self.adc.write({'06': 20, '25': 10}, self.send)
+        self.assertEqual(self.send.call_args.args[1], 'bc250a0000000000')
 
     def test_ack_reports_readback_status_and_changes_only_successful_values(self):
         self.complete([112] * 39)
-        for register, status, expected in ((8, 0, 'ok'), (9, 0xEE, 'rejected'), (10, 3, 'i2c_error')):
+        for register, status, expected in ((8, 0, 'ok'), (9, 0xEE, 'rejected'), (10, 3, 'i2c_error'), (7, 0xFC, 'readback_failed')):
             self.adc.write({f'{register:02X}': 120}, self.send)
             self.assertTrue(self.observe(bytes((0x57, register, 119, status, 0, 0, 0, 0))))
             item = self.adc.snapshot()['writes'][f'{register:02X}']
@@ -185,14 +251,14 @@ class AdcProtocolTests(unittest.TestCase):
             self.assertTrue(all(row['value'] is None for row in self.adc.snapshot()['registers']))
         self.assertTrue(self.observe(frames[-1]))
         snapshot = self.adc.snapshot()
-        self.assertEqual(len(snapshot['registers']), 39)
+        self.assertEqual(len(snapshot['registers']), 0x29)
         self.assertEqual(snapshot['dump']['received_sequences'], list(range(8)))
         self.assertEqual(snapshot['dump']['state'], 'complete')
         self.assertTrue(snapshot['baseline_available'])
         rows = {row['register']: row for row in snapshot['registers']}
-        self.assertEqual(rows['45']['value'], 37)
-        self.assertTrue(rows['46']['failed'])
-        self.assertIsNone(rows['46']['value'])
+        self.assertEqual(rows['24']['value'], 30)
+        self.assertNotIn('46', rows)
+        self.assertIsNone(self.adc.values[0x46])
         self.assertTrue(rows['08']['failed'])
 
     def test_header_last_and_arbitrary_order_commit_once_with_first_baseline(self):
@@ -204,9 +270,10 @@ class AdcProtocolTests(unittest.TestCase):
         self.assertEqual(self.adc.snapshot()['dump']['generation'], 1)
         self.assertEqual(self.adc.snapshot()['dump']['chip_ids'], [2] * 4)
         self.assertIsNone(self.adc.values[0x46])
-        self.assertTrue(all(row['baseline'] == 2 for row in self.adc.snapshot()['registers'][:-1]))
+        dumped = lambda: [row for row in self.adc.snapshot()['registers'] if row['in_dump']]
+        self.assertTrue(all(row['baseline'] == 2 for row in dumped()))
         self.complete([3] * 39)
-        self.assertTrue(all(row['changed'] for row in self.adc.snapshot()['registers'][:-1]))
+        self.assertTrue(all(row['changed'] for row in dumped()))
 
     def test_all_eight_frame_rotations_allow_data_before_header(self):
         for offset in range(8):
@@ -233,7 +300,7 @@ class AdcProtocolTests(unittest.TestCase):
             self.assertTrue(all(value == 10 for value in self.adc.values.values()))
         self.adc.request_dump(self.send)
         self.complete([2] * 39)
-        self.assertTrue(all(row['baseline'] == 10 for row in self.adc.snapshot()['registers']))
+        self.assertTrue(all(row['baseline'] == 10 for row in self.adc.snapshot()['registers'] if row['in_dump']))
         self.assertEqual(self.adc.dump_generation, 2)
 
     def test_bad_header_last_never_commits_data_or_changes_baseline(self):
@@ -254,8 +321,7 @@ class AdcProtocolTests(unittest.TestCase):
         self.assertTrue(self.observe(dump_frames()[3]))
         self.assertTrue(self.adc.snapshot()['busy'])
         for action in (lambda: self.adc.write({'08': 112}, self.send),
-                       lambda: self.adc.request_dump(self.send),
-                       lambda: self.adc.identify(self.send)):
+                       lambda: self.adc.request_dump(self.send)):
             with self.assertRaises(ValueError):
                 action()
         self.send.assert_not_called()
@@ -305,24 +371,24 @@ class AdcProtocolTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.adc.write(values, self.send)
         self.send.assert_not_called()
-        self.adc.write({'05': 60, '06': 49}, self.send)
-        self.observe(bytes.fromhex('57053c0000000000'))
-        self.observe(bytes.fromhex('5706310000000000'))
+        self.adc.write({'05': 56, '06': 48}, self.send)
+        self.observe(bytes.fromhex('5705380000000000'))
+        self.observe(bytes.fromhex('5706300000000000'))
         with self.assertRaises(ValueError):
-            self.adc.write({'05': 61, '08': 112}, self.send)
+            self.adc.write({'05': 57, '08': 112}, self.send)
         self.assertEqual(self.send.call_count, 2)
-        self.adc.write({'05': 59}, self.send)
+        self.adc.write({'05': 55}, self.send)
         with self.assertRaises(ValueError):
             self.adc.write({'06': 48}, self.send)
         self.assertEqual(self.send.call_count, 3)
 
     def test_reply_disabled_batches_reject_before_sending_and_singles_are_paced(self):
         adc = AdcController(None, self.clock)
-        for action in (lambda: adc.write({'05': 60, '06': 49}, self.send), lambda: adc.revert(self.send)):
+        for action in (lambda: adc.write({'05': 56, '06': 48}, self.send), lambda: adc.revert(self.send)):
             with self.assertRaisesRegex(ValueError, 'reply CAN ID'):
                 action()
         self.send.assert_not_called()
-        adc.write({'05': 60}, self.send)
+        adc.write({'05': 50}, self.send)
         for now in (0, 0.199):
             self.clock.return_value = now
             with self.assertRaises(ValueError):
@@ -330,31 +396,31 @@ class AdcProtocolTests(unittest.TestCase):
         self.clock.return_value = 0.2
         adc.advance(self.send)
         with self.assertRaises(ValueError):
-            adc.write({'06': 50}, self.send)
-        adc.write({'06': 49}, self.send)
+            adc.write({'06': 55}, self.send)
+        adc.write({'06': 54}, self.send)
         self.assertEqual(self.send.call_count, 2)
 
     def test_clamp_batch_reduces_duration_before_increasing_placement(self):
         values = [0] * 39
         values[5], values[6] = 10, 99
         self.complete(values)
-        self.adc.write({'05': 60, '06': 49}, self.send)
+        self.adc.write({'05': 56, '06': 48}, self.send)
         self.assertEqual(self.send.call_count, 1)
-        self.assertTrue(self.ack(6, 49))
+        self.assertTrue(self.ack(6, 48))
         self.assertEqual([call.args[1] for call in self.send.call_args_list],
-                         ['bc06310000000000', 'bc053c0000000000'])
+                         ['bc06300000000000', 'bc05380000000000'])
 
     def test_clamp_unexpected_reduction_readback_does_not_send_increase(self):
         values = [0] * 39
         values[5], values[6] = 10, 99
         self.complete(values)
-        self.adc.write({'05': 60, '06': 49}, self.send)
+        self.adc.write({'05': 56, '06': 48}, self.send)
         self.assertTrue(self.ack(6, 99))
         self.assertEqual(self.adc.writes['05']['state'], 'not_sent')
         self.assertEqual(self.send.call_count, 1)
 
     def test_uncertain_clamp_timeout_requires_new_successful_dump(self):
-        self.adc.write({'05': 60}, self.send)
+        self.adc.write({'05': 50}, self.send)
         self.clock.return_value = 2
         with self.assertRaises(ValueError):
             self.adc.write({'06': 40}, self.send)
@@ -403,50 +469,6 @@ class AdcBaseServiceTests(unittest.TestCase):
                 namespace['advance_rnse_adc'](state)
                 self.assertEqual(namespace['send_can_message'].call_count, 1)
 
-    def test_probe_timeout_is_restored_by_service_timer_without_ui_poll(self):
-        import asyncio
-        helper = control_tests.BaseServiceBrightnessTests()
-        namespace, state = helper.namespace(), helper.state()
-        self.assertTrue(helper.load(namespace, helper.fixture(enabled=False)))
-        clock = Mock(return_value=0)
-        adc = AdcController(0x7B6, clock)
-        namespace['CONFIG']['rnse_adc'] = adc
-        for frame in dump_frames([0] * 39):
-            adc.observe(0x7B6, frame)
-        namespace['process_rnse_bridge_request']({'action': 'adc_identify'}, state)
-        namespace['send_can_message'].assert_called_once_with(COMMAND_ID, 'bc1a040000000000')
-        clock.return_value = 2
-        async def stop(_delay):
-            namespace['RUNNING'] = False
-        namespace['asyncio'] = control_tests.SimpleNamespace(sleep=stop, CancelledError=asyncio.CancelledError)
-        asyncio.run(namespace['send_periodic_messages_task'](state))
-        self.assertEqual(namespace['send_can_message'].call_count, 2)
-        namespace['send_can_message'].assert_called_with(COMMAND_ID, 'bc1a000000000000')
-        self.assertEqual(adc.identification['state'], 'restoring')
-
-    def test_probe_restore_checks_live_inhibition_and_does_not_retry(self):
-        helper = control_tests.BaseServiceBrightnessTests()
-        for flag in ('can_listen_only', 'desired_listen_only', 'listen_only_transition_in_progress', 'flashing', 'radio'):
-            namespace, state = helper.namespace(), helper.state()
-            self.assertTrue(helper.load(namespace, helper.fixture(enabled=False)))
-            adc = namespace['CONFIG']['rnse_adc']
-            for frame in dump_frames([0] * 39):
-                adc.observe(0x7B6, frame)
-            namespace['process_rnse_bridge_request']({'action': 'adc_identify'}, state)
-            if flag == 'flashing':
-                namespace['flashing_mode_enabled'].return_value = True
-            elif flag == 'radio':
-                state.is_radio_active.return_value = False
-            else:
-                setattr(state, flag, True)
-            adc.observe(0x7B6, bytes.fromhex('571a040000000000'))
-            self.assertEqual(adc.identification['state'], 'error')
-            self.assertFalse(adc.identification['restore_confirmed'])
-            self.assertEqual(adc.identification['restore']['state'], 'queue_failed')
-            namespace['send_can_message'].assert_called_once_with(COMMAND_ID, 'bc1a040000000000')
-            namespace['advance_rnse_adc'](state)
-            self.assertEqual(namespace['send_can_message'].call_count, 1)
-
     def test_malformed_adc_payloads_are_ignored_before_hex_decode(self):
         helper = control_tests.BaseServiceBrightnessTests()
         namespace = helper.namespace()
@@ -467,7 +489,7 @@ class AdcBaseServiceTests(unittest.TestCase):
         process = namespace['process_rnse_bridge_request']
         for flag in ('can_listen_only', 'desired_listen_only', 'listen_only_transition_in_progress'):
             setattr(state, flag, True)
-            for action in ('adc_write', 'adc_dump', 'adc_revert', 'adc_identify'):
+            for action in ('adc_write', 'adc_dump', 'adc_revert', 'adc_resend_clock'):
                 self.assertEqual(process({'action': action, 'values': {'08': 112}}, state)['status'], 503)
             setattr(state, flag, False)
         namespace['flashing_mode_enabled'].return_value = True
@@ -481,7 +503,7 @@ class AdcBaseServiceTests(unittest.TestCase):
         self.assertEqual(namespace['CONFIG']['can_ids']['rnse_adc_reply'], 0x7B6)
 
     def test_local_bridge_parser_only_accepts_bounded_actions(self):
-        for action in ('adc_status', 'adc_dump', 'adc_revert', 'adc_identify'):
+        for action in ('adc_status', 'adc_dump', 'adc_revert', 'adc_resend_clock'):
             self.assertEqual(RUNTIME.parse_request([json.dumps({'action': action}).encode()]), {'action': action})
             with self.assertRaises(ValueError):
                 RUNTIME.parse_request([json.dumps({'action': action, 'values': {}}).encode()])
@@ -498,14 +520,14 @@ class AdcRouteTests(unittest.TestCase):
         result = self.client.post('/api/manage/rnse-adc/write', json={'values': {'08': 112, '09': 112, '0A': 112}}, headers=self.headers)
         self.assertEqual(result.status_code, 200)
         self.exchange.assert_called_with(self.endpoint, {'action': 'adc_write', 'values': {'08': 112, '09': 112, '0A': 112}})
-        for action in ('dump', 'revert', 'identify'):
+        for action in ('dump', 'revert', 'resend-clock'):
             self.assertEqual(self.client.post('/api/manage/rnse-adc/' + action, json={}, headers=self.headers).status_code, 200)
-            self.exchange.assert_called_with(self.endpoint, {'action': 'adc_' + action})
+            self.exchange.assert_called_with(self.endpoint, {'action': 'adc_' + action.replace('-', '_')})
             self.assertIn(self.client.get('/api/manage/rnse-adc/' + action).status_code, (404, 405))
         self.assertEqual(self.config.read_bytes(), self.original)
 
     def test_adc_mutations_require_pin_header_and_same_origin(self):
-        for action in ('write', 'dump', 'revert', 'identify', 'presets'):
+        for action in ('write', 'dump', 'revert', 'resend-clock', 'presets'):
             for headers in ({}, {**self.headers, 'X-Hudiy-Pin': 'wrong'},
                             {**self.headers, 'Origin': 'https://foreign.example'},
                             {**self.headers, 'Sec-Fetch-Site': 'same-site'}):
@@ -513,128 +535,14 @@ class AdcRouteTests(unittest.TestCase):
         self.exchange.assert_not_called()
 
     def test_invalid_addresses_or_bodies_never_reach_gateway(self):
-        for body in ({'values': {'01': 63}}, {'values': {'08': 112, '24': 88}},
+        for body in ({'values': {'01': 63}}, {'values': {'08': 112, '24': 89}},
                      {'values': {'0B': 255}}, {'values': {'04': 1}}, {'values': {}},
                      {'values': {'08': 112}, 'id': 0x7B0}, {}):
             self.assertEqual(self.client.post('/api/manage/rnse-adc/write', json=body, headers=self.headers).status_code, 400)
-        for action in ('dump', 'revert', 'identify'):
+        for action in ('dump', 'revert', 'resend-clock'):
             self.assertEqual(self.client.post('/api/manage/rnse-adc/' + action, json={'values': {}}, headers=self.headers).status_code, 400)
         self.exchange.assert_not_called()
 
-
-class AdcIdentificationTests(unittest.TestCase):
-    def setUp(self):
-        self.clock = Mock(return_value=0)
-        self.adc = AdcController(0x462, self.clock)
-        self.send = Mock(return_value=True)
-
-    def seed(self, value=0, failed=False):
-        values = [0] * 39
-        values[0x1D] = value
-        for frame in dump_frames(values, (1 << 0x1D) if failed else 0):
-            self.adc.observe(0x462, frame)
-
-    def ack(self, value, status=0):
-        return self.adc.observe(0x462, bytes((0x57, 0x1A, value, status, 0, 0, 0, 0)))
-
-    def test_requires_complete_successful_auto_offset_off_dump(self):
-        for value, failed in ((None, False), (1, False), (0, True)):
-            if value is not None:
-                self.seed(value, failed)
-            with self.assertRaises(ValueError):
-                self.adc.identify(self.send)
-        self.send.assert_not_called()
-        self.seed()
-        self.assertTrue(self.adc.identify(self.send))
-
-    def test_probe_classes_and_restore_have_separate_confirmed_status(self):
-        for value, expected in ((4, 'AD9985'), (0, 'AD9883A'), (2, 'unknown')):
-            self.adc = AdcController(0x462, self.clock)
-            self.send.reset_mock()
-            self.seed()
-            self.adc.identify(self.send)
-            self.send.assert_called_once_with(COMMAND_ID, 'bc1a040000000000')
-            self.assertTrue(self.ack(value))
-            result = self.adc.snapshot()['identification']
-            self.assertEqual(result['state'], 'restoring')
-            self.assertEqual(result['chip'], expected)
-            self.assertEqual(result['probe']['readback'], value)
-            self.assertFalse(result['restore_confirmed'])
-            self.send.assert_called_with(COMMAND_ID, 'bc1a000000000000')
-            self.assertTrue(self.ack(0))
-            result = self.adc.snapshot()['identification']
-            self.assertEqual(result['state'], 'identified')
-            self.assertTrue(result['restore_confirmed'])
-            self.assertEqual(result['restore']['readback'], 0)
-            self.assertEqual(self.send.call_count, 2)
-            self.assertFalse(self.ack(0))
-
-    def test_probe_rejection_and_i2c_errors_still_restore_once_without_chip_claim(self):
-        for status in (0xEE, 3):
-            self.adc = AdcController(0x462, self.clock)
-            self.send.reset_mock()
-            self.seed()
-            self.adc.identify(self.send)
-            self.ack(4, status)
-            self.assertIsNone(self.adc.identification['chip'])
-            self.assertEqual(self.send.call_count, 2)
-            self.ack(0)
-            self.assertEqual(self.adc.identification['state'], 'error')
-            self.assertTrue(self.adc.identification['restore_confirmed'])
-
-    def test_probe_timeout_restores_once_and_restore_timeout_never_claims_success(self):
-        self.seed()
-        self.adc.identify(self.send)
-        self.clock.return_value = 2
-        self.adc.advance(self.send)
-        self.assertEqual(self.adc.identification['probe']['state'], 'timeout')
-        self.assertEqual(self.adc.identification['state'], 'restoring')
-        self.assertIsNone(self.adc.identification['chip'])
-        self.assertEqual(self.send.call_count, 2)
-        self.clock.return_value = 4
-        self.adc.advance(self.send)
-        self.adc.advance(self.send)
-        self.assertEqual(self.adc.identification['state'], 'unconfirmed')
-        self.assertEqual(self.adc.identification['restore']['state'], 'timeout')
-        self.assertFalse(self.adc.identification['restore_confirmed'])
-        self.assertEqual(self.send.call_count, 2)
-
-    def test_probe_queue_failure_needs_no_restore_but_restore_queue_failure_is_explicit(self):
-        self.seed()
-        self.send.return_value = False
-        self.assertFalse(self.adc.identify(self.send))
-        self.clock.return_value = 10
-        self.adc.advance(self.send)
-        self.assertEqual(self.send.call_count, 1)
-        self.assertEqual(self.adc.identification['restore']['state'], 'not_sent')
-        self.send.return_value = True
-        self.adc.identify(self.send)
-        self.send.return_value = False
-        self.ack(4)
-        self.assertEqual(self.adc.identification['restore']['state'], 'queue_failed')
-        self.assertFalse(self.adc.identification['restore_confirmed'])
-
-    def test_active_probe_blocks_writes_dump_and_another_probe_and_ignores_dump_header(self):
-        self.seed()
-        self.adc.identify(self.send)
-        for action in (lambda: self.adc.write({'08': 112}, self.send),
-                       lambda: self.adc.revert(self.send),
-                       lambda: self.adc.request_dump(self.send),
-                       lambda: self.adc.identify(self.send)):
-            with self.assertRaises(ValueError):
-                action()
-        self.assertFalse(self.adc.observe(0x462, dump_frames([1] * 39)[0]))
-        self.assertEqual(self.send.call_count, 1)
-
-    def test_restore_rejection_i2c_error_and_nonzero_readback_stay_unconfirmed(self):
-        for value, status in ((0, 0xEE), (0, 3), (4, 0)):
-            self.adc = AdcController(0x462, self.clock)
-            self.seed()
-            self.adc.identify(self.send)
-            self.ack(4)
-            self.ack(value, status)
-            self.assertEqual(self.adc.identification['state'], 'error')
-            self.assertFalse(self.adc.identification['restore_confirmed'])
 
 class AdcPresetRouteTests(unittest.TestCase):
     setUp = route_tests.BridgeRouteTests.setUp

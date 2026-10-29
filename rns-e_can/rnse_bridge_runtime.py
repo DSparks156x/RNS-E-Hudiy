@@ -15,7 +15,7 @@ def parse_request(parts):
     if len(parts) != 1 or len(parts[0]) > MAX_COMMAND_BYTES:
         raise ValueError('Bridge requests must be a single JSON object of at most 4 KiB.')
     data = json.loads(parts[0].decode('utf-8'), parse_constant=lambda _value: (_ for _ in ()).throw(ValueError('Nonfinite JSON number.')))
-    if not isinstance(data, dict) or data.get('action') not in ('status', 'manual', 'reload', 'adc_status', 'adc_write', 'adc_dump', 'adc_revert', 'adc_identify'):
+    if not isinstance(data, dict) or data.get('action') not in ('status', 'manual', 'reload', 'adc_status', 'adc_write', 'adc_dump', 'adc_revert', 'adc_resend_clock'):
         raise ValueError('Unsupported RNS-E bridge action.')
     if set(data) - ({'action', 'values'} if data['action'] in ('manual', 'adc_write') else {'action'}):
         raise ValueError('Unexpected bridge request fields.')

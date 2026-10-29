@@ -196,14 +196,14 @@ def register_management_rnse_bridge(app, store, bridge):
 
     @app.post('/api/manage/rnse-adc/dump')
     @app.post('/api/manage/rnse-adc/revert')
-    @app.post('/api/manage/rnse-adc/identify')
+    @app.post('/api/manage/rnse-adc/resend-clock')
     def manager_rnse_adc_action():
         denied = require_mutation_access(store)
         if denied:
             return denied
         if body():
-            raise ConfigError('ADC dump, Revert and identification take an empty JSON object.')
-        action = 'adc_' + request.path.rsplit('/', 1)[1]
+            raise ConfigError('ADC dump, Revert and clock re-send take an empty JSON object.')
+        action = 'adc_' + request.path.rsplit('/', 1)[1].replace('-', '_')
         return jsonify(bridge.request(action))
 
     @app.get('/api/manage/rnse-adc/presets')
