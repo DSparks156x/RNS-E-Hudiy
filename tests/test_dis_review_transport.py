@@ -82,7 +82,7 @@ class TopSendRecoveryTests(unittest.TestCase):
         line._zmq_ctx = Mock()
         line._can_send_addr = 'inproc://unused-test'
         line.ctrl = SimpleNamespace(running=True)
-        line._watcher = SimpleNamespace(tv_active=True)
+        line._watcher = SimpleNamespace(tv_active=True, can_transmit=True)
         line.no_scroll = True
         line.hb_interval = .1
         line._last_sent = b'old text'

@@ -66,6 +66,7 @@ HB_FORCE          = 1.0    # force re-send at this rate even if content unchange
 CAN_FAIL_WARN     = 5
 OEM_RESPONSE_N    = 3      # immediate writes on OEM detection (no burst gap)
 OEM_COOLDOWN      = 0.02   # min seconds between OEM reactive responses per line
+POWER_STALE       = 3.0    # POWER_STATUS comes at least every 1 s; older means RNS-E state unknown
 
 CALL_ACTIVE = {"INCOMING", "ALERTING", "ACTIVE", "DIALING"}
 CALL_LABELS = {
@@ -413,7 +414,7 @@ class LineController:
 
         while self.ctrl.running:
             now = time.monotonic()
-            tv = self._watcher is not None and self._watcher.tv_active
+            tv = self._watcher is not None and self._watcher.can_transmit
 
             # Write immediately when scroll content changes
             if tv and not self.no_scroll:
@@ -457,7 +458,7 @@ class LineController:
         if push is None:
             return
         try:
-            if self._watcher is not None and self._watcher.tv_active:
+            if self._watcher is not None and self._watcher.can_transmit:
                 snap = self.snapshot()
                 if snap != self._last_sent:
                     self._push = push
@@ -473,7 +474,7 @@ class LineController:
 
 class CANWatcher:
     def __init__(self, zmq_ctx, can_sub_addr, can_send_addr,
-                 id_source, dis_ctrl, tv_source_byte, mock=False):
+                 id_source, dis_ctrl, tv_source_byte, mock=False, power_addr=None):
         self._zmq_ctx = zmq_ctx
         self._can_sub_addr = can_sub_addr
         self._can_send_addr = can_send_addr
@@ -484,9 +485,37 @@ class CANWatcher:
         self.tv_active = True if mock else False
         self._tv_source_byte = tv_source_byte
         self._last_oem: dict = {}
-        
+        # RNS-E awake per can_base_function's POWER_STATUS (NM 0x436, SleepInd clear).
+        self._power_addr = power_addr
+        self._radio_awake = False
+        self._power_seen: Optional[float] = None
+
         if mock:
             logger.info("Mock Mode: CANWatcher forcing tv_active = True")
+
+    @property
+    def can_transmit(self) -> bool:
+        """TV is the source and the RNS-E is awake. The RNS-E only writes this
+        text while awake, and a frame after the NM ring acks sleep wakes the bus."""
+        if self.mock:
+            return self.tv_active
+        return (self.tv_active and self._radio_awake and self._power_seen is not None
+                and time.monotonic() - self._power_seen < POWER_STALE)
+
+    def _on_power_status(self, raw: bytes):
+        try:
+            awake = bool(json.loads(raw).get('radio_active', False))
+        except Exception:
+            return
+        was = self.can_transmit
+        self._radio_awake = awake
+        self._power_seen = time.monotonic()
+        if self.can_transmit and not was:
+            for ctrl in self._lines.values():
+                if ctrl:
+                    ctrl._next_write = 0.0  # write immediately
+        elif was and not awake:
+            logger.info("RNS-E asleep: top display writes paused")
 
     def _isend(self, cid: int, data: bytes):
         try:
@@ -502,6 +531,9 @@ class CANWatcher:
         watch_ids = [self._id_src, *active_line_ids]
         for cid in watch_ids:
             self._sub.subscribe(f"CAN_{cid:03X}".encode())
+        if self._power_addr:
+            self._sub.connect(self._power_addr)
+            self._sub.subscribe(b'POWER_STATUS')
 
         self._push = self._zmq_ctx.socket(zmq.PUSH)
         self._push.setsockopt(zmq.LINGER, 0)
@@ -520,6 +552,9 @@ class CANWatcher:
                     while True:
                         parts = self._sub.recv_multipart(flags=zmq.NOBLOCK)
                         if len(parts) != 2:
+                            continue
+                        if parts[0] == b'POWER_STATUS':
+                            self._on_power_status(parts[1])
                             continue
 
                         try:
@@ -555,7 +590,7 @@ class CANWatcher:
                                         ctrl.restart()
 
 
-                        elif self.tv_active and cid in self._lines:
+                        elif self.can_transmit and cid in self._lines:
                             ctrl = self._lines[cid]
                             if not ctrl:
                                 continue
@@ -646,6 +681,7 @@ class DISController:
         self._zmq_ctx = zmq.Context()
         self._input_control_addr = zmq_cfg.get('input_control_stream', 'ipc:///run/rnse_control/input_control_stream.ipc')
         self._top_status_addr = zmq_cfg.get('dis_top_status', 'ipc:///run/rnse_control/dis_top_status.ipc')
+        self._power_addr = None if self.mock else zmq_cfg.get('system_events', 'ipc:///run/rnse_control/base_events.ipc')
         if self.mock:
             self._can_sub_addr = MOCK_CAN_SUB_ADDR
             self._can_send_addr = MOCK_CAN_SEND_ADDR
@@ -691,7 +727,7 @@ class DISController:
         self._watcher = CANWatcher(
             self._zmq_ctx, self._can_sub_addr, self._can_send_addr,
             self._id_src, self, self._tv_source_byte,
-            mock=self.mock,
+            mock=self.mock, power_addr=self._power_addr,
         )
 
         def make_ctrl(can_id, name, speed, line_stagger, mode, no_scroll, line_num):
