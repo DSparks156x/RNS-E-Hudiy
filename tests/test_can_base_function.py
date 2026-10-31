@@ -308,6 +308,64 @@ class ListenOnlyTests(BaseFunctionTestCase):
         self.tick(12)   # 900 s fallback + 10 s delay
         self.assertEqual(self.switches, [True])
 
+    def ring(self, can_id, opcode):
+        """One NM frame (DLC 6, mNM layout) from ring member can_id."""
+        BASE.handle_nm_message(can_id, frame(f'16{opcode:02x}00000000'), self.state)
+
+    def periodic_tx(self):
+        BASE.RUNNING = True
+        with patch.object(BASE, 'asyncio', AsyncioProxy(self.clock, 1)):
+            asyncio.run(BASE.send_periodic_messages_task(self.state))
+        BASE.RUNNING = True
+        sent, self.pushed[:] = list(self.pushed), []
+        return sent
+
+    def test_any_ring_member_awake_keeps_bus_awake(self):
+        self.power(0x01)
+        self.bus_nm(True, True)
+        self.ring(0x43A, 0x01)   # phone still needs the bus
+        self.assertFalse(self.state.is_bus_ready_to_sleep())
+        self.ring(0x43A, 0x11)
+        self.assertTrue(self.state.is_bus_ready_to_sleep())
+
+    def test_tx_stops_as_soon_as_bus_may_sleep_not_after_delay(self):
+        self.power(0x01)
+        self.bus_nm(False, False)
+        self.tick(1)
+        self.assertEqual(self.periodic_tx(), [(0x602, '0912302020202020')])
+        self.bus_nm(True, True)
+        self.tick(1)
+        self.assertEqual(self.switches, [], 'kernel switch still waits for the delay')
+        self.assertEqual(self.periodic_tx(), [], 'no frame may follow the sleep decision')
+        self.bus_nm(False, True)   # gateway wants the bus again
+        self.tick(1)
+        self.assertEqual(self.periodic_tx(), [(0x602, '0912302020202020')])
+
+    def test_sleep_ack_goes_listen_only_without_delay(self):
+        self.power(0x01)
+        self.bus_nm(True, True)
+        self.live_nm = None
+        self.ring(0x42B, 0x30)   # SleepInd + SleepAck: silence follows
+        self.assertTrue(self.state.desired_listen_only)
+        self.assertEqual(self.periodic_tx(), [])
+        self.tick(1)
+        self.assertEqual(self.switches, [True])
+        # Ring restarts with a member awake (unlock, door): back to normal mode.
+        self.ring(0x436, 0x02)
+        self.assertFalse(self.state.nm_sleep_ack)
+        self.tick(1)
+        self.assertEqual(self.switches, [True, False])
+        self.assertFalse(self.state.can_listen_only)
+
+    def test_sleep_ack_ignored_while_ignition_on(self):
+        self.power(0x03)
+        self.ring(0x42B, 0x30)
+        self.assertFalse(self.state.desired_listen_only)
+        self.tick(2)
+        self.assertEqual(self.switches, [])
+        self.power(0x01)   # ignition off after the ack: wait for a fresh one
+        self.assertFalse(self.state.nm_sleep_ack)
+
     def test_failed_switch_is_retried_and_state_not_claimed(self):
         self.power(0x01)
         self.bus_nm(True, True)
@@ -449,7 +507,9 @@ class ListenerDispatchTests(BaseFunctionTestCase):
         stream = self.run_listener([])
         topics = {c.args[0] for c in stream.transport.subscribe.call_args_list}
         # Gateway topics are f"CAN_{id:03X}" (see test_can_handler); 0x7B6 = ADC reply.
-        self.assertEqual(topics, {b'CAN_2C3', b'CAN_470', b'CAN_42B', b'CAN_436', b'CAN_7B6'})
+        # CAN_42 / CAN_43 prefixes cover the whole NM ring 0x420..0x43F.
+        self.assertEqual(topics, {b'CAN_2C3', b'CAN_470', b'CAN_42', b'CAN_43',
+                                  b'CAN_42B', b'CAN_436', b'CAN_7B6'})
         stream.close.assert_called_once()
 
     def test_gateway_messages_are_routed_by_id(self):
@@ -468,6 +528,15 @@ class ListenerDispatchTests(BaseFunctionTestCase):
         self.assertTrue(self.state.doors['driver'])
         self.assertTrue(self.state.nav_sleep_ind)
         self.assertTrue(self.state.gateway_sleep_ind)   # ID taken from topic
+
+    def test_other_ring_members_are_tracked_and_extended_ids_ignored(self):
+        phone = frame('0B0100000000')   # 0x43A ring, SleepInd 0
+        phone['arbitration_id'] = 0x43A
+        extended = frame('0010000000000000')
+        extended['arbitration_id'] = 0x42B00
+        self.run_listener([('CAN_43A', phone), ('CAN_42B00', extended)])
+        self.assertEqual(set(self.state.nm_members), {0x43A})
+        self.assertFalse(self.state.is_bus_ready_to_sleep())
 
 
 class LoggingTests(unittest.TestCase):

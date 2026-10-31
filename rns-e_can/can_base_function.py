@@ -114,6 +114,10 @@ class AppState:
         self.nav_sleep_ind: Optional[bool] = None
         self.last_gateway_nm_time: float = 0.0
         self.last_nav_nm_time: float = 0.0
+        # Every OSEK ring member seen (0x420..0x43F): id -> (last seen, SleepInd)
+        self.nm_members: Dict[int, tuple] = {}
+        # SleepAck seen and no member has asked to stay awake since: silence is next.
+        self.nm_sleep_ack: bool = False
         self.ignition_off_timestamp: Optional[float] = None
         
         # Door state (0x470 mBSG_Kombi)
@@ -148,7 +152,8 @@ class AppState:
         Check if the bus is ready to transition to sleep.
         Returns True if:
         - Ignition (kl15) is OFF AND
-        - Either NM messages indicate sleep (SleepInd == 1) OR they have timed out (quiet bus).
+        - A SleepAck went round, OR every ring member seen in the last 5 s shows
+          SleepInd == 1, OR no member was seen (quiet bus).
         Also handles a safety fallback timeout from ignition OFF.
         """
         if self.last_kl15_status == 1:
@@ -164,23 +169,12 @@ class AppState:
                 logger.info(f"Listen-only fallback timeout ({fallback_timeout}s) reached since ignition OFF. Forcing sleep ready.")
                 return True
                 
-        # Check if NM status messages are actively being received
-        gw_active = (now - self.last_gateway_nm_time < 5.0)
-        nav_active = (now - self.last_nav_nm_time < 5.0)
-        
-        # If no active messages, assume bus is already quiet or asleep
-        if not gw_active and not nav_active:
+        if self.nm_sleep_ack:
             return True
-            
-        # If gateway is active, it must indicate sleep readiness
-        if gw_active and self.gateway_sleep_ind is False:
-            return False
-            
-        # If nav/radio is active, it must indicate sleep readiness
-        if nav_active and self.nav_sleep_ind is False:
-            return False
-            
-        return True
+
+        # Every live member must indicate sleep; no live member means a quiet bus.
+        return all(sleep_ind for seen, sleep_ind in self.nm_members.values()
+                   if now - seen < 5.0)
 
     def is_wake_signal_active(self) -> bool:
         """Returns True if the physical wake signal (GPIO 12) is active/ON."""
@@ -495,39 +489,56 @@ def handle_door_status_message(msg: Dict[str, Any], state: AppState):
     except Exception as e:
         logger.warning(f"Could not parse Door Status message: {e}")
 
-def handle_gateway_nm_message(msg: Dict[str, Any], state: AppState):
+# OSEK direct NM ring: ID = 0x420 + node address (gateway 0x42B, RNS-E 0x436).
+NM_FIRST_ID, NM_LAST_ID = 0x420, 0x43F
+
+def is_nm_id(can_id: int) -> bool:
+    return (NM_FIRST_ID <= can_id <= NM_LAST_ID
+            or can_id in (CONFIG['can_ids']['gateway_nm_status'], CONFIG['can_ids']['nav_nm_status']))
+
+def handle_nm_message(can_id: int, msg: Dict[str, Any], state: AppState):
     if msg.get('dlc', 0) < 2:
         return
     try:
-        data_hex = msg['data_hex']
-        payload = bytes.fromhex(data_hex)
-        # Bit 12: SleepInd (bit 4 of byte 1)
+        payload = bytes.fromhex(msg['data_hex'])
+        # Byte 1 opcode: bit 4 (bit 12) SleepInd, bit 5 (bit 13) SleepAck
         sleep_ind = bool((payload[1] >> 4) & 1)
-        state.gateway_sleep_ind = sleep_ind
-        state.last_gateway_nm_time = time.time()
-        logger.debug(f"Gateway NM SleepInd: {sleep_ind}")
+        sleep_ack = bool((payload[1] >> 5) & 1)
+        now = time.time()
+        if can_id == CONFIG['can_ids']['nav_nm_status']:
+            was_active = state.is_radio_active()
+            state.nav_sleep_ind = sleep_ind
+            state.last_nav_nm_time = now
+            brightness = CONFIG.get('rnse_brightness')
+            if brightness and (sleep_ind or not was_active):
+                brightness.force_reapply()
+        if can_id == CONFIG['can_ids']['gateway_nm_status']:
+            state.gateway_sleep_ind = sleep_ind
+            state.last_gateway_nm_time = now
+        state.nm_members[can_id] = (now, sleep_ind)
+        if not sleep_ind:
+            if state.nm_sleep_ack:
+                logger.info(f"NM {can_id:03X} asks to stay awake. Bus sleep cancelled.")
+            state.nm_sleep_ack = False
+        elif sleep_ack and not state.nm_sleep_ack:
+            logger.info(f"NM SleepAck from {can_id:03X}. Bus goes quiet next; stopping TX.")
+            state.nm_sleep_ack = True
+            if (FEATURES.get('power_management', {}).get('listen_only_mode', {}).get('enabled', False)
+                    and state.last_kl15_status != 1):
+                # No delay: any frame after the ack only wakes the bus again.
+                state.desired_listen_only = True
+                state.listen_only_pending = False
+                state.listen_only_trigger_timestamp = None
+        logger.debug(f"NM {can_id:03X} SleepInd: {sleep_ind} SleepAck: {sleep_ack}")
         publish_power_status(state)
     except Exception as e:
-        logger.warning(f"Could not parse Gateway NM message: {e}")
+        logger.warning(f"Could not parse NM message {can_id:03X}: {e}")
+
+def handle_gateway_nm_message(msg: Dict[str, Any], state: AppState):
+    handle_nm_message(CONFIG['can_ids']['gateway_nm_status'], msg, state)
 
 def handle_nav_nm_message(msg: Dict[str, Any], state: AppState):
-    if msg.get('dlc', 0) < 2:
-        return
-    try:
-        data_hex = msg['data_hex']
-        payload = bytes.fromhex(data_hex)
-        # Bit 12: SleepInd (bit 4 of byte 1)
-        sleep_ind = bool((payload[1] >> 4) & 1)
-        was_active = state.is_radio_active()
-        state.nav_sleep_ind = sleep_ind
-        state.last_nav_nm_time = time.time()
-        brightness = CONFIG.get('rnse_brightness')
-        if brightness and (sleep_ind or not was_active):
-            brightness.force_reapply()
-        logger.debug(f"Nav NM SleepInd: {sleep_ind}")
-        publish_power_status(state)
-    except Exception as e:
-        logger.warning(f"Could not parse Nav NM message: {e}")
+    handle_nm_message(CONFIG['can_ids']['nav_nm_status'], msg, state)
 
 def handle_power_status_message(msg: Dict[str, Any], state: AppState):
     """Handle ignition/key status messages for auto-shutdown."""
@@ -549,6 +560,8 @@ def handle_power_status_message(msg: Dict[str, Any], state: AppState):
         state.last_kls_status = kls_status
         state.last_kl15_status = kl15_status
         if kl15_changed:
+            # An ack from before this ignition change says nothing about now.
+            state.nm_sleep_ack = False
             if kl15_status == 0:
                 state.ignition_off_timestamp = time.time()
             else:
@@ -627,15 +640,23 @@ class GpioShutdownMonitor:
             return True
         return False
 
+def listen_only_inhibits_tx(state: AppState) -> bool:
+    """Listen-only is on, queued, switching, or counting down its delay.
+
+    A frame sent after the ring has acked sleep wakes the bus again, so
+    application TX stops as soon as the sleep condition is met.
+    """
+    return (state.can_listen_only or state.desired_listen_only
+            or state.listen_only_transition_in_progress or state.listen_only_pending)
+
+
 # --- Async Tasks ---
 def reconcile_rnse_brightness(state: AppState):
     """Queue a changed target once; no brightness heartbeat or applied-state claim."""
     brightness = CONFIG.get('rnse_brightness')
     if brightness is None:
         return
-    inhibited = (state.can_listen_only or state.desired_listen_only
-                 or state.listen_only_transition_in_progress
-                 or flashing_mode_enabled())
+    inhibited = listen_only_inhibits_tx(state) or flashing_mode_enabled()
     for command in brightness.pending_commands(state.is_radio_active(), inhibited):
         if send_can_message(command.arbitration_id, command.payload.hex()):
             brightness.mark_queued(command)
@@ -655,8 +676,7 @@ def observe_rnse_adc_message(can_id, message):
 
 
 def rnse_bridge_snapshot(state: AppState):
-    inhibited = (state.can_listen_only or state.desired_listen_only
-                 or state.listen_only_transition_in_progress or flashing_mode_enabled())
+    inhibited = listen_only_inhibits_tx(state) or flashing_mode_enabled()
     result = CONFIG['rnse_brightness'].snapshot(inhibited)
     result.update(radio_active=state.is_radio_active(), inhibited=inhibited,
                   source_evidence=state.rnse_source_evidence, connection_known=False)
@@ -667,8 +687,7 @@ def rnse_bridge_snapshot(state: AppState):
 
 
 def send_adc_frame(state, arbitration_id, payload):
-    if (state.can_listen_only or state.desired_listen_only
-            or state.listen_only_transition_in_progress or flashing_mode_enabled()
+    if (listen_only_inhibits_tx(state) or flashing_mode_enabled()
             or not state.is_radio_active()):
         return False
     return send_can_message(arbitration_id, payload)
@@ -683,8 +702,7 @@ def advance_rnse_adc(state):
 def process_rnse_bridge_request(data, state: AppState):
     if data['action'].startswith('adc_'):
         adc = CONFIG['rnse_adc']
-        inhibited = (state.can_listen_only or state.desired_listen_only
-                     or state.listen_only_transition_in_progress or flashing_mode_enabled())
+        inhibited = listen_only_inhibits_tx(state) or flashing_mode_enabled()
         active = state.is_radio_active()
         advance_rnse_adc(state)
         send = lambda arbitration_id, payload: send_adc_frame(state, arbitration_id, payload)
@@ -731,12 +749,7 @@ async def send_periodic_messages_task(state: AppState):
     logger.info("Periodic sender task started.")
     while RUNNING:
         try:
-            if (
-                FEATURES.get('tv_simulation', {}).get('enabled')
-                and not state.can_listen_only
-                and not state.desired_listen_only
-                and not state.listen_only_transition_in_progress
-            ):
+            if FEATURES.get('tv_simulation', {}).get('enabled') and not listen_only_inhibits_tx(state):
                 send_can_message(CONFIG['can_ids']['tv_presence'],
                                  FEATURES['tv_simulation']['payload'])
             reconcile_rnse_brightness(state)
@@ -786,13 +799,11 @@ async def listen_for_can_messages_task(state: AppState):
         sub_stream.transport.subscribe(door_topic.encode('utf-8'))
         logger.info(f"Subscribing to door status topic: {door_topic}")
 
-        # Subscribe to NM status topics
-        pw_mgmt = FEATURES.get('power_management', {})
-        if pw_mgmt.get('listen_only_mode', {}).get('enabled', False):
-            sub_stream.transport.subscribe(gw_nm_topic.encode('utf-8'))
-            logger.info(f"Subscribing to gateway NM topic: {gw_nm_topic}")
-        sub_stream.transport.subscribe(nav_nm_topic.encode('utf-8'))
-        logger.info(f"Subscribing to radio NM topic: {nav_nm_topic}")
+        # Subscribe to the whole NM ring (prefixes cover 0x420..0x43F); every
+        # member must agree before the bus sleeps.
+        for topic in (b'CAN_42', b'CAN_43', gw_nm_topic.encode('utf-8'), nav_nm_topic.encode('utf-8')):
+            sub_stream.transport.subscribe(topic)
+        logger.info(f"Subscribing to NM ring topics 420-43F, {gw_nm_topic}, {nav_nm_topic}")
 
         while RUNNING:
             msg = await sub_stream.read()
@@ -828,10 +839,8 @@ async def listen_for_can_messages_task(state: AppState):
                     handle_power_status_message(msg_dict, state)
                 elif can_id == CONFIG['can_ids']['door_status']:
                     handle_door_status_message(msg_dict, state)
-                elif can_id == CONFIG['can_ids']['gateway_nm_status']:
-                    handle_gateway_nm_message(msg_dict, state)
-                elif can_id == CONFIG['can_ids']['nav_nm_status']:
-                    handle_nav_nm_message(msg_dict, state)
+                elif is_nm_id(can_id):
+                    handle_nm_message(can_id, msg_dict, state)
                     
             except json.JSONDecodeError as e:
                 logger.warning(f"Failed to decode JSON from message: {msg_bytes[:100]}... ({e})")
@@ -885,7 +894,7 @@ async def shutdown_monitor_task(state: AppState):
                 
                 if bus_sleep_ready:
                     # Bus is ready to sleep. Should transition to listen-only.
-                    if not state.can_listen_only and not state.listen_only_pending:
+                    if not (state.can_listen_only or state.desired_listen_only or state.listen_only_pending):
                         delay = pw_mgmt.get('listen_only_mode', {}).get('delay_seconds', 0)
                         logger.info(f"Bus sleep condition met. Starting {delay}s listen-only delay.")
                         state.listen_only_pending = True
@@ -906,7 +915,7 @@ async def shutdown_monitor_task(state: AppState):
                         state.listen_only_pending = False
                         state.listen_only_trigger_timestamp = None
                     
-                    if state.can_listen_only:
+                    if state.can_listen_only or state.desired_listen_only:
                         logger.info("Bus became active. Transitioning CAN back to normal mode.")
                         state.desired_listen_only = False
                         
@@ -1048,6 +1057,7 @@ async def main_async():
                 preserved_desired_listen_only = state.desired_listen_only
                 preserved_nav_sleep = state.nav_sleep_ind
                 preserved_nav_time = state.last_nav_nm_time
+                preserved_nm = (state.nm_members, state.nm_sleep_ack)
                 preserved_source_evidence = state.rnse_source_evidence
                 await stop_runtime(state, pub_context, tasks)
                 state = AppState()
@@ -1055,6 +1065,7 @@ async def main_async():
                 state.desired_listen_only = preserved_desired_listen_only
                 state.nav_sleep_ind = preserved_nav_sleep
                 state.last_nav_nm_time = preserved_nav_time
+                state.nm_members, state.nm_sleep_ack = preserved_nm
                 state.rnse_source_evidence = preserved_source_evidence
                 pub_context, tasks = await start_runtime(state)
                 logger.info("Configuration reload complete.")

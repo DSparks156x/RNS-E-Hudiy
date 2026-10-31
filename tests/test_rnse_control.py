@@ -454,7 +454,8 @@ class BaseServiceBrightnessTests(unittest.TestCase):
         names = {'load_and_initialize_config', 'handle_rnse_light_status_message',
                  'observe_rnse_adc_message',
                  'send_adc_frame', 'advance_rnse_adc',
-                 'handle_nav_nm_message', 'reconcile_rnse_brightness', 'listen_for_can_messages_task',
+                 'handle_nav_nm_message', 'handle_nm_message', 'is_nm_id', 'listen_only_inhibits_tx',
+                 'reconcile_rnse_brightness', 'listen_for_can_messages_task',
                  'rnse_bridge_snapshot', 'process_rnse_bridge_request', 'observe_rnse_source',
                  'normalize_tv_simulation_payload', 'send_periodic_messages_task'}
         nodes = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in names]
@@ -466,7 +467,8 @@ class BaseServiceBrightnessTests(unittest.TestCase):
                          flashing_mode_enabled=Mock(return_value=False), AppState=SimpleNamespace,
                          time=SimpleNamespace(time=lambda: 100), publish_power_status=Mock(), re=__import__('re'),
                          DEFAULT_TV_SIMULATION_PAYLOAD='0912302020202020',
-                         asyncio=asyncio, zmq=SimpleNamespace(SUB=1), RUNNING=True)
+                         asyncio=asyncio, zmq=SimpleNamespace(SUB=1), RUNNING=True,
+                         NM_FIRST_ID=0x420, NM_LAST_ID=0x43F)
         exec(compile(ast.Module(body=nodes, type_ignores=[]), str(source), 'exec'), namespace)
         return namespace
 
@@ -524,7 +526,7 @@ class BaseServiceBrightnessTests(unittest.TestCase):
             namespace['reconcile_rnse_brightness'] = Mock()
             await namespace['send_periodic_messages_task'](SimpleNamespace(
                 can_listen_only=False, desired_listen_only=False,
-                listen_only_transition_in_progress=False))
+                listen_only_transition_in_progress=False, listen_only_pending=False))
         asyncio.run(run_sender_once())
         namespace['send_can_message'].assert_called_once_with(0x602, 'AABB0C')
 
@@ -564,8 +566,10 @@ class BaseServiceBrightnessTests(unittest.TestCase):
 
     def state(self, active=True):
         return SimpleNamespace(can_listen_only=False, desired_listen_only=False,
-                               listen_only_transition_in_progress=False,
+                               listen_only_transition_in_progress=False, listen_only_pending=False,
                                is_radio_active=Mock(return_value=active),
+                               nm_members={}, nm_sleep_ack=False, last_kl15_status=None,
+                               gateway_sleep_ind=None, last_gateway_nm_time=0,
                                nav_sleep_ind=None, last_nav_nm_time=0,
                                rnse_source_evidence='producer_unavailable')
 
@@ -672,8 +676,10 @@ class BaseServiceBrightnessTests(unittest.TestCase):
         asyncio.run(namespace['listen_for_can_messages_task'](self.state()))
         subscriptions = [call.args[0] for call in stream.transport.subscribe.call_args_list]
         self.assertIn(b'CAN_635', subscriptions)
+        # The whole NM ring is followed whether or not listen-only is enabled.
         self.assertIn(b'CAN_436', subscriptions)
-        self.assertNotIn(b'CAN_42B', subscriptions)
+        self.assertIn(b'CAN_42B', subscriptions)
+        self.assertIn(b'CAN_43', subscriptions)
 
     def test_lcd_only_auto_listens_and_observes_lights_with_dial_auto_off(self):
         namespace = self.namespace()
