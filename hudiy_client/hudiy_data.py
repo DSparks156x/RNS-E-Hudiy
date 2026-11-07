@@ -116,6 +116,7 @@ class HudiyEventHandler(ClientEventHandler):
         self.projection_source = ProjectionSource()
         # Set by the service so the connection manager stops retrying once AA is up.
         self.projection_listener = None
+        self.current_menu_action = ''
         self._pending_media_clear = None
         self._pending_media_metadata = None
         self._applying_media_clear = False
@@ -183,7 +184,27 @@ class HudiyEventHandler(ClientEventHandler):
 
     def set_projection_api_connected(self, connected):
         self.projection_source.set_api_connected(connected)
+        self.current_menu_action = ''
         self.publish_projection_source()
+        self.publish_ui_state()
+
+    def publish_ui_state(self):
+        """What is on screen, for can_keyboard_control. Repeated by the snapshot heartbeat."""
+        try:
+            with self._projection_publish_lock:
+                self.safe_pub.publish(b'HUDIY_UI', {
+                    'menu_action': self.current_menu_action,
+                    'projection_active': bool(self.current_media_data.get('projection_active', False)),
+                    'timestamp': time.time(),
+                })
+        except Exception as exc:
+            logger.warning('Cannot publish Hudiy UI state: %s', exc)
+
+    def on_current_menu_action(self, client, message):
+        if message.action_name != self.current_menu_action:
+            logger.info('Hudiy menu action: %s', message.action_name)
+        self.current_menu_action = message.action_name
+        self.publish_ui_state()
 
     def publish_projection_source(self):
         """Repeat only the ZMQ snapshot; consumers deduplicate CAN commands."""
@@ -205,12 +226,13 @@ class HudiyEventHandler(ClientEventHandler):
             hudiy_api.SetStatusSubscriptions.Subscription.MEDIA,
             hudiy_api.SetStatusSubscriptions.Subscription.NAVIGATION,
             hudiy_api.SetStatusSubscriptions.Subscription.PHONE,
+            hudiy_api.SetStatusSubscriptions.Subscription.CURRENT_MENU_ACTION,
         ])
         client.send(hudiy_api.MESSAGE_SET_STATUS_SUBSCRIPTIONS, 0, subs.SerializeToString())
         self._capture_api_event('subscriptions_requested', derived={
-            'subscriptions': ['projection', 'media', 'navigation', 'phone']
+            'subscriptions': ['projection', 'media', 'navigation', 'phone', 'current_menu_action']
         })
-        logger.info(f"Client '{client._name}': Subscribed to PROJECTION + MEDIA + NAVIGATION + PHONE")
+        logger.info(f"Client '{client._name}': Subscribed to PROJECTION + MEDIA + NAVIGATION + PHONE + MENU ACTION")
     
     # --- Media Callbacks ---
     
@@ -395,6 +417,7 @@ class HudiyEventHandler(ClientEventHandler):
             active = bool(getattr(message, 'active', False))
             logger.info(f"PROJECTION STATUS: {'Active' if active else 'Inactive'}")
             self.current_media_data['projection_active'] = active
+            self.publish_ui_state()
             listener = getattr(self, 'projection_listener', None)
             if listener:
                 listener(active)
@@ -1407,6 +1430,7 @@ class HudiyData:
             while self.running:
                 if time.monotonic() >= next_projection_snapshot:
                     self.handler.publish_projection_source()
+                    self.handler.publish_ui_state()
                     next_projection_snapshot = time.monotonic() + 2.0
                 time.sleep(0.1)  # short slices: SIGTERM only sets self.running
         except Exception as e:

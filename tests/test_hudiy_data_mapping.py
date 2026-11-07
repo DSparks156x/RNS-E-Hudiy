@@ -240,7 +240,20 @@ class MediaTests(HandlerTestCase):
         self.assertTrue(covers[0]['bitmap_hex'])
         self.assertTrue(covers[0]['is_new_track'])
 
-    def test_resubscribe_requests_the_four_status_streams(self):
+    def test_visible_app_and_projection_are_published_for_the_keyboard_service(self):
+        self.handler.on_current_menu_action(self.client, API.CurrentMenuAction(action_name='hudiy_manager'))
+        ui = self.pub.last(b'HUDIY_UI')
+        self.assertEqual((ui['menu_action'], ui['projection_active']), ('hudiy_manager', False))
+        self.handler.on_projection_status(self.client, API.ProjectionStatus(active=True))
+        ui = self.pub.last(b'HUDIY_UI')
+        self.assertEqual((ui['menu_action'], ui['projection_active']), ('hudiy_manager', True))
+
+    def test_losing_the_api_clears_the_visible_app(self):
+        self.handler.on_current_menu_action(self.client, API.CurrentMenuAction(action_name='hudiy_manager'))
+        self.handler.set_projection_api_connected(False)
+        self.assertEqual(self.pub.last(b'HUDIY_UI')['menu_action'], '')
+
+    def test_resubscribe_requests_the_five_status_streams(self):
         self.handler.on_hello_response(self.client, API.HelloResponse(
             app_version=API.Version(major=1, minor=0), api_version=API.Version(major=1, minor=3), result=1))
         (message_id, flags, payload), _ = self.client.send.call_args
@@ -248,7 +261,8 @@ class MediaTests(HandlerTestCase):
         request = API.SetStatusSubscriptions.FromString(payload)
         S = API.SetStatusSubscriptions.Subscription
         self.assertEqual(list(request.subscriptions), [S.Value('PROJECTION'), S.Value('MEDIA'),
-                                                       S.Value('NAVIGATION'), S.Value('PHONE')])
+                                                       S.Value('NAVIGATION'), S.Value('PHONE'),
+                                                       S.Value('CURRENT_MENU_ACTION')])
 
 
 class FlashingModeActionTests(HandlerTestCase):

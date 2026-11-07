@@ -239,6 +239,60 @@ class KeyboardPanelIntegrationTests(unittest.TestCase):
         self.assertIsNone(self.keyboard.CONFIG['mmi_extended_map'][(8, 0)])
 
 
+    def arrows(self):
+        self.keyboard.CONFIG['mmi_short_map'].update({(64, 0): (1, 5), (128, 0): (1, 6), (0, 64): (1, 20), (0, 32): (1, 21)})
+
+    def press(self, pair):
+        self.keyboard.UINPUT_DEVICE.reset_mock()
+        self.handle(pair)
+        self.handle(pair, 4)
+        return self.keyboard.UINPUT_DEVICE.emit_click.call_args.args[0]
+
+    def test_up_and_down_send_the_knob_keys_inside_our_web_apps(self):
+        self.arrows()
+        for action in ('hudiy_manager', 'hudiy_diagnostics'):
+            self.keyboard.update_web_app_state(self.state, {'menu_action': action, 'projection_active': False})
+            self.assertEqual(self.press((64, 0)), (1, 20), action)
+            self.assertEqual(self.press((128, 0)), (1, 21), action)
+
+    def test_up_and_down_stay_stock_everywhere_else(self):
+        self.arrows()
+        for ui in ({'menu_action': 'hudiy_dashboard', 'projection_active': False},
+                   {'menu_action': '', 'projection_active': False},
+                   {'menu_action': 'hudiy_manager', 'projection_active': True},
+                   {}):
+            self.keyboard.update_web_app_state(self.state, {'menu_action': 'hudiy_manager'})
+            self.keyboard.update_web_app_state(self.state, ui)
+            self.assertEqual(self.press((64, 0)), (1, 5), ui)
+            self.assertEqual(self.press((128, 0)), (1, 6), ui)
+
+    def test_up_and_down_go_back_to_stock_when_hudiy_data_stops_reporting(self):
+        self.arrows()
+        self.keyboard.update_web_app_state(self.state, {'menu_action': 'hudiy_manager'})
+        self.assertEqual(self.press((64, 0)), (1, 20))
+        self.state.web_app_until = time.monotonic() - 0.1
+        self.assertEqual(self.press((64, 0)), (1, 5))
+
+    def test_custom_up_and_down_bindings_are_left_alone(self):
+        self.arrows()
+        self.keyboard.CONFIG['mmi_short_map'][(64, 0)] = (1, 1)
+        self.keyboard.CONFIG['mmi_short_map'][(128, 0)] = {'action': 'go_home'}
+        self.keyboard.update_web_app_state(self.state, {'menu_action': 'hudiy_manager'})
+        self.assertEqual(self.press((64, 0)), (1, 1))
+        self.keyboard.UINPUT_DEVICE.reset_mock()
+        self.handle((128, 0)); self.handle((128, 0), 4)
+        self.keyboard.UINPUT_DEVICE.emit_click.assert_not_called()
+        self.assertEqual(self.actions(), ['go_home'])
+
+    def test_held_down_keeps_its_long_press_inside_web_apps(self):
+        self.arrows()
+        self.keyboard.CONFIG['mmi_long_map'][(128, 0)] = (1, 7)
+        self.keyboard.update_web_app_state(self.state, {'menu_action': 'hudiy_manager'})
+        self.handle((128, 0), count=5)
+        self.handle((128, 0), 4)
+        self.keyboard.UINPUT_DEVICE.emit_click.assert_called_once_with((1, 7))
+
+
 def protobuf_api():
     # Hudiy's generated bindings are installed on the Pi, not committed here.
     # Build its real DispatchAction wire schema (required string action, field 1).

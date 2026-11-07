@@ -4,6 +4,8 @@
 `hudiy_data.py` turns independent Hudiy callbacks into snapshots on the
 `HUDIY_MEDIA`, `HUDIY_NAV`, `HUDIY_NAV_STATUS`, and `HUDIY_PHONE` ZMQ topics.
 Queued snapshots are copied so later callbacks cannot change earlier updates.
+`HUDIY_UI` carries the on-screen app and projection state every 2 seconds, so
+`can_keyboard_control` can tell when one of our web apps is showing.
 
 ## Navigation
 

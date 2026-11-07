@@ -13,7 +13,15 @@
 | SETUP | 00 01 | `0,1` | Existing home shortcut (`KEY_H`) |
 | RADIO | none | none | Factory radio; leaves TV |
 
-No new voice-assistant binding is added. Existing knob, arrows, RETURN, track buttons, SETUP and steering-wheel mappings retain their behavior.
+No new voice-assistant binding is added. Existing knob, arrows, RETURN, track buttons, SETUP and steering-wheel mappings retain their behavior, except Up and Down inside RNS-E Manager and DataView.
+
+## Up and Down in RNS-E Manager and DataView
+
+Hudiy keeps Up and Down to move between its own screen areas. A web app gets no callback and no key event for them, and Down moves focus out of the app (bench test, Hudiy 2.24).
+
+While `hudiy_manager` or `hudiy_diagnostics` is on screen and projection is not, `can_keyboard_control` sends the knob's keys instead: Up sends the `0,64` binding, Down sends the `0,32` binding. This only applies to short presses while Up and Down are still bound to `KEY_UP` and `KEY_DOWN`. Other bindings and long presses don't change.
+
+`hudiy_data_api.service` publishes the on-screen app as `HUDIY_UI` every 2 seconds. If that stops for 5 seconds, Up and Down go back to stock. To reach Hudiy's bottom bar from these apps, turn the knob past the last control.
 
 All faceplate buttons use `input_mappings.mmi.short_press`, `long_press`, and `extended_press`. The six new masks are included in each table. Their short defaults appear above; long and extended defaults are `null`. Short/long values accept Linux `KEY_*` strings, Hudiy action objects such as `{"action":"hudiy_diagnostics"}`, or `null`. Extended mappings also accept shell-command strings; shell commands require `features.system_actions`. Key and Hudiy actions do not require that switch.
 

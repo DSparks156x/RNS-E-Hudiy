@@ -31,6 +31,11 @@ CONFIG = {}
 INPUT_PUB = None
 WHEEL_CONTEXT_ID = None
 TOP_CONTEXT_ID = None
+# Hudiy actions for our web apps (config/hudiy/applications.json).
+WEB_APP_ACTIONS = {'hudiy_manager', 'hudiy_diagnostics'}
+# Up and Down: the default key each must still have, and the knob direction it borrows.
+WEB_APP_ARROWS = {(64, 0): ('KEY_UP', (0, 64)), (128, 0): ('KEY_DOWN', (0, 32))}
+UI_STATE_MAX_AGE = 5.0
 
 # --- Logging Setup ---
 def setup_logging():
@@ -66,6 +71,7 @@ class ControlState:
             long_count=CONFIG.get('wheel_long_press_count', 3),
             auto_phone=CONFIG.get('auto_phone_control', False))
         self.last_wheel_status_time = 0
+        self.web_app_until = 0
 
     def reset_mmi_state(self, mmi_command):
         """Resets all tracking variables for a specific MMI command."""
@@ -247,6 +253,7 @@ def initialize_zmq_subscriber():
         if CONFIG.get('zmq_metric_stream'):
             ZMQ_SUB_SOCKET.connect(CONFIG['zmq_metric_stream'])
             ZMQ_SUB_SOCKET.setsockopt_string(zmq.SUBSCRIBE, "HUDIY_PHONE")
+            ZMQ_SUB_SOCKET.setsockopt_string(zmq.SUBSCRIBE, "HUDIY_UI")
         ZMQ_SUB_SOCKET.connect(CONFIG['zmq_top_status'])
         ZMQ_SUB_SOCKET.setsockopt_string(zmq.SUBSCRIBE, 'DIS_TOP_STATUS')
         
@@ -363,6 +370,22 @@ def dispatch_mmi_binding(binding):
     return True
 
 
+def update_web_app_state(state, ui):
+    """hudiy_data repeats this every 2 s. If it stops, Up/Down go back to stock."""
+    visible = ui.get('menu_action') in WEB_APP_ACTIONS and not ui.get('projection_active')
+    state.web_app_until = time.monotonic() + UI_STATE_MAX_AGE if visible else 0
+
+
+def mmi_short_binding(cmd, state):
+    """Hudiy keeps Up/Down to move between its own screen areas and never tells a web
+    app about them, so inside ours they send the knob's keys. Custom bindings stay."""
+    binding = CONFIG['mmi_short_map'].get(cmd)
+    arrow = WEB_APP_ARROWS.get(cmd)
+    if arrow and binding == getattr(uinput, arrow[0], None) and time.monotonic() < state.web_app_until:
+        return CONFIG['mmi_short_map'].get(arrow[1]) or binding
+    return binding
+
+
 def run_command(command_str):
     """Executes a shell command from the configuration."""
     if not command_str: return
@@ -423,7 +446,7 @@ def handle_mmi_message(msg, state):
                 if cmd in [(1, 0), (2, 0)] and now - state.last_mfsw_scroll_time < 0.25:
                     logger.info(f"Ignoring MMI duplicate trigger for {cmd} (MFSW dominant)")
                 else:
-                    binding = CONFIG['mmi_short_map'].get(cmd)
+                    binding = mmi_short_binding(cmd, state)
                     logger.info('MMI Short Press: %s', PANEL_BUTTONS.get(cmd, cmd))
                     if dispatch_mmi_binding(binding):
                         state.last_mmi_action_info = {'command': cmd, 'time': now}
@@ -565,7 +588,10 @@ def main():
                     state.wheel.phone(msg_dict.get('call_active') is not False and
                                       msg_dict.get('state') in ['INCOMING', 'ALERTING', 'DIALING', 'ACTIVE'])
                     continue
-                    
+                elif topic_str == 'HUDIY_UI':
+                    update_web_app_state(state, msg_dict)
+                    continue
+
                 can_id = msg_dict.get('arbitration_id')
                 
                 if can_id == CONFIG['can_ids'].get('mmi') and FEATURES.get('mmi_controls', False):
