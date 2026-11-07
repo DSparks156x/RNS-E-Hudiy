@@ -33,6 +33,15 @@ def register_management_configs(app, store):
     def configuration_error(error):
         return jsonify({'error': str(error)}), error.status
 
+    # TEMPORARY: lets hudiyKeyNav's bench probe reach the journal. Remove with probe() there.
+    @app.post('/api/manage/key-nav-probe')
+    def manager_key_nav_probe():
+        if request.headers.get('X-Hudiy-Management') != '1':
+            return jsonify({'error': 'Management requests need the management header.'}), 403
+        line = request.stream.read(300).decode('utf-8', 'replace')
+        print('KEY_NAV_PROBE', ''.join(c for c in line if c.isprintable()), flush=True)
+        return '', 204
+
     @app.get('/api/manage/configs')
     def manager_configs():
         return jsonify({'configs': store.list(), 'pin_required': bool(store.pin())})

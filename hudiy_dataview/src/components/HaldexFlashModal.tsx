@@ -319,7 +319,7 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
     const selectedTuneObj = tunes.find(t => t.artifact_id === selectedTune);
 
     const content = (
-        <div style={styles.overlay}>
+        <div style={styles.overlay} role="dialog" aria-modal="true" aria-label="Vehicle module flasher">
             <div
                 style={{
                     ...styles.modal,
@@ -359,6 +359,7 @@ export function HaldexFlashModal({ socket, theme, onClose, initialModule = 'hald
 
                     {!isFlashing && (
                         <button
+                            data-key-back
                             onClick={onClose}
                             style={{
                                 ...styles.closeBtn,

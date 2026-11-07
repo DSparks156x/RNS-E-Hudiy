@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Socket } from 'socket.io-client';
+import type { HudiyInput } from '../hudiyKeyNav';
 
 // Hudiy provides a Material You-like color palette
 export interface HudiyColorScheme {
@@ -23,11 +24,10 @@ export interface HudiyColorScheme {
     [key: string]: any; // Catch-all for any other variables Hudiy sends
 }
 
-interface HudiyObj {
+interface HudiyObj extends HudiyInput {
     colorScheme: HudiyColorScheme;
     onColorSchemeChanged?: () => void;
     onAttached?: () => void;
-    onGoBack?: () => boolean;
 }
 
 declare global {
@@ -117,6 +117,8 @@ export function useHudiyTheme(socket: Socket | null) {
             h.onAttached = () => {
                 updateColors();
                 if (originalAttached) originalAttached();
+                // hudiyKeyNav listens here: this hook restores onAttached when the socket changes.
+                window.dispatchEvent?.(new Event('hudiy-attached'));
             };
 
             // Run once

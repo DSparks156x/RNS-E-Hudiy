@@ -63,7 +63,7 @@ export function ExhaustValvePanel({ socket, theme, onBack }: Props) {
         socket?.emit('start_exhaust_valve_update', { artifact_id: selected, dry_run });
     };
     return <section className="pretty-scroll" style={{ padding: '15px', color: theme.onSurface, overflow: 'auto', height: '100%', boxSizing: 'border-box' }}>
-        <button style={button} onClick={onBack}>Back</button>
+        <button style={button} data-key-back onClick={onBack}>Back</button>
         <h2>Exhaust valve controller</h2>
         <p>Last requested target: {target === null ? 'Unknown' : target === 100 ? 'Open' : target === 0 ? 'Closed' : `${target}%`}. Unconfirmed.</p>
         <div style={{ display: 'flex', gap: '12px' }}>

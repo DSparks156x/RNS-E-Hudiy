@@ -47,6 +47,9 @@ export function Keypad({ value, onChange, onClose, onSubmit }: KeypadProps) {
 
     return (
         <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Group number"
             style={{
                 position: 'absolute',
                 top: 0, left: 0, right: 0, bottom: 0,
@@ -109,7 +112,7 @@ export function Keypad({ value, onChange, onClose, onSubmit }: KeypadProps) {
                     </svg>
                 </button>
                 <button onClick={() => handleKey('0')} style={btnBaseStyle}>0</button>
-                <button onClick={onClose} style={{ ...btnBaseStyle, backgroundColor: theme.primary || '#d32f2f', color: theme.onPrimary || '#fff', fontSize: '1.2rem' }}>OK</button>
+                <button data-key-back onClick={onClose} style={{ ...btnBaseStyle, backgroundColor: theme.primary || '#d32f2f', color: theme.onPrimary || '#fff', fontSize: '1.2rem' }}>OK</button>
             </div>
         </div>
     );

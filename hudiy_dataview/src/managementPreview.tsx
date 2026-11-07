@@ -79,5 +79,5 @@ const api: ManagementApi = async <T,>(path: string, init?: RequestInit): Promise
 const root = window.document.getElementById('root');
 if (!root) throw new Error('No root element.');
 // Simulate the native color bridge so the fixture exercises the head-unit keyboard.
-window.hudiy = { colorScheme: theme };
+window.hudiy = { colorScheme: theme, inputFocus: true, activated: true };
 createRoot(root).render(<ManagementApp api={api} previewTheme={theme} />);

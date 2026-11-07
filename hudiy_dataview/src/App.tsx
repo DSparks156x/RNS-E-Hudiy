@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { installHudiyKeyNav } from './hudiyKeyNav';
 import { installManagerPointerScroll } from './managerPointerScroll';
 import { useSocket } from './hooks/useSocket';
 import { useSwipe } from './hooks/useSwipe';
@@ -54,6 +55,12 @@ export function App() {
   // The head unit's touch driver reports mouse pointers; drag anywhere in a list to scroll it.
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => root.current ? installManagerPointerScroll(root.current) : undefined, []);
+  useEffect(() => root.current && window.hudiy ? installHudiyKeyNav({
+    root: root.current,
+    hudiy: window.hudiy,
+    activeTab: '.tab-btn.active',
+    onTab: delta => setCurrentTab(tab => TABS[Math.max(0, Math.min(TABS.length - 1, TABS.findIndex(t => t.id === tab) + delta))].id),
+  }) : undefined, []);
 
   const tabCount = TABS.length;
   const translatePct = -(currentIndex * (100 / tabCount));
@@ -104,11 +111,12 @@ export function App() {
           style={{ transform: `translateX(${translatePct}%)`, width: `${tabCount * 100}%`, '--slide-width': `${100 / tabCount}%` } as React.CSSProperties}
         >
           {/* We no longer need to pass the giant data object to components */}
-          <div className="tab-slide"><EngineTab /></div>
-          <div className="tab-slide"><TransmissionTab /></div>
-          <div className="tab-slide"><AWDTab socket={socket} /></div>
-          <div className="tab-slide"><DataLogsTab socket={socket} isActive={currentTab === 'data_logs'} onValues={updateDataLogValues} /></div>
-          <div className="tab-slide"><DiagnosticsTab isActive={currentTab === 'diagnostics'} /></div>
+          {/* Every tab stays mounted. Inert keeps the knob on the visible one. */}
+          <div className="tab-slide" inert={currentTab !== 'engine'}><EngineTab /></div>
+          <div className="tab-slide" inert={currentTab !== 'transmission'}><TransmissionTab /></div>
+          <div className="tab-slide" inert={currentTab !== 'awd'}><AWDTab socket={socket} /></div>
+          <div className="tab-slide" inert={currentTab !== 'data_logs'}><DataLogsTab socket={socket} isActive={currentTab === 'data_logs'} onValues={updateDataLogValues} /></div>
+          <div className="tab-slide" inert={currentTab !== 'diagnostics'}><DiagnosticsTab isActive={currentTab === 'diagnostics'} /></div>
         </div>
       </div>
     </div>

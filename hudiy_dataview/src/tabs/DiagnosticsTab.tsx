@@ -340,6 +340,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
             {/* Header / Module Selection */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexShrink: 0 }}>
                 <button
+                    data-key-back
                     style={{ ...styles.actionBtn, backgroundColor: theme.surfaceDim || 'rgba(0,0,0,0.3)', color: theme.onSurface, border: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
                     onClick={() => {
                         if (selectedModule !== null) {
@@ -419,7 +420,7 @@ export function DiagnosticsTab({ isActive = true }: { isActive?: boolean }) {
                 {/* Left Side: DTCs (and Keypad overlay) */}
                 <div style={{ ...styles.panel, backgroundColor: theme.surfaceContainer || 'rgba(0,0,0,0.3)', flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', boxSizing: 'border-box', position: 'relative' }}>
                     <h3 style={{ marginTop: 0, borderBottom: `1px solid ${theme.outlineVariant || 'rgba(255,255,255,0.1)'}`, paddingBottom: '8px', flexShrink: 0 }}>Fault Codes</h3>
-                    <div className="pretty-scroll" style={{ flexGrow: 1, minHeight: 0, paddingRight: '4px' }}>
+                    <div className="pretty-scroll" data-key-scroll style={{ flexGrow: 1, minHeight: 0, paddingRight: '4px' }}>
                         {dtcs.length === 0 && !loadingDTCs && !dtcError && <div style={{ padding: '10px', opacity: 0.7 }}>No fault codes found.</div>}
                         {loadingDTCs && <div style={{ padding: '10px', opacity: 0.7 }}>Querying module...</div>}
                         {dtcError && <div style={{ padding: '10px', color: 'rgba(255, 60, 60, 0.9)' }}>Error: {dtcError}</div>}

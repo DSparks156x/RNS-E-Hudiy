@@ -1,6 +1,7 @@
 import { InputHTMLAttributes, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { backspace, insertText, moveCaret, TextEdit } from './editing';
+import { KEY_ACTIVATE_EVENT } from '../../hudiyKeyNav';
 import './touchKeyboard.css';
 
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> & {
@@ -73,9 +74,9 @@ function KeyboardDialog({ initial, title, maxLength, password, numeric, capitali
         }
       }
     }}>
-      <div className="osk-heading"><button type="button" className="osk-action" onClick={onCancel}>Cancel</button><div className="osk-title"><strong>{title}</strong><small>{hex ? 'Hex bytes · 0–9, A–F' : maxLength !== undefined ? `${edit.value.length} / ${maxLength}` : 'Touch keyboard'}</small></div><button type="button" className="osk-action osk-done" onClick={() => onDone(value.current)}>Done</button></div>
+      <div className="osk-heading"><button type="button" className="osk-action" data-key-back onClick={onCancel}>Cancel</button><div className="osk-title"><strong>{title}</strong><small>{hex ? 'Hex bytes · 0–9, A–F' : maxLength !== undefined ? `${edit.value.length} / ${maxLength}` : 'Touch keyboard'}</small></div><button type="button" className="osk-action osk-done" onClick={() => onDone(value.current)}>Done</button></div>
       <div className="osk-entry" onPointerDown={event => { if (event.target instanceof Element && event.target.closest('button')) event.preventDefault(); }}>
-        <input ref={input} type={password ? 'password' : 'text'} aria-label="Keyboard text" inputMode="none" autoComplete="off" spellCheck={false} maxLength={maxLength} value={edit.value} onChange={event => {
+        <input ref={input} data-key-skip type={password ? 'password' : 'text'} aria-label="Keyboard text" inputMode="none" autoComplete="off" spellCheck={false} maxLength={maxLength} value={edit.value} onChange={event => {
           const element = event.target; value.current = element.value;
           setEdit({ value: element.value, start: element.selectionStart ?? element.value.length, end: element.selectionEnd ?? element.value.length });
         }} />
@@ -104,6 +105,13 @@ export function TouchTextInput({ value, onValueChange, capitalize = false, touch
     // has the mounted element, including its enclosing Hudiy theme container.
     setHost(element?.closest<HTMLElement>('.container, .portal-container') || document.body);
   };
+  useEffect(() => {
+    const element = input.current;
+    if (!element) return undefined;
+    const activate = () => open(element);
+    element.addEventListener(KEY_ACTIVATE_EVENT, activate);
+    return () => element.removeEventListener(KEY_ACTIVATE_EVENT, activate);
+  });
   const close = () => {
     setHost(null);
     requestAnimationFrame(() => {
