@@ -236,7 +236,7 @@ function UpdatePage({ status, job, locked, act, setConfirm }: { status: Status; 
         <button disabled={noSelection} onClick={() => run('rehearse')}>Dry run</button>
         <button className="danger" disabled={noSelection} onClick={() => setConfirm({
           title: `Flash ${flashTargets(live, files)}?`,
-          body: 'The chain stops and the screen goes off for about a minute, then comes back by itself. Keep the ignition on. If the RNS-E does not come back, reinstall from the disc.',
+          body: 'The chain stops and the screen goes off for about a minute, plus 6 for each OSM sector, then comes back by itself. Keep the ignition on. If the RNS-E does not come back, reinstall from the disc.',
           action: 'Flash',
           run: () => run('flash'),
         })}>Flash</button>

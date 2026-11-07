@@ -21,6 +21,9 @@ import settings_store
 BLOBS = {'sdboot': bytes(range(256)) * 3 + b'\x01\x02\x03\x04', 'tramp': bytes(64), 'sdstage': bytes(348)}
 LOAD_ID = 0x1234567
 SECTOR_96 = bytes((i * 7) & 255 for i in range(rnse_flash.SECTOR))
+OSM_HEADER = 0x00400200
+OSM_SIZE = 0x6AB9FC - OSM_HEADER
+OSM_SUM = 0x94E23F38
 
 
 class FakeUnit:
@@ -44,6 +47,12 @@ class FakeUnit:
         if tva:
             self.store(rnse_flash.TVA, struct.pack('>2I', rnse_flash.TVA_MAGIC, 0))
         self.store(rnse_flash.BOOTSTATE + 0x1A, struct.pack('>h', 99))
+        self.store(rnse_flash.FLASH_P1 + rnse_flash.DESC_PHYS + rnse_flash.DESC_POINTER, struct.pack('>I', OSM_HEADER))
+        self.store(rnse_flash.FLASH_P1 + OSM_HEADER + rnse_flash.MODULE_SIZE, struct.pack('>II', OSM_SIZE, OSM_SUM))
+
+    def load_sector(self, sidx, image):
+        self.flash[sidx] = zlib.crc32(image)
+        self.store(rnse_flash.FLASH_P1 + sidx * rnse_flash.SECTOR, image)
 
     def store(self, addr, data):
         for i, b in enumerate(data):
@@ -284,6 +293,107 @@ class FlashSequenceTests(unittest.TestCase):
             f.wait_dormant()
 
 
+def sector_with_word(offset, word):
+    image = bytearray(rnse_flash.SECTOR)
+    image[offset:offset + 4] = struct.pack('>I', word)
+    return bytes(image)
+
+
+class BootChecksumTests(unittest.TestCase):
+    """The OSM runs over sectors 32 to 53, and its sum is only in sector 32."""
+    def setUp(self):
+        self.fake = FakeUnit()
+        self.fake.load_sector(44, bytes(rnse_flash.SECTOR))
+        self.fake.load_sector(53, bytes(rnse_flash.SECTOR))
+        self.lines = []
+        self.flasher = flasher(self.fake, lines=self.lines)
+
+    def frames(self, *ops):
+        return [f for f in self.fake.frames if f[0] in ops]
+
+    def target(self, sidx, image):
+        return rnse_flash.Target(sidx, image, 'sector_%d.bin' % sidx)
+
+    def test_changing_one_osm_sector_is_refused_before_anything_is_sent(self):
+        with self.assertRaisesRegex(rnse_flash.FlashError, 'OSM would not pass the boot check.*sector 32'):
+            self.flasher.flash([self.target(44, sector_with_word(0x100, 5))])
+        self.assertEqual(self.frames(0xB3, 0xB6, 0xB7), [])
+
+    def test_the_dry_run_refuses_too(self):
+        with self.assertRaisesRegex(rnse_flash.FlashError, 'would not pass'):
+            self.flasher.rehearse([self.target(44, sector_with_word(0x100, 5))])
+
+    def test_two_sectors_that_balance_are_allowed(self):
+        self.flasher.flash([self.target(44, sector_with_word(0x100, 5)), self.target(53, sector_with_word(0x100, 0xFFFFFFFB))])
+        self.assertEqual(len(self.frames(0xB6)), 1)
+
+    def test_balance_inside_one_sector_is_allowed(self):
+        image = bytearray(rnse_flash.SECTOR)
+        image[0:4] = struct.pack('>I', 7)
+        image[4:8] = struct.pack('>I', 0xFFFFFFF9)
+        self.flasher.check_boot_checksums([self.target(44, bytes(image))])
+
+    def test_new_checksum_in_sector_32_is_accepted(self):
+        old_32 = bytearray(self.fake.fetch(rnse_flash.FLASH_P1 + 32 * rnse_flash.SECTOR, rnse_flash.SECTOR))
+        self.fake.load_sector(32, bytes(old_32))
+        new_32 = bytearray(old_32)
+        new_32[OSM_HEADER % rnse_flash.SECTOR + 0x78:OSM_HEADER % rnse_flash.SECTOR + 0x7C] = struct.pack('>I', (OSM_SUM + 5) & 0xFFFFFFFF)
+        self.flasher.check_boot_checksums([self.target(32, bytes(new_32)), self.target(44, sector_with_word(0x100, 5))])
+
+    def test_header_bytes_in_sector_32_do_not_count_as_payload(self):
+        old_32 = self.fake.fetch(rnse_flash.FLASH_P1 + 32 * rnse_flash.SECTOR, rnse_flash.SECTOR)
+        self.fake.load_sector(32, old_32)
+        new_32 = bytearray(old_32)
+        new_32[OSM_HEADER % rnse_flash.SECTOR + 0x78:OSM_HEADER % rnse_flash.SECTOR + 0x7C] = struct.pack('>I', 1)
+        with self.assertRaisesRegex(rnse_flash.FlashError, 'would not pass'):
+            self.flasher.check_boot_checksums([self.target(32, bytes(new_32))])
+
+    def test_changed_descriptor_is_refused(self):
+        old_32 = self.fake.fetch(rnse_flash.FLASH_P1 + 32 * rnse_flash.SECTOR, rnse_flash.SECTOR)
+        self.fake.load_sector(32, old_32)
+        new_32 = bytearray(old_32)
+        new_32[0x100] = 1
+        with self.assertRaisesRegex(rnse_flash.FlashError, 'descriptor'):
+            self.flasher.check_boot_checksums([self.target(32, bytes(new_32))])
+
+    def test_changed_module_size_is_refused(self):
+        old_32 = self.fake.fetch(rnse_flash.FLASH_P1 + 32 * rnse_flash.SECTOR, rnse_flash.SECTOR)
+        self.fake.load_sector(32, old_32)
+        new_32 = bytearray(old_32)
+        new_32[OSM_HEADER % rnse_flash.SECTOR + 0x74:OSM_HEADER % rnse_flash.SECTOR + 0x78] = struct.pack('>I', OSM_SIZE + 4)
+        with self.assertRaisesRegex(rnse_flash.FlashError, 'size'):
+            self.flasher.check_boot_checksums([self.target(32, bytes(new_32))])
+
+    def test_sector_outside_every_module_needs_no_read(self):
+        self.flasher.check_boot_checksums([self.target(96, SECTOR_96)])
+        self.assertEqual(self.frames(0xB8), [])
+
+    def test_only_the_summed_part_of_the_last_sector_counts(self):
+        end = (OSM_HEADER + OSM_SIZE) % rnse_flash.SECTOR
+        self.flasher.check_boot_checksums([self.target(53, sector_with_word(end, 5))])
+
+    def test_an_identical_sector_needs_no_read(self):
+        self.flasher.check_boot_checksums([self.target(44, bytes(rnse_flash.SECTOR))])
+        self.assertFalse(any('Reading sector' in line for line in self.lines))
+
+    def test_old_sector_comes_from_a_file_when_one_matches_and_is_cached_otherwise(self):
+        with tempfile.TemporaryDirectory() as folder:
+            cache = os.path.join(folder, 'cache')
+            self.flasher.image_dirs = [cache]
+            balanced = sector_with_word(0, 3) [:4] + struct.pack('>I', 0xFFFFFFFD) + bytes(rnse_flash.SECTOR - 8)
+            self.flasher.check_boot_checksums([self.target(44, balanced)])
+            self.assertTrue(any('Reading sector 44' in line for line in self.lines))
+            self.assertEqual(os.listdir(cache), ['%08X.bin' % zlib.crc32(bytes(rnse_flash.SECTOR))])
+            self.lines.clear()
+            self.flasher.check_boot_checksums([self.target(44, balanced)])
+            self.assertFalse(any('Reading sector' in line for line in self.lines))
+
+    def test_bad_descriptor_stops_it(self):
+        self.fake.store(rnse_flash.FLASH_P1 + rnse_flash.DESC_PHYS + rnse_flash.DESC_POINTER, struct.pack('>I', 0x00000003))
+        with self.assertRaisesRegex(rnse_flash.FlashError, 'bad module address'):
+            self.flasher.check_boot_checksums([self.target(96, SECTOR_96)])
+
+
 class OperationTests(unittest.TestCase):
     def make(self, fake, can=None, disabled=False):
         self.folder = tempfile.TemporaryDirectory()
@@ -320,7 +430,7 @@ class OperationTests(unittest.TestCase):
         real = rnse_flash.Flasher.__init__
 
         def init(flasher_self, unit, port, blobs, slot, log, **kw):
-            real(flasher_self, unit, port, blobs, slot, log, sleep=lambda s: None, load_id=lambda: LOAD_ID)
+            real(flasher_self, unit, port, blobs, slot, log, sleep=lambda s: None, load_id=lambda: LOAD_ID, image_dirs=kw.get('image_dirs', ()))
         rnse_flash.Flasher.__init__ = init
         self.addCleanup(setattr, rnse_flash.Flasher, '__init__', real)
 

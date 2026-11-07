@@ -77,7 +77,8 @@ class RnseOperations:
         chain_was_on = not self.chain.disabled()
         auto_start = False
         try:
-            flasher = rnse_flash.Flasher(unit, port, load_blobs(self.app_dir), str(self.paths.slot), log)
+            flasher = rnse_flash.Flasher(unit, port, load_blobs(self.app_dir), str(self.paths.slot), log,
+                                         image_dirs=[str(self.paths.root / 'sector_cache'), str(self.paths.firmware)])
             flasher.firmware_check()
             log('Firmware identity OK.')
             auto_start = flasher.auto_start_off()

@@ -52,6 +52,20 @@ TVA = 0x8F72F000
 TVA_MAGIC = 0x54564131
 TVA_OFF_WORD = 0x4F464621
 
+# What the boot ROM checks at start-up (boot_integrity_check_v1/FINDINGS.md)
+FLASH_P1 = 0x80000000
+DESC_PHYS = 0x00400000
+DESC_SIZE = 0x200
+DESC_COUNT = 0x18
+DESC_FIRST_RECORD = 0x1C
+DESC_RECORD = 0x10
+DESC_POINTER = 0x0C
+DESC_MAX_RECORDS = 30
+MODULE_SIZE = 0x74
+MODULE_PAYLOAD = 0x80
+MODULE_NAMES = {0x00400200: 'OSM', 0x00B00000: 'APFM', 0x01C00000: 'APM', 0x02800000: 'AUM', 0x00E49000: 'FONT'}
+READ_STEP = 0x2000
+
 BOOTSTATE = 0xB8000000
 RESET_WAIT_S = 25
 RESET_LIMIT_S = 120
@@ -128,14 +142,111 @@ def load_targets(paths):
     return targets
 
 
+def word_sum(data):
+    """The boot ROM's module sum: big-endian 32-bit words, modulo 2^32."""
+    return sum(struct.unpack('>%dI' % (len(data) // 4), data)) & 0xFFFFFFFF
+
+
 class Flasher:
     """unit: can_link.Unit. port: sd_link.TeensyPort. blobs: {'sdboot', 'tramp', 'sdstage'} bytes.
     slot_path keeps the launcher counter across runs. log is called with one line at a time."""
 
-    def __init__(self, unit, port, blobs, slot_path, log, sleep=time.sleep, clock=time.monotonic, load_id=None):
+    def __init__(self, unit, port, blobs, slot_path, log, sleep=time.sleep, clock=time.monotonic, load_id=None, image_dirs=()):
         self.unit, self.port, self.blobs = unit, port, blobs
         self.slot_path, self.log, self.sleep, self.clock = slot_path, log, sleep, clock
         self.load_id = load_id or (lambda: int(time.time() * 1000) & 0x7FFFFFFF)
+        self.image_dirs = list(image_dirs)      # the first one also keeps sectors read from the unit
+
+    # ---- the boot ROM's module checksums
+    def _flash_read(self, phys, n, targets=()):
+        """Flash as it would be after writing targets."""
+        by_sector = {t.sidx: t.image for t in targets}
+        out = b''
+        while n:
+            sidx = phys // SECTOR
+            k = min(n, SECTOR - phys % SECTOR)
+            image = by_sector.get(sidx)
+            out += image[phys % SECTOR:phys % SECTOR + k] if image else self.unit.read(FLASH_P1 + phys, k)
+            phys += k
+            n -= k
+        return out
+
+    def _boot_modules(self):
+        """Header addresses of what the boot ROM checks, from the descriptor on the unit."""
+        desc = self._flash_read(DESC_PHYS, DESC_FIRST_RECORD)
+        count = struct.unpack('>I', desc[DESC_COUNT:DESC_COUNT + 4])[0]
+        if count > DESC_MAX_RECORDS:
+            raise FlashError('The descriptor on the unit lists %d modules. Stopping.' % count)
+        pointers = [desc[DESC_POINTER:DESC_POINTER + 4]]
+        for i in range(count):
+            pointers.append(self._flash_read(DESC_PHYS + DESC_FIRST_RECORD + DESC_RECORD * i + DESC_POINTER, 4))
+        headers = []
+        for raw in pointers:
+            header = struct.unpack('>I', raw)[0] & 0x1FFFFFFF
+            if header % 4 or not DESC_PHYS <= header < CHIP_SIZE:
+                raise FlashError('The descriptor on the unit has a bad module address, %08X. Stopping.' % header)
+            headers.append(header)
+        return headers
+
+    def _old_sector(self, sidx, live):
+        """What the unit has in this sector. Over CAN this takes minutes, so a file with the same CRC saves it."""
+        for folder in self.image_dirs:
+            try:
+                names = sorted(os.listdir(folder))
+            except OSError:
+                continue
+            for name in names:
+                path = os.path.join(folder, name)
+                if name.lower().endswith('.bin') and os.path.getsize(path) == SECTOR:
+                    with open(path, 'rb') as f:
+                        image = f.read()
+                    if zlib.crc32(image) == live:
+                        return image
+        self.log('Reading sector %d from the unit, about 6 minutes.' % sidx)
+        image = b''
+        for off in range(0, SECTOR, READ_STEP):
+            image += self.unit.read(FLASH_P1 + sidx * SECTOR + off, READ_STEP)
+            self.log('  %d of %d kB' % ((off + READ_STEP) // 1024, SECTOR // 1024))
+        if zlib.crc32(image) != live:
+            raise FlashError('Sector %d read over CAN does not match its live CRC. Stopping.' % sidx)
+        if self.image_dirs:
+            os.makedirs(self.image_dirs[0], exist_ok=True)
+            with open(os.path.join(self.image_dirs[0], '%08X.bin' % live), 'wb') as f:
+                f.write(image)
+        return image
+
+    def check_boot_checksums(self, targets):
+        """Refuses a flash the boot ROM would reject. It sums each module in the descriptor and compares that with the
+        module's header, which can sit in another sector: the OSM runs over sectors 32 to 53 and its sum is in 32.
+        The unit is running, so what's on it now is valid: only the change has to balance."""
+        wanted = {t.sidx: t for t in targets}
+        old_images = {}
+        if DESC_PHYS // SECTOR in wanted and self._flash_read(DESC_PHYS, DESC_SIZE) != self._flash_read(DESC_PHYS, DESC_SIZE, targets):
+            raise FlashError('This file changes the module descriptor. Use the disc.')
+        for header in self._boot_modules():
+            name = MODULE_NAMES.get(header, '%08X' % header)
+            size, stored = struct.unpack('>II', self._flash_read(header + MODULE_SIZE, 8))
+            new_size, new_stored = struct.unpack('>II', self._flash_read(header + MODULE_SIZE, 8, targets))
+            if size < MODULE_PAYLOAD or size % 4:
+                raise FlashError('Module %s on the unit has a bad size. Stopping.' % name)
+            if new_size != size:
+                raise FlashError('This changes the size of module %s. Use the disc.' % name)
+            start, end = header + MODULE_PAYLOAD, header + size
+            total = stored
+            for sidx, target in wanted.items():
+                low, high = max(start, sidx * SECTOR), min(end, (sidx + 1) * SECTOR)
+                if low >= high:
+                    continue
+                if sidx not in old_images:
+                    live = self.live_crc(sidx)
+                    old_images[sidx] = target.image if live == target.crc else self._old_sector(sidx, live)
+                first, last = low - sidx * SECTOR, high - sidx * SECTOR
+                total += word_sum(target.image[first:last]) - word_sum(old_images[sidx][first:last])
+            total &= 0xFFFFFFFF
+            if total != new_stored:
+                raise FlashError('Module %s would not pass the boot check: its data would sum to %08X, and sector %d stores %08X. '
+                                 'Flash the sectors that belong together. Nothing was flashed.' % (name, total, header // SECTOR, new_stored))
+            self.log('Module %s: boot checksum stays valid (%08X).' % (name, new_stored))
 
     # ---- identity
     def firmware_check(self):
@@ -343,12 +454,14 @@ class Flasher:
 
     def rehearse(self, targets):
         """RAM only. Everything a flash does before B7."""
+        self.check_boot_checksums(targets)
         staged = self._stage(targets)
         self._verify_staged(targets, staged)
         self.log('Staged, not flashed. Nothing was sent to the flash path.')
 
     def flash(self, targets):
         """Returns {sidx: crc} of the flash afterwards. Raises if any of it isn't the file."""
+        self.check_boot_checksums(targets)
         staged = self._stage(targets)
         self._verify_staged(targets, staged)
         self.log('Flashing sector %s. Erase, program, one reset.' % ', '.join(str(t.sidx) for t in targets))

@@ -45,6 +45,8 @@ With the full install, the file portal has **RNS-E firmware** for uploads and **
 
 The screen goes off for about a minute, then comes back by itself. A phone on the Pi's Wi-Fi can watch at `http://<Pi address>:5005`, Update page. The report is saved in `~/avsd/logs`.
 
+Before anything is sent, the app works out the boot ROM's checksum for each module the file touches, and refuses if it wouldn't match. The OSM runs over sectors 32 to 53 and its checksum is only in sector 32, so its sectors usually have to go together, like 44 and 53. That means reading the old sector over CAN the first time, about 6 minutes each. A file in `~/rnsefw` with the same CRC as the live sector saves that read. Sector 96 isn't in a checked module.
+
 **Check** compares the live flash to the file. **Dry run** does everything but the flash. Both stop the chain for a few seconds.
 
 Update order: the RNS-E first, then the Pi. To go back: the Pi first, then the RNS-E. The decoder before CRC `0696DDE4` rejects the current encoder's R3 stream, which means no video.
