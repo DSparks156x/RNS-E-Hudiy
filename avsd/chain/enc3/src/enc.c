@@ -82,6 +82,8 @@ long long rnv_cnt[8]; /* csc pairs, sad calls, pd8 calls, fwd8 calls, iwht calls
 #define KC(i, n) ((void)0)
 #endif
 
+#define PAL_MAX 8
+typedef struct { uint8_t r, g, b, y, u, v; int age; } tone_pal;
 struct rnv2enc {
     rnv2enc_params p;
     const rnv2_kern *k;
@@ -119,6 +121,7 @@ struct rnv2enc {
     uint16_t act[NB]; int nact, ncoded, nprev_act;
     uint16_t hx0[BH], hx1[BH];        /* x range of the blocks written to each band (half-pel update range) */
     double lastn, bmu;
+    tone_pal pal[PAL_MAX]; int npal;
     uint8_t *drgb, rng[NB], dith[NB]; /* --dither: source with the static pattern, per-block channel range, blocks dithered now */
     int kl0;                          /* last key at level 0: 0 unknown, 1 fitted, 2 did not fit */
     double pbpa, pkey; int pq, pkq;    /* bytes per active block / of the last key at the classic point, at qp pq / pkq: first-qp prediction */
@@ -420,7 +423,6 @@ static inline int blk_range(const uint8_t *r) {
     return m;
 }
 #endif
-#define TONE_YMIN 200 /* pale: every channel at least this */
 static void job_csc(rnv2enc *e, int by) {
     int bx, r, y0 = by * 8, bx0 = 0, bx1 = BW, first = e->first;
     const uint8_t *dmg = e->damaged + by * BW; int bpp = e->fmt == RNV2_RGB24 || e->fmt == RNV2_BGR24 ? 3 : 4;
@@ -439,7 +441,6 @@ static void job_csc(rnv2enc *e, int by) {
             if (e->tvalid) {
                 int md = blk_maxdiff(np, ns, rb);
                 any = md > 0;
-                if (any && e->p.src_dead_pale >= 0 && e->p.src_dead_pale < dead && rb[0] >= TONE_YMIN && rb[1] >= TONE_YMIN && rb[2] >= TONE_YMIN && rb[21] >= TONE_YMIN && rb[22] >= TONE_YMIN && rb[23] >= TONE_YMIN && rb[7 * W * 3] >= TONE_YMIN && rb[7 * W * 3 + 1] >= TONE_YMIN && rb[7 * W * 3 + 2] >= TONE_YMIN && rb[7 * W * 3 + 21] >= TONE_YMIN && rb[7 * W * 3 + 22] >= TONE_YMIN && rb[7 * W * 3 + 23] >= TONE_YMIN) dead = e->p.src_dead_pale; /* pale: all four corners.  Tone lock keeps wobble inside a level here, and a stale target shows as a patch */
                 if (any && dead > 0 && md <= dead) { int sm[3]; blk_sumdiff(np, ns, rb, sm); any = abs(sm[0]) >= e->p.src_mean || abs(sm[1]) >= e->p.src_mean || abs(sm[2]) >= e->p.src_mean; } /* a block whose mean moves is a real change on its way (a fade, a slow gradient), not noise */
             }
             if (any) { for (r = 0; r < 8; r++) memcpy(e->refrgb + (size_t)(y0 + r) * W * 3 + bx * 24, np + ns * r, 24); diff = 1; }
@@ -497,21 +498,68 @@ static void job_smooth(rnv2enc *e, int by) {
     }
 }
 
-/* Tone lock: near-neutral pixels get neutral chroma and luma in the middle of its 6-bit level.  The error measure works on YUV codes, where one code is nothing; at the panel, a luma or chroma code near a level boundary moves a channel a whole level,
- * and on a pale flat area that shows as tinted patches.  Google Maps land (#F8F9FA) sits right on such a boundary.  With the target mid-level, small coding errors cannot cross one. */
-static void job_tone(rnv2enc *e, int by) {
-    int bx, r, x, T = e->p.tone_lock;
+/* Tone palette: maps and Material UI are flat vector art, a few colours with the phone stream's speckle around each.  Where a pale colour covers enough of the screen, every pixel close to it gets one
+ * target: the panel levels of that colour, placed mid-level in each channel so coding errors cannot cross a level.  Keeps the tint, unlike --tonelock.  Gradients make no histogram peak and are left alone. */
+#define PAL_BINS 28                      /* channel (v - 200) >> 1 */
+static void tone_entry_target(tone_pal *t) {
+    int qr = t->r >> 2, qg = t->g >> 2, qb = t->b >> 2, best = -1, y, u, v;
+    double cr = 4 * qr + 1.5, cg = 4 * qg + 1.5, cb = 4 * qb + 1.5, yc = .299 * cr + .587 * cg + .114 * cb, uc = (cb - yc) / 1.772, vc = (cr - yc) / 1.402;
+    int y0 = (int)lrint(yc), u0 = (int)lrint(uc), v0 = (int)lrint(vc);
+    t->y = (uint8_t)CL255(y0); t->u = (uint8_t)CL255(u0 + 128); t->v = (uint8_t)CL255(v0 + 128);
+    for (y = y0 - 2; y <= y0 + 2; y++) for (u = u0 - 2; u <= u0 + 2; u++) for (v = v0 - 2; v <= v0 + 2; v++) {
+        int R = y + OR_(v), G = y + OG_(u, v), B = y + OB_(u), m, a;
+        if (y < 0 || y > 255 || R > 255 || G > 255 || B > 255 || (R >> 2) != qr || (G >> 2) != qg || (B >> 2) != qb) continue;
+        m = R & 3; if (3 - (R & 3) < m) m = 3 - (R & 3);                /* distance to the nearer level edge, worst channel; 63 has no upper edge */
+        a = G & 3; if (3 - (G & 3) < a) a = 3 - (G & 3); if (a < m) m = a;
+        a = B & 3; if (3 - (B & 3) < a) a = 3 - (B & 3); if (a < m) m = a;
+        m = m * 16 - abs(u) - abs(v);                                   /* of equal margins, the least chroma */
+        if (m > best) { best = m; t->y = (uint8_t)y; t->u = (uint8_t)(u + 128); t->v = (uint8_t)(v + 128); }
+    }
+}
+static void tone_palette(rnv2enc *e) {
+    static int h[PAL_BINS][PAL_BINS][PAL_BINS];
+    int x, y, n = 0, i, j, k, a, b, c, changed = 0, b_;
+    if (!e->first && e->fn % 8) return;
+    memset(h, 0, sizeof h);
+    for (y = 2; y < H; y += 4) { const uint8_t *p = e->refrgb + (size_t)y * W * 3 + 6; for (x = 2; x < W; x += 4, p += 12) { n++; if (p[0] >= 200 && p[1] >= 200 && p[2] >= 200) h[(p[0] - 200) >> 1][(p[1] - 200) >> 1][(p[2] - 200) >> 1]++; } }
+    for (i = 0; i < e->npal; i++) e->pal[i].age++;
+    for (i = 0; i < PAL_BINS; i++) for (j = 0; j < PAL_BINS; j++) for (k = 0; k < PAL_BINS; k++) {
+        int v = h[i][j][k], S = 0, peak = 1; double sr = 0, sg = 0, sb = 0;
+        if (v * 200 < n) continue;                                     /* quick reject: the bin itself is under 0.5% */
+        for (a = -1; a <= 1; a++) for (b = -1; b <= 1; b++) for (c = -1; c <= 1; c++) {
+            int I = i + a, J = j + b, K = k + c, w;
+            if (I < 0 || J < 0 || K < 0 || I >= PAL_BINS || J >= PAL_BINS || K >= PAL_BINS) continue;
+            w = h[I][J][K]; if (w > v || (w == v && (a < 0 || (a == 0 && (b < 0 || (b == 0 && c < 0)))))) peak = 0;
+            S += w; sr += w * (200.5 + 2 * I); sg += w * (200.5 + 2 * J); sb += w * (200.5 + 2 * K);
+        }
+        if (!peak || S * 50 < n) continue;                             /* a colour must cover 2% of the screen */
+        { int r = (int)lrint(sr / S), g = (int)lrint(sg / S), bl = (int)lrint(sb / S), m = -1;
+          for (a = 0; a < e->npal; a++) if (abs(e->pal[a].r - r) <= 2 && abs(e->pal[a].g - g) <= 2 && abs(e->pal[a].b - bl) <= 2) { m = a; break; }
+          if (m >= 0) { e->pal[m].age = 0; continue; }                 /* known colour: the target must not move with the noise */
+          if (e->npal < PAL_MAX) m = e->npal++;
+          else { m = 0; for (a = 1; a < PAL_MAX; a++) if (e->pal[a].age > e->pal[m].age) m = a; }
+          e->pal[m].r = (uint8_t)r; e->pal[m].g = (uint8_t)g; e->pal[m].b = (uint8_t)bl; e->pal[m].age = 0; tone_entry_target(&e->pal[m]); changed = 1; }
+    }
+    if (changed && !e->first) for (b_ = 0; b_ < NB; b_++) if (!e->cscneed[b_]) { e->cscneed[b_] = 1; e->changed[b_] = 1; e->forced[b_] = 0; e->clean[b_] = 0; } /* blocks with this colour held by the deadband */
+}
+static inline int pal_find(const rnv2enc *e, const uint8_t *p, int T) {
+    int i;
+    if (p[0] < 197 || p[1] < 197 || p[2] < 197) return -1;
+    for (i = 0; i < e->npal; i++) { const tone_pal *t = &e->pal[i]; if (abs(p[0] - t->r) <= T && abs(p[1] - t->g) <= T && abs(p[2] - t->b) <= T) return i; }
+    return -1;
+}
+static void job_tonepal(rnv2enc *e, int by) {
+    int bx, r, x, T = e->p.tone_pal;
     for (bx = 0; bx < BW; bx++) {
         if (!e->cscneed[by * BW + bx]) continue;
         for (r = 0; r < 8; r++) {
             const uint8_t *p = e->refrgb + (size_t)(by * 8 + r) * W * 3 + bx * 24; uint8_t *Y = e->tY + (by * 8 + r) * W + bx * 8, *U = e->tU + (by * 8 + r) * CW + bx * 4, *V = e->tV + (by * 8 + r) * CW + bx * 4;
             for (x = 0; x < 4; x++, p += 6) {
-                int y0, y1;
-                if (abs(U[x] - 128) > T || abs(V[x] - 128) > T) continue;
-                y0 = (19595 * p[0] + 38470 * p[1] + 7471 * p[2] + 32768) >> 16; y1 = (19595 * p[3] + 38470 * p[4] + 7471 * p[5] + 32768) >> 16;
-                if (y0 < TONE_YMIN || y1 < TONE_YMIN) continue; /* pale only: dark UI greys keep their tint */
-                U[x] = V[x] = 128;
-                Y[2 * x] = (uint8_t)(y0 > 251 ? 255 : (y0 & 0xFC) + 2); Y[2 * x + 1] = (uint8_t)(y1 > 251 ? 255 : (y1 & 0xFC) + 2);
+                int a = pal_find(e, p, T), b;
+                if (a < 0) continue;
+                b = pal_find(e, p + 3, T);
+                if (b != a) continue;                                  /* chroma is shared by the pair: an edge pair keeps the fit */
+                U[x] = e->pal[a].u; V[x] = e->pal[a].v; Y[2 * x] = Y[2 * x + 1] = e->pal[a].y;
             }
         }
     }
@@ -1215,7 +1263,7 @@ void rnv2enc_default_params(rnv2enc_params *p) {
     p->link_cap = 0; p->adapt = 1; p->nlevels = 12; p->lam_lo = 0.0025; p->lam_x = 0.01; p->kappa_lo = 16; p->thr_lo = 0; p->fill_target = 0.25; p->hyst = 0.85; p->dwell = 4; p->pin_level = -1;
     p->max_tries = 12; p->threads = 1; p->static_skip = 1; p->simd = 1; p->me_level = 2; p->me_win_thr = 0; p->me_win_max = 1024; p->rt_rc = 1; p->prune = 3; p->qp_pred = 1;
     p->lag_target = 0.5; p->refine_static = 1; p->max_frame = 1.5; p->stale_d = 6000; p->stale_w = 0; p->burst_probe = 1; p->mu_relax = 1; p->qp_drop = 4; p->fast_refine = 1; p->dither = 0; p->dither_range = 24;
-    p->rc_tol = 0.88; p->btc_lmin = 0.02; p->fill_gap = 1; p->prune_nact = 1200; p->prune_r = 1.5; p->src_dead_pale = -1; p->smooth = 0; p->src_mean = 48; p->pw_max = 3; p->btc_gate = 5; p->fill_pen = 2.0; p->r3 = 1; p->src_dead = 3; p->glass_dead = 1; p->lat_q4 = 2; p->lat_q2a = 2; p->lat_q2b = 3; p->lat_q4c = 3; p->lat_sharp = 0; p->rc_gamma = 1.0; p->sf_budget = 0; p->trim_ratio = 1.35; p->spill_qp = 18; p->spill_sf = 2; p->spill_gap = 30; p->spill_carry = 1; p->trim_max = 3; p->spill_cyc = 1; p->nu_relax = 0; p->nu_relax_thr = 0.94; p->nu_relax_n = 3;
+    p->rc_tol = 0.88; p->btc_lmin = 0.02; p->fill_gap = 1; p->prune_nact = 1200; p->prune_r = 1.5; p->smooth = 0; p->src_mean = 48; p->pw_max = 3; p->btc_gate = 5; p->fill_pen = 2.0; p->r3 = 1; p->src_dead = 3; p->glass_dead = 1; p->lat_q4 = 2; p->lat_q2a = 2; p->lat_q2b = 3; p->lat_q4c = 3; p->lat_sharp = 0; p->rc_gamma = 1.0; p->sf_budget = 0; p->trim_ratio = 1.35; p->spill_qp = 18; p->spill_sf = 2; p->spill_gap = 30; p->spill_carry = 1; p->trim_max = 3; p->spill_cyc = 1; p->nu_relax = 0; p->nu_relax_thr = 0.94; p->nu_relax_n = 3;
 }
 
 static void set_level(rnv2enc *e, int L);
@@ -1346,7 +1394,7 @@ int rnv2enc_encode(rnv2enc *e, const uint8_t *pix, int stride, enum rnv2_fmt fmt
 #endif
     { int nd = NB; if (ndmg >= 0 && !e->first) { nd = 0; for (b = 0; b < NB; b++) nd += e->damaged[b]; } run_w(e, job_csc, BH, nd, 128); }
     if (e->p.dither || e->p.smooth) { smooth_classify(e); run_w(e, job_smooth, BH, NB, 256); }
-    if (e->p.tone_lock > 0) run_w(e, job_tone, BH, NB, 256);
+    if (e->p.tone_pal > 0) { tone_palette(e); run_w(e, job_tonepal, BH, NB, 256); }
     e->first = 0; e->tvalid = 1;
     /* blocks that need any work this frame; the decision of the others is SKIP for the whole frame */
     e->nprev_act = e->nact; e->nact = 0;

@@ -307,8 +307,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(a, "--pwmax")) p.pw_max = atof(ARG);
         else if (!strcmp(a, "--srcmean")) p.src_mean = atoi(ARG);
         else if (!strcmp(a, "--smooth")) p.smooth = atoi(ARG);
-        else if (!strcmp(a, "--tonelock")) p.tone_lock = atoi(ARG);
-        else if (!strcmp(a, "--srcdeadpale")) p.src_dead_pale = atoi(ARG);
+        else if (!strcmp(a, "--tonepal")) p.tone_pal = atoi(ARG);
         else if (!strcmp(a, "--fillpen")) p.fill_pen = atof(ARG);
         else if (!strcmp(a, "--nurelax")) p.nu_relax = atof(ARG);
         else if (!strcmp(a, "--nurelaxthr")) p.nu_relax_thr = atof(ARG);
