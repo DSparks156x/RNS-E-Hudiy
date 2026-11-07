@@ -58,9 +58,10 @@ class HudiyUpdateActionTests(unittest.TestCase):
                 client = Mock()
                 client.send.side_effect = lambda *args: events.append(('quit', args))
                 launch.side_effect = lambda *args, **kwargs: events.append(('launch', args))
+                namespace['keep_av_chain_up'] = lambda: events.append(('keep_chain', ()))
                 namespace['on_dispatch_action'](Mock(), client, SimpleNamespace(action=action))
-                self.assertEqual([e[0] for e in events], ['quit', 'launch'])
-                self.assertEqual(events[0][1][2]['action'], 'quit_hudiy')
+                self.assertEqual([e[0] for e in events], ['keep_chain', 'quit', 'launch'])
+                self.assertEqual(events[1][1][2]['action'], 'quit_hudiy')
                 command = launch.call_args.args[0]
                 self.assertEqual(command[:2], ['foot', '--fullscreen'])
                 self.assertEqual(command[-2:], ['bash', str(ROOT / 'hudiy_client' / filename)])

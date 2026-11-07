@@ -1,0 +1,19 @@
+[Unit]
+Description=A/V over SD: Hudiy screen + audio to the RNS-E through the Teensy
+After=pipewire-pulse.service
+Wants=pipewire-pulse.service
+# touch ~/avsd/car/DISABLE and restart: bench use without uninstalling
+ConditionPathExists=!%h/avsd/car/DISABLE
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=%h/avsd/current/chain/avsd_run.sh
+Restart=always
+RestartSec=2
+KillMode=control-group
+TimeoutStopSec=3
+SyslogIdentifier=avsd
+
+[Install]
+WantedBy=default.target

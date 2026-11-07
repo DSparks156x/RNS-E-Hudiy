@@ -1,0 +1,16 @@
+[Unit]
+Description=A/V over SD: settings and update app
+After=network.target
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 %h/avsd/current/app/app.py
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=5
+SyslogIdentifier=avsd-app
+
+[Install]
+WantedBy=default.target

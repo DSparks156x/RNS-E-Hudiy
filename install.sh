@@ -148,7 +148,7 @@ TEMP_DIR="$STAGING_DIR" # Retain the existing source-path name below.
 STAGING_PARENT=$(dirname "$STAGING_DIR")
 # flasher is a submodule, not a directory: cone mode keeps root-level entries
 # (its gitlink included) and naming it here makes sparse-checkout fail.
-SPARSE_PATHS=(rns-e_can hudiy_client dis_client tp2 hudiy_dataview hudiy_manager vehicle_data config/hudiy)
+SPARSE_PATHS=(rns-e_can hudiy_client dis_client tp2 hudiy_dataview hudiy_manager vehicle_data config/hudiy avsd)
 
 mkdir -p "$STAGING_PARENT"
 
@@ -1071,6 +1071,15 @@ echo -e "${GREEN}? Services installed, network configured, and started.${NC}"
 #     echo "   Skipping Composite Video configuration."
 # fi
 
+
+# A/V over SD is opt-in: bash avsd/install.sh enables it. Once it has, it updates with everything else.
+if [ -L "$REAL_HOME/avsd/current" ] && [ "$REAL_USER" != "root" ]; then
+    echo "   Updating A/V over SD..."
+    sudo -u "$REAL_USER" env HOME="$REAL_HOME" XDG_RUNTIME_DIR="/run/user/$REAL_UID" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$REAL_UID/bus" \
+        bash "$STAGING_DIR/avsd/install.sh" --update || \
+        echo "WARNING: A/V over SD did not update. It stays on the version it was running."
+fi
 
 echo ""
 echo "==================================================="

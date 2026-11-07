@@ -7,7 +7,7 @@
     "prebuild": "node ../tools/export_config_metadata.cjs",
     "start": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app_mock.py --mock -d\" \"vite\"",
     "startl": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app_mock.py --mock -l\" \"vite\"",
-    "build": "vite build && vite build --config vite.portal.config.ts && vite build --config vite.management.config.ts",
+    "build": "vite build && vite build --config vite.portal.config.ts && vite build --config vite.management.config.ts && vite build --config vite.avsd.config.ts",
     "dev": "concurrently -n flask,vite -c \"cyan,magenta\" \"python app_mock.py --mock\" \"vite\"",
     "typecheck": "tsc --noEmit"
   },

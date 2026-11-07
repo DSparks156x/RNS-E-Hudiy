@@ -24,6 +24,7 @@ from flask import abort, jsonify, request, send_file
 
 
 DEFAULT_UPLOAD_LIMIT = 16 * 1024 * 1024
+RNSE_SECTOR_SIZE = 128 * 1024
 DEFAULT_ARCHIVE_LIMIT = 256 * 1024 * 1024
 ARCHIVE_CHUNK_SIZE = 256 * 1024
 ARCHIVE_JOB_TTL = 300
@@ -390,6 +391,14 @@ def _configured_targets(config: Mapping) -> list[Collection]:
             "extensions": [".zip", ".json", ".bin"], "validator": "exhaust-valve", "max_size_mb": 1,
         })
 
+    # A/V over SD installs on its own (avsd/), so these only show on a Pi that has it.
+    if "rnse" not in configured_ids and os.path.exists(_expanded("~/avsd/current")):
+        configured.append({
+            "id": "rnse", "label": "RNS-E firmware",
+            "description": "128 KiB sector images, named like sector_96.bin. Flash them from the A/V over SD app",
+            "directory": "~/rnsefw", "extensions": [".bin"], "validator": "rnse-sector", "max_size_mb": 1,
+        })
+
     targets = []
     for entry in configured:
         if not isinstance(entry, Mapping):
@@ -420,6 +429,11 @@ def _configured_targets(config: Mapping) -> list[Collection]:
     return targets
 
 
+def validate_rnse_sector(path: str) -> None:
+    if os.path.getsize(path) != RNSE_SECTOR_SIZE:
+        raise ValueError("An RNS-E sector image is exactly 128 KiB.")
+
+
 def build_collections(config: Mapping) -> list[Collection]:
     targets = _configured_targets(config)
     portal = config.get("file_portal", {}) if isinstance(config, Mapping) else {}
@@ -433,7 +447,10 @@ def build_collections(config: Mapping) -> list[Collection]:
     capture_root = os.path.dirname(capture_path)
     capture_extension = os.path.splitext(capture_path)[1].lower() or ".log"
 
-    collections = targets + [
+    avsd = [Collection("avsd_logs", "A/V over SD logs",
+                       "Link, encoder and capture logs from each chain start, and flash reports",
+                       _expanded("~/avsd/logs"), (".log",), "logs", True)] if os.path.exists(_expanded("~/avsd/current")) else []
+    collections = targets + avsd + [
         Collection("hudiy_api", "Hudiy API captures",
                    "Provider-tagged projection, media, navigation, and phone events",
                    capture_root, (capture_extension,), "logs", False),

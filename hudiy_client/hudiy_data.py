@@ -47,6 +47,17 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s [%(levelname)s] (Hudiy) %(message)s')
 logger = logging.getLogger(__name__)
 
+
+def keep_av_chain_up(runtime_dir=None):
+    """Tells avsd_run.sh a missing Hudiy is no reason to stop. tmpfs, so a reboot clears it. Harmless without A/V over SD."""
+    runtime_dir = runtime_dir or os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    try:
+        with open(os.path.join(runtime_dir, "avsd-updating"), "a"):
+            pass
+    except OSError as error:
+        logger.warning(f"Could not mark the update for A/V over SD: {error}")
+
+
 # --- ZMQ Publishing Setup ---
 ZMQ_CONTEXT = zmq.Context()
 
@@ -994,7 +1005,10 @@ class TP2BridgeHandler(ClientEventHandler):
         elif message.action in ("update_rnse", "update_hudiy", "restore_configs"):
             logger.info(f"Hudiy Action: {message.action}")
             import subprocess
-            
+
+            # Before the quit: with A/V over SD the update terminal reaches the screen through the chain.
+            keep_av_chain_up()
+
             # Send quit action to gracefully close Hudiy
             req_quit = hudiy_api.DispatchAction()
             req_quit.action = "quit_hudiy"

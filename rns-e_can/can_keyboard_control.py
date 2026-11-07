@@ -32,7 +32,7 @@ INPUT_PUB = None
 WHEEL_CONTEXT_ID = None
 TOP_CONTEXT_ID = None
 # Hudiy actions for our web apps (config/hudiy/applications.json).
-WEB_APP_ACTIONS = {'hudiy_manager', 'hudiy_diagnostics'}
+WEB_APP_ACTIONS = {'hudiy_manager', 'hudiy_diagnostics', 'avsd_settings', 'avsd_update'}
 # Up and Down: the default key each must still have, and the knob direction it borrows.
 WEB_APP_ARROWS = {(64, 0): ('KEY_UP', (0, 64)), (128, 0): ('KEY_DOWN', (0, 32))}
 UI_STATE_MAX_AGE = 5.0

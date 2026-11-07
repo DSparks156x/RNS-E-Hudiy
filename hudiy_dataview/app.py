@@ -14,12 +14,12 @@ from flask import Flask, render_template, request, abort, send_file
 from flask_socketio import SocketIO, emit
 try:
     from .data_logger import DataLogger
-    from .file_portal import register_file_portal, cache_hudiy_theme
+    from .file_portal import register_file_portal, cache_hudiy_theme, validate_rnse_sector
     from .value_bridge import ValueBridge
     from .data_logs import register_data_logs
 except ImportError:  # Direct execution on the installed Pi.
     from data_logger import DataLogger
-    from file_portal import register_file_portal, cache_hudiy_theme
+    from file_portal import register_file_portal, cache_hudiy_theme, validate_rnse_sector
     from value_bridge import ValueBridge
     from data_logs import register_data_logs
 
@@ -112,6 +112,7 @@ register_file_portal(app, _cfg, validators={
     'haldex': _validate_haldex_portal_upload,
     'pq-eps': _validate_eps_portal_upload,
     'exhaust-valve': validate_upload,
+    'rnse-sector': validate_rnse_sector,
 })
 
 from hudiy_manager.config_store import ConfigStore

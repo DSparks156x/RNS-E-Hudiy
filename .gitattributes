@@ -1,2 +1,4 @@
 # Protect config.json from being overwritten during merges
 config.json merge=ours
+# The hash of this file identifies the firmware
+avsd/teensy/firmware.hex -text
