@@ -46,13 +46,26 @@
 #define STALE_LIVE_MS    400       /* unread superframe older than this is useless live, the reader is told to jump. Longer than RD_WINDOW at 30 superframes/s */
 #define STALE_BATCH_MS   1500      /* batch files, and a queued RNS-E bootstrap image: wait for a slow reader instead of evicting */
 #define IMG_HOLD_US      3000000u
+/* Reader overload, car log 2026-11-07: under heavy decode the reader tops out near 4.3 MB/s, so a busy screen at the full cap holds it back for as long as the screen stays busy.
+ * Each late tick leaves 16.7 ms of audio on the Pi while the unit's FIFO runs down by the same amount, and the tick clock alone drains only 0.72%.
+ * Two answers: the encoder is told to send less as soon as the reader lags, and audio left behind goes out in early ticks once the reader has room. */
+#define BACKOFF_LAG      4         /* superframes built and not yet read: 67 ms */
+#define BACKOFF_CALM_LAG 2         /* at or under this the reader is keeping up */
+#define BACKOFF_STEP_US  100000u   /* at most one step down this often: the encoder's next frames need time to arrive */
+#define BACKOFF_FACTOR   0.85
+#define BACKOFF_FLOOR    0.55      /* of the configured cap */
+#define BACKOFF_CALM_US  1000000u  /* calm for this long before the cap rises */
+#define BACKOFF_UP_US    500000u   /* one step up this often */
+#define BACKOFF_UP       0.03      /* of the configured cap */
+#define CATCHUP_MAX_LAG  3         /* an early tick only while the reader has room */
+#define CATCHUP_OVER     3648      /* frames over the prime level before an early tick: over the steady level (400) + a PipeWire burst (2048) + a margin of two ticks, so a burst alone never triggers one */
 
 /* ------------------------------------------------------------------ options */
 static struct {
     const char *dev, *video, *audio, *yuvcrc, *dump_sf, *dump_wire, *keyctl;
     double gain_db;
     int audio_be, no_audio, maxvid, k, eos, wire, chunk, console, stats_s, nocredits, maxq, quiet;
-    double fps;
+    double fps, linkcap;
     uint32_t seq0;
 } O = {.maxvid = 248, .wire = 4, .chunk = 32, .fps = 60.0, .maxq = 3};
 
@@ -427,6 +440,56 @@ static void key_feedback(uint64_t t)
     if (g_keyfd >= 0 && write(g_keyfd, "key\n", 4) == 4) g_key_reqs++;
 }
 
+/* Superframes built and not yet read. Only meaningful once the reader has served one. */
+static int reader_lag(void) { return (int)((int32_t)(g_seq - 1 - g_link.last_served_seq)); }
+
+/* Reader falling behind: lower the encoder's rate at once (--linkcap, over the key FIFO), raise it again slowly once the reader keeps up. Finds what this screen can take. */
+static double g_cap_now;
+static uint32_t g_backoffs, g_catchups;
+static void cap_send(double cap)
+{
+    char b[32];
+    int n = snprintf(b, sizeof b, "cap %.0f\n", cap);
+    if (write(g_keyfd, b, (size_t)n) == n) g_cap_now = cap;   /* FIFO full: the next step tries again */
+}
+static void backoff_update(uint64_t t)
+{
+    static uint64_t last_down, last_up, calm_since;
+    if (O.linkcap <= 0 || g_keyfd < 0 || O.k) return;
+    if (!g_cap_now) g_cap_now = O.linkcap;
+    if (g_rd.stalled || !g_link.n_served) { calm_since = 0; return; }      /* no reader to measure */
+    int lag = reader_lag();
+    if (lag >= BACKOFF_LAG) {
+        calm_since = 0;
+        if (t - last_down < BACKOFF_STEP_US) return;
+        last_down = t;
+        double c = g_cap_now * BACKOFF_FACTOR, floor_ = O.linkcap * BACKOFF_FLOOR;
+        if (c < floor_) c = floor_;
+        if (c < g_cap_now) { cap_send(c); g_backoffs++; }
+    } else if (lag > BACKOFF_CALM_LAG) {
+        calm_since = 0;
+    } else if (g_cap_now < O.linkcap) {
+        if (!calm_since) calm_since = t;
+        if (t - calm_since >= BACKOFF_CALM_US && t - last_up >= BACKOFF_UP_US) {
+            double c = g_cap_now + O.linkcap * BACKOFF_UP;
+            cap_send(c > O.linkcap ? O.linkcap : c);
+            last_up = t;
+        }
+    }
+}
+
+/* Audio left on the Pi by late ticks, and a reader with room again: send an early tick. It is an ordinary superframe (a queued frame if there is one, else REPEAT), so seq, pts and next_total_hint
+ * stay exact. Audio in flight is conserved, so draining the Pi back to its level returns the unit's FIFO to its target and no further: the unit cuts a backlog only 75 ms over that. */
+static int catchup_due(uint64_t t, uint64_t period)
+{
+    static uint64_t last;
+    if (!g_can_discard || O.no_audio || g_aud.fd < 0 || !g_aud.primed || g_rd.stalled || !g_link.n_served || g_stop_tlv) return 0;
+    if (tq_n >= O.maxq - 1 || reader_lag() > CATCHUP_MAX_LAG || t - last < period / 2) return 0;
+    if (g_aud.have / 4 < (size_t)(48 * AUDIO_PRIME_MS + CATCHUP_OVER)) return 0;
+    last = t;
+    return 1;
+}
+
 /* Drop every complete frame in the pipe and in vsrc, keep a partial one for its end. Called while nothing may wait. */
 static void video_drop_input(void)
 {
@@ -499,13 +562,13 @@ static void print_stats(const char *tag)
     fprintf(stderr, "%s sf built=%u sent=%u repeat=%u late=%u frames=%u drop=%u audio_in=%llu silence=%llu adrop=%llu raw=%llu adj=%d "
             "credit_waits=%u keyreq=%u | teensy status=%llu free=%u/%u slots=%u newest=%u served=%u srv_sect=%u holds=%u "
             "timeouts=%u notready=%u expired=%u idle=%u evicted=%u conv=%u rxerr=%u bus=%u junk=%llu "
-            "| rd_stalled=%d stalls=%u discards=%u vdiscarded=%u waitkey=%d window_waits=%u away_ticks=%u\n",
+            "| rd_stalled=%d stalls=%u discards=%u vdiscarded=%u waitkey=%d window_waits=%u away_ticks=%u cap_kb=%u backoffs=%u catchups=%u\n",
             tag, g_built, g_sent_sf, g_repeat_sf, g_late_ticks, g_frames_in, g_frames_dropped,
             (unsigned long long)g_aud.frames_in, (unsigned long long)g_aud.frames_silence, (unsigned long long)g_aud.frames_dropped, (unsigned long long)g_aud.raw_bytes / 4, (int)g_tick_adj, g_credit_waits, g_key_reqs,
             (unsigned long long)g_link.n_status, s->free_sectors, s->pool_sectors, s->free_slots, s->newest_seq,
             s->served_seq, s->sectors_served, s->holds, s->hold_timeouts, s->notready, s->expired, s->idle, s->evicted,
             s->converted, s->rx_errors, s->bus_width, (unsigned long long)g_link.rx_junk,
-            g_rd.stalled, g_stalls, g_discards, g_vdiscarded, g_wait_key, g_window_waits, g_away_ticks);
+            g_rd.stalled, g_stalls, g_discards, g_vdiscarded, g_wait_key, g_window_waits, g_away_ticks, (unsigned)(g_cap_now / 1000), g_backoffs, g_catchups);
 }
 
 /* ------------------------------------------------------------------ --wire-test: wire images of a raw file */
@@ -542,7 +605,8 @@ static void usage(void)
         "  --wire-test IN OUT wire images of every 512-B sector of IN (unit test vs sd_wire.py), then exit\n"
         "  --keyctl FIFO      rnv2enc --linkctl FIFO: write key when the Teensy reports lost superframes. Live, also enables the backlog\n"
         "                     discard: no reader, or a standing queue, drops frames until a key (without it: back-pressure only)\n"
-        "  --whole-sf 1|0     Teensy holds only before sector 0, until the superframe is complete; default: leave the Teensy's setting (off after boot).\n"
+        "  --linkcap B/s      the encoder's --linkcap: with --keyctl, lower it live while the reader lags, raise it back after. 0 (default): never touch it\n"
+        "  --whole-sf 1|0    Teensy holds only before sector 0, until the superframe is complete; default: leave the Teensy's setting (off after boot).\n"
         "                     Live also: printf WSF1 > /tmp/avlink_sdctl, WSF0 to turn it off\n"
         "  --console          copy Teensy console text to stderr      --stats N  stats line every N s   -q\n");
 }
@@ -573,6 +637,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--dump-wire")) O.dump_wire = ARG;
         else if (!strcmp(a, "--wire-test")) { wt_in = ARG; wt_out = ARG; }
         else if (!strcmp(a, "--keyctl")) O.keyctl = ARG;
+        else if (!strcmp(a, "--linkcap")) O.linkcap = atof(ARG);
         else if (!strcmp(a, "--whole-sf")) g_whole_sf = atoi(ARG) ? 2 : 1;
         else if (!strcmp(a, "--console")) O.console = 1;
         else if (!strcmp(a, "--stats")) O.stats_s = atoi(ARG);
@@ -634,6 +699,10 @@ int main(int argc, char **argv)
             } else { build_sf(0); away_t = t; }
             next_tick += tick_period(period, t);
             if (t > next_tick + 4 * period) next_tick = t + period;   /* fell far behind: resync the clock */
+        } else if (g_have_link && catchup_due(t, period)) {
+            plan_fill(0);
+            build_sf(0);
+            g_catchups++;
         }
         /* 2. USB */
         if (g_have_link) {
@@ -641,7 +710,7 @@ int main(int argc, char **argv)
              * open). Keep asking until STATUS flows. A later counter reset fails closed; seamless reboot recovery needs an epoch handshake. */
             if (g_link.n_status != last_nstatus) { last_nstatus = g_link.n_status; last_status_t = t; }
             else if (t - last_status_t > 300000u && t - last_cfg_t > 200000u) { send_config(); last_cfg_t = t; }
-            if (live) reader_update(t);
+            if (live) { reader_update(t); backoff_update(t); }
             key_feedback(t);
             sdctl_poll();
             if (g_img_wait) img_t = t;             /* a bootstrap image is read once, later: it must outlast the stream around it */
