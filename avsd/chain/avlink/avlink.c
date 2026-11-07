@@ -327,8 +327,10 @@ static void build_sf(int blocking)
 
 /* Tick clock. Each tick sends a fixed 800 frames, so the tick must run at the audio source's rate: in the car a DAC clocks the PipeWire sink, not the Pi clock.
  * The period follows the fill of the input buffer (filtered: PipeWire delivers in bursts up to 30 ms), so there are no periodic drops or pads and the ticks stay even for video.
- * +-1000 ppm is reached at +-AUDIO_LEVEL_SPAN frames. With no audio arriving for 250 ms (nothing to follow), the Pi clock rules, unchanged. */
-#define TICK_SPAN_US 30                   /* +-0.18% */
+ * The slope is TICK_SPAN_US per 300 frames, the limit TICK_MAX_US. With no audio arriving for 250 ms (nothing to follow), the Pi clock rules, unchanged.
+ * The limit was 30 us (0.18%, 47912 frames/s): with the chain running the source measured 47905 in the car, so the buffer ran dry and re-primed, a 35 ms gap, about once a minute (log 2026-11-06). */
+#define TICK_SPAN_US 30                   /* slope */
+#define TICK_MAX_US 120                   /* +-0.72% */
 static int64_t g_lvl_q8; static int g_lvl_have; static uint64_t g_last_audio_us; static int32_t g_tick_adj;
 static uint64_t tick_period(uint64_t period, uint64_t t)
 {
@@ -340,8 +342,8 @@ static uint64_t tick_period(uint64_t period, uint64_t t)
     g_lvl_q8 += (lvl - g_lvl_q8) >> 5;            /* ~0.5 s */
     int64_t err = (g_lvl_q8 >> 8) - (48 * AUDIO_PRIME_MS + 400);   /* frames over the level we want after a tick, mean of the burst sawtooth */
     int64_t adj = err * TICK_SPAN_US / 300;
-    if (adj > TICK_SPAN_US) adj = TICK_SPAN_US;
-    if (adj < -TICK_SPAN_US) adj = -TICK_SPAN_US;
+    if (adj > TICK_MAX_US) adj = TICK_MAX_US;
+    if (adj < -TICK_MAX_US) adj = -TICK_MAX_US;
     g_tick_adj = (int32_t)adj;
     return (uint64_t)((int64_t)period - adj);
 }

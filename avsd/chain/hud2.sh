@@ -25,6 +25,11 @@ if [ "$R" -gt 0 ]; then
     sudo -n chrt -a -f -p $((R + 1)) "$(cat link.pid)"
     # Audio above the chain. PipeWire gets no RT here by itself (data-loop.0 ran SCHED_OTHER under a FIFO encoder, 2026-11-05).
     pgrep -x pw-record | while read -r p; do sudo -n chrt -a -f -p $((R + 2)) "$p"; done
+    # Hudiy's audio reaches PipeWire through pipewire-pulse's main thread, and Hudiy runs at normal priority under a real-time chain. AUDIOPRIO=0 turns this off.
+    if [ "${AUDIOPRIO:-1}" = 1 ]; then
+      for p in $(pgrep -x pipewire-pulse); do sudo -n chrt -f -p $((R + 2)) "$p"; done
+      for p in $(pgrep -x hudiy); do sudo -n renice -n -10 -p $(ls /proc/$p/task) >/dev/null; done
+    fi
     for p in $(pgrep -x pipewire) $(pgrep -x pipewire-pulse); do
       for t in /proc/$p/task/*; do
         [ "$(cat "$t/comm" 2>/dev/null)" = data-loop.0 ] && sudo -n chrt -f -p $((R + 15)) "${t##*/}"

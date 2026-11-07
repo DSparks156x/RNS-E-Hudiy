@@ -307,7 +307,12 @@ int main(int argc, char **argv) {
         else if (!strcmp(a, "--pwmax")) p.pw_max = atof(ARG);
         else if (!strcmp(a, "--srcmean")) p.src_mean = atoi(ARG);
         else if (!strcmp(a, "--smooth")) p.smooth = atoi(ARG);
+        else if (!strcmp(a, "--tonelock")) p.tone_lock = atoi(ARG);
+        else if (!strcmp(a, "--srcdeadpale")) p.src_dead_pale = atoi(ARG);
         else if (!strcmp(a, "--fillpen")) p.fill_pen = atof(ARG);
+        else if (!strcmp(a, "--nurelax")) p.nu_relax = atof(ARG);
+        else if (!strcmp(a, "--nurelaxthr")) p.nu_relax_thr = atof(ARG);
+        else if (!strcmp(a, "--nurelaxn")) p.nu_relax_n = atoi(ARG);
         else if (!strcmp(a, "--srcdead")) p.src_dead = atoi(ARG);
         else if (!strcmp(a, "--glassdead")) p.glass_dead = atoi(ARG);
         else if (!strcmp(a, "--latq")) { const char *f = ARG; sscanf(f, "%d,%d,%d,%d", &p.lat_q4, &p.lat_q2a, &p.lat_q2b, &p.lat_q4c); }

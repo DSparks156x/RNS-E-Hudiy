@@ -68,6 +68,9 @@ typedef struct {
     int dither_range;          /* gradient test: max-min per channel within a block and its 4 neighbours at most this (default 24) */
     /* superframe budget (0 = off, the old rate control bit for bit).  See README.txt "SUPERFRAME BUDGET". */
     double rc_tol, btc_lmin; int fill_gap; int prune_nact; double prune_r; int force_mode, smooth, src_mean; double pw_max; int btc_gate; double fill_pen; int r3, src_dead, glass_dead, lat_q4, lat_q2a, lat_q2b, lat_q4c, lat_sharp; double rc_gamma, rc_lmin; /* RNV3 */
+    int src_dead_pale; /* --srcdeadpale N: --srcdead for pale blocks, -1 = same as --srcdead */
+    int tone_lock; /* --tonelock T: chroma within T of neutral snaps to neutral, luma to the middle of its panel level; 0 = off */
+    double nu_relax, nu_relax_thr; int nu_relax_n; /* cycle price: nu_relax = factor applied inside a frame while cycles are under nu_relax_thr of the cap, at most nu_relax_n times, 0 = off */
     double sf_budget;          /* bytes of video one superframe carries (avlink --maxvid x 512).  Non-key frames are held to this ceiling, or to a whole number of superframes when they spill deliberately */
     double trim_ratio;         /* a frame up to this x the ceiling is cut by re-running the mode decision at a higher lambda, no qp analysis pass (1.35) */
     double trim_max;           /* largest lambda factor of that cut (3): beyond it the picture suffers more than a lost frame */

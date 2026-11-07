@@ -12,7 +12,7 @@ int audio_open(audio_stage *a, const char *path, int be, int live)
     memset(a, 0, sizeof *a);
     a->fd = -1;
     a->be = be;
-    a->cap = 65536;
+    a->cap = 131072;                             /* 683 ms: must stay above the HIGH mark in audio_take */
     a->buf = malloc(a->cap);
     if (!a->buf) return -1;
     if (!path) return 0;
@@ -62,8 +62,10 @@ int audio_take(audio_stage *a, int frames, uint8_t *out, int blocking)
             /* PipeWire hands audio over in bursts (256-1440 frames), the tick takes a fixed 800. With no margin the tick found too little, padded the rest
              * with silence, and later dropped the backlog: ~20 audible gaps per 30 s, in multiples of 16 frames (bench 2026-11-05, 1 kHz through the chain).
              * So: hold a margin (PRIME). Only a real shortage re-primes. Over HIGH the excess goes, back to the margin: ticks are skipped while the
-             * reader is away, and the delay must not grow. */
-            size_t prime = 48 * AUDIO_PRIME_MS * 4, high = prime + 48 * 60 * 4;
+             * reader is away, and the delay must not grow.
+             * HIGH was 60 ms, which threw away 60-280 ms of music, with a click, each time a busy screen held the reader back (car log 2026-11-06). The reader's own FIFO rides out such a stall
+             * if the audio is kept: under 250 ms it stays and the tick clock drains it. */
+            size_t prime = 48 * AUDIO_PRIME_MS * 4, high = prime + 48 * 250 * 4;
             if (!a->primed) {
                 if (a->have >= need + prime) a->primed = 1;
                 else {

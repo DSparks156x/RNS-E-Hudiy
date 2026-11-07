@@ -420,6 +420,7 @@ static inline int blk_range(const uint8_t *r) {
     return m;
 }
 #endif
+#define TONE_YMIN 200 /* pale: every channel at least this */
 static void job_csc(rnv2enc *e, int by) {
     int bx, r, y0 = by * 8, bx0 = 0, bx1 = BW, first = e->first;
     const uint8_t *dmg = e->damaged + by * BW; int bpp = e->fmt == RNV2_RGB24 || e->fmt == RNV2_BGR24 ? 3 : 4;
@@ -438,6 +439,7 @@ static void job_csc(rnv2enc *e, int by) {
             if (e->tvalid) {
                 int md = blk_maxdiff(np, ns, rb);
                 any = md > 0;
+                if (any && e->p.src_dead_pale >= 0 && e->p.src_dead_pale < dead && rb[0] >= TONE_YMIN && rb[1] >= TONE_YMIN && rb[2] >= TONE_YMIN && rb[21] >= TONE_YMIN && rb[22] >= TONE_YMIN && rb[23] >= TONE_YMIN && rb[7 * W * 3] >= TONE_YMIN && rb[7 * W * 3 + 1] >= TONE_YMIN && rb[7 * W * 3 + 2] >= TONE_YMIN && rb[7 * W * 3 + 21] >= TONE_YMIN && rb[7 * W * 3 + 22] >= TONE_YMIN && rb[7 * W * 3 + 23] >= TONE_YMIN) dead = e->p.src_dead_pale; /* pale: all four corners.  Tone lock keeps wobble inside a level here, and a stale target shows as a patch */
                 if (any && dead > 0 && md <= dead) { int sm[3]; blk_sumdiff(np, ns, rb, sm); any = abs(sm[0]) >= e->p.src_mean || abs(sm[1]) >= e->p.src_mean || abs(sm[2]) >= e->p.src_mean; } /* a block whose mean moves is a real change on its way (a fade, a slow gradient), not noise */
             }
             if (any) { for (r = 0; r < 8; r++) memcpy(e->refrgb + (size_t)(y0 + r) * W * 3 + bx * 24, np + ns * r, 24); diff = 1; }
@@ -492,6 +494,26 @@ static void job_smooth(rnv2enc *e, int by) {
             else if (e->cscneed[b] == 2) { int r; for (r = 0; r < 8; r++) csc_seg(e, by * 8 + r, (b % BW) * 8, 4, 0); }
         }
         e->dith[b] = (uint8_t)d;
+    }
+}
+
+/* Tone lock: near-neutral pixels get neutral chroma and luma in the middle of its 6-bit level.  The error measure works on YUV codes, where one code is nothing; at the panel, a luma or chroma code near a level boundary moves a channel a whole level,
+ * and on a pale flat area that shows as tinted patches.  Google Maps land (#F8F9FA) sits right on such a boundary.  With the target mid-level, small coding errors cannot cross one. */
+static void job_tone(rnv2enc *e, int by) {
+    int bx, r, x, T = e->p.tone_lock;
+    for (bx = 0; bx < BW; bx++) {
+        if (!e->cscneed[by * BW + bx]) continue;
+        for (r = 0; r < 8; r++) {
+            const uint8_t *p = e->refrgb + (size_t)(by * 8 + r) * W * 3 + bx * 24; uint8_t *Y = e->tY + (by * 8 + r) * W + bx * 8, *U = e->tU + (by * 8 + r) * CW + bx * 4, *V = e->tV + (by * 8 + r) * CW + bx * 4;
+            for (x = 0; x < 4; x++, p += 6) {
+                int y0, y1;
+                if (abs(U[x] - 128) > T || abs(V[x] - 128) > T) continue;
+                y0 = (19595 * p[0] + 38470 * p[1] + 7471 * p[2] + 32768) >> 16; y1 = (19595 * p[3] + 38470 * p[4] + 7471 * p[5] + 32768) >> 16;
+                if (y0 < TONE_YMIN || y1 < TONE_YMIN) continue; /* pale only: dark UI greys keep their tint */
+                U[x] = V[x] = 128;
+                Y[2 * x] = (uint8_t)(y0 > 251 ? 255 : (y0 & 0xFC) + 2); Y[2 * x + 1] = (uint8_t)(y1 > 251 ? 255 : (y1 & 0xFC) + 2);
+            }
+        }
     }
 }
 
@@ -1193,7 +1215,7 @@ void rnv2enc_default_params(rnv2enc_params *p) {
     p->link_cap = 0; p->adapt = 1; p->nlevels = 12; p->lam_lo = 0.0025; p->lam_x = 0.01; p->kappa_lo = 16; p->thr_lo = 0; p->fill_target = 0.25; p->hyst = 0.85; p->dwell = 4; p->pin_level = -1;
     p->max_tries = 12; p->threads = 1; p->static_skip = 1; p->simd = 1; p->me_level = 2; p->me_win_thr = 0; p->me_win_max = 1024; p->rt_rc = 1; p->prune = 3; p->qp_pred = 1;
     p->lag_target = 0.5; p->refine_static = 1; p->max_frame = 1.5; p->stale_d = 6000; p->stale_w = 0; p->burst_probe = 1; p->mu_relax = 1; p->qp_drop = 4; p->fast_refine = 1; p->dither = 0; p->dither_range = 24;
-    p->rc_tol = 0.88; p->btc_lmin = 0.02; p->fill_gap = 1; p->prune_nact = 1200; p->prune_r = 1.5; p->smooth = 0; p->src_mean = 48; p->pw_max = 3; p->btc_gate = 5; p->fill_pen = 2.0; p->r3 = 1; p->src_dead = 3; p->glass_dead = 1; p->lat_q4 = 2; p->lat_q2a = 2; p->lat_q2b = 3; p->lat_q4c = 3; p->lat_sharp = 0; p->rc_gamma = 1.0; p->sf_budget = 0; p->trim_ratio = 1.35; p->spill_qp = 18; p->spill_sf = 2; p->spill_gap = 30; p->spill_carry = 1; p->trim_max = 3; p->spill_cyc = 1;
+    p->rc_tol = 0.88; p->btc_lmin = 0.02; p->fill_gap = 1; p->prune_nact = 1200; p->prune_r = 1.5; p->src_dead_pale = -1; p->smooth = 0; p->src_mean = 48; p->pw_max = 3; p->btc_gate = 5; p->fill_pen = 2.0; p->r3 = 1; p->src_dead = 3; p->glass_dead = 1; p->lat_q4 = 2; p->lat_q2a = 2; p->lat_q2b = 3; p->lat_q4c = 3; p->lat_sharp = 0; p->rc_gamma = 1.0; p->sf_budget = 0; p->trim_ratio = 1.35; p->spill_qp = 18; p->spill_sf = 2; p->spill_gap = 30; p->spill_carry = 1; p->trim_max = 3; p->spill_cyc = 1; p->nu_relax = 0; p->nu_relax_thr = 0.94; p->nu_relax_n = 3;
 }
 
 static void set_level(rnv2enc *e, int L);
@@ -1324,6 +1346,7 @@ int rnv2enc_encode(rnv2enc *e, const uint8_t *pix, int stride, enum rnv2_fmt fmt
 #endif
     { int nd = NB; if (ndmg >= 0 && !e->first) { nd = 0; for (b = 0; b < NB; b++) nd += e->damaged[b]; } run_w(e, job_csc, BH, nd, 128); }
     if (e->p.dither || e->p.smooth) { smooth_classify(e); run_w(e, job_smooth, BH, NB, 256); }
+    if (e->p.tone_lock > 0) run_w(e, job_tone, BH, NB, 256);
     e->first = 0; e->tvalid = 1;
     /* blocks that need any work this frame; the decision of the others is SKIP for the whole frame */
     e->nprev_act = e->nact; e->nact = 0;
@@ -1382,12 +1405,13 @@ int rnv2enc_encode(rnv2enc *e, const uint8_t *pix, int stride, enum rnv2_fmt fmt
             nact1 = n1;
             ta += now_ms() - t_;
         }
-        { double tt = now_ms(), rat = e->szrat > 0 ? e->szrat : 1.05, Tb = (T - 24) * 8, fb = 0, fc = 0, nu = e->nu_est; int round_;
+        { double tt = now_ms(), rat = e->szrat > 0 ? e->szrat : 1.05, Tb = (T - 24) * 8, fb = 0, fc = 0, nu = e->nu_est; int round_, relaxed = 0;
           /* J = D + lambda R + nu C.  lambda holds the bytes, nu the decode cycles; they are solved in turn */
 #define FEVAL(L) do { e->lam = (L); e->cmu = nu / e->lam; DECIDE(); fast_size(e, &fb, &fc); evs++; } while (0)
           research:
           FEVAL(lam);
-          for (round_ = 0; round_ < 2; round_++) {
+          relaxed = 0;
+          for (round_ = 0; round_ < 2 + (e->p.nu_relax > 0 ? e->p.nu_relax_n : 0); round_++) {
               { /* lambda for the bytes.  Secant on log size vs log lambda inside a bracket: size has cliffs (many similar blocks turn RAW at once), so a plain secant can stop far under the target */
                   double l0 = lam, b0 = fb * rat, slope = e->rslope, lo = 0, hi = 0; int its;
                   for (its = 0; its < 6 && evs < 10 + 3 * round_; its++) {
@@ -1406,7 +1430,11 @@ int rnv2enc_encode(rnv2enc *e, const uint8_t *pix, int stride, enum rnv2_fmt fmt
                   if (b0 > Tb && hi > 0) { lam = hi; FEVAL(lam); }
                   for (its = 0; its < 8 && fb * rat > Tb && lam < LMAX; its++) { lam *= 1.2; FEVAL(lam); }
               }
-              if (fc <= cb) break;
+              if (fc <= cb) {
+                  /* cycles left over: the carried nu is too high for this frame, so a smooth block is still priced into a fill.  Lower it and solve lambda again */
+                  if (e->p.nu_relax > 0 && nu > 0 && relaxed < e->p.nu_relax_n && fc < e->p.nu_relax_thr * cb) { nu *= e->p.nu_relax; relaxed++; FEVAL(lam); continue; }
+                  break;
+              }
               { /* nu for the cycles: only as far as this frame needs, the controller below carries it to the next frame */
                   int its;
                   if (nu <= 0) nu = lam * 0.002;
