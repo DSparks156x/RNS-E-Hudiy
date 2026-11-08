@@ -42,9 +42,16 @@ clock_sink() {
   pactl list short sinks 2>/dev/null | awk '{print $2}' | grep -Fxq avsd_clock || \
     pw-cli create-node adapter '{ factory.name=support.null-audio-sink node.name=avsd_clock node.description=avsd-clock media.class=Audio/Sink audio.position=[FL FR] audio.rate=48000 node.driver=true priority.driver=50000 priority.session=0 object.linger=true }' >/dev/null
   for i in 1 2 3 4 5; do pactl list short sinks | awk '{print $2}' | grep -Fxq avsd_clock && break; sleep 0.2; done
-  local ec
-  ec=$(pactl -f json list sink-inputs 2>/dev/null | python3 -c 'import json,sys; print(" ".join(str(i["index"]) for i in json.load(sys.stdin) if i.get("properties",{}).get("node.name")=="echo-cancel-playback"))')
-  for i in $ec; do pactl move-sink-input "$i" avsd_clock; done
+  local ck ec
+  ck=$(pactl list short sinks | awk '$2=="avsd_clock"{print $1}')
+  [ -n "$ck" ] || return 1
+  # "-" = present and already on avsd_clock; otherwise the indices to move
+  ec=$(pactl -f json list sink-inputs 2>/dev/null | python3 -c 'import json,sys
+e=[i for i in json.load(sys.stdin) if i.get("properties",{}).get("node.name")=="echo-cancel-playback"]
+m=[str(i["index"]) for i in e if i["sink"]!='"$ck"']
+print(" ".join(m) if m else ("-" if e else ""))')
+  [ "$ec" = - ] && return 0
+  for i in $ec; do pactl move-sink-input "$i" avsd_clock && say "avsd_clock: moved echo-cancel-playback $i back onto the Pi clock"; done
   [ -n "$ec" ]
 }
 waitfor "Pi clock driving the audio graph (avsd_clock)" clock_sink
@@ -72,8 +79,11 @@ trap 'kill $HUD 2>/dev/null; exit 0' TERM INT
 sleep 6
 
 alive() { [ -s "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; }
+n=0
 while :; do
   sleep 2
+  # Every 10 s: keep the music on the Pi clock if Hudiy, WirePlumber or a replugged mic re-routed it (cheap no-op when it is in place)
+  n=$((n+1)); [ $((n % 5)) -eq 0 ] && clock_sink 2>/dev/null
   why=
   kill -0 $HUD 2>/dev/null || why="hud2.sh ended"
   alive "$CHAINDIR/cap.pid" || why="wlcap gone"

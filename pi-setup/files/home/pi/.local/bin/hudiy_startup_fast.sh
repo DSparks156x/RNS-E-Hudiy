@@ -7,7 +7,6 @@ t start
 EC_SINK="echo_cancel_sink"
 EC_SOURCE="echo_cancel_source"
 EQ_SINK="hudiy_equalizer_sink"
-NOISETORCH_SOURCE="NoiseTorch Microphone for Echo-Cancel Source"
 sink_exists() { pactl list short sinks 2>/dev/null | awk '{print $2}' | grep -Fxq "$1"; }
 until pactl info >/dev/null 2>&1; do sleep 0.05; done
 t pactl
@@ -21,14 +20,18 @@ done
 t "sink $(pactl get-default-sink 2>/dev/null)"
 
 sink_exists "$EQ_SINK" || pactl load-module module-ladspa-sink sink_name="$EQ_SINK" master="$EC_SINK" plugin=hudiy_equalizer label=hudiy_equalizer control=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-sink_exists "$EC_SINK" || pactl load-module module-echo-cancel aec_method=webrtc aec_args=\"voice_detection=false high_pass_filter=1 noise_suppression=1 extended_filter=1 analog_gain_control=0\" source_name="$EC_SOURCE" sink_name="$EC_SINK"
+# [avsd] aec_method=null (was webrtc + noise_suppression) and no NoiseTorch: the dome chain
+# (~/.config/pipewire/filter-chain.conf.d/50-dome-mic.conf: its own WebRTC AEC + DeepFilterNet -> dome_mic)
+# is the one mic chain. Two full chains ran before, and this one sat in the music path for nothing.
+# echo_cancel_sink stays: the music goes through it and avlink taps it. echo_cancel_source = raw default mic.
+sink_exists "$EC_SINK" || pactl load-module module-echo-cancel aec_method=null source_name="$EC_SOURCE" sink_name="$EC_SINK"
 t modules
 
-$HOME/noisetorch -i -s "$EC_SOURCE"
-t noisetorch
-
 pactl set-default-sink "$EQ_SINK"
-pactl set-default-source "$NOISETORCH_SOURCE"
+# [avsd] Assistant/calls use dome_mic when the dome filter chain is up (max 2 s), else the plain mic
+for i in $(seq 1 40); do pactl list short sources | awk '{print $2}' | grep -Fxq dome_mic && break; sleep 0.05; done
+if pactl list short sources | awk '{print $2}' | grep -Fxq dome_mic; then pactl set-default-source dome_mic; else pactl set-default-source "$EC_SOURCE"; fi
+t "source $(pactl get-default-source)"
 
 # [bt] Hudiy never recovers if NetworkManager appears after it starts (no hotspot), and lightdm
 # no longer waits for NM, so wait for NM here (max 5 s), in parallel with the audio setup above.
