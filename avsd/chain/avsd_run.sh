@@ -33,6 +33,21 @@ waitfor "headless output NOOP-1" have_noop
 hudiy_or_update() { updating || pgrep -x hudiy; }
 waitfor "hudiy" hudiy_or_update
 waitfor "sink hudiy_equalizer_sink" have_sink
+# The music must run on the Pi's clock. A USB mic can drive, and every echo canceller links its mic to echo_cancel_sink, so a mic that is
+# plugged in became the clock of the music avlink taps. The dome mic ran it more than 0.72% slow, past what the tick can follow: 1-2.5 s of
+# padded silence per minute, then short pads heard as crackles (car log 2026-11-07 16:22-17:10, clean unplugged). A silent sink on the
+# system clock, with a driver priority far above any device (2000), and the echo canceller's otherwise unconnected output on it, keeps the
+# graph on the Pi clock; mics then follow, rate-matched by PipeWire. Lingers in PipeWire, so a chain restart finds it.
+clock_sink() {
+  pactl list short sinks 2>/dev/null | awk '{print $2}' | grep -Fxq avsd_clock || \
+    pw-cli create-node adapter '{ factory.name=support.null-audio-sink node.name=avsd_clock node.description=avsd-clock media.class=Audio/Sink audio.position=[FL FR] audio.rate=48000 node.driver=true priority.driver=50000 priority.session=0 object.linger=true }' >/dev/null
+  for i in 1 2 3 4 5; do pactl list short sinks | awk '{print $2}' | grep -Fxq avsd_clock && break; sleep 0.2; done
+  local ec
+  ec=$(pactl -f json list sink-inputs 2>/dev/null | python3 -c 'import json,sys; print(" ".join(str(i["index"]) for i in json.load(sys.stdin) if i.get("properties",{}).get("node.name")=="echo-cancel-playback"))')
+  for i in $ec; do pactl move-sink-input "$i" avsd_clock; done
+  [ -n "$ec" ]
+}
+waitfor "Pi clock driving the audio graph (avsd_clock)" clock_sink
 waitfor "Teensy on USB" have_teensy
 waitfor "Teensy port free" port_free
 

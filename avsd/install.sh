@@ -83,6 +83,7 @@ fi
 say "Services"
 mkdir -p "$HOME/.config/systemd/user"
 install -m 644 "$A/current/chain/avsd-chain.service" "$A/current/chain/avsd-app.service" "$HOME/.config/systemd/user/"
+rm -f "$HOME/.config/wireplumber/wireplumber.conf.d/60-avsd-clock.conf"   # an earlier attempt: it could not stop a mic driving
 systemctl --user daemon-reload
 systemctl --user enable avsd-chain.service avsd-app.service
 sudo install -m 644 "$A/current/chain/avsd-governor.service" /etc/systemd/system/avsd-governor.service
